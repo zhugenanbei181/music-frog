@@ -820,4 +820,134 @@ proxies:
         let custom = ProxyNodeItem::new("Custom", "custom-protocol", "3.3.3.3", 8443);
         assert!(validate_item(&custom).is_empty());
     }
+
+    const SSH_YAML: &str = r#"
+proxies:
+  - name: ssh-node
+    type: ssh
+    server: 203.0.113.90
+    port: 22
+    username: root
+    private-key: "-----BEGIN OPENSSH PRIVATE KEY-----"
+    private-key-passphrase: phrase
+    host-key-algorithms:
+      - ssh-ed25519
+    dialer-proxy: hop
+    fake-field: 5
+"#;
+
+    #[test]
+    fn test_ssh_node_is_typed_and_validated() {
+        let node = parse_single(SSH_YAML);
+        let ProxyNode::Ssh(ssh) = &node else {
+            panic!("ssh node degraded to Other: {node:?}");
+        };
+        assert_eq!(node.type_name(), "ssh");
+        assert_eq!(ssh.username, "root");
+        assert_eq!(
+            ssh.private_key.as_deref(),
+            Some("-----BEGIN OPENSSH PRIVATE KEY-----")
+        );
+        assert_eq!(ssh.private_key_passphrase.as_deref(), Some("phrase"));
+        assert_eq!(
+            ssh.host_key_algorithms,
+            Some(vec!["ssh-ed25519".to_string()])
+        );
+        assert_eq!(ssh.dialer_proxy.as_deref(), Some("hop"));
+        assert_eq!(ssh.extra.get("fake-field"), Some(&Value::Number(5.into())));
+        assert!(node.is_typed());
+        assert!(validate(&node).is_empty(), "{:?}", validate(&node));
+
+        assert_proxies_semantic_equivalence(SSH_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&node));
+
+        // Missing username / identity is reported, never invented.
+        let missing = r#"
+proxies:
+  - name: ssh-bad
+    type: ssh
+    server: 203.0.113.91
+    port: 22
+"#;
+        let node = parse_single(missing);
+        let ProxyNode::Ssh(_) = &node else {
+            panic!("ssh node degraded to Other: {node:?}");
+        };
+        let issues = validate(&node);
+        assert!(
+            issues.iter().any(|issue| issue.contains("username")),
+            "{issues:?}"
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.contains("password or private-key")),
+            "{issues:?}"
+        );
+
+        // A password-only SSH node is valid.
+        let password_only = r#"
+proxies:
+  - name: ssh-pass
+    type: ssh
+    server: 203.0.113.92
+    port: 22
+    username: root
+    password: pw
+"#;
+        let node = parse_single(password_only);
+        assert!(validate(&node).is_empty(), "{:?}", validate(&node));
+    }
+
+    const TROJAN_SS_OPTS_YAML: &str = r#"
+proxies:
+  - name: trojan-go-node
+    type: trojan
+    server: 203.0.113.93
+    port: 443
+    password: pw
+    network: ws
+    ws-opts:
+      path: /trojan
+    ss-opts:
+      enabled: true
+      method: aes-128-gcm
+      password: ss-pw
+    fake-field: keep
+"#;
+
+    #[test]
+    fn test_trojan_ss_opts_is_typed_and_validated() {
+        let node = parse_single(TROJAN_SS_OPTS_YAML);
+        let ProxyNode::Trojan(trojan) = &node else {
+            panic!("trojan node degraded to Other: {node:?}");
+        };
+        let ss = trojan.ss_opts.as_ref().expect("ss-opts");
+        assert_eq!(ss.enabled, Some(true));
+        assert_eq!(ss.method.as_deref(), Some("aes-128-gcm"));
+        assert_eq!(ss.password.as_deref(), Some("ss-pw"));
+        assert!(validate(&node).is_empty(), "{:?}", validate(&node));
+
+        assert_proxies_semantic_equivalence(TROJAN_SS_OPTS_YAML);
+        assert_roundtrip_fixed_point(std::slice::from_ref(&node));
+
+        // Options without `enabled: true` are ignored by the core and reported.
+        let off = r#"
+proxies:
+  - name: trojan-ss-off
+    type: trojan
+    server: 203.0.113.94
+    port: 443
+    password: pw
+    ss-opts:
+      enabled: false
+      method: aes-128-gcm
+"#;
+        let node = parse_single(off);
+        let issues = validate(&node);
+        assert!(
+            issues.iter().any(|issue| issue.contains("ss-opts")),
+            "{issues:?}"
+        );
+    }
 }

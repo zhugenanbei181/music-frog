@@ -52,7 +52,7 @@ pub struct CustomNodeText(pub CustomNodeSlot);
 /// Which shared fact a text node renders.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CustomNodeSlot {
-    /// Protocol family + typed chips (cipher / REALITY / smux).
+    /// Protocol family + every typed chip (cipher / REALITY / smux / params).
     #[default]
     Chips,
     /// Validation issues from the shared draft report.
@@ -63,12 +63,15 @@ pub enum CustomNodeSlot {
     UriPreview,
     /// Fields a share link cannot carry (measured by the application).
     Gaps,
+    /// DUAL-05: non-blocking facts the pinned core ignores or falls back on.
+    Notes,
 }
 
 /// Text slots in render order.
-const SLOTS: [(CustomNodeSlot, &str); 5] = [
+const SLOTS: [(CustomNodeSlot, &str); 6] = [
     (CustomNodeSlot::Chips, "协议事实"),
     (CustomNodeSlot::Issues, "协议校验"),
+    (CustomNodeSlot::Notes, "协议提示"),
     (CustomNodeSlot::Audit, "编解码审计"),
     (CustomNodeSlot::UriPreview, "分享链接"),
     (CustomNodeSlot::Gaps, "URI 损失字段"),
@@ -78,21 +81,7 @@ fn slot_initial(slot: CustomNodeSlot, studio: &ProtocolStudioSnapshot) -> String
     let chips = studio
         .report
         .as_ref()
-        .map(|report| {
-            let mut items = vec![report.family.label_zh().to_string()];
-            if let Some(cipher) = &report.cipher_chip {
-                items.push(cipher.clone());
-            }
-            if let Some(flow) = &report.flow_chip {
-                items.push(flow.clone());
-            }
-            items.extend(report.reality_chips.iter().cloned());
-            items.extend(report.smux_chips.iter().cloned());
-            if let Some(bytes) = report.cipher_key_bytes {
-                items.push(format!("PSK {bytes}B"));
-            }
-            items.join(" · ")
-        })
+        .map(|report| report.all_chips().join(" · "))
         .unwrap_or_else(|| "尚无节点草稿".to_owned());
     match slot {
         CustomNodeSlot::Chips => chips,
@@ -102,6 +91,18 @@ fn slot_initial(slot: CustomNodeSlot, studio: &ProtocolStudioSnapshot) -> String
                 "协议校验通过".to_owned()
             } else {
                 issues.join("；")
+            }
+        }
+        CustomNodeSlot::Notes => {
+            let notes: Vec<String> = studio
+                .report
+                .as_ref()
+                .map(|report| report.params.notes.clone())
+                .unwrap_or_default();
+            if notes.is_empty() {
+                "无跨版本提示".to_owned()
+            } else {
+                notes.join("；")
             }
         }
         CustomNodeSlot::Audit => match &studio.audit {
@@ -208,7 +209,7 @@ pub fn custom_node_scene(
                 Children [
                     ( { text_field_with_placeholder_scene(
                         uri_initial,
-                        "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// 分享链接".to_owned(),
+                        "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// / ssh:// / anytls:// 分享链接".to_owned(),
                         palette,
                     ) } ),
                 ]
@@ -232,7 +233,7 @@ pub fn custom_node_scene(
                     padding: UiRect::top(Val::Px(space::S8)),
                 }
                 Children [
-                    ( Text({ "分享链接不携带多路复用参数；写入配置时未知字段与其它小节均无损保留".to_owned() }) TextRole(Role::Caption) ),
+                    ( Text({ "分享链接不携带多路复用/传输层参数；写入配置时未知字段与其它小节均无损保留".to_owned() }) TextRole(Role::Caption) ),
                     (
                         Node {
                             min_height: px(palette.control_height_px),
@@ -292,7 +293,9 @@ pub(crate) fn on_custom_node_action_activated(
         let Some(draft) = draft else {
             return;
         };
-        handle.submit(UiCommand::SaveCustomNodeDraft { draft });
+        handle.submit(UiCommand::SaveCustomNodeDraft {
+            draft: Box::new(draft),
+        });
     }
 }
 

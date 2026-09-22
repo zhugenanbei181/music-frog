@@ -355,3 +355,344 @@ impl ProfileCodecFixture {
         .unwrap()
     }
 }
+
+/// 32-byte base64 WireGuard key.
+fn wg_key() -> String {
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_string()
+}
+
+fn round_trip(draft: &ProtocolDraft) -> ProtocolDraft {
+    let commit =
+        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", draft).unwrap();
+    let nodes =
+        ProtocolCodecApplication::parse_nodes(&commit.profile_yaml, NodeCodecFormat::ClashYaml)
+            .unwrap();
+    ProtocolCodecApplication::draft_from_node(&nodes[0])
+}
+
+#[test]
+fn wireguard_parameters_round_trip_with_mihomo_key_spellings() {
+    let mut draft = ProtocolDraft::new("wireguard");
+    draft.name = "wg-01".into();
+    draft.server = "wg.example.com".into();
+    draft.port = 51820;
+    draft.params.wireguard = infiltrator_contract::protocol_params_ext::WireGuardParams {
+        private_key: wg_key(),
+        public_key: wg_key(),
+        pre_shared_key: wg_key(),
+        reserved: "AQID".into(),
+        reserved_is_base64: true,
+        ip: "172.16.0.2/32".into(),
+        ipv6: "fd00::2/128".into(),
+        mtu: 1420,
+        dns: vec!["1.1.1.1".into()],
+        workers: 2,
+        persistent_keepalive: 25,
+        allowed_ips: vec!["0.0.0.0/0".into()],
+        remote_dns_resolve: true,
+        amnezia: infiltrator_contract::protocol_params_ext::AmneziaWgParams {
+            jc: Some(4),
+            jmin: Some(40),
+            jmax: Some(70),
+            s1: Some(10),
+            s2: Some(20),
+            h1: Some(1),
+            h2: Some(2),
+            h3: Some(3),
+            h4: Some(4),
+        },
+    };
+    assert!(draft.report().is_valid(), "{:?}", draft.report().issues);
+    let commit =
+        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", &draft).unwrap();
+    // The mihomo v1.19.18 wire keys, not the old repo spellings.
+    assert!(
+        commit.profile_yaml.contains("pre-shared-key:"),
+        "{}",
+        commit.profile_yaml
+    );
+    assert!(
+        commit.profile_yaml.contains("amnezia-wg-option:"),
+        "{}",
+        commit.profile_yaml
+    );
+    assert!(
+        commit.profile_yaml.contains("reserved: AQID"),
+        "the base64 reserved shape is preserved: {}",
+        commit.profile_yaml
+    );
+    let returned = round_trip(&draft);
+    assert_eq!(returned.params.wireguard, draft.params.wireguard);
+    assert_eq!(returned.params, draft.params);
+}
+
+#[test]
+fn tuic_and_hysteria2_parameters_reach_the_profile_and_back() {
+    let mut tuic = ProtocolDraft::new("tuic");
+    tuic.name = "tuic-01".into();
+    tuic.server = "tuic.example.com".into();
+    tuic.port = 443;
+    tuic.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".into();
+    tuic.password = "pw".into();
+    tuic.params.tuic = infiltrator_contract::protocol_params::TuicParams {
+        congestion_controller: "bbr".into(),
+        udp_relay_mode: "quic".into(),
+        reduce_rtt: true,
+        heartbeat_interval: 10000,
+        request_timeout: 8000,
+        recv_window_conn: 1024,
+        recv_window: 4096,
+        disable_sni: false,
+    };
+    assert!(tuic.report().is_valid(), "{:?}", tuic.report().issues);
+    let returned = round_trip(&tuic);
+    assert_eq!(returned.params.tuic, tuic.params.tuic);
+    let report = ProtocolCodecApplication::report(&returned);
+    assert!(
+        report
+            .params
+            .congestion_chips
+            .contains(&"cc:bbr".to_string())
+    );
+
+    let mut hy2 = ProtocolDraft::new("hysteria2");
+    hy2.name = "hy2-01".into();
+    hy2.server = "hy2.example.com".into();
+    hy2.port = 443;
+    hy2.password = "pw".into();
+    hy2.params.hysteria2 = infiltrator_contract::protocol_params::Hysteria2Params {
+        ports: "20000-30000,8443".into(),
+        hop_interval: 30,
+        obfs: "salamander".into(),
+        obfs_password: "obfs-pw".into(),
+        up: "100 Mbps".into(),
+        down: "200".into(),
+        cwnd: 32,
+        udp_mtu: 1200,
+    };
+    assert!(hy2.report().is_valid(), "{:?}", hy2.report().issues);
+    let returned = round_trip(&hy2);
+    assert_eq!(returned.params.hysteria2, hy2.params.hysteria2);
+    let report = ProtocolCodecApplication::report(&returned);
+    assert!(
+        report
+            .params
+            .congestion_chips
+            .contains(&"ports:20000-30000,8443".to_string())
+    );
+}
+
+#[test]
+fn ssh_and_anytls_parameters_project_through_the_flat_node() {
+    let mut ssh = ProtocolDraft::new("ssh");
+    ssh.name = "ssh-01".into();
+    ssh.server = "ssh.example.com".into();
+    ssh.port = 22;
+    ssh.params.ssh = infiltrator_contract::protocol_params_ext::SshParams {
+        username: "root".into(),
+        private_key: "-----BEGIN OPENSSH PRIVATE KEY-----".into(),
+        passphrase: "phrase".into(),
+        host_key_algorithms: vec!["ssh-ed25519".into()],
+    };
+    assert!(ssh.report().is_valid(), "{:?}", ssh.report().issues);
+    let commit =
+        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", &ssh).unwrap();
+    assert!(
+        commit.profile_yaml.contains("type: ssh"),
+        "{}",
+        commit.profile_yaml
+    );
+    assert!(
+        commit.profile_yaml.contains("private-key-passphrase:"),
+        "{}",
+        commit.profile_yaml
+    );
+    let returned = round_trip(&ssh);
+    assert_eq!(returned.params.ssh, ssh.params.ssh);
+
+    let mut anytls = ProtocolDraft::new("anytls");
+    anytls.name = "anytls-01".into();
+    anytls.server = "anytls.example.com".into();
+    anytls.port = 443;
+    anytls.password = "pw".into();
+    anytls.params.anytls = infiltrator_contract::protocol_params_ext::AnyTlsParams {
+        idle_session_timeout: 30000,
+        idle_session_check_interval: 15000,
+        min_idle_session: 2,
+    };
+    assert!(anytls.report().is_valid(), "{:?}", anytls.report().issues);
+    let commit =
+        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", &anytls).unwrap();
+    assert!(
+        commit.profile_yaml.contains("idle-session-timeout: 30000"),
+        "{}",
+        commit.profile_yaml
+    );
+    let returned = round_trip(&anytls);
+    assert_eq!(returned.params.anytls, anytls.params.anytls);
+}
+
+#[test]
+fn legacy_idle_timeout_and_amnezia_aliases_still_parse() {
+    let yaml = r#"
+proxies:
+  - name: legacy
+    type: anytls
+    server: anytls.example.com
+    port: 443
+    password: pw
+    idle-timeout: 60000
+"#;
+    let nodes = ProtocolCodecApplication::parse_nodes(yaml, NodeCodecFormat::ClashYaml).unwrap();
+    let draft = ProtocolCodecApplication::draft_from_node(&nodes[0]);
+    assert_eq!(draft.params.anytls.idle_session_timeout, 60000);
+
+    let yaml = r#"
+proxies:
+  - name: legacy-wg
+    type: wireguard
+    server: wg.example.com
+    port: 51820
+    private-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    public-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    preshared-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    amnezia-opts:
+      jc: 4
+"#;
+    let nodes = ProtocolCodecApplication::parse_nodes(yaml, NodeCodecFormat::ClashYaml).unwrap();
+    let draft = ProtocolCodecApplication::draft_from_node(&nodes[0]);
+    assert_eq!(draft.params.wireguard.pre_shared_key, wg_key());
+    assert_eq!(draft.params.wireguard.amnezia.jc, Some(4));
+}
+
+#[test]
+fn nestable_owned_maps_keep_unknown_sub_keys_during_the_splice() {
+    let profile = r#"
+mode: rule
+proxies:
+  - name: ws-node
+    type: vless
+    server: old.example.com
+    port: 443
+    uuid: uuid-1
+    network: ws
+    ws-opts:
+      path: /old
+      headers:
+        Host: old.example.com
+        User-Agent: keep-me
+      future-ws-key: 7
+"#;
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "ws-node".into();
+    draft.server = "new.example.com".into();
+    draft.port = 443;
+    draft.uuid = "uuid-1".into();
+    draft.tls = true;
+    draft.params.transport.network = "ws".into();
+    draft.params.transport.ws.path = "/new".into();
+    draft.params.transport.ws.set_host("cdn.example.com");
+
+    let commit = ProtocolCodecApplication::upsert_draft_into_profile(profile, &draft).unwrap();
+    let nodes =
+        ProtocolCodecApplication::parse_nodes(&commit.profile_yaml, NodeCodecFormat::ClashYaml)
+            .unwrap();
+    let ws = nodes[0].ws_opts.as_ref().expect("ws-opts").clone();
+    assert_eq!(ws["path"], "/new");
+    assert_eq!(ws["headers"]["Host"], "cdn.example.com");
+    assert_eq!(ws["headers"]["User-Agent"], "keep-me");
+    assert_eq!(ws["future-ws-key"], 7);
+    assert!(
+        commit
+            .audit
+            .unknown_fields
+            .iter()
+            .any(|field| field == "ws-opts.headers.User-Agent" || field == "ws-opts.future-ws-key"),
+        "{:?}",
+        commit.audit.unknown_fields
+    );
+    assert!(commit.is_structure_preserving());
+}
+
+#[test]
+fn typed_parameter_blocks_are_measured_as_uri_gaps() {
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "n".into();
+    draft.server = "example.com".into();
+    draft.port = 443;
+    draft.uuid = "uuid-1".into();
+    draft.alpn = vec!["h2".into(), "http/1.1".into()];
+    draft.params.ech.enabled = true;
+    draft.params.transport.network = "ws".into();
+    draft.params.transport.ws.path = "/ws".into();
+    draft.params.transport.ws.max_early_data = 1024;
+
+    let gaps = ProtocolCodecApplication::uri_fidelity_gaps(&draft);
+    assert!(gaps.contains(&"ech".to_string()), "{gaps:?}");
+    assert!(gaps.contains(&"transport".to_string()), "{gaps:?}");
+    // The vless exporter writes no `alpn` parameter, so the measured round
+    // trip loses it: the gap list reports that fact instead of hiding it.
+    assert!(gaps.contains(&"alpn".to_string()), "{gaps:?}");
+    assert!(!gaps.contains(&"type".to_string()), "{gaps:?}");
+
+    // trojan links do carry alpn, and the measurement must reflect that.
+    let mut trojan = ProtocolDraft::new("trojan");
+    trojan.name = "t".into();
+    trojan.server = "t.example.com".into();
+    trojan.port = 443;
+    trojan.password = "pw".into();
+    trojan.alpn = vec!["h2".into(), "http/1.1".into()];
+    let gaps = ProtocolCodecApplication::uri_fidelity_gaps(&trojan);
+    assert!(!gaps.contains(&"alpn".to_string()), "{gaps:?}");
+
+    // SIP002 share links *do* carry the SIP003 plugin + opts; the measurement
+    // proves it instead of assuming a gap.
+    let mut ss = ProtocolDraft::new("ss");
+    ss.name = "s".into();
+    ss.server = "1.1.1.1".into();
+    ss.port = 8388;
+    ss.cipher = "aes-128-gcm".into();
+    ss.password = "pw".into();
+    ss.params.plugin.name = "shadow-tls".into();
+    ss.params.plugin.opts.insert(
+        "host".into(),
+        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("bing.com".into()),
+    );
+    ss.params.plugin.opts.insert(
+        "password".into(),
+        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("pw".into()),
+    );
+    let gaps = ProtocolCodecApplication::uri_fidelity_gaps(&ss);
+    assert!(!gaps.contains(&"plugin".to_string()), "{gaps:?}");
+    let returned = ProtocolCodecApplication::draft_from_uri(
+        &ProtocolCodecApplication::uri_from_draft(&ss).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(returned.params.plugin.name, "shadow-tls");
+    assert_eq!(
+        returned.params.plugin.opt("host").as_deref(),
+        Some("bing.com")
+    );
+}
+
+#[test]
+fn unknown_field_audit_does_not_call_typed_keys_unknown() {
+    let profile = r#"
+proxies:
+  - name: typed
+    type: vless
+    server: example.com
+    port: 443
+    uuid: uuid-1
+    ech-opts:
+      enable: true
+    future-key: keep-me
+"#;
+    let (_output, audit) = ProtocolCodecApplication::audit_conversion(
+        profile,
+        NodeCodecFormat::ClashYaml,
+        NodeCodecFormat::ClashYaml,
+    )
+    .unwrap();
+    assert_eq!(audit.unknown_fields, vec!["future-key".to_string()]);
+}

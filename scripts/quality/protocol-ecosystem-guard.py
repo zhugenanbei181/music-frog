@@ -16,7 +16,10 @@ per-item ledger. This guard asserts:
   `LastProxiesProjection` resource the save path reads;
 * the fixed defects do not regress: Iced's node save must not fall back to the
   whole-document `parse_nodes`/`export_nodes` round trip (which drops every
-  non-`proxies:` section) and must not fabricate a placeholder node.
+  non-`proxies:` section) and must not fabricate a placeholder node;
+* batch B (05-03…05-08/12/15) keeps its typed parameter blocks, the family
+  dynamic owned-key splice, the mihomo key spellings and the shared
+  regression matrix reachable from both surfaces.
 """
 
 from __future__ import annotations
@@ -31,6 +34,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 LEDGER = "docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md"
 CONTRACT = "crates/infiltrator-contract/src/protocol_fidelity.rs"
 APPLICATION = "crates/infiltrator-application/src/protocol_codec_application.rs"
+PARAMS = "crates/infiltrator-contract/src/protocol_params.rs"
+PARAMS_EXT = "crates/infiltrator-contract/src/protocol_params_ext.rs"
+MATRIX = "crates/infiltrator-contract/src/protocol_matrix.rs"
+PROJECTION = "crates/infiltrator-application/src/protocol_node_projection.rs"
+NODE_PARAMS = "crates/infiltrator-application/src/protocol_node_params.rs"
+MATRIX_APPLICATION = "crates/infiltrator-application/src/protocol_codec_matrix_application.rs"
 SNAPSHOT = "crates/infiltrator-contract/src/surface_snapshot.rs"
 READER = "crates/infiltrator-application/src/surface_reader.rs"
 INTENT = "crates/infiltrator-contract/src/command.rs"
@@ -38,9 +47,13 @@ ROUTER = "crates/infiltrator-application/src/command_application.rs"
 ICED_UPDATE = "crates/infiltrator-iced/src/update/ui.rs"
 ICED_PROTOCOL = "crates/infiltrator-iced/src/update/protocol_codec.rs"
 ICED_MODAL = "crates/infiltrator-iced/src/view_root/custom_node_modal.rs"
+ICED_PARAMS = "crates/infiltrator-iced/src/view_root/custom_node_params.rs"
 BEVY_CUSTOM = "crates/infiltrator-bevy-ui/src/pages/proxies_custom.rs"
 BEVY_PAGE = "crates/infiltrator-bevy-ui/src/pages/proxies.rs"
 BEVY_COMMAND = "crates/infiltrator-bevy-ui/src/command.rs"
+DOMAIN_MODEL = "crates/infiltrator-domain/src/proxy_nodes/model.rs"
+DOMAIN_VALIDATE = "crates/infiltrator-domain/src/proxy_nodes/validate.rs"
+DOMAIN_CONVERTER = "crates/infiltrator-domain/src/profile_converter.rs"
 
 
 def read(path: str) -> str:
@@ -98,11 +111,14 @@ def main() -> int:
         "planned",
         "组 05 逐项账目",
         "2026-09-22 组 05 批次 A",
-        "组 05 协议生态保真与多路复用 | 15 | `in progress (4/15)`",
-        # Honest facts the ledger must keep stating.
-        "全仓无 `masquerade` 字段",
-        "全仓无 ECH 载体",
-        "尚无组 06/12 那种**单一共享回归矩阵契约**",
+        "2026-09-22 组 05 批次 B",
+        "组 05 协议生态保真与多路复用 | 15 | `in progress (12/15)`",
+        "组 05 达到 **12/15**",
+        # Honest facts the ledger must keep stating in batch B.
+        "listener 入站",
+        "无 `quic` 传输网络",
+        "没有 `trojan-go` 节点类型",
+        "按 forward-compat typed+保留",
         # Closed items carry their distinctive evidence tokens.
         "ShadowsocksCipher",
         "VlessFlow",
@@ -112,6 +128,21 @@ def main() -> int:
         "upsert_draft_into_profile",
         "uri_fidelity_gaps",
         "ExportCustomNodeUri",
+        # Batch B evidence tokens.
+        "ProtocolCodecMatrixReport",
+        "ProtocolCodecMatrixApplication::run_deterministic_matrix",
+        "ProtocolParams::validate",
+        "EchParams",
+        "TuicParams",
+        "Hysteria2Params",
+        "WireGuardParams",
+        "Sip003Plugin",
+        "SshNode",
+        "AnyTlsParams",
+        "TrojanSsParams",
+        "ReservedField",
+        "pre-shared-key",
+        "amnezia-wg-option",
     )
 
     # 2. Shared contract: the typed protocol vocabulary.
@@ -143,6 +174,89 @@ def main() -> int:
         "pub fn with_error",
     )
 
+    # 2b. Batch B typed parameter vocabulary + the 05-15 matrix contract.
+    require(
+        violations,
+        PARAMS,
+        "pub struct EchParams",
+        "pub struct TuicParams",
+        "pub struct Hysteria2Params",
+        "pub struct ProtocolParams",
+        "pub struct ProtocolParamsReport",
+        "pub fn notes",
+        "KNOWN_SIP003_PLUGINS",
+        "KNOWN_CONGESTION_CONTROLLERS",
+        "KNOWN_HYSTERIA2_OBFS",
+        "KNOWN_TRANSPORT_NETWORKS",
+        "v1.19.18",
+    )
+    require(
+        violations,
+        PARAMS_EXT,
+        "pub struct AmneziaWgParams",
+        "pub struct WireGuardParams",
+        "pub struct TransportParams",
+        "pub struct WsOptsParams",
+        "pub struct Sip003Plugin",
+        "pub enum PluginOptValue",
+        "pub struct SshParams",
+        "pub struct AnyTlsParams",
+        "pub struct TrojanSsParams",
+        "KNOWN_SIP003_PLUGINS",
+        "KNOWN_TRANSPORT_NETWORKS",
+        "XHTTP_MODES",
+    )
+    require(
+        violations,
+        MATRIX,
+        "pub struct ProtocolCodecMatrixScenario",
+        "pub struct ProtocolCodecMatrixReport",
+        "pub fn all_covered_passed",
+        "pub fn not_covered_ids",
+        "pub fn covered_passed_count",
+        "pub fn summary_zh",
+    )
+    require(
+        violations,
+        MATRIX_APPLICATION,
+        "pub struct ProtocolCodecMatrixApplication",
+        "pub fn run_deterministic_matrix",
+        "DUAL-05-01",
+        "DUAL-05-15",
+        "covered: false",
+        "no chain topology exists",
+        "no dialer graph is built anywhere",
+        "no custom-CA field",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/protocol_codec_matrix_application_test.rs",
+        "deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones",
+        "matrix_is_deterministic_across_runs",
+    )
+
+    # 2c. The one draft projection both surfaces and the codec share.
+    require(
+        violations,
+        PROJECTION,
+        "pub const DRAFT_OWNED_KEYS",
+        "pub fn owned_keys",
+        "pub const DRAFT_NESTED_KEYS",
+        "pub const TYPED_EXTRA_KEYS",
+        "pub fn is_typed_extra_key_for",
+        "pub fn draft_from_node",
+        "effective_spider_x",
+    )
+    forbid(violations, PROJECTION, "tokio::", "reqwest::")
+    require(
+        violations,
+        NODE_PARAMS,
+        "pub fn params_from_node",
+        "pub fn node_from_draft",
+        "fn write_params",
+        "fn amnezia_to_json",
+    )
+
     # 3. Shared application: codec + lossless splice + measured gaps + studio.
     require(
         violations,
@@ -160,9 +274,12 @@ def main() -> int:
         "pub fn parse_nodes",
         "pub fn export_nodes",
         "pub fn publish_error",
-        "DRAFT_OWNED_KEYS",
         "structure_preserved",
         "merge_preserving_unknown",
+        "merge_nested",
+        "is_typed_extra_key_for",
+        "owned_keys",
+        "node_from_draft",
         "pub fn publish_studio",
         "pub fn studio_snapshot",
         "pub fn clear_studio",
@@ -178,6 +295,13 @@ def main() -> int:
         "smux_overrides_are_yaml_only_and_reported_as_a_uri_gap",
         "upsert_refuses_a_draft_with_unresolved_protocol_issues",
         "uri_draft_round_trip_keeps_the_2022_cipher_family",
+        "wireguard_parameters_round_trip_with_mihomo_key_spellings",
+        "tuic_and_hysteria2_parameters_reach_the_profile_and_back",
+        "ssh_and_anytls_parameters_project_through_the_flat_node",
+        "legacy_idle_timeout_and_amnezia_aliases_still_parse",
+        "nestable_owned_maps_keep_unknown_sub_keys_during_the_splice",
+        "typed_parameter_blocks_are_measured_as_uri_gaps",
+        "unknown_field_audit_does_not_call_typed_keys_unknown",
     )
     require(
         violations,
@@ -187,6 +311,45 @@ def main() -> int:
         "vless_flow_and_reality_chips_are_shared_vocabulary",
         "smux_parameters_are_typed_and_validated",
         "unsupported_reality_and_smux_are_reported_not_silently_dropped",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/protocol_params_test.rs",
+        "ech_is_typed_validated_and_honest_about_dns_resolution",
+        "tuic_congestion_parameters_are_typed_and_chipped",
+        "hysteria2_port_hopping_and_obfs_are_validated",
+        "wireguard_keys_reserved_and_amnezia_are_typed",
+        "transports_cover_ws_early_data_grpc_xhttp_and_quic_with_notes",
+        "sip003_plugins_enforce_their_required_options",
+        "ssh_parameters_require_an_identity",
+        "anytls_and_trojan_ss_opts_are_typed",
+        "alpn_order_is_the_negotiation_model",
+    )
+
+    require(
+        violations,
+        DOMAIN_MODEL,
+        "pub struct SshNode",
+        "pub enum SshType",
+        "ProxyNode::Ssh",
+        "pub struct TrojanSsOpts",
+        "pub ss_opts: Option<TrojanSsOpts>",
+    )
+    require(
+        violations,
+        DOMAIN_VALIDATE,
+        "ProxyNode::Ssh(node) =>",
+        "ssh: username is required",
+        "ssh: password or private-key is required",
+        "trojan ss-opts: method is required",
+    )
+    require(
+        violations,
+        DOMAIN_CONVERTER,
+        "pub enum ReservedField",
+        'rename = "pre-shared-key"',
+        'rename = "amnezia-wg-option"',
+        'rename = "private-key-passphrase"',
     )
 
     # 4. One projection reaches both surfaces.
@@ -266,6 +429,25 @@ def main() -> int:
         "custom_node_mux_min_streams",
         "custom_node_uri_gap",
         "Message::UpdateCustomNodeDraft",
+        "report.all_chips()",
+    )
+    require(
+        violations,
+        ICED_PARAMS,
+        "pub(super) fn params_section",
+        "custom_node_params_title",
+        "custom_node_alpn",
+        "custom_node_ech_config",
+        "custom_node_tuic_cc",
+        "custom_node_hy2_ports",
+        "custom_node_wg_private_key",
+        "custom_node_transport_network",
+        "custom_node_ws_early_data",
+        "custom_node_plugin_name",
+        "custom_node_ssh_username",
+        "custom_node_anytls_idle",
+        "custom_node_trojan_ss",
+        "Message::UpdateCustomNodeDraft",
     )
     require(
         violations,
@@ -275,6 +457,10 @@ def main() -> int:
         "the_upsert_path_the_modal_calls_preserves_the_whole_profile",
         "export_never_fabricates_a_placeholder_node",
         "draft_edits_re_derive_the_report_and_the_uri_gaps",
+        "importing_wireguard_surfaces_the_shared_typed_parameters",
+        "importing_tuic_hysteria2_and_ssh_surfaces_the_shared_blocks",
+        "quic_and_xhttp_notes_are_surfaced_not_hidden",
+        "protocol_codec_matrix_passes_on_the_iced_surface",
     )
 
     # 6. Bevy: URI field, chip slots, both observers, the mounted card and the
@@ -292,6 +478,9 @@ def main() -> int:
         "UiCommand::SaveCustomNodeDraft",
         "LastProxiesProjection",
         "text_field_with_placeholder_scene",
+        "report.all_chips()",
+        "CustomNodeSlot::Notes",
+        "无跨版本提示",
     )
     require(
         violations,
@@ -317,6 +506,8 @@ def main() -> int:
         "custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one",
         "custom_node_slots_render_the_shared_studio_facts",
         "custom_node_audit_line_reports_the_measured_lossless_verdict",
+        "custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim",
+        "protocol_codec_matrix_passes_on_the_bevy_surface",
     )
 
     if violations:

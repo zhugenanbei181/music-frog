@@ -86,6 +86,13 @@ pub enum TrojanType {
     Trojan,
 }
 
+/// Marker proving the `type` key equals `ssh` (see [`SshNode`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SshType {
+    #[serde(rename = "ssh")]
+    Ssh,
+}
+
 /// Marker proving the `type` key equals `vmess` (see [`VmessNode`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VmessType {
@@ -601,6 +608,21 @@ pub struct AnytlsNode {
     pub extra: BTreeMap<String, Value>,
 }
 
+/// Trojan `ss-opts` block: trojan-go's Shadowsocks multiplexing, which mihomo
+/// models as a trojan extension (there is no separate `trojan-go` node type).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct TrojanSsOpts {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
 /// Trojan node (`type: trojan`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -627,6 +649,39 @@ pub struct TrojanNode {
     pub grpc_opts: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub smux: Option<SmuxOpts>,
+    /// DUAL-05-08: trojan-go feature parity through mihomo's `ss-opts` block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ss_opts: Option<TrojanSsOpts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dialer_proxy: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// SSH node (`type: ssh`) — mihomo's native SSH SOCKS proxy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct SshNode {
+    #[serde(rename = "type")]
+    pub node_type: SshType,
+    #[serde(flatten)]
+    pub common: CommonFields,
+    /// mihomo requires a username; a node missing it still parses into the
+    /// typed variant (`default` + `skip_serializing_if`) so validation can
+    /// report it instead of degrading the node to `Other`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_key_passphrase: Option<String>,
+    /// Authorized host keys (inline `authorized_keys` lines).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_key: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_key_algorithms: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dialer_proxy: Option<String>,
     #[serde(flatten)]
@@ -702,6 +757,7 @@ pub enum ProxyNode {
     Anytls(AnytlsNode),
     Trojan(TrojanNode),
     Vmess(VmessNode),
+    Ssh(SshNode),
     /// Lossless fallback; tried last.
     Other(OtherNode),
 }
@@ -718,6 +774,7 @@ impl ProxyNode {
             ProxyNode::Anytls(_) => "anytls",
             ProxyNode::Trojan(_) => "trojan",
             ProxyNode::Vmess(_) => "vmess",
+            ProxyNode::Ssh(_) => "ssh",
             ProxyNode::Other(other) => other.type_name.as_str(),
         }
     }
@@ -733,6 +790,7 @@ impl ProxyNode {
             ProxyNode::Anytls(node) => Some(&node.common),
             ProxyNode::Trojan(node) => Some(&node.common),
             ProxyNode::Vmess(node) => Some(&node.common),
+            ProxyNode::Ssh(node) => Some(&node.common),
             ProxyNode::Other(_) => None,
         }
     }
@@ -748,6 +806,7 @@ impl ProxyNode {
             ProxyNode::Anytls(node) => node.common.name.as_str(),
             ProxyNode::Trojan(node) => node.common.name.as_str(),
             ProxyNode::Vmess(node) => node.common.name.as_str(),
+            ProxyNode::Ssh(node) => node.common.name.as_str(),
             ProxyNode::Other(other) => other
                 .fields
                 .get("name")
@@ -767,6 +826,7 @@ impl ProxyNode {
             ProxyNode::Anytls(node) => Some(node.common.server.as_str()),
             ProxyNode::Trojan(node) => Some(node.common.server.as_str()),
             ProxyNode::Vmess(node) => Some(node.common.server.as_str()),
+            ProxyNode::Ssh(node) => Some(node.common.server.as_str()),
             ProxyNode::Other(other) => other.fields.get("server").and_then(Value::as_str),
         }
     }
@@ -783,6 +843,7 @@ impl ProxyNode {
             ProxyNode::Anytls(node) => &node.extra,
             ProxyNode::Trojan(node) => &node.extra,
             ProxyNode::Vmess(node) => &node.extra,
+            ProxyNode::Ssh(node) => &node.extra,
             ProxyNode::Other(other) => &other.fields,
         }
     }

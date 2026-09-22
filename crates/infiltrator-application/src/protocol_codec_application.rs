@@ -16,32 +16,18 @@ use std::sync::{Mutex, OnceLock};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::protocol_fidelity::{
     CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
-    RealityParams, SmuxParams,
 };
 use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
-use serde_json::json;
 use serde_yaml_ng::{Mapping, Value};
+
+use crate::protocol_node_params::node_from_draft;
+use crate::protocol_node_projection::{
+    DRAFT_NESTED_KEYS, draft_from_node, is_typed_extra_key_for, owned_keys,
+};
 
 #[cfg(test)]
 #[path = "protocol_codec_application_test.rs"]
 mod protocol_codec_application_test;
-
-/// Keys the draft owns when it writes a node back into a profile. Every other
-/// key of an existing node with the same name is preserved verbatim.
-const DRAFT_OWNED_KEYS: [&str; 12] = [
-    "name",
-    "type",
-    "server",
-    "port",
-    "password",
-    "uuid",
-    "cipher",
-    "flow",
-    "servername",
-    "sni",
-    "tls",
-    "reality-opts",
-];
 
 /// Outcome of committing one draft into a profile document.
 #[derive(Clone, Debug, PartialEq)]
@@ -93,91 +79,14 @@ impl ProtocolCodecApplication {
 
     /// Project a parsed profile node into the shared draft (field-for-field).
     pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
-        let mut draft = ProtocolDraft::new(item.node_type.clone());
-        draft.name = item.name.clone();
-        draft.server = item.server.clone();
-        draft.port = item.port;
-        draft.password = item.password.clone().unwrap_or_default();
-        draft.uuid = item.uuid.clone().unwrap_or_default();
-        draft.sni = item
-            .get_effective_sni()
-            .map(str::to_string)
-            .unwrap_or_default();
-        draft.cipher = item.cipher.clone().unwrap_or_default();
-        draft.flow = item.flow.clone().unwrap_or_default();
-        draft.reality = RealityParams {
-            public_key: item
-                .get_effective_public_key()
-                .map(str::to_string)
-                .unwrap_or_default(),
-            short_id: item
-                .get_effective_short_id()
-                .map(str::to_string)
-                .unwrap_or_default(),
-            spider_x: item.spider_x.clone().unwrap_or_default(),
-            fingerprint: item.client_fingerprint.clone().unwrap_or_default(),
-        };
-        draft.smux = smux_from_json(item.smux.as_ref());
-        draft.tls = item.tls;
-        draft.skip_cert_verify = item.skip_cert_verify.unwrap_or(false);
-        draft.alpn = item.alpn.clone().unwrap_or_default();
-        let mut preserved: Vec<String> = item.extra.keys().cloned().collect();
-        preserved.sort();
-        draft.preserved_fields = preserved;
-        draft
+        draft_from_node(item)
     }
 
     /// Project the draft back into the flat profile node shape. Only the
     /// fields the draft owns are written; unset fields are omitted rather
     /// than emitted as empty strings.
     pub fn node_from_draft(draft: &ProtocolDraft) -> ProxyNodeItem {
-        let mut item = ProxyNodeItem::new(
-            draft.name.trim(),
-            draft.node_type.trim(),
-            draft.server.trim(),
-            draft.port,
-        );
-        // `udp` is not part of the draft: a replaced node keeps whatever the
-        // profile already said, and a new node omits the key entirely.
-        item.udp = None;
-        item.password = non_empty(&draft.password);
-        item.uuid = non_empty(&draft.uuid);
-        item.cipher = non_empty(&draft.cipher);
-        item.flow = non_empty(&draft.flow);
-        item.client_fingerprint = non_empty(&draft.reality.fingerprint);
-        item.servername = non_empty(&draft.sni);
-        item.tls = draft.tls;
-        item.skip_cert_verify = draft.skip_cert_verify.then_some(true);
-        if !draft.alpn.is_empty() {
-            item.alpn = Some(draft.alpn.clone());
-        }
-        if draft.reality.is_present() {
-            let mut reality = Mapping::new();
-            if !draft.reality.public_key.trim().is_empty() {
-                reality.insert(
-                    Value::String("public-key".to_string()),
-                    Value::String(draft.reality.public_key.trim().to_string()),
-                );
-            }
-            if !draft.reality.short_id.trim().is_empty() {
-                reality.insert(
-                    Value::String("short-id".to_string()),
-                    Value::String(draft.reality.short_id.trim().to_string()),
-                );
-            }
-            if !draft.reality.spider_x.trim().is_empty() {
-                reality.insert(
-                    Value::String("spider-x".to_string()),
-                    Value::String(draft.reality.spider_x.trim().to_string()),
-                );
-            }
-            item.reality_opts =
-                Some(serde_json::to_value(Value::Mapping(reality)).unwrap_or_default());
-        }
-        if draft.smux.has_overrides() {
-            item.smux = Some(smux_to_json(&draft.smux));
-        }
-        item
+        node_from_draft(draft)
     }
 
     /// Shared read model for both surfaces (05-01/02/11/14).
@@ -221,6 +130,28 @@ impl ProtocolCodecApplication {
             (
                 "unknown-fields",
                 draft.preserved_fields == returned.preserved_fields,
+            ),
+            // DUAL-05-03…05-12 typed parameter blocks: measured, not assumed.
+            ("ech", draft.params.ech == returned.params.ech),
+            ("tuic", draft.params.tuic == returned.params.tuic),
+            (
+                "hysteria2",
+                draft.params.hysteria2 == returned.params.hysteria2,
+            ),
+            (
+                "wireguard",
+                draft.params.wireguard == returned.params.wireguard,
+            ),
+            (
+                "transport",
+                draft.params.transport == returned.params.transport,
+            ),
+            ("plugin", draft.params.plugin == returned.params.plugin),
+            ("ssh", draft.params.ssh == returned.params.ssh),
+            ("anytls", draft.params.anytls == returned.params.anytls),
+            (
+                "trojan-ss-opts",
+                draft.params.trojan_ss == returned.params.trojan_ss,
             ),
         ] {
             if !same {
@@ -293,8 +224,12 @@ impl ProtocolCodecApplication {
             if let Some(index) = index_found {
                 replaced_existing = true;
                 let previous = existing.get(index).cloned().unwrap_or(Value::Null);
-                existing[index] =
-                    merge_preserving_unknown(&previous, &node_value, &mut unknown_fields);
+                existing[index] = merge_preserving_unknown(
+                    &previous,
+                    &node_value,
+                    draft.family(),
+                    &mut unknown_fields,
+                );
             } else {
                 let mut entries = Vec::with_capacity(existing.len() + 1);
                 entries.push(node_value);
@@ -459,66 +394,6 @@ fn to_domain_format(format: NodeCodecFormat) -> ProfileFormat {
     }
 }
 
-fn non_empty(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    (!trimmed.is_empty()).then(|| trimmed.to_string())
-}
-
-fn smux_from_json(value: Option<&serde_json::Value>) -> SmuxParams {
-    let Some(object) = value.and_then(serde_json::Value::as_object) else {
-        return SmuxParams::default();
-    };
-    let text = |key: &str| {
-        object
-            .get(key)
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string)
-    };
-    let number = |key: &str| {
-        object
-            .get(key)
-            .and_then(serde_json::Value::as_u64)
-            .map(|value| value as u32)
-    };
-    let flag = |key: &str| {
-        object
-            .get(key)
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false)
-    };
-    let mut params = SmuxParams::default();
-    if let Some(protocol) = text("protocol") {
-        params.protocol = protocol;
-    }
-    params.enabled = flag("enabled");
-    if let Some(value) = number("max-connections") {
-        params.max_connections = value;
-    }
-    if let Some(value) = number("min-streams") {
-        params.min_streams = value;
-    }
-    if let Some(value) = number("max-streams") {
-        params.max_streams = value;
-    }
-    params.padding = flag("padding");
-    params.statistic = flag("statistic");
-    params.only_tcp = flag("only-tcp");
-    params
-}
-
-fn smux_to_json(params: &SmuxParams) -> serde_json::Value {
-    json!({
-        "enabled": params.enabled,
-        "protocol": params.protocol.trim(),
-        "max-connections": params.max_connections,
-        "min-streams": params.min_streams,
-        "max-streams": params.max_streams,
-        "padding": params.padding,
-        "statistic": params.statistic,
-        "only-tcp": params.only_tcp,
-    })
-}
-
 fn proxies_sequence_mut(document: &mut Value) -> Result<&mut Vec<Value>, Failure> {
     if !document.is_mapping() {
         return Err(invalid_input("profile YAML must be a top-level mapping"));
@@ -539,10 +414,13 @@ fn proxies_sequence_mut(document: &mut Value) -> Result<&mut Vec<Value>, Failure
 }
 
 /// Overlay the draft's owned keys onto an existing node, keeping every other
-/// key verbatim and reporting which ones were preserved.
+/// key verbatim and reporting which ones were preserved. Map-valued owned keys
+/// are merged recursively so unknown sub-keys (e.g. `ws-opts.headers.User-Agent`)
+/// survive too; their dotted paths land in `unknown_fields`.
 fn merge_preserving_unknown(
     previous: &Value,
     node: &Value,
+    family: infiltrator_contract::protocol_fidelity::ProtocolFamily,
     unknown_fields: &mut Vec<String>,
 ) -> Value {
     let Some(previous_map) = previous.as_mapping() else {
@@ -551,26 +429,105 @@ fn merge_preserving_unknown(
     let Some(node_map) = node.as_mapping() else {
         return node.clone();
     };
+    let owned = owned_keys(family);
     let mut merged = Mapping::new();
     for (key, value) in previous_map {
         let Some(name) = key.as_str() else {
             continue;
         };
-        if !DRAFT_OWNED_KEYS.contains(&name) {
+        if !owned.contains(&name) {
             unknown_fields.push(name.to_string());
             merged.insert(key.clone(), value.clone());
         }
     }
     for (key, value) in node_map {
+        let nested = key
+            .as_str()
+            .is_some_and(|name| DRAFT_NESTED_KEYS.contains(&name) && owned.contains(&name));
+        if nested {
+            let previous_sub = previous_map.get(key).and_then(Value::as_mapping);
+            let Some(node_sub) = value.as_mapping() else {
+                merged.insert(key.clone(), value.clone());
+                continue;
+            };
+            let path = key.as_str().unwrap_or_default().to_string();
+            match previous_sub {
+                Some(previous_sub) => {
+                    let sub = merge_nested(previous_sub, node_sub, &path, unknown_fields);
+                    merged.insert(key.clone(), Value::Mapping(sub));
+                }
+                None => {
+                    merged.insert(key.clone(), value.clone());
+                }
+            }
+            continue;
+        }
         merged.insert(key.clone(), value.clone());
     }
     Value::Mapping(merged)
 }
 
+/// Merge one map-valued draft-owned key, keeping previous sub-keys the draft
+/// did not write (recursively) and reporting their dotted paths.
+fn merge_nested(
+    previous: &Mapping,
+    node: &Mapping,
+    path: &str,
+    unknown_fields: &mut Vec<String>,
+) -> Mapping {
+    let mut merged = Mapping::new();
+    for (key, value) in node {
+        let sub_path = match key.as_str() {
+            Some(name) => format!("{path}.{name}"),
+            None => path.to_string(),
+        };
+        match (
+            previous.get(key).and_then(Value::as_mapping),
+            value.as_mapping(),
+        ) {
+            (Some(previous_sub), Some(node_sub)) => {
+                merged.insert(
+                    key.clone(),
+                    Value::Mapping(merge_nested(
+                        previous_sub,
+                        node_sub,
+                        &sub_path,
+                        unknown_fields,
+                    )),
+                );
+            }
+            _ => {
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    for (key, value) in previous {
+        if node.get(key).is_some() {
+            continue;
+        }
+        let sub_path = match key.as_str() {
+            Some(name) => format!("{path}.{name}"),
+            None => path.to_string(),
+        };
+        unknown_fields.push(sub_path);
+        merged.insert(key.clone(), value.clone());
+    }
+    merged
+}
+
 fn collect_unknown_fields(nodes: &[ProxyNodeItem]) -> Vec<String> {
     let mut fields: Vec<String> = nodes
         .iter()
-        .flat_map(|node| node.extra.keys().cloned())
+        .flat_map(|node| {
+            let family = infiltrator_contract::protocol_fidelity::ProtocolFamily::from_type_str(
+                &node.node_type,
+            );
+            node.extra
+                .keys()
+                .filter(|key| !is_typed_extra_key_for(key, family))
+                .cloned()
+                .collect::<Vec<String>>()
+        })
         .collect();
     fields.sort();
     fields.dedup();

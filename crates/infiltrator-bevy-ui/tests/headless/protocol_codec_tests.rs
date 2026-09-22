@@ -28,6 +28,9 @@ use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 
 use crate::support::*;
 
+/// 32-byte base64 key used by the WireGuard fixture.
+const WG_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 const VLESS_URI: &str = "vless://b831381d-6324-4d53-ad4f-8cda48b30811@us.example.com:443?security=reality&pbk=PubKey1234567890AAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd1234&spx=%2Fspider&fp=chrome&flow=xtls-rprx-vision&sni=reality.example.com#US-Reality";
 
 fn setup_app(sink: Arc<DemoCommandSink>) -> App {
@@ -159,7 +162,7 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
 
     match sink.submitted().last() {
         Some(UiCommand::SaveCustomNodeDraft { draft: submitted }) => {
-            assert_eq!(submitted, &draft);
+            assert_eq!(submitted.as_ref(), &draft);
             assert_eq!(submitted.name, "US-Reality");
             assert_eq!(submitted.flow, "xtls-rprx-vision");
         }
@@ -243,6 +246,85 @@ fn custom_node_slots_render_the_shared_studio_facts() {
     let preview = text_for_slot(&mut app, CustomNodeSlot::UriPreview);
     assert!(preview.starts_with("vless://"), "{preview}");
     assert!(preview.contains("flow=xtls-rprx-vision"), "{preview}");
+
+    // 05-04: WireGuard parameters render from the same shared report, and the
+    // honest cross-version notes have their own slot.
+    let mut wg = ProtocolDraft::new("wireguard");
+    wg.name = "matrix-wg".to_owned();
+    wg.server = "wg.example.com".to_owned();
+    wg.port = 51820;
+    wg.params.wireguard.private_key = WG_KEY.to_owned();
+    wg.params.wireguard.public_key = WG_KEY.to_owned();
+    wg.params.wireguard.reserved = "1,2,3".to_owned();
+    wg.params.wireguard.mtu = 1420;
+    wg.params.wireguard.amnezia.jc = Some(4);
+    wg.params.transport.network = "quic".to_owned();
+    let studio = ProtocolCodecApplication::publish_draft(wg, None);
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+
+    let chips = text_for_slot(&mut app, CustomNodeSlot::Chips);
+    assert!(chips.contains("wg:key"), "{chips}");
+    assert!(chips.contains("wg:reserved(list)"), "{chips}");
+    assert!(chips.contains("mtu:1420"), "{chips}");
+    assert!(chips.contains("awg:jc=4"), "{chips}");
+    let notes = text_for_slot(&mut app, CustomNodeSlot::Notes);
+    assert!(notes.contains("无跨版本提示"), "{notes}");
+}
+
+#[test]
+fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
+    clear_studio();
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_app(sink);
+    navigate_to_proxies(&mut app);
+
+    // The pinned mihomo v1.19.18 has no `quic` network and no xhttp transport:
+    // the shared report says so and Bevy renders the note instead of a claim.
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "quic-node".to_owned();
+    draft.server = "example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.params.transport.network = "quic".to_owned();
+    draft.params.transport.xhttp.mode = "stream-up".to_owned();
+    let studio = ProtocolCodecApplication::publish_draft(draft, None);
+    app.world_mut()
+        .commands()
+        .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            groups: Vec::new(),
+            testing: false,
+            active_exit: "—".to_owned(),
+            custom_node: studio,
+        }));
+    app.update();
+
+    let notes = text_for_slot(&mut app, CustomNodeSlot::Notes);
+    assert!(notes.contains("v1.19.18"), "{notes}");
+    assert!(notes.contains("TCP"), "{notes}");
+}
+
+#[test]
+fn protocol_codec_matrix_passes_on_the_bevy_surface() {
+    let report = infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    assert!(
+        report.all_covered_passed(),
+        "matrix failures: {:?}",
+        report.failed_ids()
+    );
+    assert_eq!(report.covered_passed_count(), 12);
+    assert!(
+        report.summary_zh().contains("12/12"),
+        "{}",
+        report.summary_zh()
+    );
 }
 
 #[test]

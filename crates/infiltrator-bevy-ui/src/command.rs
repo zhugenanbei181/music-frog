@@ -140,7 +140,7 @@ pub enum UiCommand {
     /// DUAL-05-14: commit the shared draft into the active profile with the
     /// lossless section splice.
     SaveCustomNodeDraft {
-        draft: infiltrator_contract::protocol_fidelity::ProtocolDraft,
+        draft: Box<infiltrator_contract::protocol_fidelity::ProtocolDraft>,
     },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,

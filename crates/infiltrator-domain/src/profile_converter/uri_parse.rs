@@ -532,7 +532,7 @@ fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
                     .filter_map(|s| s.trim().parse::<u8>().ok())
                     .collect();
                 if !bytes.is_empty() {
-                    reserved = Some(bytes);
+                    reserved = Some(crate::profile_converter::ReservedField::Array(bytes));
                 }
             }
             "jc" => awg_jc = v.parse::<u8>().ok(),
