@@ -880,7 +880,12 @@ impl std::fmt::Debug for Message {
                 write!(f, "UpdateCustomNodeUriInput({} chars)", u.len())
             }
             Message::ParseAndImportCustomUri => write!(f, "ParseAndImportCustomUri"),
-            Message::ExportNodeAsUri(n) => write!(f, "ExportNodeAsUri({n})"),
+            Message::UpdateCustomNodeDraft(draft) => {
+                write!(f, "UpdateCustomNodeDraft({})", draft.node_type)
+            }
+            Message::ExportCustomNodeUri => write!(f, "ExportCustomNodeUri"),
+            Message::CustomNodeSaved(Ok(_)) => write!(f, "CustomNodeSaved(Ok)"),
+            Message::CustomNodeSaved(Err(e)) => write!(f, "CustomNodeSaved(Err({e:?}))"),
             Message::SaveCustomNodeForm => write!(f, "SaveCustomNodeForm"),
             Message::OpenAggregatorModal => write!(f, "OpenAggregatorModal"),
             Message::CloseAggregatorModal => write!(f, "CloseAggregatorModal"),

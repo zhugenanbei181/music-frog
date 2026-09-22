@@ -39,3 +39,7 @@ mod shortcut_tests;
 
 #[path = "headless/toast_overlay_tests.rs"]
 mod toast_overlay_tests;
+
+// DUAL-05: protocol-ecosystem studio (custom node URI codec) dual-surface tests.
+#[path = "headless/protocol_codec_tests.rs"]
+mod protocol_codec_tests;

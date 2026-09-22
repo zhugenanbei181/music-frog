@@ -14,7 +14,7 @@ use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::host_runtime::HostRuntime;
 use std::sync::Arc;
 
-pub(super) fn save_task<F>(
+pub(crate) fn save_task<F>(
     runtime: Option<Arc<dyn HostRuntime>>,
     transform: F,
     result_message: fn(Result<(), InfiltratorError>) -> Message,
@@ -30,7 +30,7 @@ where
     )
 }
 
-pub(super) fn save_task_with_strategy<F>(
+pub(crate) fn save_task_with_strategy<F>(
     runtime: Option<Arc<dyn HostRuntime>>,
     strategy: ApplyStrategy,
     transform: F,

@@ -133,6 +133,15 @@ pub enum UiCommand {
     ReAggregateProfile {
         template_name: String,
     },
+    /// DUAL-05-14: decode a share link through the shared protocol codec and
+    /// publish the typed draft (cipher family / REALITY / smux) for both
+    /// surfaces. Never writes a profile.
+    ImportCustomNodeUri { uri: String },
+    /// DUAL-05-14: commit the shared draft into the active profile with the
+    /// lossless section splice.
+    SaveCustomNodeDraft {
+        draft: infiltrator_contract::protocol_fidelity::ProtocolDraft,
+    },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
@@ -377,6 +386,12 @@ impl UiCommand {
             Self::DeleteAggregationTemplate { name } => {
                 Some(CommandIntent::DeleteAggregationTemplate { name: name.clone() })
             }
+            Self::ImportCustomNodeUri { uri } => {
+                Some(CommandIntent::ImportCustomNodeUri { uri: uri.clone() })
+            }
+            Self::SaveCustomNodeDraft { draft } => Some(CommandIntent::SaveCustomNodeDraft {
+                draft: draft.clone(),
+            }),
             Self::ReAggregateProfile { template_name } => Some(CommandIntent::ReAggregateProfile {
                 template_name: template_name.clone(),
             }),

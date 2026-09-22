@@ -138,6 +138,7 @@ fn proxies_page_in_place_update() {
     let updated = ProxiesProjection {
         active_exit: "🇯🇵 日本东京 01 · 专线".to_owned(),
         testing: true,
+        custom_node: Default::default(),
         groups: vec![ProxyGroup {
             name: "节点选择 (PROXIES)".to_owned(),
             group_type: "Selector".to_owned(),

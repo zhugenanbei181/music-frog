@@ -64,6 +64,18 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "custom_node_port" => "Port".into(),
         "custom_node_uuid_pass" => "UUID / Password".into(),
         "custom_node_sni" => "TLS / Reality SNI".into(),
+        "custom_node_secret" => "Secret / UUID".into(),
+        "custom_node_cipher" => "Cipher (Shadowsocks family)".into(),
+        "custom_node_flow" => "VLESS flow (Vision)".into(),
+        "custom_node_mux_enabled" => "Multiplexing".into(),
+        "custom_node_mux_protocol" => "Mux protocol (Smux/Yamux/H2Mux)".into(),
+        "custom_node_mux_max" => "Max connections".into(),
+        "custom_node_mux_min_streams" => "Min streams".into(),
+        "custom_node_mux_max_streams" => "Max streams".into(),
+        "custom_node_mux_padding" => "Padding".into(),
+        "custom_node_skip_verify" => "Skip certificate verify".into(),
+        "custom_node_issues_hint" => "Resolve every issue before writing the profile".into(),
+        "custom_node_uri_gap" => "Share link cannot carry · {field}".into(),
         "custom_node_uri_placeholder" => "Paste vless://, ss://, hysteria2://, trojan:// share link...".into(),
 
         // Category 3: Multi-Profile Aggregator & Topology Generator

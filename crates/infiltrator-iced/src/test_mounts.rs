@@ -55,5 +55,8 @@ mod surface_contract_tests;
 #[path = "../tests/gui/responsive_elasticity_tests.rs"]
 mod responsive_elasticity_tests;
 
+#[path = "../tests/gui/protocol_codec_tests.rs"]
+mod protocol_codec_tests;
+
 #[path = "../tests/gui/multimodal_shell_tests.rs"]
 mod multimodal_shell_tests;

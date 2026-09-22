@@ -126,6 +126,7 @@ pub(super) fn proxies_projection(
                 .collect(),
             testing: value.testing,
             active_exit: value.active_exit.clone(),
+            custom_node: value.custom_node.clone(),
         })
         .unwrap_or_else(empty_proxies)
 }

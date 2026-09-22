@@ -65,17 +65,22 @@ fn test_advancement_w2_2_custom_node_modal_and_uri_codec() {
     let _ = state.update(Message::UpdateCustomNodeUriInput(vless_uri.to_string()));
     assert_eq!(state.runtime.custom_node_uri_input, vless_uri);
 
-    // Parse URI into form fields
+    // DUAL-05: parse into the shared typed draft; there is no second
+    // per-field form source to keep in sync any more.
     let _ = state.update(Message::ParseAndImportCustomUri);
-    assert_eq!(state.runtime.custom_node_name_input, "MyVlessNode");
-    assert_eq!(state.runtime.custom_node_server_input, "server.example.com");
-    assert_eq!(state.runtime.custom_node_port_input, "443");
-    assert_eq!(state.runtime.custom_node_type_input, "vless");
-    assert_eq!(
-        state.runtime.custom_node_uuid_input,
-        "a3482e88-7d8f-4a42-9988-1a2b3c4d5e6f"
-    );
-    assert_eq!(state.runtime.custom_node_sni_input, "example.com");
+    let draft = state
+        .runtime
+        .custom_node_studio
+        .draft
+        .as_ref()
+        .expect("shared draft");
+    assert_eq!(draft.name, "MyVlessNode");
+    assert_eq!(draft.server, "server.example.com");
+    assert_eq!(draft.port, 443);
+    assert_eq!(draft.node_type, "vless");
+    assert_eq!(draft.uuid, "a3482e88-7d8f-4a42-9988-1a2b3c4d5e6f");
+    assert_eq!(draft.sni, "example.com");
+    assert!(draft.tls);
 
     // Close modal
     let _ = state.update(Message::CloseCustomNodeModal);
