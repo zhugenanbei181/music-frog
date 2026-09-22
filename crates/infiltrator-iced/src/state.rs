@@ -529,8 +529,11 @@ pub struct ShellState {
     pub system_proxy_bypass: String,
     pub last_task_id: usize,
     /// Cooldown for stream-driven tray refreshes (download/sync progress)
-    /// so the D-Bus menu is rebuilt at most once per second.
+    /// so the D-Bus menu is rebuilt at most once per shared interval.
     pub tray_refresh_cooldown: Option<std::time::Instant>,
+    /// The last live rate badge text pushed to the tray (DUAL-15-02); an
+    /// unchanged badge pushes nothing, so an idle shell stays quiet.
+    pub tray_last_rate_text: Option<String>,
     pub toasts: Vec<(String, ToastStatus)>,
     /// Stable ids parallel to [`Self::toasts`]: dismissal is by id, so an
     /// evicted toast's expiry task can never remove a neighbour.

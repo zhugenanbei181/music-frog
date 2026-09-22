@@ -21,17 +21,18 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
+use crate::a11y::{semantic_node, switch_node};
 use crate::app::{
     BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot, ContentTitleLabel,
     DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton, HistoryForwardButton,
     IDENTITY_TILE_PX, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarActiveProfileCard,
     SidebarFoot, SidebarNavItem, SidebarPanel, SidebarScriptModePill, SidebarShortcutMatrix,
     SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
-    SidebarTunCard, SidebarTunToggle, ThemeToggle, header_semantic_node, nav_semantic_node,
-    region_semantic_node, toggle_semantic_node, window_semantic_node,
+    SidebarTunCard, SidebarTunToggle, ThemeToggle, nav_semantic_node, toggle_semantic_node,
 };
 use crate::pages::overview::{OverviewModePill, mode_label};
 use crate::route::Route;
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
 
@@ -46,8 +47,8 @@ pub fn shell_scene_with_toggles(
     toggles: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let window_node = window_semantic_node(&title);
-    let region_node = region_semantic_node("核心概览");
+    let window_node = semantic_node(ShellA11yNode::Window);
+    let region_node = semantic_node(ShellA11yNode::ContentRegion);
     bsn! {
         Node {
             width: percent(100),
@@ -58,6 +59,7 @@ pub fn shell_scene_with_toggles(
         ShellRoot
         template_value(window_node)
         Children [
+            ( { crate::chrome::chrome_bar_scene(palette) } ),
             (
                 Node {
                     width: percent(100),
@@ -196,8 +198,9 @@ fn bottom_nav_item_scene(
 }
 
 /// The title row with page heading, history navigation, and status indicators.
-pub fn content_title_row(title: &str, palette: &UiPalette) -> impl Scene + use<> {
-    let header_node = header_semantic_node(title);
+pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<> {
+    let header_node = semantic_node(ShellA11yNode::ShellHeader);
+    let status_node = semantic_node(ShellA11yNode::GlobalStatusDot);
     bsn! {
         Node {
             width: percent(100),
@@ -229,6 +232,7 @@ pub fn content_title_row(title: &str, palette: &UiPalette) -> impl Scene + use<>
                 }
                 BackgroundColor({ palette.success })
                 GlobalStatusDot
+                template_value(status_node)
             ),
             (
                 { pill_caption_scene("规则模式".to_owned(), true, palette) }
@@ -247,7 +251,7 @@ pub fn sidebar_scene_with_toggles(
     toggles: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let pill_node = toggle_semantic_node("Toggle color theme");
+    let pill_node = semantic_node(ShellA11yNode::ThemeToggle);
     let density_node = toggle_semantic_node("Toggle layout density");
     bsn! {
         Node {
@@ -329,6 +333,7 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 /// Proxy-mode segment control pills (Rule, Global, Direct, Script).
 pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + use<> {
+    let segment_node = semantic_node(ShellA11yNode::ModeSegment);
     let rule_node = toggle_semantic_node(mode_label(ProxyMode::Rule));
     let global_node = toggle_semantic_node(mode_label(ProxyMode::Global));
     let direct_node = toggle_semantic_node(mode_label(ProxyMode::Direct));
@@ -338,6 +343,7 @@ pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + 
             align_items: AlignItems::Center,
             column_gap: Val::Px(space::S4),
         }
+        template_value(segment_node)
         Children [
             (
                 { pill_caption_scene(mode_label(ProxyMode::Rule).to_owned(), mode == ProxyMode::Rule, palette) }
@@ -371,8 +377,10 @@ pub fn sidebar_system_toggles_scene(
     let edge = palette.border;
     let proxy_selected = toggles.system_proxy.is_enabled();
     let proxy_label = toggles.system_proxy.compact_label().to_owned();
+    let proxy_node = switch_node(ShellA11yNode::SystemProxySwitch, proxy_selected);
     let tun_selected = toggles.tun.is_enabled();
     let tun_label = toggles.tun.compact_label().to_owned();
+    let tun_node = switch_node(ShellA11yNode::TunSwitch, tun_selected);
     bsn! {
         Node {
             width: percent(100),
@@ -405,6 +413,7 @@ pub fn sidebar_system_toggles_scene(
                             (
                                 { pill_caption_scene(proxy_label, proxy_selected, palette) }
                                 SidebarSystemProxyToggle
+                                template_value(proxy_node)
                             ),
                         ]
                     ),
@@ -440,6 +449,7 @@ pub fn sidebar_system_toggles_scene(
                             (
                                 { pill_caption_scene(tun_label, tun_selected, palette) }
                                 SidebarTunToggle
+                                template_value(tun_node)
                             ),
                         ]
                     ),
@@ -627,6 +637,7 @@ fn shortcut_tile_scene(
 /// Live speed footer in sidebar with throughput and mini trend indicator.
 pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
     let edge = palette.border;
+    let rate_node = semantic_node(ShellA11yNode::TrafficReadout);
     bsn! {
         Node {
             width: percent(100),
@@ -639,6 +650,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
         BackgroundColor({ palette.surface_elevated })
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         SidebarSpeedFooter
+        template_value(rate_node)
         Children [
             (
                 Node {
@@ -731,6 +743,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
 
 /// Sidebar nav column rendering all 11 routes in Route::ALL.
 pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
+    let nav_node = semantic_node(ShellA11yNode::SidebarNav);
     let nav_items: Vec<Box<dyn Scene>> = Route::ALL
         .iter()
         .map(|&route| sidebar_nav_item_scene(route, route == Route::Overview, palette))
@@ -742,6 +755,7 @@ pub fn nav_column_scene(palette: &UiPalette) -> Box<dyn Scene> {
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(space::S4),
         }
+        template_value(nav_node)
         Children [
             { nav_items },
         ]

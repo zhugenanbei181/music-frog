@@ -34,7 +34,7 @@ mod state;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::options::EditorPane;
-use iced::{application, window};
+use iced::application;
 use std::path::PathBuf;
 
 /// Default window size, mirrors the production window in `main.rs`.
@@ -181,12 +181,10 @@ pub fn run(env: DemoEnv) -> iced::Result {
     .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
     .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
     .default_font(iced::Font::with_name("Inter"))
-    .window(window::Settings {
-        size: window_size.into(),
-        min_size: Some((960.0, 640.0).into()),
-        exit_on_close_request: false,
-        ..Default::default()
-    })
+    .window(crate::window_chrome::window_settings(
+        window_size,
+        (960.0, 640.0),
+    ))
     .run()
 }
 

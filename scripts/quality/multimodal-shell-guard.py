@@ -448,6 +448,102 @@ def check_no_raw_hairlines(violations: list[str]) -> None:
                     )
 
 
+TRAY_STATUS = "crates/infiltrator-contract/src/tray_status.rs"
+WINDOW_CHROME = "crates/infiltrator-contract/src/window_chrome.rs"
+A11Y = "crates/infiltrator-contract/src/a11y.rs"
+ZH_LOCALES = [
+    "crates/infiltrator-shared/src/locales_table.rs",
+    "crates/infiltrator-shared/src/locales_table_ext.rs",
+]
+EN_LOCALES = [
+    "crates/infiltrator-shared/src/locales_table_en.rs",
+    "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+]
+
+
+def code_lines(path: str) -> list[tuple[int, str]]:
+    """Non-comment lines (`//` line comments are dropped).
+
+    Honesty checks must look at real code: the surrounding doc comments in
+    this repo deliberately explain why Iced has no AccessKit and why Bevy has
+    no tray, and those explanations are not violations.
+    """
+    lines: list[tuple[int, str]] = []
+    for number, line in enumerate(read(path).splitlines(), start=1):
+        if line.strip().startswith("//"):
+            continue
+        lines.append((number, line.split("//", 1)[0]))
+    return lines
+
+
+def locale_keys(paths: list[str]) -> set[str]:
+    keys: set[str] = set()
+    for path in paths:
+        keys.update(re.findall(r'^\s*"([a-z0-9_]+)"\s*=>', read(path), re.MULTILINE))
+    return keys
+
+
+def a11y_label_keys() -> list[str]:
+    """Every `label_key()` arm from the shared a11y grammar."""
+    text = read(A11Y)
+    match = re.search(
+        r"pub const fn label_key\(self\)[^{]*\{(?P<body>.*?)\n    \}",
+        text,
+        re.DOTALL,
+    )
+    if not match:
+        return []
+    return re.findall(r'=>\s*"([a-z0-9_]+)"', match.group("body"))
+
+
+def check_a11y_label_coverage(violations: list[str]) -> None:
+    """DUAL-15-10: every grammar row must resolve in both locales.
+
+    The Iced surface resolves `label_key()` through its localizer and the
+    Bevy surface publishes `label_zh()`; a key without copy would silently
+    fall back to the raw key, which is exactly the drift this gate forbids.
+    """
+    keys = a11y_label_keys()
+    if not keys or len(keys) != len(set(keys)):
+        violations.append(f"{A11Y} label_key() must define one unique key per node")
+        return
+    zh_keys = locale_keys(ZH_LOCALES)
+    en_keys = locale_keys(EN_LOCALES)
+    for key in keys:
+        if key not in zh_keys:
+            violations.append(f"{A11Y} label key {key!r} missing from the zh-CN tables")
+        if key not in en_keys:
+            violations.append(f"{A11Y} label key {key!r} missing from the en-US tables")
+
+
+def check_capability_honesty(violations: list[str]) -> None:
+    """No surface may reference a capability it does not host.
+
+    Iced 0.14 has no AccessKit integration, and the Bevy shell has no tray
+    host: both boundaries are honest deviations in the ledger, so a real code
+    reference to the missing integration would be a fabrication (DUAL-15-02,
+    DUAL-15-10).
+    """
+    for path in sorted((ROOT / "crates/infiltrator-iced/src").rglob("*.rs")):
+        relative = path.relative_to(ROOT).as_posix()
+        for number, code in code_lines(relative):
+            if "accesskit" in code.lower():
+                violations.append(
+                    f"{relative}:{number} references accesskit; Iced has no "
+                    "AccessKit integration (DUAL-15-10 must stay honest)"
+                )
+    for path in sorted((ROOT / "crates/infiltrator-bevy-ui/src").rglob("*.rs")):
+        relative = path.relative_to(ROOT).as_posix()
+        for number, code in code_lines(relative):
+            lowered = code.lower()
+            for marker in ("ksni", "tray-icon", "tray_icon", "muda", "statusnotifier"):
+                if marker in lowered:
+                    violations.append(
+                        f"{relative}:{number} references {marker!r}; the Bevy "
+                        "surface reports no tray host instead (DUAL-15-02)"
+                    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["report", "enforce"], default="enforce")
@@ -479,7 +575,7 @@ def main() -> int:
         "planned",
         "组 15 逐项账目",
         "2026-09-22 组 15 批次 A",
-        "组 15 多模态外壳与极客命令流 | 15 | `in progress (8/15)`",
+        "组 15 多模态外壳与极客命令流 | 15 | `in progress (10/15)`",
         # 15-01 stays authoritatively tracked in the responsive ledger.
         "RESPONSIVE_PARITY_LEDGER.md",
     )
@@ -1265,6 +1361,287 @@ def main() -> int:
 
     # DUAL-15-15: the machine-checkable multimodal regression matrix.
     check_matrix(violations)
+
+    # ---- Batch E (DUAL-15-02/10/13): the shared tray-status contract with the
+    # live rate badge, the shared accessibility grammar, and the frameless
+    # window-chrome contract with its real host ops on both surfaces.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 15 批次 E",
+        "TrayRateBadge",
+        "TRAY_RATE_REFRESH_INTERVAL_MS",
+        "ChromeRequest",
+        "WindowChromePlugin",
+        "ShellA11yNode",
+        "TrayStatusReport",
+        "the_tray_spec_carries_the_live_rate_badge_from_the_shared_waveform",
+        "the_rate_badge_push_is_deduplicated_and_uses_the_shared_interval",
+        "the_frameless_window_settings_consume_the_shared_chrome_contract",
+        "every_chrome_message_maps_to_one_real_host_window_op",
+        "every_shared_semantic_node_resolves_a_localized_label_and_role",
+        "the_host_applies_the_shared_frameless_shape_and_reports_it",
+        "a_press_on_the_chrome_bar_starts_the_os_drag_move",
+        "the_three_chrome_controls_request_minimize_maximize_and_exit",
+        "the_mounted_shell_publishes_every_shared_semantic_row",
+        "the_bevy_surface_reports_no_tray_host_instead_of_a_badge",
+    )
+
+    # Shared contracts: the tray rate badge, the chrome shape, the grammar.
+    require(
+        violations,
+        TRAY_STATUS,
+        "pub const TRAY_RATE_REFRESH_INTERVAL_MS",
+        "pub struct TrayRateBadge",
+        "pub fn from_waveform",
+        "pub fn badge_text",
+        "pub fn format_rate",
+        "pub enum TraySupport",
+        "pub const fn live_rate_badge",
+        "pub const fn unsupported_reason",
+        "fn the_rate_badge_projects_the_newest_real_sample",
+        "fn an_empty_or_non_finite_waveform_never_reports_a_badge",
+        "fn a_surface_without_a_tray_states_the_typed_reason",
+    )
+    require(
+        violations,
+        WINDOW_CHROME,
+        "pub const CHROME_DRAG_STRIP_HEIGHT_PX",
+        "pub struct WindowChrome",
+        "pub const FRAMELESS",
+        "pub const SYSTEM",
+        "pub const fn os_decorations",
+        "pub const fn needs_custom_controls",
+        "pub enum WindowChromeSupport",
+        "fn the_frameless_style_owns_a_real_drag_strip",
+        "fn a_host_without_a_drag_path_reports_the_typed_boundary",
+    )
+    require(
+        violations,
+        A11Y,
+        "pub enum A11yRole",
+        "pub enum ShellA11yNode",
+        "pub const ALL: [Self; 18]",
+        "pub const fn label_key",
+        "pub const fn label_zh",
+        "pub const fn role",
+        "pub fn shell_a11y_specs",
+        "fn every_shell_node_carries_a_role_and_both_label_sources",
+        "fn the_coverage_inventory_is_unique_and_complete",
+    )
+
+    # Iced: the live rate badge on the real tray spec + its throttled push.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/tray/spec.rs",
+        "pub const TRAY_ACTION_INFO_RATE",
+        "pub rate_badge: Option<infiltrator_contract::tray_status::TrayRateBadge>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/tray/menu.rs",
+        'tr("tray_info_rate")',
+        "badge.badge_text()",
+        "TRAY_ACTION_INFO_RATE",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/tray.rs",
+        "tray_status::TrayRateBadge::from_waveform",
+        "pub fn refresh_tray",
+        "pub fn refresh_tray_throttled",
+        "pub fn refresh_tray_rates",
+        "TRAY_RATE_REFRESH_INTERVAL",
+        "tray_last_rate_text",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update.rs",
+        "self.refresh_tray_rates()",
+    )
+    # Iced: the frameless host window + the mounted drag strip.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/window_chrome.rs",
+        "pub fn chrome",
+        "pub fn support",
+        "pub fn window_settings",
+        "decorations: chrome().os_decorations()",
+        "pub enum ChromeRequest",
+        "pub const fn from_message",
+        "iced::window::drag(id)",
+        "iced::window::toggle_maximize(id)",
+        "iced::window::minimize(id, true)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/chrome.rs",
+        "pub fn chrome_strip",
+        "fn strip_height_px",
+        "mouse_area",
+        "on_double_click",
+        "Message::WindowChromeDragRequested",
+        "ShellA11yNode::ChromeMinimize",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/chrome.rs",
+        "pub(crate) fn update_chrome",
+        "ChromeRequest::from_message",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root.rs",
+        "view::chrome::chrome_strip(self)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/desktop_composition.rs",
+        "crate::window_chrome::window_settings",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/demo.rs",
+        "crate::window_chrome::window_settings",
+    )
+    # Iced: the shared grammar consumed as localized labels/tooltips.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/accessibility.rs",
+        "pub fn a11y_label",
+        "pub fn a11y_role",
+        "pub fn labelled",
+        "node.label_key()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/sidebar.rs",
+        "ShellA11yNode::GlobalStatusDot",
+        "ShellA11yNode::TrafficReadout",
+        "crate::accessibility::labelled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/mini_hud.rs",
+        "ShellA11yNode::MiniHudCard",
+        "ShellA11yNode::MiniHudSystemProxySwitch",
+        "ShellA11yNode::MiniHudTunSwitch",
+    )
+
+    # Bevy: the real chrome path, the grammar mounting and the tray report.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/chrome.rs",
+        "pub struct WindowChromePlugin",
+        "pub const fn chrome_shape",
+        "pub const fn support",
+        "pub struct WindowChromeReport",
+        "pub struct ChromeMaximizeLatch",
+        "pub fn chrome_bar_scene",
+        "window.start_drag_move()",
+        "window.set_minimized(true)",
+        "window.set_maximized(next)",
+        "exits.write(AppExit::Success)",
+        "pub struct ChromeDragBar",
+        "pub struct ChromeMinimizeButton",
+        "pub struct ChromeMaximizeButton",
+        "pub struct ChromeCloseButton",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/a11y.rs",
+        "pub const fn accesskit_role",
+        "pub fn semantic_node",
+        "pub fn switch_node",
+        "pub fn value_node",
+        "node.label_zh()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/tray_status.rs",
+        "pub const fn support",
+        "bevy-shell-has-no-tray-host",
+        "pub struct TrayStatusReport",
+        "pub fn live_badge",
+        "TRAY_RATE_REFRESH_INTERVAL_MS",
+        "pub struct TrayStatusPlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/lib.rs",
+        "decorations: chrome::chrome_shape().os_decorations()",
+        "chrome::WindowChromePlugin",
+        "tray_status::TrayStatusPlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/shell_scene.rs",
+        "crate::chrome::chrome_bar_scene(palette)",
+        "crate::a11y::{semantic_node, switch_node}",
+        "ShellA11yNode::Window",
+        "ShellA11yNode::ModeSegment",
+        "switch_node(ShellA11yNode::SystemProxySwitch",
+        "switch_node(ShellA11yNode::TunSwitch",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/toast.rs",
+        "fn sync_toast_semantics",
+        "ShellA11yNode::ToastRegion",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud.rs",
+        "ShellA11yNode::MiniHudCard",
+        "switch_node(ShellA11yNode::MiniHudSystemProxySwitch",
+        "ShellA11yNode::MiniHudTunSwitch",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command_palette.rs",
+        "ShellA11yNode::CommandPaletteDialog",
+    )
+
+    # The dual tests introduced by this batch.
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/multimodal_shell_tests.rs",
+        "fn the_tray_spec_carries_the_live_rate_badge_from_the_shared_waveform",
+        "fn a_host_without_live_samples_shows_no_rate_badge",
+        "fn the_rate_badge_push_is_deduplicated_and_uses_the_shared_interval",
+        "fn the_frameless_window_settings_consume_the_shared_chrome_contract",
+        "fn every_chrome_message_maps_to_one_real_host_window_op",
+        "fn the_chrome_strip_mounts_above_the_shell_and_never_fabricates_a_window",
+        "fn every_shared_semantic_node_resolves_a_localized_label_and_role",
+        "fn the_shell_carries_the_shared_labels_as_visible_tooltips",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/window_chrome_tests.rs",
+        "fn the_host_applies_the_shared_frameless_shape_and_reports_it",
+        "fn a_press_on_the_chrome_bar_starts_the_os_drag_move",
+        "fn a_double_click_toggles_the_maximize_request_and_the_latch",
+        "fn the_three_chrome_controls_request_minimize_maximize_and_exit",
+        "fn the_mounted_shell_carries_the_chrome_bar_and_its_controls",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/a11y_semantics_tests.rs",
+        "fn the_mounted_shell_publishes_every_shared_semantic_row",
+        "fn a_switch_node_announces_its_live_state_and_a_status_node_its_value",
+        "fn every_shared_role_maps_onto_a_real_accesskit_role",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/tray_status_tests.rs",
+        "fn the_bevy_surface_reports_no_tray_host_instead_of_a_badge",
+        "fn the_report_carries_the_shared_refresh_cadence",
+    )
+
+    # DUAL-15-10 label coverage + the two honesty boundaries (no fake
+    # AccessKit on Iced, no fake tray on Bevy).
+    check_a11y_label_coverage(violations)
+    check_capability_honesty(violations)
 
     # Fixed defects must not regress.
     forbid(

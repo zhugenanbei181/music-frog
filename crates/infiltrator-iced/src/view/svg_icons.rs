@@ -46,6 +46,8 @@ pub enum Icon {
     ArrowDown,
     Server,
     Plug,
+    Minus,
+    Square,
 }
 
 impl Icon {
@@ -80,6 +82,8 @@ impl Icon {
             Icon::ArrowDown => include_bytes!("../../assets/icons/arrow-down.svg"),
             Icon::Server => include_bytes!("../../assets/icons/server.svg"),
             Icon::Plug => include_bytes!("../../assets/icons/plug.svg"),
+            Icon::Minus => include_bytes!("../../assets/icons/minus.svg"),
+            Icon::Square => include_bytes!("../../assets/icons/square.svg"),
         }
     }
 }
@@ -116,6 +120,8 @@ static HANDLES: LazyLock<HashMap<Icon, svg::Handle>> = LazyLock::new(|| {
         Icon::ArrowDown,
         Icon::Server,
         Icon::Plug,
+        Icon::Minus,
+        Icon::Square,
     ] {
         map.insert(icon, svg::Handle::from_memory(icon.bytes()));
     }

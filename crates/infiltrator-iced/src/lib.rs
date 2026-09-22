@@ -7,6 +7,7 @@
 //! harnesses (see `tests/common`, `tests/headless`, `tests/gui`) exercise the
 //! public surface directly.
 
+pub mod accessibility;
 pub mod admin_server;
 pub mod app;
 pub mod configs_dir;
@@ -34,6 +35,7 @@ pub mod utils;
 pub mod version_application;
 pub mod view;
 pub mod view_root;
+pub mod window_chrome;
 
 /// Registry value name for this app's Windows autostart entry (distinct from
 /// the legacy Tauri client's entry so both can coexist).

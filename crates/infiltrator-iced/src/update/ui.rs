@@ -517,6 +517,10 @@ impl AppState {
             | Message::WindowIdResolved(_) => {
                 self.update_mini_hud(message).unwrap_or_else(Task::none)
             }
+            Message::WindowChromeDragRequested
+            | Message::WindowChromeToggleMaximize
+            | Message::WindowChromeMinimize
+            | Message::WindowChromeClose => self.update_chrome(message).unwrap_or_else(Task::none),
             Message::RunScriptSandboxTest => {
                 let script = self.editor.script_sandbox.script_code.clone();
                 let yaml = self.editor.script_sandbox.input_yaml.clone();

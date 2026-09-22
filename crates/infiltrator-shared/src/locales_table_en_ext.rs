@@ -581,6 +581,28 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "mixin_studio_cascade_undeclared" => "not declared".into(),
         "mixin_studio_cascade_merged" => "Composed output".into(),
         "mixin_studio_cascade_lines" => "lines".into(),
+
+
+        // Category 2: multimodal shell finish (DUAL-15-02/10/13)
+        "tray_info_rate" => "Live Rate".into(),
+        "a11y_window" => "Application window".into(),
+        "a11y_shell_header" => "Application header".into(),
+        "a11y_content_region" => "Content region".into(),
+        "a11y_sidebar_nav" => "Page navigation".into(),
+        "a11y_global_status_dot" => "Kernel status".into(),
+        "a11y_mode_segment" => "Proxy mode selector".into(),
+        "a11y_system_proxy_switch" => "System proxy toggle".into(),
+        "a11y_tun_switch" => "TUN mode toggle".into(),
+        "a11y_theme_toggle" => "Toggle color theme".into(),
+        "a11y_mini_hud_card" => "Mini HUD".into(),
+        "a11y_mini_hud_system_proxy" => "Mini HUD system proxy toggle".into(),
+        "a11y_mini_hud_tun" => "Mini HUD TUN toggle".into(),
+        "a11y_command_palette" => "Command palette".into(),
+        "a11y_toast_region" => "Notifications".into(),
+        "a11y_traffic_readout" => "Live upload and download rates".into(),
+        "chrome_minimize" => "Minimize".into(),
+        "chrome_maximize" => "Maximize / Restore".into(),
+        "chrome_close" => "Close".into(),
         _ => key.to_string().into(),
     }
 }

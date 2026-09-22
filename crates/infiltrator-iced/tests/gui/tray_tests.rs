@@ -57,6 +57,9 @@ fn base_ctx<'a>() -> TraySpecContext<'a> {
         controller: Some("http://127.0.0.1:9090"),
         admin_enabled: false,
         admin_port: 25210,
+        // DUAL-15-02: no live sample in the minimal snapshot; tests that need
+        // the badge install a real `TrafficWaveformSnapshot` first.
+        rate_badge: None,
     }
 }
 

@@ -38,8 +38,13 @@ use crate::types::runtime::RuntimeStatus;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
+use infiltrator_contract::tray_status;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+/// The shared rate-badge push cadence (DUAL-15-02), in the host's time type.
+pub(crate) const TRAY_RATE_REFRESH_INTERVAL: Duration =
+    Duration::from_millis(tray_status::TRAY_RATE_REFRESH_INTERVAL_MS);
 
 /// Spawn the platform tray with the given spec. Returns the typed startup
 /// result; never panics and never fails the app.
@@ -187,18 +192,38 @@ impl AppState {
     }
 
     /// Stream-driven refresh (core download / sync progress) at most once
-    /// per second so the D-Bus menu never floods.
-    pub fn refresh_tray_throttled(&mut self) {
+    /// per second so the D-Bus menu never floods. Returns whether a spec was
+    /// actually pushed.
+    pub fn refresh_tray_throttled(&mut self) -> bool {
         let now = std::time::Instant::now();
         if self
             .shell
             .tray_refresh_cooldown
-            .is_some_and(|at| now.duration_since(at) < std::time::Duration::from_secs(1))
+            .is_some_and(|at| now.duration_since(at) < TRAY_RATE_REFRESH_INTERVAL)
         {
-            return;
+            return false;
         }
         self.shell.tray_refresh_cooldown = Some(now);
         self.refresh_tray();
+        true
+    }
+
+    /// DUAL-15-02: push the shared live rate badge when the newest real
+    /// traffic sample changed its display text. The shared
+    /// [`TRAY_RATE_REFRESH_INTERVAL_MS`] cadence and the text dedup keep an
+    /// idle shell from pushing anything at all.
+    pub fn refresh_tray_rates(&mut self) {
+        let Some(badge) = tray_status::TrayRateBadge::from_waveform(&self.runtime.traffic_waveform)
+        else {
+            return;
+        };
+        let text = badge.badge_text();
+        if self.shell.tray_last_rate_text.as_deref() == Some(text.as_str()) {
+            return;
+        }
+        if self.refresh_tray_throttled() {
+            self.shell.tray_last_rate_text = Some(text);
+        }
     }
 
     /// The spec describing what the tray should show right now: assemble the
@@ -240,6 +265,7 @@ impl AppState {
             controller: controller.as_deref(),
             admin_enabled: self.shell.admin_enabled,
             admin_port: self.shell.admin_port,
+            rate_badge: tray_status::TrayRateBadge::from_waveform(&self.runtime.traffic_waveform),
         };
         build_tray_spec(&ctx)
     }

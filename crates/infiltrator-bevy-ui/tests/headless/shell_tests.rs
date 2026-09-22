@@ -132,18 +132,28 @@ fn shell_exposes_named_semantic_nodes_on_root_header_and_pill() {
 
     let mut roots = world.query::<(&AccessibilityNode, &ShellRoot)>();
     let (root, _) = roots.single(world).expect("shell root semantic node");
+    // DUAL-15-10: the window/header/theme labels are the shared grammar rows.
     assert_eq!(root.role(), accesskit::Role::Window);
-    assert_eq!(root.label(), Some("MusicFrog Infiltrator"));
+    assert_eq!(
+        root.label(),
+        Some(infiltrator_contract::a11y::ShellA11yNode::Window.label_zh())
+    );
 
     let mut headers = world.query::<(&AccessibilityNode, &ShellHeader)>();
     let (header, _) = headers.single(world).expect("header semantic node");
     assert_eq!(header.role(), accesskit::Role::Header);
-    assert_eq!(header.label(), Some("MusicFrog Infiltrator"));
+    assert_eq!(
+        header.label(),
+        Some(infiltrator_contract::a11y::ShellA11yNode::ShellHeader.label_zh())
+    );
 
     let mut pills = world.query::<(&AccessibilityNode, &ThemeToggle)>();
     let (pill, _) = pills.single(world).expect("pill semantic node");
     assert_eq!(pill.role(), accesskit::Role::Button);
-    assert_eq!(pill.label(), Some("Toggle color theme"));
+    assert_eq!(
+        pill.label(),
+        Some(infiltrator_contract::a11y::ShellA11yNode::ThemeToggle.label_zh())
+    );
 }
 
 #[test]
@@ -188,7 +198,10 @@ fn nav_entries_mode_pills_and_content_region_carry_semantics() {
     let mut slots = world.query::<(&ContentSlot, &AccessibilityNode)>();
     let (_, region) = slots.single(world).expect("content region semantic node");
     assert_eq!(region.role(), accesskit::Role::Region);
-    assert_eq!(region.label(), Some("核心概览"));
+    assert_eq!(
+        region.label(),
+        Some(infiltrator_contract::a11y::ShellA11yNode::ContentRegion.label_zh())
+    );
 }
 
 #[test]

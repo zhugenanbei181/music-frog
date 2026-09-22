@@ -10,7 +10,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::scene::{Scene, bsn};
+use bevy::scene::{Scene, bsn, template_value};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
@@ -23,6 +23,7 @@ use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::mini_hud::MiniHudReadModel;
 use infiltrator_contract::system_toggle::SystemToggle;
 
@@ -154,6 +155,12 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
     let proxy_selected = model.system_proxy.is_enabled();
     let tun_label = model.tun.compact_label().to_owned();
     let tun_selected = model.tun.is_enabled();
+    // DUAL-15-10: the HUD card and its two quick switches carry the shared
+    // semantic rows (role + label), the switches with their live state.
+    let card_node = crate::a11y::semantic_node(ShellA11yNode::MiniHudCard);
+    let proxy_node =
+        crate::a11y::switch_node(ShellA11yNode::MiniHudSystemProxySwitch, proxy_selected);
+    let tun_node = crate::a11y::switch_node(ShellA11yNode::MiniHudTunSwitch, tun_selected);
     let edge = palette.border;
     let scrim = Color::NONE;
 
@@ -180,6 +187,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+                template_value(card_node)
                 Children [
                     // Header: title, real mode chip, pin and expand actions
                     (
@@ -325,11 +333,13 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                                         { pill_caption_scene(proxy_label, proxy_selected, palette) }
                                         MiniHudSystemProxyToggle
                                         ButtonDisabled({ !proxy_actionable })
+                                        template_value(proxy_node)
                                     ),
                                     (
                                         { pill_caption_scene(tun_label, tun_selected, palette) }
                                         MiniHudTunToggle
                                         ButtonDisabled({ !tun_actionable })
+                                        template_value(tun_node)
                                     ),
                                     (
                                         Text(toggle_line)

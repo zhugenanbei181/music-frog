@@ -1,4 +1,5 @@
 pub mod aggregator;
+mod chrome;
 pub mod core;
 mod mini_hud;
 pub mod profile;
@@ -113,6 +114,9 @@ impl AppState {
         match message {
             Message::SurfaceSnapshotUpdated(snapshot) => {
                 self.apply_shared_surface_snapshot(*snapshot);
+                // DUAL-15-02: a live traffic sample may have arrived; push the
+                // shared rate badge (throttled + deduped inside).
+                self.refresh_tray_rates();
                 Task::none()
             }
             // Window geometry is local shell state, but the derived layout tier
@@ -212,6 +216,10 @@ impl AppState {
             | Message::MiniHudPlacementUpdated(_)
             | Message::MiniHudDisplayKnown(_)
             | Message::WindowIdResolved(_)
+            | Message::WindowChromeDragRequested
+            | Message::WindowChromeToggleMaximize
+            | Message::WindowChromeMinimize
+            | Message::WindowChromeClose
             | Message::RunScriptSandboxTest
             | Message::SelectScriptPreset(_)
             | Message::UpdateScriptSandboxCode(_)

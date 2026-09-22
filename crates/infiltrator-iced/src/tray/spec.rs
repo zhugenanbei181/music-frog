@@ -71,6 +71,9 @@ pub const TRAY_ACTION_INFO_SYNC: TrayActionId = 85;
 pub const TRAY_ACTION_INFO_KERNEL_DEFAULT: TrayActionId = 86;
 pub const TRAY_ACTION_INFO_KERNEL_STATUS: TrayActionId = 87;
 pub const TRAY_ACTION_INFO_DOWNLOAD: TrayActionId = 88;
+/// The shared live rate badge line (DUAL-15-02); refreshed at most once per
+/// `tray_status::TRAY_RATE_REFRESH_INTERVAL_MS`.
+pub const TRAY_ACTION_INFO_RATE: TrayActionId = 89;
 
 /// Submenu identities (used for tree identity and tests; the id is never
 /// reported as an activation).
@@ -426,6 +429,11 @@ pub struct TraySpecContext<'a> {
     pub controller: Option<&'a str>,
     pub admin_enabled: bool,
     pub admin_port: u16,
+    /// The shared live rate badge projected from the newest real traffic
+    /// sample ([`infiltrator_contract::tray_status::TrayRateBadge`]); `None`
+    /// until the host delivers a real sample, so no surface ever fabricates a
+    /// `0 B/s` badge.
+    pub rate_badge: Option<infiltrator_contract::tray_status::TrayRateBadge>,
 }
 
 /// The controller handle handed to the app on a successful tray startup.
