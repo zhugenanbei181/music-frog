@@ -303,3 +303,52 @@ async fn subscription_schedule_command_persists_and_rejects_invalid_cron() {
         "a rejected draft never rewrites the stored schedule"
     );
 }
+
+// ---- DUAL-09-01 / LEFT-05 L1: comment-preserving rule writes ---------------
+
+#[tokio::test]
+async fn rule_commands_keep_handwritten_comments_end_to_end() {
+    let source = "\
+# 手写头注释
+rules:
+  # 规则块说明
+  - MATCH,DIRECT   # 兜底规则
+";
+    let store = Arc::new(FakeStore::with_profile(source));
+    let application = application(&store);
+
+    application
+        .execute(CommandIntent::AddCustomRule {
+            rule_type: "DOMAIN-SUFFIX".to_owned(),
+            payload: "google.com".to_owned(),
+            target: "PROXY".to_owned(),
+        })
+        .await
+        .expect("add");
+    let saved = store.content();
+    assert!(saved.contains("# 手写头注释"), "top comment kept: {saved}");
+    assert!(
+        saved.contains("# 规则块说明"),
+        "block comment kept: {saved}"
+    );
+    assert!(saved.contains("# 兜底规则"), "inline comment kept: {saved}");
+    assert_eq!(
+        infiltrator_domain::rules::load_rules_from_yaml(&saved)
+            .expect("parse")
+            .len(),
+        2
+    );
+
+    application
+        .execute(CommandIntent::ToggleRuleEnabled { index: 0 })
+        .await
+        .expect("toggle");
+    let saved = store.content();
+    let rules = infiltrator_domain::rules::load_rules_from_yaml(&saved).expect("parse");
+    assert!(!rules[0].enabled, "the new rule is now disabled");
+    assert!(
+        saved.contains("# 手写头注释"),
+        "toggle keeps comments: {saved}"
+    );
+    assert!(saved.contains("# 规则块说明"));
+}

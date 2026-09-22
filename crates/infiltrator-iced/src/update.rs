@@ -3,6 +3,7 @@ pub mod core;
 mod mini_hud;
 pub mod profile;
 pub mod shell;
+mod snapshot_diff;
 mod system_proxy;
 pub mod ui;
 mod ui_wave3;
@@ -221,7 +222,12 @@ impl AppState {
             | Message::AddQuickRuleFromConnection { .. }
             | Message::OpenSnapshotDiff(_)
             | Message::CloseSnapshotDiff
+            | Message::SnapshotDiffLoaded(_)
+            | Message::SetSnapshotDiffMode(_)
+            | Message::ArmSnapshotRollback
+            | Message::CancelSnapshotRollback
             | Message::RollbackToSnapshot(_)
+            | Message::SetProfileProtectionOverride(_)
             | Message::ToggleHotkeyEnabled(_)
             | Message::TogglePcapCapture
             | Message::ExportPcapBuffer
@@ -373,6 +379,8 @@ impl AppState {
             | Message::ProfileContentLoaded(_)
             | Message::LoadProfileSnapshots
             | Message::ProfileSnapshotsLoaded(_)
+            | Message::ArmRestoreProfileSnapshot(_)
+            | Message::CancelRestoreProfileSnapshot
             | Message::RestoreProfileSnapshot(_)
             | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)

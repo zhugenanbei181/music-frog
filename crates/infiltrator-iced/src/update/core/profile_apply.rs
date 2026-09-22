@@ -77,6 +77,23 @@ pub(crate) async fn save_profile_content(
         .map_err(|failure| InfiltratorError::Config(failure.message))
 }
 
+/// DUAL-09-12: commit a user-edited document through the shared protection
+/// guard. `allow_protected` is the surface's explicit unlock; the application
+/// remains the source of truth for which profiles are protected.
+pub(crate) async fn save_edited_profile_content(
+    runtime: Option<Arc<dyn HostRuntime>>,
+    profile: String,
+    content: String,
+    strategy: ApplyStrategy,
+    allow_protected: bool,
+) -> Result<(), InfiltratorError> {
+    let store = crate::configs_dir::config_manager().await?;
+    ProfileApplication::new(store)
+        .save_edited_profile_content(runtime, profile, content, strategy, allow_protected)
+        .await
+        .map_err(|failure| InfiltratorError::Config(failure.message))
+}
+
 /// Switch the active profile without leaving a running core on a half-applied
 /// target. If applying the target fails, restore the pointer and explicitly
 /// re-apply the previous profile so the old core configuration is live again.

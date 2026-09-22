@@ -677,20 +677,14 @@ impl AppState {
                     ToastStatus::Success,
                 ))
             }
-            Message::OpenSnapshotDiff(id) => {
-                self.editor.snapshot_diff_modal_open = true;
-                self.editor.snapshot_diff_selected_id = Some(id);
-                Task::none()
-            }
-            Message::CloseSnapshotDiff => {
-                self.editor.snapshot_diff_modal_open = false;
-                self.editor.snapshot_diff_selected_id = None;
-                Task::none()
-            }
-            Message::RollbackToSnapshot(id) => {
-                self.editor.snapshot_diff_modal_open = false;
-                Task::done(Message::RestoreProfileSnapshot(id.into()))
-            }
+            Message::OpenSnapshotDiff(_)
+            | Message::CloseSnapshotDiff
+            | Message::SnapshotDiffLoaded(_)
+            | Message::SetSnapshotDiffMode(_)
+            | Message::ArmSnapshotRollback
+            | Message::CancelSnapshotRollback
+            | Message::RollbackToSnapshot(_)
+            | Message::SetProfileProtectionOverride(_) => self.update_snapshot_diff(message),
             // Group 15 shell domain (appearance preference, global shortcut
             // registry, toast ingestion) lives in `update/shell.rs`.
             Message::ToggleTheme

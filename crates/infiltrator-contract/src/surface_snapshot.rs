@@ -230,6 +230,10 @@ pub struct ProfileSnapshot {
     /// DUAL-07-08: the profile's stored node-keyword filter draft.
     #[serde(default)]
     pub filter: crate::subscription_import::SubscriptionFilterDraft,
+    /// DUAL-09-12: direct-edit protection derived from the subscription
+    /// source. Both surfaces render the same classification.
+    #[serde(default)]
+    pub write_protection: crate::profile_protection::ProfileWriteProtection,
 }
 
 /// DUAL-07-09: the profile metadata default for the auto-reload preference.

@@ -100,7 +100,22 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::ArmRestoreProfileSnapshot(path) => {
+                self.editor.pending_restore_snapshot = Some(path);
+                Task::none()
+            }
+            Message::CancelRestoreProfileSnapshot => {
+                self.editor.pending_restore_snapshot = None;
+                Task::none()
+            }
             Message::RestoreProfileSnapshot(path) => {
+                // DUAL-09-09: the first click only arms; the restore executes
+                // once the same snapshot has been confirmed.
+                if self.editor.pending_restore_snapshot.as_deref() != Some(path.as_path()) {
+                    self.editor.pending_restore_snapshot = Some(path);
+                    return Task::none();
+                }
+                self.editor.pending_restore_snapshot = None;
                 if self.editor.is_restoring_snapshot {
                     return Task::none();
                 }
@@ -167,6 +182,9 @@ impl AppState {
                 if let Some(path) = self.editor.editor_path.clone() {
                     self.profile.is_saving_profile = true;
                     let runtime = self.runtime.runtime.clone();
+                    // DUAL-09-12: the editor passes its explicit unlock; the
+                    // application re-checks the stored subscription metadata.
+                    let allow_protected = self.editor.profile_protection_override;
                     Task::perform(
                         async move {
                             let profile_name = path
@@ -178,11 +196,12 @@ impl AppState {
                                     )
                                 })?
                                 .to_string();
-                            crate::update::core::profile_apply::save_profile_content(
+                            crate::update::core::profile_apply::save_edited_profile_content(
                                 runtime,
                                 profile_name,
                                 content,
                                 ApplyStrategy::PreferReload,
+                                allow_protected,
                             )
                             .await
                         },

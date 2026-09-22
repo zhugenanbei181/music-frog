@@ -360,6 +360,17 @@ pub struct ConfigEditorState {
     pub script_sandbox: crate::types::editor::ScriptSandboxState,
     pub snapshot_diff_modal_open: bool,
     pub snapshot_diff_selected_id: Option<String>,
+    /// DUAL-09-08: the real snapshot-vs-current diff rendered by the modal.
+    /// Computed through the shared `SnapshotApplication`, never fabricated.
+    pub snapshot_diff: Option<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot>,
+    pub snapshot_diff_mode: crate::types::app::SnapshotDiffMode,
+    pub snapshot_diff_loading: bool,
+    pub snapshot_diff_error: Option<String>,
+    /// DUAL-09-09: two-step rollback confirmation; the first click arms.
+    pub snapshot_diff_rollback_armed: bool,
+    /// DUAL-09-12: session-local unlock for direct edits of a protected
+    /// remote subscription. The application still enforces the rule.
+    pub profile_protection_override: bool,
     pub subrule_draft: infiltrator_contract::rule_edit::LogicalDraft,
     pub geodata_status: crate::types::editor::GeoDataStatus,
     pub rule_hit_audit: crate::types::rules::RuleHitAuditState,
@@ -388,6 +399,8 @@ pub struct ConfigEditorState {
     pub profile_snapshots: Vec<SnapshotMeta>,
     pub is_loading_snapshots: bool,
     pub is_restoring_snapshot: bool,
+    /// DUAL-09-09: the snapshot whose restore has been armed but not confirmed.
+    pub pending_restore_snapshot: Option<PathBuf>,
     pub editor_pane: crate::types::options::EditorPane,
     pub mixin_content: text_editor::Content,
     pub mixin_loaded_for: Option<String>,
@@ -912,5 +925,33 @@ impl AppState {
     /// redacted here before any view can render it (CORE-001).
     pub fn set_error(&mut self, source: impl std::fmt::Display) {
         self.shell.error_msg = Some(crate::utils::sanitize_ui_text(&source.to_string()));
+    }
+
+    /// DUAL-09-12: the write classification of the profile open in the editor.
+    /// This reads the same shared metadata the application guard enforces, so
+    /// the banner, the disabled save button and the guard cannot disagree.
+    pub fn edited_profile_write_protection(
+        &self,
+    ) -> infiltrator_contract::profile_protection::ProfileWriteProtection {
+        use infiltrator_contract::profile_protection::ProfileWriteProtection;
+        let Some(name) = self
+            .editor
+            .editor_path
+            .as_ref()
+            .and_then(|path| path.file_stem())
+            .and_then(|stem| stem.to_str())
+        else {
+            return ProfileWriteProtection::Editable;
+        };
+        self.profile
+            .profiles
+            .iter()
+            .find(|profile| profile.name == name)
+            .map(|profile| {
+                ProfileWriteProtection::from_subscription_url(
+                    profile.subscription_url.as_deref().unwrap_or_default(),
+                )
+            })
+            .unwrap_or(ProfileWriteProtection::Editable)
     }
 }

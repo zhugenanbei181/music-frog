@@ -262,8 +262,9 @@ impl AppState {
                     .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
                     .collect();
                 let base = profile_options::strip_rule_lines(&content, &removals);
-                let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin)
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                let merged =
+                    infiltrator_domain::mixin::merge_profile_with_config_fidelity(&base, &mixin)
+                        .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 infiltrator_domain::config::validate_yaml(&merged)
                     .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 crate::update::core::profile_apply::save_profile_content(

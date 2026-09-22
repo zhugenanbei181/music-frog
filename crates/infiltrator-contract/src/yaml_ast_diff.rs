@@ -149,6 +149,12 @@ pub struct YamlAstDiffSnapshot {
     pub fidelity_grade: FidelityGrade,
     /// Whether 100% comment, blank line, and anchor fidelity was preserved.
     pub fidelity_preserved: bool,
+    /// DUAL-09-09: opaque host snapshot identifier (a file path) this diff was
+    /// computed against. `None` for diffs that are not tied to a stored
+    /// snapshot (for example the scripting sandbox preview). The surface never
+    /// interprets it beyond handing it back to the snapshot application.
+    #[serde(default)]
+    pub source_path: Option<String>,
 }
 
 impl YamlAstDiffSnapshot {
@@ -250,11 +256,27 @@ impl YamlAstDiffSnapshot {
             split_rows,
             fidelity_grade: FidelityGrade::L3Anchors,
             fidelity_preserved: true,
+            source_path: None,
         }
     }
 
     pub fn is_empty(&self) -> bool {
         self.unified_lines.is_empty()
+    }
+
+    /// Attach the host snapshot identity this diff can be rolled back to.
+    pub fn with_source_path(mut self, path: impl Into<String>) -> Self {
+        self.source_path = Some(path.into());
+        self
+    }
+
+    /// Compact `+a -d ~m` change summary shared by both surfaces so the same
+    /// numbers are rendered with the same shape everywhere.
+    pub fn change_summary(&self) -> String {
+        format!(
+            "+{} -{} ~{}",
+            self.stats.additions, self.stats.deletions, self.stats.modifications
+        )
     }
 
     pub fn total_changes(&self) -> usize {
@@ -309,5 +331,18 @@ mod tests {
         let deserialized: YamlAstDiffSnapshot =
             serde_json::from_str(&serialized).expect("deserialize diff snapshot");
         assert_eq!(fixture, deserialized);
+    }
+
+    #[test]
+    fn change_summary_and_source_path_are_shared() {
+        let fixture = YamlAstDiffSnapshot::demo_fixture();
+        assert_eq!(fixture.change_summary(), "+1 -1 ~1");
+        assert_eq!(fixture.source_path, None);
+
+        let tagged = fixture.clone().with_source_path("/configs/snap.yml");
+        assert_eq!(tagged.source_path.as_deref(), Some("/configs/snap.yml"));
+        let round_tripped: YamlAstDiffSnapshot =
+            serde_json::from_str(&serde_json::to_string(&tagged).unwrap()).unwrap();
+        assert_eq!(round_tripped, tagged);
     }
 }

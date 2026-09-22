@@ -41,6 +41,16 @@ impl Route {
     }
 }
 
+/// DUAL-09-08: how the snapshot diff modal lays the comparison out. The
+/// shared `YamlAstDiffSnapshot` carries both the unified and the split rows,
+/// so this is a pure presentation choice on the surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SnapshotDiffMode {
+    #[default]
+    Inline,
+    Split,
+}
+
 /// Navigation history stack tracking back/forward navigation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouteHistory {

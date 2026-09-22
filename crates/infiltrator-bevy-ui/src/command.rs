@@ -240,6 +240,9 @@ pub enum UiCommand {
     ResolveConflictTakeRemote,
     /// Restore a specific snapshot.
     RestoreSnapshot { id: String },
+    /// DUAL-09-08: compute the snapshot-vs-current diff through the shared
+    /// snapshot application. `snapshot_id = None` diffs the newest snapshot.
+    LoadSnapshotDiff { snapshot_id: Option<String> },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// Update a core or UI setting.
@@ -522,6 +525,9 @@ impl UiCommand {
             Self::ResolveConflictKeepLocal => Some(CommandIntent::ResolveConflictKeepLocal),
             Self::ResolveConflictTakeRemote => Some(CommandIntent::ResolveConflictTakeRemote),
             Self::RestoreSnapshot { id } => Some(CommandIntent::RestoreSnapshot { id: id.clone() }),
+            Self::LoadSnapshotDiff { snapshot_id } => Some(CommandIntent::LoadSnapshotDiff {
+                snapshot_id: snapshot_id.clone(),
+            }),
             Self::RollbackCore => Some(CommandIntent::RollbackCore),
             Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {
                 key: key.clone(),

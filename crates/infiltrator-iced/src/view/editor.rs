@@ -130,6 +130,84 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         EditorPane::Script => "QuickJS",
     };
 
+    // DUAL-09-12: the edited profile's shared write classification. A remote
+    // subscription is protected unless the user explicitly unlocks it here.
+    let protection = state.edited_profile_write_protection();
+    let protected_blocked = protection.is_protected() && !state.editor.profile_protection_override;
+    let protection_banner: Option<Element<'_, Message>> =
+        (state.editor.editor_pane == EditorPane::Profile && protection.is_protected()).then(|| {
+            let mut banner = row![
+                icon_themed(Icon::Shield, 14.0, |t: &Theme| tokens(t).warning),
+                Space::new().width(theme::SP_SM),
+                column![
+                    text(protection.label_zh())
+                        .size(12)
+                        .font(FONT_SEMIBOLD)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_primary),
+                        }),
+                    text(protection.hint_zh())
+                        .size(11)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).text_secondary),
+                        }),
+                ]
+                .spacing(2)
+                .width(Length::Fill),
+            ]
+            .align_y(Alignment::Center)
+            .padding([8, 12]);
+
+            banner = banner.push(
+                button(
+                    text(if state.editor.profile_protection_override {
+                        lang.tr("editor_protection_lock").to_string()
+                    } else {
+                        lang.tr("editor_protection_unlock").to_string()
+                    })
+                    .size(11)
+                    .font(FONT_MEDIUM),
+                )
+                .padding([4, 10])
+                .style(style_ghost)
+                .on_press(Message::SetProfileProtectionOverride(
+                    !state.editor.profile_protection_override,
+                )),
+            );
+            banner = banner.push(
+                button(
+                    text(lang.tr("editor_protection_use_mixin").to_string())
+                        .size(11)
+                        .font(FONT_MEDIUM),
+                )
+                .padding([4, 10])
+                .style(style_accent)
+                .on_press(Message::SetEditorPane(EditorPane::Mixin)),
+            );
+
+            container(banner)
+                .width(Length::Fill)
+                .style(move |t: &Theme| {
+                    let tk = tokens(t);
+                    container::Style {
+                        background: Some(
+                            Color {
+                                a: 0.12,
+                                ..tk.warning
+                            }
+                            .into(),
+                        ),
+                        border: Border {
+                            radius: border::Radius::from(theme::R_CONTROL),
+                            width: 1.0,
+                            color: tk.warning,
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into()
+        });
+
     // File info block with icon chip, filename, and format chip
     let file_info = row![
         container(icon_themed(pane_icon, 16.0, |t: &Theme| tokens(t).accent))
@@ -213,14 +291,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     )
     .padding([6, 12])
     .style(style_accent)
-    .on_press_maybe((!saving && state.editor.editor_path.is_some()).then_some(
-        match state.editor.editor_pane {
-            EditorPane::Profile => Message::SaveProfile,
-            EditorPane::Mixin => Message::SaveMixin,
-            EditorPane::Filter => Message::SaveProfileFilter,
-            EditorPane::Script => Message::RunScriptSandboxTest,
-        },
-    ));
+    .on_press_maybe(
+        (!saving && state.editor.editor_path.is_some() && !protected_blocked).then_some(
+            match state.editor.editor_pane {
+                EditorPane::Profile => Message::SaveProfile,
+                EditorPane::Mixin => Message::SaveMixin,
+                EditorPane::Filter => Message::SaveProfileFilter,
+                EditorPane::Script => Message::RunScriptSandboxTest,
+            },
+        ),
+    );
 
     let cancel_btn = button(
         row![
@@ -438,6 +518,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     if let Some(hint) = pane_hint {
         content = content.push(hint).push(Space::new().height(theme::SP_SM));
     }
+    if let Some(banner) = protection_banner {
+        content = content.push(banner).push(Space::new().height(theme::SP_SM));
+    }
     // The Filter pane owns its full-width form; the document panes share the
     // editor + history side panel layout.
     if state.editor.editor_pane == EditorPane::Filter
@@ -530,9 +613,13 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
                     color: Some(tokens(t).text_primary),
                 });
 
+            let confirm_pending =
+                state.editor.pending_restore_snapshot.as_deref() == Some(snapshot.path.as_path());
             let restore_btn = button(
                 text(if state.editor.is_restoring_snapshot {
                     "...".to_string()
+                } else if confirm_pending {
+                    lang.tr("editor_restore_confirm").to_string()
                 } else {
                     lang.tr("editor_restore").to_string()
                 })
@@ -540,18 +627,47 @@ fn build_history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, 
                 .font(FONT_MEDIUM),
             )
             .padding([4, 10])
-            .style(style_ghost)
+            .style(if confirm_pending {
+                style_accent
+            } else {
+                style_ghost
+            })
             .on_press_maybe(
-                (!state.editor.is_restoring_snapshot)
-                    .then_some(Message::RestoreProfileSnapshot(snapshot.path.clone())),
+                (!state.editor.is_restoring_snapshot).then_some(if confirm_pending {
+                    Message::RestoreProfileSnapshot(snapshot.path.clone())
+                } else {
+                    Message::ArmRestoreProfileSnapshot(snapshot.path.clone())
+                }),
             );
+
+            let diff_btn = button(
+                text(lang.tr("snapshot_diff_open").to_string())
+                    .size(11)
+                    .font(FONT_MEDIUM),
+            )
+            .padding([4, 10])
+            .style(style_ghost)
+            .on_press(Message::OpenSnapshotDiff(
+                snapshot.path.to_string_lossy().to_string(),
+            ));
+
+            let mut actions = row![diff_btn, Space::new().width(theme::SP_XS), restore_btn]
+                .align_y(Alignment::Center);
+            if confirm_pending {
+                actions = actions.push(Space::new().width(theme::SP_XS)).push(
+                    button(text(lang.tr("btn_cancel").to_string()).size(11))
+                        .padding([4, 10])
+                        .style(style_ghost)
+                        .on_press(Message::CancelRestoreProfileSnapshot),
+                );
+            }
 
             let snapshot_card = container(
                 row![
                     column![timestamp_text, hash_pill]
                         .spacing(3)
                         .width(Length::Fill),
-                    restore_btn,
+                    actions,
                 ]
                 .spacing(theme::SP_SM)
                 .align_y(Alignment::Center),

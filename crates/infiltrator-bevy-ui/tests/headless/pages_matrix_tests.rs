@@ -190,6 +190,7 @@ fn profiles_page_in_place_update() {
         aggregation: None,
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
+        yaml_ast_diff: None,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),
@@ -210,6 +211,7 @@ fn profiles_page_in_place_update() {
             next_update: None,
             auto_reload_core: true,
             filter: Default::default(),
+            write_protection: Default::default(),
         }],
     };
 

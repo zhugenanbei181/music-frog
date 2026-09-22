@@ -75,6 +75,11 @@ pub struct ProfileTimeText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfileStatusText(pub usize);
 
+/// DUAL-09-12: a profile card's write-protection chip. It is restamped by the
+/// diff sync system from the shared projection.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProfileProtectionText(pub usize);
+
 /// Marker for a specific profile card's update-schedule line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfileScheduleText(pub usize);
@@ -136,6 +141,9 @@ pub struct ProfileItem {
     pub auto_reload_core: bool,
     /// DUAL-07-08: the stored node-keyword filter draft.
     pub filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+    /// DUAL-09-12: the same write classification the Iced editor and the
+    /// application guard use.
+    pub write_protection: infiltrator_contract::profile_protection::ProfileWriteProtection,
 }
 
 /// Snapshot of the Profiles domain.
@@ -151,6 +159,9 @@ pub struct ProfilesProjection {
     pub aggregation_templates: Vec<infiltrator_contract::aggregator::AggregationTemplate>,
     /// DUAL-08-13: `false` when the host store keeps no template sidecar.
     pub aggregation_templates_available: bool,
+    /// DUAL-09-08: the shared snapshot-vs-current AST diff. The surface renders
+    /// it directly and never fabricates rows.
+    pub yaml_ast_diff: Option<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -184,6 +195,8 @@ impl ProfilesProjection {
                     next_update: Some("2026-09-22T12:00:00+00:00".to_owned()),
                     auto_reload_core: true,
                     filter: Default::default(),
+                    write_protection:
+                        infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
@@ -205,6 +218,8 @@ impl ProfilesProjection {
                     next_update: Some("2026-09-22T14:00:00+00:00".to_owned()),
                     auto_reload_core: true,
                     filter: Default::default(),
+                    write_protection:
+                        infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
@@ -226,8 +241,11 @@ impl ProfilesProjection {
                     next_update: None,
                     auto_reload_core: false,
                     filter: Default::default(),
+                    write_protection:
+                        infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
                 },
             ],
+            yaml_ast_diff: None,
         }
     }
 
@@ -326,7 +344,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
             ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) } ),
-            ( { crate::pages::profiles_diff::snapshot_diff_scene(palette) } ),
+            ( { crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) } ),
             ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
             { profile_scenes },
         ]
@@ -470,6 +488,11 @@ fn profile_card_scene(
                             ]
                         ),
                         ( Text(url) TextRole(Role::Caption) ),
+                        (
+                            Text({ profile.write_protection.label_zh().to_owned() })
+                            ProfileProtectionText(idx)
+                            TextRole(Role::Caption)
+                        ),
                         ( Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono) ),
                         ( Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption) ),
                     ]
@@ -581,6 +604,11 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_aggregator_wizard::on_use_aggregation_template);
     commands.add_observer(crate::pages::profiles_aggregator_wizard::on_reaggregate_template);
     commands.add_observer(crate::pages::profiles_aggregator_wizard::on_delete_aggregation_template);
+    commands.init_resource::<crate::pages::profiles_diff::SnapshotDiffViewState>();
+    commands.add_observer(crate::pages::profiles_diff::sync_snapshot_diff);
+    commands.add_observer(crate::pages::profiles_diff::on_refresh_snapshot_diff);
+    commands.add_observer(crate::pages::profiles_diff::on_snapshot_diff_mode_activated);
+    commands.add_observer(crate::pages::profiles_diff::on_rollback_snapshot_activated);
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.

@@ -1,6 +1,25 @@
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
+/// DUAL-09-01 / LEFT-05 L1: merge a mixin through the byte-faithful text
+/// splice when the mixin only overrides top-level scalars and appends/deletes
+/// rules; anything structural falls back to [`merge_profile_with_config`].
+///
+/// The structural merge is the semantic reference: the text splice is only
+/// used for the shapes `SourceDoc` can express without guessing.
+pub fn merge_profile_with_config_fidelity(
+    base_yaml: &str,
+    config: &MixinConfig,
+) -> anyhow::Result<String> {
+    if crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(config)
+        && let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(base_yaml)
+        && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, config).is_ok()
+    {
+        return Ok(doc.render());
+    }
+    merge_profile_with_config(base_yaml, config)
+}
+
 /// Mixin configuration schema for overriding or extending profile settings.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "kebab-case")]

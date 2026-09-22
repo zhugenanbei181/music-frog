@@ -7,6 +7,7 @@
 use chrono::Utc;
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::subscription_import::{
     CoreReloadOutcome, SubscriptionBatchReport, SubscriptionImportChannel,
     SubscriptionImportReport, SubscriptionQuotaFacts, SubscriptionScheduleDraft,
@@ -647,6 +648,44 @@ impl ProfileApplication {
                 .await
                 .map_err(Failure::from)
         }
+    }
+
+    /// DUAL-09-12: direct-edit protection derived from the stored subscription
+    /// URL. An empty URL means the profile is local (imported by hand/file).
+    pub async fn write_protection(&self, name: &str) -> Result<ProfileWriteProtection, Failure> {
+        let info = self.load_profile_info(name).await?;
+        Ok(ProfileWriteProtection::from_subscription_url(
+            info.subscription_url.as_deref().unwrap_or_default(),
+        ))
+    }
+
+    /// DUAL-09-12: commit a *user-edited* document. Remote subscriptions stay
+    /// protected unless the caller explicitly unlocks them; Mixin/filter,
+    /// import, aggregation and restore paths keep using
+    /// [`ProfileApplication::save_profile_content`] because they are either
+    /// the sanctioned override or a provider-owned write.
+    pub async fn save_edited_profile_content<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        profile: String,
+        content: String,
+        strategy: ApplyStrategy,
+        allow_protected: bool,
+    ) -> Result<(), Failure> {
+        let name = valid_name(&profile)?;
+        let protection = self.write_protection(&name).await?;
+        if protection.is_protected() && !allow_protected {
+            return Err(Failure::new(
+                ErrorCode::Configuration,
+                format!(
+                    "profile `{name}` is a protected remote subscription: {}",
+                    protection.hint_zh()
+                ),
+                false,
+            ));
+        }
+        self.save_profile_content(runtime, name, content, strategy)
+            .await
     }
 
     pub async fn save_current_profile_content<F, E, R>(

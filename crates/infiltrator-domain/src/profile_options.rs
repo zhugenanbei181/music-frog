@@ -250,13 +250,11 @@ pub fn compose_content(
         report = Some(filtered_report);
     }
     if !mixin_is_default(&options.mixin) {
-        if report.is_none()
-            && crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(&options.mixin)
-            && let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(&current)
-            && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, &options.mixin)
-                .is_ok()
-        {
-            return Ok((doc.render(), None));
+        if report.is_none() {
+            return Ok((
+                crate::mixin::merge_profile_with_config_fidelity(&current, &options.mixin)?,
+                None,
+            ));
         }
         current = crate::mixin::merge_profile_with_config(&current, &options.mixin)?;
     }

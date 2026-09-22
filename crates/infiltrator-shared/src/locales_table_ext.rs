@@ -469,6 +469,18 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "mrs_accel_valid" => "校验通过".into(),
         "mrs_accel_invalid" => "校验失败".into(),
         "mrs_accel_no_digest" => "无摘要".into(),
+        "snapshot_diff_open" => "对比".into(),
+        "snapshot_diff_loading" => "正在计算快照差异...".into(),
+        "snapshot_diff_empty" => "该快照与当前配置内容一致，或没有可显示的差异。".into(),
+        "snapshot_diff_fidelity" => "保真级别".into(),
+        "snapshot_diff_inline" => "行内".into(),
+        "snapshot_diff_split" => "并排".into(),
+        "snapshot_diff_confirm_hint" => "回滚会通过应用事务覆写当前配置，此操作不可撤销。".into(),
+        "snapshot_diff_confirm_btn" => "确认回滚".into(),
+        "editor_protection_unlock" => "仍要直接编辑".into(),
+        "editor_protection_lock" => "恢复只读保护".into(),
+        "editor_protection_use_mixin" => "前往 Mixin 覆写".into(),
+        "editor_restore_confirm" => "确认恢复".into(),
         _ => key.to_string().into(),
     }
 }

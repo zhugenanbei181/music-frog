@@ -589,6 +589,17 @@ impl CommandApplication {
                     .restore(self.managed_runtime.clone(), &profile, &path)
                     .await
             }
+            CommandIntent::LoadSnapshotDiff { snapshot_id } => {
+                let profile = self.profile()?.current_profile().await?;
+                let snapshots = self.snapshots()?;
+                match snapshot_id {
+                    Some(id) => snapshots
+                        .diff_snapshot(&profile, std::path::Path::new(&id))
+                        .await
+                        .map(|_| ()),
+                    None => snapshots.diff_newest(&profile).await.map(|_| ()),
+                }
+            }
             CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
             CommandIntent::PrepareServiceMode => self.service_mode()?.prepare().await.map(|_| ()),
             CommandIntent::RepairPortConflicts => self.port_conflicts()?.repair().await.map(|_| ()),

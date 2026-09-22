@@ -441,6 +441,11 @@ impl SurfaceReader for ApplicationSurfaceReader {
                                 .unwrap_or_default(),
                             None => Default::default(),
                         };
+                        // DUAL-09-12: the same classification the write guard
+                        // enforces, derived from the real subscription source.
+                        let write_protection = infiltrator_contract::profile_protection::ProfileWriteProtection::from_subscription_url(
+                            item.subscription_url.as_deref().unwrap_or_default(),
+                        );
                         snapshots.push(surface_snapshot::ProfileSnapshot {
                             id: item.name.clone(),
                             name: item.name,
@@ -464,6 +469,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
                             next_update: item.next_update.map(|value| value.to_rfc3339()),
                             auto_reload_core: item.auto_reload_core,
                             filter,
+                            write_protection,
                         });
                     }
                     surface_snapshot::PageData::ready(surface_snapshot::ProfilesPageSnapshot {
@@ -624,7 +630,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             reconnect_mask,
             viewport: Default::default(),
             subscription_quota,
-            yaml_ast_diff: None,
+            yaml_ast_diff: crate::snapshot_application::last_snapshot_diff(),
             script_sandbox: None,
             speedtest: self
                 .speedtest

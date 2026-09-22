@@ -112,9 +112,14 @@ serde_yaml / serde_yaml_ng 版本变更、或任何改用 `HashMap` 的中间结
   语义是"子树级覆盖"，覆盖点散布在任意深度，splice 粒度不够；这些块通常
   也无手写注释。这类路径维持现状，并在文档中标注"该写法不保真"。
 
-**阶段划分**：阶段 1 = 原型 + 单测（本文档，已完成）；阶段 2 = compose
-分派器 + mixin 标量路径切换；阶段 3 = rules 增删切换 + `strip_rule_lines`
-退役；阶段 4 = L3 锚点重写立项。
+**阶段划分**：阶段 1 = 原型 + 单测（已完成）；阶段 2 = compose
+分派器 + mixin 标量路径切换（**2026-09-22 完成**：`mixin::merge_profile_with_config_fidelity`
+接入 `profile_options::compose_content` 与 Iced Mixin 保存）；阶段 3 = rules 增删切换 +
+`strip_rule_lines` 退役（**2026-09-22 完成**：新增 `yaml_edit::rules_fidelity::apply_rule_list`
+并在 `rules::apply_rules_to_yaml` 中保真优先、结构级自校验兜底；`strip_rule_lines` 保留为
+“旧 mixin 行剔除”的显式步骤）；阶段 4 = L3 锚点重写立项（**未开始**：`anchor.rs` 只有扫描与
+显式命名空间重写 API，未接入任何写路径）。剩余边界见 `TODO.md` `LEFT-05` 与
+`DUAL_SURFACE_PARITY_MASTER_PLAN.md` 组 09 逐项账目 `DUAL-09-01`。
 
 ## 5. 与 apply 事务的整合与回滚语义不变性
 

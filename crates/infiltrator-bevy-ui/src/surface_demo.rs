@@ -262,6 +262,7 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         aggregation: None,
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
+        yaml_ast_diff: None,
     }
 }
 
@@ -441,6 +442,7 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     next_update: profile.next_update,
                     auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter,
+                    write_protection: profile.write_protection,
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,
