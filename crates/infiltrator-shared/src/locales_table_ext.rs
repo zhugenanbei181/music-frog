@@ -66,6 +66,18 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "custom_node_port" => "端口".into(),
         "custom_node_uuid_pass" => "UUID / 密码".into(),
         "custom_node_sni" => "TLS / Reality SNI 伪装".into(),
+        "custom_node_secret" => "口令 / UUID".into(),
+        "custom_node_cipher" => "加密方式 (Shadowsocks 密码族)".into(),
+        "custom_node_flow" => "VLESS 流控 (Vision)".into(),
+        "custom_node_mux_enabled" => "多路复用".into(),
+        "custom_node_mux_protocol" => "复用协议 (Smux/Yamux/H2Mux)".into(),
+        "custom_node_mux_max" => "最大连接数".into(),
+        "custom_node_mux_min_streams" => "最小流数".into(),
+        "custom_node_mux_max_streams" => "最大流数".into(),
+        "custom_node_mux_padding" => "填充混淆".into(),
+        "custom_node_skip_verify" => "跳过证书校验".into(),
+        "custom_node_issues_hint" => "问题必须先解决才能写入配置".into(),
+        "custom_node_uri_gap" => "分享链接不携带 · {field}".into(),
         "custom_node_uri_placeholder" => {
             "粘贴 vless://, ss://, hysteria2://, trojan:// 节点链接...".into()
         }

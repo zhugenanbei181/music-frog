@@ -501,6 +501,49 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
+            CommandIntent::ImportCustomNodeUri { uri } => {
+                // DUAL-05-14: decode through the shared codec and publish the
+                // typed draft for both surfaces. Nothing is persisted here.
+                match crate::protocol_codec_application::ProtocolCodecApplication::draft_from_uri(
+                    &uri,
+                ) {
+                    Ok(draft) => {
+                        let preview =
+                            crate::protocol_codec_application::ProtocolCodecApplication::uri_from_draft(
+                                &draft,
+                            )
+                            .ok();
+                        crate::protocol_codec_application::ProtocolCodecApplication::publish_draft(
+                            draft, preview,
+                        );
+                        Ok(())
+                    }
+                    Err(failure) => {
+                        crate::protocol_codec_application::ProtocolCodecApplication::publish_error(
+                            failure.message.clone(),
+                        );
+                        Err(failure)
+                    }
+                }
+            }
+            CommandIntent::SaveCustomNodeDraft { draft } => {
+                // DUAL-05-14: splice the node into the active profile without
+                // disturbing any other section, then commit through the same
+                // apply transaction the other profile editors use.
+                self.profile()?
+                    .save_current_profile_content(
+                        self.managed_runtime.clone(),
+                        infiltrator_domain::apply::ApplyStrategy::PreferReload,
+                        move |content| {
+                            crate::protocol_codec_application::ProtocolCodecApplication::upsert_draft_into_profile(
+                                content, &draft,
+                            )
+                            .map(|commit| commit.profile_yaml)
+                            .map_err(|failure| failure.message)
+                        },
+                    )
+                    .await
+            }
             CommandIntent::SetSubscriptionAutoReload {
                 profile_id,
                 enabled,

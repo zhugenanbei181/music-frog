@@ -589,70 +589,14 @@ impl AppState {
                 self.diag.dns_leak_probe = Some(report);
                 Task::none()
             }
-            Message::OpenCustomNodeModal => {
-                self.runtime.custom_node_modal_open = true;
-                self.runtime.custom_node_uri_input.clear();
-                self.runtime.custom_node_exported_uri = None;
-                Task::none()
-            }
-            Message::CloseCustomNodeModal => {
-                self.runtime.custom_node_modal_open = false;
-                Task::none()
-            }
-            Message::UpdateCustomNodeUriInput(u) => {
-                self.runtime.custom_node_uri_input = u;
-                Task::none()
-            }
-            Message::ParseAndImportCustomUri => {
-                let uri = self.runtime.custom_node_uri_input.trim();
-                if let Ok(parsed) =
-                    infiltrator_domain::profile_converter::ProfileConverter::parse_uri(uri)
-                {
-                    self.runtime.custom_node_name_input = parsed.name.clone();
-                    self.runtime.custom_node_server_input = parsed.server.clone();
-                    self.runtime.custom_node_port_input = parsed.port.to_string();
-                    self.runtime.custom_node_type_input = parsed.node_type.clone();
-                    if let Some(uuid) = parsed.uuid {
-                        self.runtime.custom_node_uuid_input = uuid;
-                    } else if let Some(pass) = parsed.password {
-                        self.runtime.custom_node_uuid_input = pass;
-                    }
-                    if let Some(sni) = parsed.servername {
-                        self.runtime.custom_node_sni_input = sni;
-                    }
-                }
-                Task::none()
-            }
-            Message::ExportNodeAsUri(name) => {
-                if let Some(proxy) = self.runtime.proxies.get(&name) {
-                    let dummy = infiltrator_domain::profile_converter::ProxyNodeItem {
-                        name: name.clone(),
-                        server: "node.example.com".to_string(),
-                        port: 443,
-                        node_type: proxy.proxy_type().to_string(),
-                        password: Some("secret".to_string()),
-                        tls: true,
-                        servername: Some("example.com".to_string()),
-                        ..Default::default()
-                    };
-                    self.runtime.custom_node_exported_uri =
-                        infiltrator_domain::profile_converter::ProfileConverter::export_uri(&dummy)
-                            .ok();
-                }
-                Task::none()
-            }
-            Message::SaveCustomNodeForm => {
-                self.runtime.custom_node_modal_open = false;
-                let name = if self.runtime.custom_node_name_input.is_empty() {
-                    "Custom-Node".to_string()
-                } else {
-                    self.runtime.custom_node_name_input.clone()
-                };
-                Task::done(Message::ShowToast(
-                    format!("Node '{name}' added"),
-                    ToastStatus::Success,
-                ))
-            }
+            Message::OpenCustomNodeModal
+            | Message::CloseCustomNodeModal
+            | Message::UpdateCustomNodeUriInput(_)
+            | Message::ParseAndImportCustomUri
+            | Message::UpdateCustomNodeDraft(_)
+            | Message::ExportCustomNodeUri
+            | Message::SaveCustomNodeForm
+            | Message::CustomNodeSaved(_) => self.update_protocol_codec(message),
             Message::SetConnectionGroupingMode(mode) => {
                 self.diag.connection_grouping_mode = mode;
                 Task::none()

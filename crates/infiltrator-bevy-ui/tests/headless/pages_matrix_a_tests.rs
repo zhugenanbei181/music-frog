@@ -165,8 +165,11 @@ fn test_proxies_page_mounting_and_default_state() {
         root,
         "自定义节点与分享链接 (Custom Node & URI Codec)"
     ));
-    assert!(subtree_has_text(app.world(), root, "解析剪贴板 URI"));
+    assert!(subtree_has_text(app.world(), root, "解析分享链接 URI"));
     assert!(subtree_has_text(app.world(), root, "保存为自定义节点"));
+    // DUAL-05: the shared studio keeps the card honest before any draft.
+    assert!(subtree_has_text(app.world(), root, "尚无节点草稿"));
+    assert!(subtree_has_text(app.world(), root, "协议事实"));
 
     // Enhanced toolbar & controls parity with Iced
     assert!(subtree_has_text(app.world(), root, "只看可用"));
@@ -384,6 +387,7 @@ fn test_proxies_empty_and_edge_case_projection() {
         groups: vec![],
         testing: false,
         active_exit: "无可用出口".to_owned(),
+        custom_node: Default::default(),
     };
     app.world_mut()
         .commands()

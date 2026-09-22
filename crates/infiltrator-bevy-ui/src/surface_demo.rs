@@ -251,6 +251,7 @@ pub(crate) fn empty_proxies() -> ProxiesProjection {
         groups: Vec::new(),
         testing: false,
         active_exit: "—".to_owned(),
+        custom_node: Default::default(),
     }
 }
 
@@ -381,6 +382,7 @@ pub(crate) fn empty_settings() -> SettingsProjection {
 impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
     fn from(value: ProxiesProjection) -> Self {
         Self {
+            custom_node: value.custom_node.clone(),
             groups: value
                 .groups
                 .into_iter()

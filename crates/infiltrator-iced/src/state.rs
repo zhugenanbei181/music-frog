@@ -155,13 +155,11 @@ pub struct RuntimeState {
     pub proxy_group_order: Vec<String>,
     pub custom_node_modal_open: bool,
     pub custom_node_uri_input: String,
-    pub custom_node_name_input: String,
-    pub custom_node_server_input: String,
-    pub custom_node_port_input: String,
-    pub custom_node_type_input: String,
-    pub custom_node_uuid_input: String,
-    pub custom_node_sni_input: String,
-    pub custom_node_exported_uri: Option<String>,
+    /// DUAL-05: the shared protocol studio snapshot (typed draft, derived
+    /// report, URI preview and the empirically computed URI fidelity gaps).
+    /// The modal is a pure projection of this; Iced keeps no second protocol
+    /// fact source.
+    pub custom_node_studio: infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot,
     pub network_roaming: crate::types::runtime::NetworkRoamingState,
     pub pac_manager: crate::types::app::PacManagerConfig,
     pub latency_radar: crate::types::runtime::LatencyRadarState,

@@ -757,6 +757,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         }
         CommandIntent::SetSubscriptionAutoReload { .. } => "set_subscription_auto_reload",
         CommandIntent::UpdateSubscriptionSchedule { .. } => "update_subscription_schedule",
+        CommandIntent::ImportCustomNodeUri { .. } => "import_custom_node_uri",
+        CommandIntent::SaveCustomNodeDraft { .. } => "save_custom_node_draft",
         CommandIntent::DeleteProfile { .. } => "delete_profile",
         CommandIntent::RefreshRuleProviders => "refresh_rule_providers",
         CommandIntent::CloseConnection { .. } => "close_connection",

@@ -45,3 +45,7 @@ mod design_token_tests;
 
 #[path = "headless/cadence_tests.rs"]
 mod cadence_tests;
+
+// DUAL-05: protocol-ecosystem studio (custom node URI codec) dual-surface tests.
+#[path = "headless/protocol_codec_tests.rs"]
+mod protocol_codec_tests;

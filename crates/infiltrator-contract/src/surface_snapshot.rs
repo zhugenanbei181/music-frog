@@ -183,6 +183,11 @@ pub struct ProxiesPageSnapshot {
     pub sort_order: crate::proxies::ProxySortOrder,
     #[serde(default)]
     pub compact_view: bool,
+    /// DUAL-05: the shared custom-node protocol studio (URI decode/encode,
+    /// typed cipher / REALITY / smux descriptors, codec audit). Both surfaces
+    /// render this single projection; neither keeps a second protocol source.
+    #[serde(default)]
+    pub custom_node: crate::protocol_fidelity::ProtocolStudioSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

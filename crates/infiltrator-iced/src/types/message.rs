@@ -538,13 +538,18 @@ pub enum Message {
     // DNS Leak & Privacy Probe (Category 1)
     RunDnsLeakProbe,
     DnsLeakProbeFinished(super::dns::DnsLeakReport),
-    // Custom Node Modal & Universal URI Codec (Category 2)
+    // Custom Node Modal & Universal URI Codec (Category 2, DUAL-05)
     OpenCustomNodeModal,
     CloseCustomNodeModal,
     UpdateCustomNodeUriInput(String),
     ParseAndImportCustomUri,
-    ExportNodeAsUri(String),
+    /// DUAL-05-14: the whole shared draft after a form edit. The view builds
+    /// the next draft, the update layer re-derives the shared report.
+    UpdateCustomNodeDraft(Box<infiltrator_contract::protocol_fidelity::ProtocolDraft>),
+    /// DUAL-05-14: re-encode the draft into a share link preview.
+    ExportCustomNodeUri,
     SaveCustomNodeForm,
+    CustomNodeSaved(Result<(), InfiltratorError>),
     // Multi-Profile Aggregator (Category 3, DUAL-08)
     OpenAggregatorModal,
     CloseAggregatorModal,

@@ -31,7 +31,12 @@ pub mod pac;
 pub mod port_conflict;
 pub mod privileged_network;
 pub mod profile_protection;
+pub mod protocol_fidelity;
 pub mod proxies;
+
+#[cfg(test)]
+#[path = "protocol_fidelity_test.rs"]
+mod protocol_fidelity_test;
 pub mod proxy_mode;
 pub mod public_ip;
 pub mod reconnect_mask;

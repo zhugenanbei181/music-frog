@@ -291,6 +291,9 @@ pub struct ProxiesProjection {
     pub groups: Vec<ProxyGroup>,
     pub testing: bool,
     pub active_exit: String,
+    /// DUAL-05: the shared custom-node protocol studio. Both surfaces render
+    /// this single projection; Bevy keeps no second protocol fact source.
+    pub custom_node: infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot,
 }
 
 impl ProxiesProjection {
@@ -299,6 +302,7 @@ impl ProxiesProjection {
         Self {
             active_exit: "🇭🇰 香港 01 · BGP 专线".to_owned(),
             testing: false,
+            custom_node: Default::default(),
             groups: vec![
                 ProxyGroup {
                     name: "节点选择 (PROXIES)".to_owned(),
@@ -451,7 +455,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         Children [
             ( { header_card_scene(summary, active_exit, test_status, palette) } ),
             ( { search_bar_card_scene(palette) } ),
-            ( { crate::pages::proxies_custom::custom_node_scene(palette) } ),
+            ( { crate::pages::proxies_custom::custom_node_scene(&projection.custom_node, palette) } ),
             { group_scenes },
         ]
     }
@@ -492,8 +496,16 @@ fn bind_proxies_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     }
     let mut commands = world.commands();
     commands.insert_resource(ProxiesPageBound);
+    // DUAL-05: the listeners read the last projection (e.g. the custom-node
+    // save submits the shared draft it carries), so the resource must exist
+    // the moment the page is mounted instead of being read as `None` forever.
+    commands.insert_resource(LastProxiesProjection::default());
     commands.add_observer(apply_proxies_projection);
     commands.add_observer(on_proxies_action_activated);
+    commands.add_observer(crate::pages::proxies_custom::on_custom_node_action_activated);
+    // DUAL-05: the custom-node studio is re-covered from the same event in a
+    // separate observer so it never shares the page restamp query set.
+    commands.add_observer(crate::pages::proxies_custom::sync_custom_node_studio);
 }
 
 /// Reflow proxy node cards to the shared tier column count (1 / 2 / 3 / 4).

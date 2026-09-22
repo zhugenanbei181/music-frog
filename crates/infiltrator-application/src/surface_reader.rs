@@ -388,6 +388,12 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 filter_alive: Default::default(),
                 sort_order: Default::default(),
                 compact_view: false,
+                // DUAL-05: the shared protocol studio, published by
+                // `ProtocolCodecApplication` and read here. A host without a
+                // profile store still gets the typed draft + report, with
+                // `can_persist = false`.
+                custom_node: crate::protocol_codec_application::studio_snapshot()
+                    .unwrap_or_default(),
             },
             "Mihomo proxy gateway",
         );

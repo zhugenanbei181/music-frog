@@ -2,6 +2,7 @@ pub mod aggregator;
 pub mod core;
 mod mini_hud;
 pub mod profile;
+pub mod protocol_codec;
 pub mod shell;
 mod snapshot_diff;
 mod system_proxy;
@@ -223,8 +224,10 @@ impl AppState {
             | Message::CloseCustomNodeModal
             | Message::UpdateCustomNodeUriInput(_)
             | Message::ParseAndImportCustomUri
-            | Message::ExportNodeAsUri(_)
+            | Message::UpdateCustomNodeDraft(_)
+            | Message::ExportCustomNodeUri
             | Message::SaveCustomNodeForm
+            | Message::CustomNodeSaved(_)
             | Message::SetConnectionGroupingMode(_)
             | Message::AddQuickRuleFromConnection { .. }
             | Message::OpenSnapshotDiff(_)

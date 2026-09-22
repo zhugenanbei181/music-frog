@@ -394,6 +394,17 @@ pub enum CommandIntent {
     },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
+    /// DUAL-05-14: decode a share link into the shared protocol draft and
+    /// publish the typed report (cipher family / REALITY / smux) for both
+    /// surfaces. Never writes a profile.
+    ImportCustomNodeUri {
+        uri: String,
+    },
+    /// DUAL-05-14: commit a shared draft into the active profile document,
+    /// preserving every other section and every unknown node key.
+    SaveCustomNodeDraft {
+        draft: crate::protocol_fidelity::ProtocolDraft,
+    },
     UpdateSetting {
         key: String,
         value: String,
@@ -451,6 +462,8 @@ impl CommandIntent {
             | Self::SaveAggregationTemplate { .. }
             | Self::DeleteAggregationTemplate { .. }
             | Self::ReAggregateProfile { .. }
+            | Self::ImportCustomNodeUri { .. }
+            | Self::SaveCustomNodeDraft { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }
