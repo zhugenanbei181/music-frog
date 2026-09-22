@@ -9,6 +9,10 @@ use std::path::PathBuf;
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
 
+#[cfg(test)]
+#[path = "profile_store_test.rs"]
+mod profile_store_test;
+
 #[async_trait::async_trait]
 impl<S> ProfileStore for ConfigManager<S>
 where
@@ -145,6 +149,36 @@ where
             .map_err(storage_error)
     }
 
+    async fn load_aggregation_templates(
+        &self,
+    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, PortError> {
+        let path = aggregation_templates_path(ConfigManager::config_dir(self));
+        let Ok(text) = tokio::fs::read_to_string(&path).await else {
+            return Ok(Vec::new());
+        };
+        serde_yaml_ng::from_str(&text).map_err(storage_error)
+    }
+
+    async fn save_aggregation_templates(
+        &self,
+        templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+    ) -> Result<(), PortError> {
+        let path = aggregation_templates_path(ConfigManager::config_dir(self));
+        if templates.is_empty() {
+            let _ = tokio::fs::remove_file(&path).await;
+            return Ok(());
+        }
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(storage_error)?;
+        }
+        let text = serde_yaml_ng::to_string(templates).map_err(storage_error)?;
+        let temp = path.with_file_name(".aggregation-templates-tmp");
+        tokio::fs::write(&temp, text).await.map_err(storage_error)?;
+        tokio::fs::rename(&temp, &path).await.map_err(storage_error)
+    }
+
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
         ConfigManager::clear_backup(self, profile)
             .await
@@ -206,4 +240,12 @@ fn profile_metadata(profile: Profile) -> ProfileMetadata {
 
 fn storage_error<E: std::fmt::Display>(error: E) -> PortError {
     PortError::Io(error.to_string())
+}
+
+/// DUAL-08-13: aggregation-template library sidecar. The leading dot keeps it
+/// out of the profile-name space (`options/<profile>.yaml`).
+fn aggregation_templates_path(config_dir: &std::path::Path) -> std::path::PathBuf {
+    config_dir
+        .join("options")
+        .join(".aggregation-templates.yaml")
 }

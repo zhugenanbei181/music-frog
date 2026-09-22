@@ -147,6 +147,10 @@ pub struct ProfilesProjection {
     /// DUAL-08: the last shared aggregation preview, or `None` when no draft
     /// has been previewed yet. The surface never builds this locally.
     pub aggregation: Option<infiltrator_contract::aggregator::AggregationReport>,
+    /// DUAL-08-13: persisted aggregation template library.
+    pub aggregation_templates: Vec<infiltrator_contract::aggregator::AggregationTemplate>,
+    /// DUAL-08-13: `false` when the host store keeps no template sidecar.
+    pub aggregation_templates_available: bool,
 }
 
 impl ProfilesProjection {
@@ -156,6 +160,8 @@ impl ProfilesProjection {
             auto_update_interval_hours: 6,
             updating: false,
             aggregation: None,
+            aggregation_templates: Vec::new(),
+            aggregation_templates_available: true,
             profiles: vec![
                 ProfileItem {
                     id: "sub-1".to_owned(),
@@ -544,6 +550,7 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     let mut commands = world.commands();
     commands.insert_resource(ProfilesPageBound);
     commands.init_resource::<LastProfilesProjection>();
+    commands.init_resource::<crate::pages::profiles_aggregator_wizard::AggregatorComposerState>();
     commands.add_observer(apply_profiles_projection);
     commands.add_observer(on_profiles_action_activated);
     commands.add_observer(on_update_profile_activated);
@@ -565,8 +572,15 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands
         .add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_auto_reload);
     commands.add_observer(crate::pages::profiles_aggregator::sync_aggregation_preview);
-    commands.add_observer(crate::pages::profiles_aggregator::on_preview_aggregation);
-    commands.add_observer(crate::pages::profiles_aggregator::on_save_aggregated_profile);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_preview_aggregation);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_save_aggregated_profile);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_add_aggregator_custom_group);
+    commands
+        .add_observer(crate::pages::profiles_aggregator_wizard::on_clear_aggregator_custom_groups);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_save_aggregation_template);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_use_aggregation_template);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_reaggregate_template);
+    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_delete_aggregation_template);
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.

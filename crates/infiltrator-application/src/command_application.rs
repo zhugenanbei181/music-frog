@@ -472,7 +472,34 @@ impl CommandApplication {
                     crate::profile_aggregation_application::ProfileAggregationApplication::new(
                         self.profile()?,
                     );
-                application.create_profile(&draft).await.map(|_| ())
+                application
+                    .create_profile_with_runtime(self.managed_runtime.clone(), &draft)
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::SaveAggregationTemplate { name, draft } => {
+                let application =
+                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
+                        self.profile()?,
+                    );
+                application.save_template(&name, &draft).await.map(|_| ())
+            }
+            CommandIntent::DeleteAggregationTemplate { name } => {
+                let application =
+                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
+                        self.profile()?,
+                    );
+                application.delete_template(&name).await.map(|_| ())
+            }
+            CommandIntent::ReAggregateProfile { template_name } => {
+                let application =
+                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
+                        self.profile()?,
+                    );
+                application
+                    .reaggregate(self.managed_runtime.clone(), &template_name)
+                    .await
+                    .map(|_| ())
             }
             CommandIntent::SetSubscriptionAutoReload {
                 profile_id,

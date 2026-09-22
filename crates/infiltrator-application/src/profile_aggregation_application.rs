@@ -15,13 +15,16 @@ use std::sync::{Mutex, OnceLock};
 
 use chrono::Utc;
 use infiltrator_contract::aggregator::{
-    AggregationDraft, AggregationReport, GeneratedGroupSnapshot, RegionalClusterSnapshot,
+    AggregatedProfileOutcome, AggregationDraft, AggregationReport, AggregationTemplate,
+    GeneratedGroupSnapshot, RegionalClusterSnapshot,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
 use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator};
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::Arc;
 
 use crate::profile_application::ProfileApplication;
 
@@ -77,6 +80,9 @@ pub fn aggregation_options(draft: &AggregationDraft) -> AggregationOptions {
             NodeSortOrder::Preserve
         },
         generate_proxy_groups: draft.generate_groups,
+        rename_rules: draft.rename_rules.clone(),
+        custom_groups: draft.custom_groups.clone(),
+        availability_precheck: draft.availability_precheck,
     }
 }
 
@@ -144,7 +150,24 @@ impl ProfileAggregationApplication {
     pub async fn create_profile(
         &self,
         draft: &AggregationDraft,
-    ) -> Result<AggregationReport, Failure> {
+    ) -> Result<AggregatedProfileOutcome, Failure> {
+        self.create_profile_with_runtime::<dyn ManagedRuntime>(None, draft)
+            .await
+    }
+
+    /// DUAL-08-06/08-12: materialise the draft, optionally make the result the
+    /// active profile, and remember the draft as a reusable template so the
+    /// generated profile keeps a re-aggregation link (DUAL-08-07).
+    ///
+    /// Activation reuses the shared [`ProfileApplication::activate_profile`]
+    /// path (switch + hot reload + rollback); a host without a managed-runtime
+    /// seam switches the active profile without hot reload exactly like the
+    /// shared `SwitchProfile` route.
+    pub async fn create_profile_with_runtime<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        draft: &AggregationDraft,
+    ) -> Result<AggregatedProfileOutcome, Failure> {
         let name = sanitize_profile_name(&draft.target_name)
             .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let existing = self.profile.list_profiles().await?;
@@ -160,7 +183,156 @@ impl ProfileAggregationApplication {
         // The rendered YAML is validated by the store on save; a rejected save
         // leaves no partial profile behind.
         self.profile.save_profile(&name, &report.yaml).await?;
-        Ok(report)
+
+        let (activated, core_reloaded) = if draft.activate_after_create {
+            self.activate_generated_profile(runtime, &name).await?
+        } else {
+            (false, false)
+        };
+
+        // Remember the wizard configuration under the generated profile name.
+        // A store without a template sidecar honestly reports "not saved"
+        // instead of failing the profile creation.
+        let template_name = match self.save_template(&name, draft).await {
+            Ok(template) => Some(template.name),
+            Err(failure) if failure.code == ErrorCode::Unsupported => None,
+            Err(failure) => return Err(failure),
+        };
+
+        Ok(AggregatedProfileOutcome {
+            profile_name: name,
+            report,
+            activated,
+            core_reloaded,
+            template_name,
+        })
+    }
+
+    /// DUAL-08-13: the persisted aggregation templates, newest field first.
+    pub async fn list_templates(&self) -> Result<Vec<AggregationTemplate>, Failure> {
+        self.profile.load_aggregation_templates().await
+    }
+
+    /// DUAL-08-13: upsert a template under `name` from the live draft.
+    pub async fn save_template(
+        &self,
+        name: &str,
+        draft: &AggregationDraft,
+    ) -> Result<AggregationTemplate, Failure> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "aggregation template name is required",
+                false,
+            ));
+        }
+        if !draft.is_previewable() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "select at least one source profile to save as a template",
+                false,
+            ));
+        }
+
+        let template = AggregationTemplate {
+            name: name.to_owned(),
+            draft: draft.clone(),
+            updated_at: Utc::now().to_rfc3339(),
+        };
+        let mut templates = self.list_templates().await?;
+        match templates
+            .iter_mut()
+            .find(|existing| existing.name == template.name)
+        {
+            Some(existing) => *existing = template.clone(),
+            None => templates.push(template.clone()),
+        }
+        self.profile.save_aggregation_templates(&templates).await?;
+        Ok(template)
+    }
+
+    /// DUAL-08-13: delete a saved template, reporting whether one existed.
+    pub async fn delete_template(&self, name: &str) -> Result<bool, Failure> {
+        let mut templates = self.list_templates().await?;
+        let before = templates.len();
+        templates.retain(|template| template.name != name);
+        if templates.len() == before {
+            return Ok(false);
+        }
+        self.profile.save_aggregation_templates(&templates).await?;
+        Ok(true)
+    }
+
+    /// The saved template with this exact name, if any.
+    pub async fn find_template(&self, name: &str) -> Result<Option<AggregationTemplate>, Failure> {
+        Ok(self
+            .list_templates()
+            .await?
+            .into_iter()
+            .find(|template| template.name == name))
+    }
+
+    /// DUAL-08-07: re-read every source of a saved template, re-run the shared
+    /// aggregation and overwrite the previously generated profile in place.
+    /// Only profiles that the template itself produced are touched.
+    pub async fn reaggregate<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        template_name: &str,
+    ) -> Result<AggregatedProfileOutcome, Failure> {
+        let template = self.find_template(template_name).await?.ok_or_else(|| {
+            Failure::new(
+                ErrorCode::Configuration,
+                format!("aggregation template `{template_name}` is not saved"),
+                false,
+            )
+        })?;
+        let name = sanitize_profile_name(&template.draft.target_name)
+            .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
+        let existing = self.profile.list_profiles().await?;
+        if !existing.iter().any(|profile| profile.name == name) {
+            return Err(Failure::new(
+                ErrorCode::Configuration,
+                format!("aggregated profile `{name}` no longer exists"),
+                false,
+            ));
+        }
+
+        let report = self.preview(&template.draft).await?;
+        self.profile.save_profile(&name, &report.yaml).await?;
+        let (activated, core_reloaded) = if template.draft.activate_after_create {
+            self.activate_generated_profile(runtime, &name).await?
+        } else {
+            (false, false)
+        };
+
+        Ok(AggregatedProfileOutcome {
+            profile_name: name,
+            report,
+            activated,
+            core_reloaded,
+            template_name: Some(template.name),
+        })
+    }
+
+    /// Switch to a freshly generated profile through the shared activation
+    /// path, returning `(activated, core_reloaded)`.
+    async fn activate_generated_profile<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        name: &str,
+    ) -> Result<(bool, bool), Failure> {
+        match runtime {
+            Some(runtime) => Ok((
+                true,
+                self.profile.activate_profile(Some(runtime), name).await?,
+            )),
+            None => {
+                self.profile.select_profile(name).await?;
+                Ok((true, false))
+            }
+        }
     }
 }
 
@@ -173,6 +345,9 @@ fn report_from_plan(draft: &AggregationDraft, plan: AggregationPlan) -> Aggregat
         total_nodes: plan.total_nodes,
         duplicates_removed: plan.duplicates_removed,
         renamed_nodes: plan.renamed_nodes,
+        rule_renamed_nodes: plan.rule_renamed_nodes,
+        invalid_nodes_removed: plan.invalid_nodes_removed,
+        invalid_node_samples: plan.invalid_node_samples,
         regions: plan
             .regions
             .into_iter()
@@ -194,6 +369,7 @@ fn report_from_plan(draft: &AggregationDraft, plan: AggregationPlan) -> Aggregat
                 name: group.name,
                 group_type: group.group_type,
                 is_master: group.is_master,
+                is_custom: group.is_custom,
                 members: group.members,
             })
             .collect(),

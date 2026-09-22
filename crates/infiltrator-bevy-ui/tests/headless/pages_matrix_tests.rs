@@ -188,6 +188,8 @@ fn profiles_page_in_place_update() {
         auto_update_interval_hours: 12,
         updating: false,
         aggregation: None,
+        aggregation_templates: Vec::new(),
+        aggregation_templates_available: true,
         profiles: vec![ProfileItem {
             id: "sub-custom".to_owned(),
             name: "自建中继节点订阅".to_owned(),

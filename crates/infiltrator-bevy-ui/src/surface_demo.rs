@@ -260,6 +260,8 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         auto_update_interval_hours: 0,
         updating: false,
         aggregation: None,
+        aggregation_templates: Vec::new(),
+        aggregation_templates_available: true,
     }
 }
 
@@ -441,6 +443,8 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
             aggregation: value.aggregation,
+            aggregation_templates: value.aggregation_templates,
+            aggregation_templates_available: value.aggregation_templates_available,
         }
     }
 }

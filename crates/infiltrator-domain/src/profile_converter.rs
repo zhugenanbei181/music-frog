@@ -528,6 +528,12 @@ pub struct AggregationOptions {
     pub remove_emojis: bool,
     pub sort_by: NodeSortOrder,
     pub generate_proxy_groups: bool,
+    /// DUAL-08-08: regex rename rules applied before cleaning and grouping.
+    pub rename_rules: Vec<infiltrator_contract::aggregator::AggregationRenameRule>,
+    /// DUAL-08-10: user-authored groups appended to the synthesized cascade.
+    pub custom_groups: Vec<infiltrator_contract::aggregator::AggregationCustomGroup>,
+    /// DUAL-08-09: drop nodes failing the required-field precheck.
+    pub availability_precheck: bool,
 }
 
 /// Multi-subscription aggregator that merges, deduplicates, cleans, and structures nodes from multiple subscriptions.

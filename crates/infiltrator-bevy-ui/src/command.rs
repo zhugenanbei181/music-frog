@@ -120,6 +120,19 @@ pub enum UiCommand {
     CreateAggregatedProfile {
         draft: infiltrator_contract::aggregator::AggregationDraft,
     },
+    /// DUAL-08-13: upsert the draft as a reusable aggregation template.
+    SaveAggregationTemplate {
+        name: String,
+        draft: infiltrator_contract::aggregator::AggregationDraft,
+    },
+    /// DUAL-08-13: delete a saved aggregation template.
+    DeleteAggregationTemplate {
+        name: String,
+    },
+    /// DUAL-08-07: refresh the profile a saved template produced.
+    ReAggregateProfile {
+        template_name: String,
+    },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
@@ -352,6 +365,18 @@ impl UiCommand {
                     draft: draft.clone(),
                 })
             }
+            Self::SaveAggregationTemplate { name, draft } => {
+                Some(CommandIntent::SaveAggregationTemplate {
+                    name: name.clone(),
+                    draft: draft.clone(),
+                })
+            }
+            Self::DeleteAggregationTemplate { name } => {
+                Some(CommandIntent::DeleteAggregationTemplate { name: name.clone() })
+            }
+            Self::ReAggregateProfile { template_name } => Some(CommandIntent::ReAggregateProfile {
+                template_name: template_name.clone(),
+            }),
             Self::SetSubscriptionAutoReload {
                 profile_id,
                 enabled,

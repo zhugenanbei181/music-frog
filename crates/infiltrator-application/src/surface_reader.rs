@@ -393,6 +393,16 @@ impl SurfaceReader for ApplicationSurfaceReader {
         );
 
         if self.profiles.is_some() {
+            // DUAL-08-13: the template library sidecar. A store without one
+            // answers with a typed unsupported, published as `available =
+            // false` rather than as a fake empty library.
+            let (aggregation_templates, aggregation_templates_available) = match &self.profiles {
+                Some(profiles) => match profiles.load_aggregation_templates().await {
+                    Ok(templates) => (templates, true),
+                    Err(_) => (Vec::new(), false),
+                },
+                None => (Vec::new(), false),
+            };
             pages.profiles = match profile_result {
                 Some(Ok(items)) if items.is_empty() => {
                     surface_snapshot::PageData::empty(surface_snapshot::ProfilesPageSnapshot {
@@ -401,6 +411,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         updating: false,
                         aggregation:
                             crate::profile_aggregation_application::last_aggregation_report(),
+                        aggregation_templates,
+                        aggregation_templates_available,
                     })
                 }
                 Some(Ok(items)) => {
@@ -460,6 +472,8 @@ impl SurfaceReader for ApplicationSurfaceReader {
                         updating: false,
                         aggregation:
                             crate::profile_aggregation_application::last_aggregation_report(),
+                        aggregation_templates,
+                        aggregation_templates_available,
                     })
                 }
                 Some(Err(failure)) => surface_snapshot::PageData::failed(failure),

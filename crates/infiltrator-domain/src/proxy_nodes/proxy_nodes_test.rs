@@ -786,4 +786,38 @@ proxies:
             "untyped node without server must be reported: {issues:?}"
         );
     }
+
+    /// DUAL-08-09: the flat aggregation precheck reports the same
+    /// required-field problems for the protocols that degrade to `OtherNode`.
+    #[test]
+    fn validate_item_reports_missing_credentials_and_port() {
+        use crate::profile_converter::ProxyNodeItem;
+        use crate::proxy_nodes::validate::validate_item;
+
+        let mut ss = ProxyNodeItem::new("HK 01", "ss", "1.1.1.1", 443);
+        ss.password = Some("pass".to_owned());
+        let issues = validate_item(&ss);
+        assert!(
+            issues.iter().any(|m| m.contains("cipher")),
+            "ss without cipher must be reported: {issues:?}"
+        );
+
+        let mut vmess = ProxyNodeItem::new("VM 01", "vmess", "2.2.2.2", 443);
+        vmess.uuid = Some("uuid".to_owned());
+        assert!(
+            validate_item(&vmess).is_empty(),
+            "a complete vmess node passes the precheck"
+        );
+
+        let mut broken = ProxyNodeItem::new("Broken", "trojan", "", 0);
+        broken.password = None;
+        let issues = validate_item(&broken);
+        assert!(issues.iter().any(|m| m.contains("server")));
+        assert!(issues.iter().any(|m| m.contains("port")));
+        assert!(issues.iter().any(|m| m.contains("password")));
+
+        // Unknown protocols never get guessed credentials.
+        let custom = ProxyNodeItem::new("Custom", "custom-protocol", "3.3.3.3", 8443);
+        assert!(validate_item(&custom).is_empty());
+    }
 }

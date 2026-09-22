@@ -9,6 +9,7 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
+infiltrator-contract = { path = "../infiltrator-contract" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
 ring = "0.17"

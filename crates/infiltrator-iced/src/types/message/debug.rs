@@ -892,6 +892,55 @@ impl std::fmt::Debug for Message {
             Message::AggregatedProfileCreated(result) => {
                 write!(f, "AggregatedProfileCreated({})", result.is_ok())
             }
+            Message::ToggleAggregatorAvailabilityPrecheck => {
+                write!(f, "ToggleAggregatorAvailabilityPrecheck")
+            }
+            Message::ToggleAggregatorActivateAfterCreate => {
+                write!(f, "ToggleAggregatorActivateAfterCreate")
+            }
+            Message::UpdateAggregatorRenames(text) => {
+                write!(f, "UpdateAggregatorRenames({text})")
+            }
+            Message::UpdateAggregatorCustomGroupName(name) => {
+                write!(f, "UpdateAggregatorCustomGroupName({name})")
+            }
+            Message::UpdateAggregatorCustomGroupKeywords(keywords) => {
+                write!(f, "UpdateAggregatorCustomGroupKeywords({keywords})")
+            }
+            Message::AddAggregatorCustomGroup => write!(f, "AddAggregatorCustomGroup"),
+            Message::RemoveAggregatorCustomGroup(index) => {
+                write!(f, "RemoveAggregatorCustomGroup({index})")
+            }
+            Message::LoadAggregatorTemplates => write!(f, "LoadAggregatorTemplates"),
+            Message::AggregatorTemplatesLoaded(result) => match result {
+                Ok(templates) => write!(f, "AggregatorTemplatesLoaded(Ok({}))", templates.len()),
+                Err(error) => write!(f, "AggregatorTemplatesLoaded(Err({:?}))", error),
+            },
+            Message::ApplyAggregatorTemplate(name) => write!(f, "ApplyAggregatorTemplate({name})"),
+            Message::SaveAggregatorTemplate => write!(f, "SaveAggregatorTemplate"),
+            Message::UpdateAggregatorTemplateName(name) => {
+                write!(f, "UpdateAggregatorTemplateName({name})")
+            }
+            Message::AggregatorTemplateSaved(result) => match result {
+                Ok(name) => write!(f, "AggregatorTemplateSaved(Ok({name}))"),
+                Err(error) => write!(f, "AggregatorTemplateSaved(Err({:?}))", error),
+            },
+            Message::DeleteAggregatorTemplate(name) => {
+                write!(f, "DeleteAggregatorTemplate({name})")
+            }
+            Message::AggregatorTemplateDeleted(result) => match result {
+                Ok((name, removed)) => {
+                    write!(
+                        f,
+                        "AggregatorTemplateDeleted(Ok({name}, removed={removed}))"
+                    )
+                }
+                Err(error) => write!(f, "AggregatorTemplateDeleted(Err({:?}))", error),
+            },
+            Message::ReAggregateProfile(name) => write!(f, "ReAggregateProfile({name})"),
+            Message::AggregationReaggregated(result) => {
+                write!(f, "AggregationReaggregated({})", result.is_ok())
+            }
             Message::SetConnectionGroupingMode(m) => write!(f, "SetConnectionGroupingMode({m:?})"),
             Message::AddQuickRuleFromConnection { pattern, target } => {
                 write!(f, "AddQuickRuleFromConnection({pattern} -> {target})")

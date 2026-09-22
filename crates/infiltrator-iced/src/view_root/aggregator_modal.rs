@@ -1,10 +1,11 @@
 //! Multi-Profile Aggregator Modal Dialog (DUAL-08).
 //!
 //! The modal edits the shared `AggregationDraft` (source selection, target
-//! name, cleaning switches), asks the shared application for the real
-//! aggregation preview, and renders the returned `AggregationReport`: the
-//! dedup counters, the ISO region clusters, and the synthesized group
-//! cascade. It never clusters or deduplicates locally.
+//! name, cleaning switches, rename rules, custom groups), asks the shared
+//! application for the real aggregation preview, and renders the returned
+//! `AggregationReport`: the dedup counters, the ISO region clusters, the
+//! synthesized group cascade, and the generated YAML structure. It never
+//! clusters, deduplicates, or renders fabricated placeholders.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -15,9 +16,14 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
-use infiltrator_contract::aggregator::{AggregationReport, GeneratedGroupSnapshot};
+use infiltrator_contract::aggregator::{
+    AggregationCustomGroup, AggregationReport, AggregationTemplate, GeneratedGroupSnapshot,
+};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+/// YAML lines rendered in the shared structure viewport (DUAL-08-11).
+const YAML_PREVIEW_LINES: usize = 60;
 
 pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
@@ -42,14 +48,8 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             color: Some(tokens(t).text_secondary),
         });
 
-    let name_input = row![
-        text(lang.tr("aggregator_name_placeholder").to_string())
-            .size(12)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        Space::new().width(theme::SP_SM),
+    let name_input = labeled_field(
+        lang.tr("aggregator_name_placeholder").as_ref(),
         text_input("Aggregated-Profiles", &state.profile.aggregator_name_input)
             .on_input(Message::UpdateAggregatorName)
             .padding([6, 10])
@@ -57,8 +57,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             .font(MONO)
             .width(Length::Fill)
             .style(form_input_style),
-    ]
-    .align_y(Alignment::Center);
+    );
 
     let options = column![
         toggle_row(
@@ -85,8 +84,75 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             state.profile.aggregator_remove_emojis,
             Message::ToggleAggregatorRemoveEmojis,
         ),
+        toggle_row(
+            &lang,
+            "aggregator_availability_precheck",
+            state.profile.aggregator_availability_precheck,
+            Message::ToggleAggregatorAvailabilityPrecheck,
+        ),
+        toggle_row(
+            &lang,
+            "aggregator_activate_after_create",
+            state.profile.aggregator_activate_after_create,
+            Message::ToggleAggregatorActivateAfterCreate,
+        ),
     ]
     .spacing(theme::SP_XS);
+
+    let rename_input = labeled_field(
+        lang.tr("aggregator_renames_label").as_ref(),
+        text_input(
+            lang.tr("aggregator_renames_ph").as_ref(),
+            &state.profile.aggregator_renames,
+        )
+        .on_input(Message::UpdateAggregatorRenames)
+        .padding([6, 10])
+        .size(12)
+        .font(MONO)
+        .width(Length::Fill)
+        .style(form_input_style),
+    );
+
+    let custom_group_editor = column![
+        labeled_field(
+            lang.tr("aggregator_custom_group_label").as_ref(),
+            column![
+                text_input(
+                    lang.tr("aggregator_custom_name_ph").as_ref(),
+                    &state.profile.aggregator_custom_name,
+                )
+                .on_input(Message::UpdateAggregatorCustomGroupName)
+                .padding([6, 10])
+                .size(12)
+                .font(MONO)
+                .width(Length::Fill)
+                .style(form_input_style),
+                Space::new().height(theme::SP_XS),
+                text_input(
+                    lang.tr("aggregator_custom_keywords_ph").as_ref(),
+                    &state.profile.aggregator_custom_keywords,
+                )
+                .on_input(Message::UpdateAggregatorCustomGroupKeywords)
+                .padding([6, 10])
+                .size(12)
+                .font(MONO)
+                .width(Length::Fill)
+                .style(form_input_style),
+            ]
+            .spacing(0),
+        ),
+        button(
+            text(lang.tr("aggregator_custom_add").to_string())
+                .size(12)
+                .font(FONT_MEDIUM),
+        )
+        .padding([6, 14])
+        .style(style_ghost)
+        .on_press(Message::AddAggregatorCustomGroup),
+    ]
+    .spacing(theme::SP_XS);
+
+    let custom_group_rows = custom_group_list(&state.profile.aggregator_custom_groups, &lang);
 
     let mut profiles_list = column![].spacing(theme::SP_XS);
     for prof in &state.profile.profiles {
@@ -197,6 +263,8 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         .into(),
     };
 
+    let template_section = template_section(state, &lang);
+
     let actions = row![
         button(text(lang.tr("btn_cancel").to_string()).size(12))
             .padding([6, 14])
@@ -233,39 +301,51 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     ]
     .align_y(Alignment::Center);
 
+    // The wizard grew with DUAL-08-07/10/11/13; the card body scrolls inside
+    // the viewport instead of overflowing it.
+    let body_height = (state.shell.viewport.height_px * 0.78).max(240.0);
     let modal_card = container(
-        column![
-            title_row,
-            subtitle,
-            Space::new().height(theme::SP_SM),
-            name_input,
-            Space::new().height(theme::SP_XS),
-            options,
-            Space::new().height(theme::SP_XS),
-            container(modern_scrollable(profiles_list).height(Length::Fixed(140.0)))
-                .padding(6)
-                .style(|t: &Theme| {
-                    let tk = tokens(t);
-                    container::Style {
-                        background: Some(tk.control_bg.into()),
-                        border: Border {
-                            radius: border::Radius::from(theme::R_CONTROL),
-                            width: 1.0,
-                            color: tk.card_border,
-                        },
-                        ..Default::default()
-                    }
-                }),
-            selected_line,
-            Space::new().height(theme::SP_XS),
-            preview_section,
-            Space::new().height(theme::SP_MD),
-            row![Space::new().width(Length::Fill), actions],
-        ]
-        .spacing(theme::SP_SM),
+        modern_scrollable(
+            column![
+                title_row,
+                subtitle,
+                Space::new().height(theme::SP_SM),
+                name_input,
+                Space::new().height(theme::SP_XS),
+                options,
+                Space::new().height(theme::SP_XS),
+                rename_input,
+                custom_group_editor,
+                custom_group_rows,
+                Space::new().height(theme::SP_XS),
+                container(modern_scrollable(profiles_list).height(Length::Fixed(140.0)))
+                    .padding(6)
+                    .style(|t: &Theme| {
+                        let tk = tokens(t);
+                        container::Style {
+                            background: Some(tk.control_bg.into()),
+                            border: Border {
+                                radius: border::Radius::from(theme::R_CONTROL),
+                                width: 1.0,
+                                color: tk.card_border,
+                            },
+                            ..Default::default()
+                        }
+                    }),
+                selected_line,
+                Space::new().height(theme::SP_XS),
+                preview_section,
+                Space::new().height(theme::SP_SM),
+                template_section,
+                Space::new().height(theme::SP_MD),
+                row![Space::new().width(Length::Fill), actions],
+            ]
+            .spacing(theme::SP_SM),
+        )
+        .height(Length::Fixed(body_height)),
     )
     .padding([20, 24])
-    .width(state.shell.viewport.clamped_modal_width(560.0))
+    .width(state.shell.viewport.clamped_modal_width(600.0))
     .style(|t: &Theme| {
         let tk = tokens(t);
         container::Style {
@@ -298,6 +378,22 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
             ..Default::default()
         })
         .into()
+}
+
+/// One labelled input row.
+fn labeled_field<'a>(label: &str, field: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    column![
+        text(label.to_string())
+            .size(12)
+            .font(FONT_MEDIUM)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
+        Space::new().height(2),
+        field.into(),
+    ]
+    .spacing(0)
+    .into()
 }
 
 /// One cleaning/topology switch rendered as the same checkbox button the
@@ -337,7 +433,47 @@ fn toggle_row<'a>(
     .into()
 }
 
-/// The real preview: dedup counters, region clusters, and the group cascade.
+/// DUAL-08-10: the appended custom groups with their remove action.
+fn custom_group_list<'a>(
+    groups: &'a [AggregationCustomGroup],
+    lang: &Lang<'_>,
+) -> Element<'a, Message> {
+    if groups.is_empty() {
+        return text(lang.tr("aggregator_custom_empty").to_string())
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            })
+            .into();
+    }
+    let mut rows = column![].spacing(theme::SP_XS);
+    for (index, group) in groups.iter().enumerate() {
+        let keywords = if group.member_keywords.is_empty() {
+            lang.tr("aggregator_custom_all_nodes").to_string()
+        } else {
+            group.member_keywords.join(", ")
+        };
+        rows = rows.push(
+            row![
+                badge(group.name.clone(), BadgeKind::Accent),
+                Space::new().width(theme::SP_SM),
+                text(keywords).size(11).style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+                Space::new().width(Length::Fill),
+                button(text(lang.tr("aggregator_custom_remove").to_string()).size(11))
+                    .padding([2, 8])
+                    .style(style_ghost)
+                    .on_press(Message::RemoveAggregatorCustomGroup(index)),
+            ]
+            .align_y(Alignment::Center),
+        );
+    }
+    rows.into()
+}
+
+/// The real preview: counters, region clusters, the group cascade and the
+/// generated YAML structure (DUAL-08-11).
 fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Element<'a, Message> {
     let counters = interpolate(
         &lang.tr("aggregator_preview_nodes"),
@@ -350,6 +486,13 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
     let input = interpolate(
         &lang.tr("aggregator_preview_input"),
         &[("count", report.input_nodes.to_string().as_str())],
+    );
+    let cleaning = interpolate(
+        &lang.tr("aggregator_preview_cleaning"),
+        &[
+            ("rules", report.rule_renamed_nodes.to_string().as_str()),
+            ("invalid", report.invalid_nodes_removed.to_string().as_str()),
+        ],
     );
 
     let mut body = column![
@@ -370,8 +513,22 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
             }),
         ]
         .align_y(Alignment::Center),
+        text(cleaning).size(11).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_secondary),
+        }),
     ]
     .spacing(theme::SP_XS);
+
+    if !report.invalid_node_samples.is_empty() {
+        body = body.push(
+            text(report.invalid_node_samples.join("\n"))
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).warning),
+                }),
+        );
+    }
 
     if !report.missing_sources.is_empty() {
         let missing = interpolate(
@@ -441,7 +598,34 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
     }
     body = body.push(group_rows);
 
-    container(modern_scrollable(body).height(Length::Fixed(190.0)))
+    // DUAL-08-11: the generated YAML structure, rendered from the shared
+    // report's own document (never re-serialized by the surface).
+    let yaml_lines = report.yaml.lines().count();
+    let yaml_header = interpolate(
+        &lang.tr("aggregator_preview_yaml"),
+        &[("lines", yaml_lines.to_string().as_str())],
+    );
+    body = body.push(
+        text(yaml_header)
+            .size(11)
+            .font(FONT_MEDIUM)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+    );
+    body = body.push(container(
+        modern_scrollable(
+            text(report.yaml_preview(YAML_PREVIEW_LINES))
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+        )
+        .height(Length::Fixed(160.0)),
+    ));
+
+    container(modern_scrollable(body).height(Length::Fixed(320.0)))
         .padding(8)
         .style(|t: &Theme| {
             let tk = tokens(t);
@@ -482,6 +666,13 @@ fn group_row<'a>(group: &GeneratedGroupSnapshot, lang: &Lang<'_>) -> Element<'a,
             BadgeKind::Accent,
         ));
     }
+    if group.is_custom {
+        cells = cells.push(Space::new().width(theme::SP_XS));
+        cells = cells.push(badge(
+            lang.tr("aggregator_group_custom").to_string(),
+            BadgeKind::Accent,
+        ));
+    }
     cells = cells.push(Space::new().width(Length::Fill));
     cells = cells.push(
         text(format!("{}", group.members.len()))
@@ -491,4 +682,89 @@ fn group_row<'a>(group: &GeneratedGroupSnapshot, lang: &Lang<'_>) -> Element<'a,
             }),
     );
     cells.into()
+}
+
+/// DUAL-08-13/08-07: the persisted template library with reuse, re-aggregate
+/// and delete actions.
+fn template_section<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    let mut section = column![
+        text(lang.tr("aggregator_template_title").to_string())
+            .size(12)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary),
+            }),
+        row![
+            text_input(
+                lang.tr("aggregator_template_name_ph").as_ref(),
+                &state.profile.aggregator_template_name,
+            )
+            .on_input(Message::UpdateAggregatorTemplateName)
+            .padding([6, 10])
+            .size(12)
+            .font(MONO)
+            .width(Length::Fill)
+            .style(form_input_style),
+            Space::new().width(theme::SP_XS),
+            button(
+                text(lang.tr("aggregator_template_save").to_string())
+                    .size(11)
+                    .font(FONT_MEDIUM),
+            )
+            .padding([6, 12])
+            .style(style_ghost)
+            .on_press(Message::SaveAggregatorTemplate),
+        ]
+        .align_y(Alignment::Center),
+    ]
+    .spacing(theme::SP_XS);
+
+    if state.profile.aggregator_templates.is_empty() {
+        section = section.push(
+            text(lang.tr("aggregator_template_empty").to_string())
+                .size(11)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
+        );
+        return section.into();
+    }
+
+    let mut rows = column![].spacing(theme::SP_XS);
+    for template in &state.profile.aggregator_templates {
+        rows = rows.push(template_row(template, lang));
+    }
+    section.push(rows).into()
+}
+
+fn template_row<'a>(template: &'a AggregationTemplate, lang: &Lang<'_>) -> Element<'a, Message> {
+    let name = template.name.clone();
+    let updated = interpolate(
+        &lang.tr("aggregator_template_updated"),
+        &[("time", template.updated_at.as_str())],
+    );
+    row![
+        badge(template.name.clone(), BadgeKind::Neutral),
+        Space::new().width(theme::SP_SM),
+        text(updated).size(11).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
+        Space::new().width(Length::Fill),
+        button(text(lang.tr("aggregator_template_use").to_string()).size(11))
+            .padding([2, 8])
+            .style(style_ghost)
+            .on_press(Message::ApplyAggregatorTemplate(name.clone())),
+        Space::new().width(theme::SP_XS),
+        button(text(lang.tr("aggregator_template_reaggregate").to_string()).size(11))
+            .padding([2, 8])
+            .style(style_ghost)
+            .on_press(Message::ReAggregateProfile(name.clone())),
+        Space::new().width(theme::SP_XS),
+        button(text(lang.tr("aggregator_template_delete").to_string()).size(11))
+            .padding([2, 8])
+            .style(style_ghost)
+            .on_press(Message::DeleteAggregatorTemplate(name)),
+    ]
+    .align_y(Alignment::Center)
+    .into()
 }

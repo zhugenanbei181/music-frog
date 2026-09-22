@@ -2,6 +2,7 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use std::path::PathBuf;
@@ -34,6 +35,28 @@ pub trait ProfileStore: Send + Sync {
     /// DUAL-07-08: persist a profile's option sidecar; empty options remove it.
     async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError>;
     async fn delete_options(&self, profile: &str) -> Result<(), PortError>;
+    /// DUAL-08-13: load the saved aggregation templates, empty when none where
+    /// stored. Stores without a template sidecar answer with a typed
+    /// unsupported instead of pretending the library is empty.
+    async fn load_aggregation_templates(
+        &self,
+    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "this profile store keeps no aggregation-template sidecar",
+        ))
+    }
+    /// DUAL-08-13: persist the aggregation template library; an empty library
+    /// removes the sidecar.
+    async fn save_aggregation_templates(
+        &self,
+        _templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+    ) -> Result<(), PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "this profile store keeps no aggregation-template sidecar",
+        ))
+    }
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError>;
     async fn restore_backup(&self, profile: &str) -> Result<bool, PortError>;
 }

@@ -150,6 +150,17 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
             geo_cluster: true,
             generate_groups: true,
             remove_emojis: true,
+            rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+                pattern: "-Pro$".to_string(),
+                replacement: String::new(),
+            }],
+            custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+                name: "流媒体专用".to_string(),
+                group_type: "select".to_string(),
+                member_keywords: vec!["HK".to_string()],
+            }],
+            availability_precheck: true,
+            activate_after_create: true,
         },
         source_count: 1,
         missing_sources: vec![],
@@ -157,6 +168,9 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
         total_nodes: 7,
         duplicates_removed: 1,
         renamed_nodes: 7,
+        rule_renamed_nodes: 2,
+        invalid_nodes_removed: 1,
+        invalid_node_samples: vec!["Broken: vmess: uuid is required".to_string()],
         regions: vec![RegionalClusterSnapshot {
             iso: "HK".to_string(),
             label: "香港".to_string(),
@@ -168,6 +182,7 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
             name: "🚀 节点选择".to_string(),
             group_type: "select".to_string(),
             is_master: true,
+            is_custom: false,
             members: vec!["香港自动测速".to_string()],
         }],
         yaml: "proxies: []\n".to_string(),
@@ -180,17 +195,92 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     assert!(!state.profile.is_aggregating);
 
     // The draft assembled by the surface maps every switch to the shared type.
-    let draft = state.aggregator_draft();
+    let draft = state.aggregator_draft().expect("valid rename text");
     assert!(draft.deduplicate);
     assert!(draft.geo_cluster);
     assert!(draft.generate_groups);
     assert!(draft.remove_emojis);
     assert!(draft.deduplicate_names);
+    // DUAL-08-09/12: the new wizard switches ride the shared draft verbatim.
+    assert!(draft.availability_precheck);
+    assert!(!draft.activate_after_create);
+    assert!(draft.rename_rules.is_empty());
+    assert!(draft.custom_groups.is_empty());
+
+    // DUAL-08-08: a malformed rename line is refused at the surface (the
+    // shared application never sees a silently-dropped rule).
+    state.profile.aggregator_renames = "no arrow here".to_string();
+    assert_eq!(state.aggregator_draft(), Err("no arrow here".to_string()));
+    state.profile.aggregator_renames.clear();
+
+    // DUAL-08-10: appending a custom group invalidates the stale preview and
+    // keeps the typed keywords.
+    let _ = state.update(Message::UpdateAggregatorCustomGroupName(
+        "流媒体专用".to_string(),
+    ));
+    let _ = state.update(Message::UpdateAggregatorCustomGroupKeywords(
+        "Netflix, 4K".to_string(),
+    ));
+    let _ = state.update(Message::AddAggregatorCustomGroup);
+    assert_eq!(state.profile.aggregator_custom_groups.len(), 1);
+    assert_eq!(
+        state.profile.aggregator_custom_groups[0].member_keywords,
+        vec!["Netflix".to_string(), "4K".to_string()]
+    );
+    let draft = state.aggregator_draft().expect("valid rename text");
+    assert_eq!(draft.custom_groups, state.profile.aggregator_custom_groups);
+    let _ = state.update(Message::RemoveAggregatorCustomGroup(0));
+    assert!(state.profile.aggregator_custom_groups.is_empty());
+    let _ = state.update(Message::UpdateAggregatorCustomGroupName(String::new()));
+
+    // DUAL-08-13: applying a saved template prefills the wizard fields.
+    state.profile.aggregator_templates =
+        vec![infiltrator_contract::aggregator::AggregationTemplate {
+            name: "My-Template".to_string(),
+            draft: infiltrator_contract::aggregator::AggregationDraft {
+                source_profiles: vec!["Airport-HK".to_string()],
+                target_name: "From-Template".to_string(),
+                deduplicate: false,
+                deduplicate_names: true,
+                geo_cluster: false,
+                generate_groups: true,
+                remove_emojis: false,
+                rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+                    pattern: "x".to_string(),
+                    replacement: "y".to_string(),
+                }],
+                custom_groups: Vec::new(),
+                availability_precheck: false,
+                activate_after_create: true,
+            },
+            updated_at: "2026-09-22T11:00:00+00:00".to_string(),
+        }];
+    let _ = state.update(Message::ApplyAggregatorTemplate("My-Template".to_string()));
+    assert_eq!(state.profile.aggregator_name_input, "From-Template");
+    assert!(!state.profile.aggregator_deduplicate);
+    assert!(!state.profile.aggregator_geo_cluster);
+    assert!(!state.profile.aggregator_availability_precheck);
+    assert!(state.profile.aggregator_activate_after_create);
+    assert_eq!(state.profile.aggregator_renames, "x => y");
+    assert_eq!(
+        state.profile.aggregator_template_name,
+        "My-Template".to_string()
+    );
+    state.profile.aggregator_templates.clear();
 
     // No source selected: the surface refuses to start an aggregation.
     state.profile.aggregator_selected_profiles.clear();
     let _ = state.update(Message::PreviewProfileAggregation);
     assert!(!state.profile.is_aggregating);
+
+    // DUAL-08-11: the modal view (preview + YAML viewport + template library)
+    // builds from the shared report; the surface keeps no second aggregator.
+    state.profile.aggregator_report = Some(report.clone());
+    state.profile.aggregator_modal_open = true;
+    {
+        let _element: iced::Element<'_, Message> = state.view();
+    }
+    assert!(state.profile.aggregator_modal_open);
 
     // A typed failure clears the in-flight flag without faking a report.
     state.profile.aggregator_report = None;

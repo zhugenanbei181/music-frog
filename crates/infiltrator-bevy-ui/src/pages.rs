@@ -32,6 +32,7 @@ pub mod overview;
 pub mod overview_cards;
 pub mod profiles;
 pub mod profiles_aggregator;
+pub mod profiles_aggregator_wizard;
 pub mod profiles_diff;
 pub mod profiles_import;
 pub mod profiles_import_channels;

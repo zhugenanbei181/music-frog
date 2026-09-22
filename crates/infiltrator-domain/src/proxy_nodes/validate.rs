@@ -373,6 +373,101 @@ fn validate_ss_2022(cipher: &str, password: &str, issues: &mut Vec<String>) {
     }
 }
 
+/// DUAL-08-09: advisory precheck for the flat aggregation currency
+/// ([`crate::profile_converter::ProxyNodeItem`]), mirroring the required-field
+/// rules of [`validate`] for the protocols that degrade to `OtherNode` in the
+/// typed model (`ss`/`vmess`/`trojan`/...).
+///
+/// Returns one human-readable message per problem: empty name/server, a zero
+/// port, or a missing protocol credential (uuid / password / cipher / key).
+/// Unknown protocols are *not* flagged for credentials — their requirements
+/// are unknown to this table, and guessing would drop valid nodes.
+pub fn validate_item(node: &crate::profile_converter::ProxyNodeItem) -> Vec<String> {
+    let mut issues = Vec::new();
+    if node.name.trim().is_empty() {
+        issues.push("name must not be empty".to_string());
+    }
+    if node.server.trim().is_empty() {
+        issues.push("server must not be empty".to_string());
+    }
+    if node.port == 0 {
+        issues.push("port must be positive".to_string());
+    }
+
+    let node_type = node.node_type.trim().to_ascii_lowercase();
+    let extra = |key: &str| -> Option<&str> {
+        node.extra
+            .get(key)
+            .and_then(serde_yaml_ng::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    };
+    let uuid = non_empty(node.uuid.as_deref()).or_else(|| extra("uuid"));
+    let password = non_empty(node.password.as_deref()).or_else(|| extra("password"));
+    let cipher = non_empty(node.cipher.as_deref()).or_else(|| extra("cipher"));
+    let auth = non_empty(node.auth.as_deref()).or_else(|| extra("auth-str"));
+
+    match node_type.as_str() {
+        "vmess" | "vless" => {
+            if uuid.is_none() {
+                issues.push(format!("{node_type}: uuid is required"));
+            }
+        }
+        "trojan" | "anytls" | "shadowtls" | "trojan-go" => {
+            if password.is_none() {
+                issues.push(format!("{node_type}: password is required"));
+            }
+        }
+        "hysteria2" => {
+            if password.is_none() && auth.is_none() {
+                issues.push("hysteria2: password is required".to_string());
+            }
+        }
+        "hysteria" => {
+            if password.is_none() && auth.is_none() {
+                issues.push("hysteria: auth is required".to_string());
+            }
+        }
+        "ss" | "ssr" => {
+            if cipher.is_none() {
+                issues.push(format!("{node_type}: cipher is required"));
+            }
+            if password.is_none() {
+                issues.push(format!("{node_type}: password is required"));
+            }
+        }
+        "tuic" => {
+            if uuid.is_none() {
+                issues.push("tuic: uuid is required".to_string());
+            }
+            if password.is_none() {
+                issues.push("tuic: password is required".to_string());
+            }
+        }
+        "snell" => {
+            if extra("psk").is_none() {
+                issues.push("snell: psk is required".to_string());
+            }
+        }
+        "wireguard" => {
+            if non_empty(node.private_key.as_deref()).is_none() && extra("private-key").is_none() {
+                issues.push("wireguard: private-key is required".to_string());
+            }
+            if non_empty(node.public_key.as_deref()).is_none() && extra("public-key").is_none() {
+                issues.push("wireguard: public-key is required".to_string());
+            }
+        }
+        _ => {}
+    }
+
+    issues
+}
+
+/// Trimmed view of an optional string, `None` when absent or blank.
+fn non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
 fn decode_base64_tolerant(input: &str) -> Result<Vec<u8>, ()> {
     let clean: String = input.chars().filter(|c| !c.is_whitespace()).collect();
     STANDARD
