@@ -101,7 +101,7 @@ impl ScriptEngine {
 
         let mut ast: Value = serde_yaml_ng::from_str(yaml_content)
             .map_err(|e| ScriptError::Runtime(format!("Failed to parse input YAML: {e}")))?;
-        self.evaluate_ast_directives(script, &mut ast)?;
+        let matched_directives = self.evaluate_ast_directives(script, &mut ast)?;
 
         let elapsed = start.elapsed();
         if elapsed > self.timeout {
@@ -117,6 +117,7 @@ impl ScriptEngine {
             execution_time_ms: elapsed.as_millis() as u64,
             success: true,
             stage,
+            matched_directives,
         })
     }
 

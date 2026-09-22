@@ -73,7 +73,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         EditorPane::Profile => "YAML",
         EditorPane::Mixin => "Mixin",
         EditorPane::Filter => "Filter",
-        EditorPane::Script => "QuickJS",
+        EditorPane::Script => "Directive DSL",
     };
 
     // DUAL-09-12: the edited profile's shared write classification. A remote

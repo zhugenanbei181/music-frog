@@ -268,6 +268,7 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         apply_transaction: None,
         profile_document: None,
         profile_options: None,
+        script_sandbox: None,
     }
 }
 

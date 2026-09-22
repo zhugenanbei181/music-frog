@@ -460,9 +460,9 @@ fn test_profiles_page_mounting_and_default_state() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "QuickJS 扩展脚本沙箱控制台 (Script Sandbox)"
+        "脚本指令 DSL 控制台 (Script Sandbox)"
     ));
-    assert!(subtree_has_text(app.world(), root, "测试运行脚本变换"));
+    assert!(subtree_has_text(app.world(), root, "共享预设目录"));
     assert!(
         app.world_mut()
             .query_filtered::<Entity, bevy::ecs::query::With<ProfilesImportRoot>>()
@@ -616,6 +616,7 @@ fn test_profiles_empty_and_edge_case_projection() {
         apply_transaction: None,
         profile_document: None,
         profile_options: None,
+        script_sandbox: None,
     };
     app.world_mut()
         .commands()
@@ -3086,6 +3087,7 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         apply_transaction: None,
         profile_document: None,
         profile_options: None,
+        script_sandbox: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3691,6 +3693,7 @@ fn aggregation_page_projection() -> ProfilesProjection {
         apply_transaction: None,
         profile_document: None,
         profile_options: None,
+        script_sandbox: None,
     }
 }
 
@@ -4068,6 +4071,7 @@ fn snapshot_diff_page_projection(
         apply_transaction: None,
         profile_document: None,
         profile_options: None,
+        script_sandbox: None,
     }
 }
 
@@ -5471,9 +5475,83 @@ fn test_script_sandbox_matrix_passes_on_the_bevy_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    assert_eq!(
-        report.not_covered_ids(),
-        vec!["DUAL-10-01", "DUAL-10-05", "DUAL-10-09", "DUAL-10-14"]
+    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01", "DUAL-10-09"]);
+    assert_eq!(report.covered_passed_count(), 13);
+}
+
+/// DUAL-10-05/06/07/13/14: the Bevy console renders the *shared* script-sandbox
+/// projection. The snapshot is produced by the real shared application; the
+/// card lists only the directive that really ran, the hook stage, the breaker
+/// limits, the captured console lines and the before/after YAML, and it shows
+/// the safe-degradation record on a failed run.
+#[test]
+fn test_profiles_script_console_renders_the_shared_projection() {
+    use infiltrator_application::script_application::ScriptApplication;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let application = ScriptApplication::new();
+    let snapshot = application.run_sandbox(
+        "function main(config, profile) {\n  console.log(\"bevy shared console\");\n  auto_country_groups(config);\n  return config;\n}",
+        "proxies:\n  - name: 🇭🇰 HK 01\n    type: ss\n",
+        Some("auto-country-groups"),
     );
-    assert_eq!(report.covered_passed_count(), 11);
+    let mut projection = editor_options_page_projection("mode: rule\n", None);
+    projection.script_sandbox = Some(snapshot);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "已执行指令 auto_country_groups"),
+        "only the matched directive is claimed"
+    );
+    assert!(
+        !subtree_has_text(app.world(), root, "已执行指令 direct_china"),
+        "a directive that did not match is never shown as executed"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "bevy shared console"),
+        "the captured console line renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "Pre-Merge"),
+        "the real hook stage renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "熔断状态"),
+        "the breaker state renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "内存上限 64MB"),
+        "the sandbox resource limits render"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "变换后 YAML"),
+        "the before/after preview renders"
+    );
+
+    // DUAL-10-13: a failed run degrades safely and the console says so.
+    let degraded = application.run_sandbox(
+        "function main(config) { remove_rules(config, \"([\"); return config; }",
+        "port: 7890\n",
+        None,
+    );
+    let mut projection = editor_options_page_projection("mode: rule\n", None);
+    projection.script_sandbox = Some(degraded);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "安全降级：原配置保持不变"),
+        "the safe-degradation notice renders"
+    );
+    assert!(
+        !subtree_has_text(app.world(), root, "已执行指令 auto_country_groups"),
+        "the failed projection no longer claims a directive"
+    );
 }

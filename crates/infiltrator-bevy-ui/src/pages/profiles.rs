@@ -172,6 +172,10 @@ pub struct ProfilesProjection {
     /// DUAL-09-14: the stored Mixin overlay + filter draft the editor panes
     /// edit; published by the shared sidecar use-case.
     pub profile_options: Option<infiltrator_contract::profile_options::ProfileOptionsSnapshot>,
+    /// DUAL-10-05/14: the shared script-sandbox read model the console renders.
+    /// It is the exact projection Iced produced and published; `None` before a
+    /// run (never a fabricated execution).
+    pub script_sandbox: Option<infiltrator_contract::script_sandbox::ScriptSandboxSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -260,6 +264,7 @@ impl ProfilesProjection {
                 },
             ],
             yaml_ast_diff: None,
+            script_sandbox: None,
         }
     }
 
@@ -360,7 +365,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
             ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) } ),
             ( { crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) } ),
             ( { crate::pages::profiles_editor::profile_editor_scene(projection, palette) } ),
-            ( { crate::pages::profiles_script::script_sandbox_scene(palette) } ),
+            ( { crate::pages::profiles_script::script_sandbox_scene(projection, palette) } ),
             { profile_scenes },
         ]
     }
@@ -631,6 +636,9 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_history_entry_activated);
     commands
         .add_observer(crate::pages::profiles_diff_history::on_snapshot_history_restore_activated);
+    // DUAL-10-05/14: the shared script-sandbox console body.
+    commands.init_resource::<crate::pages::profiles_script::ScriptSandboxViewState>();
+    commands.add_observer(crate::pages::profiles_script::rebuild_script_sandbox_body);
     // DUAL-09-03/14: the document editor owns its own plugin
     // (`ProfilesEditorPlugin`): keyboard seam, observers and body rebuild.
 }

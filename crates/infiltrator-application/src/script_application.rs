@@ -1,18 +1,26 @@
-//! Application service for sandboxed script execution, validation, presets and diffing.
+//! Application service for sandboxed directive-DSL execution, validation,
+//! presets, diffing, and the shared script-sandbox read model.
+//!
+//! Runtime truth: no JavaScript engine is bundled. `ScriptEngine` recognises
+//! known directives with regexes; this service projects what really ran into
+//! the shared [`ScriptSandboxSnapshot`] both surfaces render, and caches the
+//! latest projection so the Bevy surface (which owns no engine) reads exactly
+//! what Iced computed.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_sandbox::{
-    ScriptLogEntry, ScriptLogLevel, ScriptPresetSummary, ScriptSandboxSnapshot, ScriptSandboxStatus,
+    ScriptCircuitBreakerSnapshot, ScriptDirectiveMatch, ScriptEngineKind, ScriptLogEntry,
+    ScriptLogLevel, ScriptPresetSummary, ScriptSandboxSnapshot, ScriptSandboxStatus,
 };
 use infiltrator_domain::myers_diff;
 use infiltrator_domain::script_engine::{
     ExtensionPackage, HookStage, ScriptCircuitBreaker, ScriptEngine, ScriptError,
-    ScriptValidationResult,
+    ScriptExecutionResult, ScriptValidationResult,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-/// Thread-safe application service for managing QuickJS scripts and sandboxes.
+/// Thread-safe application service for managing directive-DSL scripts and sandboxes.
 #[derive(Clone)]
 pub struct ScriptApplication {
     engine: Arc<ScriptEngine>,
@@ -22,6 +30,33 @@ pub struct ScriptApplication {
 impl Default for ScriptApplication {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// DUAL-10-05/14: process-wide cache of the last sandbox projection. Iced runs
+/// the shared service and publishes; the surface reader republishes the same
+/// snapshot so Bevy renders one source of truth.
+fn sandbox_cache() -> &'static Mutex<Option<ScriptSandboxSnapshot>> {
+    static SANDBOX: OnceLock<Mutex<Option<ScriptSandboxSnapshot>>> = OnceLock::new();
+    SANDBOX.get_or_init(|| Mutex::new(None))
+}
+
+/// The last script-sandbox projection computed in this process, if any.
+pub fn last_script_sandbox() -> Option<ScriptSandboxSnapshot> {
+    sandbox_cache().lock().ok().and_then(|cache| cache.clone())
+}
+
+/// Replace the process-wide script-sandbox projection.
+pub fn publish_script_sandbox(snapshot: ScriptSandboxSnapshot) {
+    if let Ok(mut cache) = sandbox_cache().lock() {
+        *cache = Some(snapshot);
+    }
+}
+
+/// Drop the cached projection (a fresh clear makes it stale).
+pub fn clear_script_sandbox() {
+    if let Ok(mut cache) = sandbox_cache().lock() {
+        *cache = None;
     }
 }
 
@@ -40,12 +75,50 @@ impl ScriptApplication {
         }
     }
 
-    /// Execute a test run of `script` against `input_yaml` and assemble a complete [`ScriptSandboxSnapshot`].
+    /// The lifecycle stage the selected preset declares, defaulting to
+    /// `PreMerge` for ad-hoc scripts.
+    fn stage_for_preset(preset: Option<&str>) -> HookStage {
+        preset
+            .and_then(ScriptEngine::find_preset)
+            .map(|preset| preset.stage)
+            .unwrap_or(HookStage::PreMerge)
+    }
+
+    fn breaker_snapshot(&self) -> ScriptCircuitBreakerSnapshot {
+        match self.circuit_breaker.lock() {
+            Ok(breaker) => ScriptCircuitBreakerSnapshot {
+                tripped: breaker.is_tripped(),
+                consecutive_failures: breaker.consecutive_failures(),
+                failure_threshold: breaker.failure_threshold(),
+                cooldown_ms: breaker.cooldown().as_millis() as u64,
+                remaining_cooldown_ms: breaker.remaining_cooldown().as_millis() as u64,
+            },
+            Err(_) => ScriptCircuitBreakerSnapshot::default(),
+        }
+    }
+
+    /// Execute a test run of `script` against `input_yaml` and assemble, cache
+    /// and return a complete [`ScriptSandboxSnapshot`]. The stage comes from the
+    /// selected shared preset.
     pub fn run_sandbox(
         &self,
         script: &str,
         input_yaml: &str,
         preset: Option<&str>,
+    ) -> ScriptSandboxSnapshot {
+        let stage = Self::stage_for_preset(preset);
+        let snapshot = self.run_sandbox_at_stage(script, input_yaml, preset, stage);
+        publish_script_sandbox(snapshot.clone());
+        snapshot
+    }
+
+    /// Execute a test run at an explicit lifecycle stage (DUAL-10-02).
+    pub fn run_sandbox_at_stage(
+        &self,
+        script: &str,
+        input_yaml: &str,
+        preset: Option<&str>,
+        stage: HookStage,
     ) -> ScriptSandboxSnapshot {
         let presets = self.builtin_presets();
         let selected_preset = preset.map(ToString::to_string);
@@ -55,8 +128,14 @@ impl ScriptApplication {
         {
             let breaker = self.circuit_breaker.lock().unwrap();
             if breaker.is_tripped() {
+                drop(breaker);
                 return ScriptSandboxSnapshot {
+                    engine_kind: ScriptEngineKind::DirectiveDsl,
                     status: ScriptSandboxStatus::RuntimeError,
+                    hook_stage: stage.as_str().to_string(),
+                    hook_stage_label: stage.display_name().to_string(),
+                    matched_directives: Vec::new(),
+                    circuit_breaker: self.breaker_snapshot(),
                     selected_preset,
                     script_code: script.to_string(),
                     input_yaml: input_yaml.to_string(),
@@ -79,9 +158,9 @@ impl ScriptApplication {
 
         let mut console_logs = extract_console_logs(script, 0);
 
-        let run_result =
-            self.engine
-                .execute_transform_detailed(script, input_yaml, HookStage::PreMerge);
+        let run_result = self
+            .engine
+            .execute_transform_detailed(script, input_yaml, stage);
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         let estimated_memory = script.len() + input_yaml.len() * 4 + 1024 * 1024; // baseline + buffers
@@ -94,12 +173,12 @@ impl ScriptApplication {
                 }
 
                 // Add additional parsed logs if not already captured
-                for log_msg in res.console_logs {
-                    if !console_logs.iter().any(|l| l.message == log_msg) {
+                for log_msg in &res.console_logs {
+                    if !console_logs.iter().any(|l| &l.message == log_msg) {
                         console_logs.push(ScriptLogEntry::new(
                             elapsed_ms,
                             ScriptLogLevel::Log,
-                            log_msg,
+                            log_msg.clone(),
                         ));
                     }
                 }
@@ -112,7 +191,12 @@ impl ScriptApplication {
                 );
 
                 ScriptSandboxSnapshot {
+                    engine_kind: ScriptEngineKind::DirectiveDsl,
                     status: ScriptSandboxStatus::Success,
+                    hook_stage: stage.as_str().to_string(),
+                    hook_stage_label: stage.display_name().to_string(),
+                    matched_directives: project_directives(&res),
+                    circuit_breaker: self.breaker_snapshot(),
                     selected_preset,
                     script_code: script.to_string(),
                     input_yaml: input_yaml.to_string(),
@@ -159,7 +243,14 @@ impl ScriptApplication {
                 ));
 
                 ScriptSandboxSnapshot {
+                    engine_kind: ScriptEngineKind::DirectiveDsl,
                     status,
+                    hook_stage: stage.as_str().to_string(),
+                    hook_stage_label: stage.display_name().to_string(),
+                    // A failed run applied no directive the caller can trust;
+                    // reporting none is the honest safe-degradation record.
+                    matched_directives: Vec::new(),
+                    circuit_breaker: self.breaker_snapshot(),
                     selected_preset,
                     script_code: script.to_string(),
                     input_yaml: input_yaml.to_string(),
@@ -216,6 +307,16 @@ impl ScriptApplication {
             )
         })
     }
+}
+
+fn project_directives(result: &ScriptExecutionResult) -> Vec<ScriptDirectiveMatch> {
+    result
+        .matched_directives
+        .iter()
+        .map(|audit| {
+            ScriptDirectiveMatch::new(audit.id.clone(), audit.label.clone(), audit.affected)
+        })
+        .collect()
 }
 
 fn extract_console_logs(script: &str, elapsed_ms: u64) -> Vec<ScriptLogEntry> {
@@ -284,6 +385,48 @@ mod tests {
     }
 
     #[test]
+    fn run_sandbox_projects_only_matched_directives_and_real_stage() {
+        let app = ScriptApplication::new();
+        let script =
+            "function main(config, profile) {\n  auto_country_groups(config);\n  return config;\n}";
+        let snapshot = app.run_sandbox(
+            script,
+            "proxies:\n  - name: 🇭🇰 HK 01\n    type: ss\n",
+            Some("auto-country-groups"),
+        );
+        // The preset declares `pre_merge`; the projection must carry it.
+        assert_eq!(snapshot.hook_stage, "pre_merge");
+        assert!(snapshot.hook_stage_label.contains("Pre-Merge"));
+        // Only the directive that appeared is listed; the others never ran.
+        let ids: Vec<&str> = snapshot
+            .matched_directives
+            .iter()
+            .map(|m| m.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["auto_country_groups"]);
+        assert!(!ids.contains(&"direct_china"));
+        assert!(!ids.contains(&"streaming_groups"));
+        assert_eq!(snapshot.engine_kind, ScriptEngineKind::DirectiveDsl);
+        assert!(!snapshot.engine_kind.is_real_javascript());
+        // Published for the other surface.
+        assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
+    }
+
+    #[test]
+    fn run_sandbox_at_stage_reports_the_requested_hook() {
+        let app = ScriptApplication::new();
+        let snapshot = app.run_sandbox_at_stage(
+            "function main(config) { return config; }",
+            "port: 7890\n",
+            None,
+            HookStage::PostDownload,
+        );
+        assert_eq!(snapshot.status, ScriptSandboxStatus::Success);
+        assert_eq!(snapshot.hook_stage, "post_download");
+        assert!(snapshot.hook_stage_label.contains("Post-Download"));
+    }
+
+    #[test]
     fn run_sandbox_catches_infinite_loop_timeout() {
         let app = ScriptApplication::new();
         let script = "function main(config) { while(true) {} }";
@@ -304,5 +447,21 @@ mod tests {
         let snapshot = app.run_sandbox(script, input_yaml, None);
         assert_eq!(snapshot.status, ScriptSandboxStatus::SyntaxError);
         assert!(snapshot.has_error());
+    }
+
+    #[test]
+    fn safe_degradation_preserves_the_input_and_reports_no_directive() {
+        let app = ScriptApplication::new();
+        let input = "port: 7890\nrules:\n  - MATCH,DIRECT\n";
+        let snapshot = app.run_sandbox(
+            "function main(config) { remove_rules(config, \"([\"); return config; }",
+            input,
+            None,
+        );
+        assert!(snapshot.has_error());
+        assert!(snapshot.transformed_yaml.is_none());
+        assert_eq!(snapshot.input_yaml, input);
+        assert!(snapshot.matched_directives.is_empty());
+        assert!(snapshot.error_detail.is_some());
     }
 }

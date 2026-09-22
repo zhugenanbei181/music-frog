@@ -524,50 +524,26 @@ impl AppState {
             Message::RunScriptSandboxTest => {
                 let script = self.editor.script_sandbox.script_code.clone();
                 let yaml = self.editor.script_sandbox.input_yaml.clone();
+                let preset = self.editor.script_sandbox.selected_preset.clone();
                 self.editor.script_sandbox.is_running = true;
-                let engine = infiltrator_domain::script_engine::ScriptEngine::new();
-                match engine.execute_transform_detailed(
-                    &script,
-                    &yaml,
-                    infiltrator_domain::script_engine::HookStage::PreMerge,
-                ) {
-                    Ok(res) => {
-                        self.editor.script_sandbox.execution_result = Some(res);
-                        self.editor.script_sandbox.execution_error = None;
-                    }
-                    Err(e) => {
-                        self.editor.script_sandbox.execution_result = None;
-                        self.editor.script_sandbox.execution_error = Some(e.to_string());
-                    }
-                }
+                // DUAL-10-05/14: the shared application projects the real
+                // directive-DSL run and publishes the one read model both
+                // surfaces render.
+                let application =
+                    infiltrator_application::script_application::ScriptApplication::new();
+                let snapshot = application.run_sandbox(&script, &yaml, preset.as_deref());
+                self.editor.script_sandbox.snapshot = Some(snapshot);
                 self.editor.script_sandbox.is_running = false;
                 Task::none()
             }
             Message::SelectScriptPreset(preset) => {
                 self.editor.script_sandbox.selected_preset = Some(preset.clone());
-                match preset.as_str() {
-                    "country" => {
-                        self.editor.script_sandbox.script_code = "function main(config, profile) {
-  auto_country_groups(config);
-  return config;
-}"
-                        .to_string();
-                    }
-                    "streaming" => {
-                        self.editor.script_sandbox.script_code = "function main(config, profile) {
-  streaming_groups(config);
-  return config;
-}"
-                        .to_string();
-                    }
-                    "direct" => {
-                        self.editor.script_sandbox.script_code = "function main(config, profile) {
-  direct_china(config);
-  return config;
-}"
-                        .to_string();
-                    }
-                    _ => {}
+                // DUAL-10-04: load the script from the shared preset catalogue
+                // (and its real lifecycle stage) instead of an inline copy.
+                if let Some(definition) =
+                    infiltrator_domain::script_engine::ScriptEngine::find_preset(&preset)
+                {
+                    self.editor.script_sandbox.script_code = definition.script_code.to_string();
                 }
                 Task::none()
             }
@@ -580,8 +556,8 @@ impl AppState {
                 Task::none()
             }
             Message::ClearScriptSandbox => {
-                self.editor.script_sandbox.execution_result = None;
-                self.editor.script_sandbox.execution_error = None;
+                self.editor.script_sandbox.snapshot = None;
+                infiltrator_application::script_application::clear_script_sandbox();
                 Task::none()
             }
             Message::RunDnsLeakProbe => {

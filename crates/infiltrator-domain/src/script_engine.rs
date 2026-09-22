@@ -69,6 +69,33 @@ pub struct ScriptExecutionResult {
     pub execution_time_ms: u64,
     pub success: bool,
     pub stage: HookStage,
+    /// Directives that really matched and were applied, in execution order.
+    ///
+    /// A directive absent from the script never appears here, so a consumer can
+    /// never claim un-run work executed.
+    #[serde(default)]
+    pub matched_directives: Vec<ScriptDirectiveAudit>,
+}
+
+/// One directive the regex DSL actually matched and applied to the AST.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptDirectiveAudit {
+    /// Stable directive identifier, e.g. `auto_country_groups`.
+    pub id: String,
+    /// Human label for the console.
+    pub label: String,
+    /// Items the directive changed; `0` when it reports no count.
+    pub affected: usize,
+}
+
+impl ScriptDirectiveAudit {
+    pub fn new(id: impl Into<String>, label: impl Into<String>, affected: usize) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            affected,
+        }
+    }
 }
 
 /// Script execution errors.
@@ -604,6 +631,22 @@ impl ScriptCircuitBreaker {
 
     pub fn consecutive_failures(&self) -> usize {
         self.consecutive_failures
+    }
+
+    pub fn failure_threshold(&self) -> usize {
+        self.failure_threshold
+    }
+
+    pub fn cooldown(&self) -> Duration {
+        self.cooldown
+    }
+
+    /// Remaining cooldown in milliseconds while tripped, otherwise `0`.
+    pub fn remaining_cooldown(&self) -> Duration {
+        match self.tripped_at {
+            Some(tripped_at) => self.cooldown.saturating_sub(tripped_at.elapsed()),
+            None => Duration::ZERO,
+        }
     }
 }
 

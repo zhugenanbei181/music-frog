@@ -3,14 +3,14 @@
 //! Every covered row runs the real domain engine, the real
 //! [`ScriptApplication`] service and the real Mixin reductions, and reports
 //! what it measured. Items without a runnable backend (the QuickJS engine
-//! claim, the mirrored console viewport, the three-column editor) are
-//! registered as explicitly *not covered* with the honest reason.
+//! claim, the three-column editor) are registered as explicitly *not covered*
+//! with the honest reason.
 
 #[cfg(test)]
 #[path = "script_sandbox_matrix_application_test.rs"]
 mod script_sandbox_matrix_application_test;
 
-use infiltrator_contract::script_sandbox::ScriptSandboxStatus;
+use infiltrator_contract::script_sandbox::{ScriptEngineKind, ScriptSandboxStatus};
 use infiltrator_contract::script_sandbox_matrix::{
     ScriptSandboxMatrixReport, ScriptSandboxMatrixScenario,
 };
@@ -262,6 +262,43 @@ fn check_circuit_breaker() -> Check {
     )
 }
 
+fn check_console_read_model() -> Check {
+    let app = ScriptApplication::new();
+    let snapshot = app.run_sandbox(COUNTRY_SCRIPT, SAMPLE_YAML, Some("auto-country-groups"));
+    let ids: Vec<&str> = snapshot
+        .matched_directives
+        .iter()
+        .map(|m| m.id.as_str())
+        .collect();
+    (
+        snapshot.engine_kind == ScriptEngineKind::DirectiveDsl
+            && !snapshot.engine_kind.is_real_javascript()
+            && snapshot.hook_stage == "pre_merge"
+            && !snapshot.hook_stage_label.is_empty()
+            && ids == vec!["auto_country_groups"]
+            && !snapshot.input_yaml.is_empty()
+            && snapshot.transformed_yaml.is_some()
+            && snapshot.diff.is_some()
+            && snapshot.circuit_breaker.failure_threshold == 3
+            && snapshot.console_logs.len() >= 2,
+        format!("directives={ids:?} stage={}", snapshot.hook_stage),
+    )
+}
+
+fn check_dual_surface_alignment() -> Check {
+    let app = ScriptApplication::new();
+    let snapshot = app.run_sandbox(COUNTRY_SCRIPT, SAMPLE_YAML, Some("auto-country-groups"));
+    // The cached projection is exactly what the surface reader republishes to
+    // the Bevy surface, so both consoles render the same bytes.
+    let cached = crate::script_application::last_script_sandbox();
+    (
+        cached.as_ref() == Some(&snapshot)
+            && snapshot.matched_directive_count() == 1
+            && snapshot.is_success(),
+        format!("cached={} logs={}", cached.is_some(), snapshot.log_count()),
+    )
+}
+
 fn check_extension_round_trip() -> Check {
     let app = ScriptApplication::new();
     let package = infiltrator_domain::script_engine::ExtensionPackage {
@@ -308,10 +345,10 @@ impl ScriptSandboxMatrixApplication {
                     check_resource_limits(),
                 ),
                 closed("DUAL-10-04", "Built-in script presets", check_presets()),
-                planned(
+                closed(
                     "DUAL-10-05",
                     "Live code-debug console viewport",
-                    "控制台视口仍是 Iced 单端（`view/script_console.rs` 直接跑 domain 引擎）",
+                    check_console_read_model(),
                 ),
                 closed(
                     "DUAL-10-06",
@@ -349,10 +386,10 @@ impl ScriptSandboxMatrixApplication {
                     "Exception handling safe degradation",
                     check_safe_degradation(),
                 ),
-                planned(
+                closed(
                     "DUAL-10-14",
                     "Dual-surface console + Mixin viewport parity",
-                    "Mixin 视口已双端，但脚本控制台仍未镜像（无共享读模型）",
+                    check_dual_surface_alignment(),
                 ),
                 closed(
                     "DUAL-10-15",

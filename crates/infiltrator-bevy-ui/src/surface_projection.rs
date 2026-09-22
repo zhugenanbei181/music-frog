@@ -178,6 +178,7 @@ pub(super) fn profiles_projection(
             apply_transaction: value.apply_transaction.clone(),
             profile_document: value.profile_document.clone(),
             profile_options: value.profile_options.clone(),
+            script_sandbox: snapshot.script_sandbox.clone(),
         })
         .unwrap_or_else(empty_profiles)
 }
