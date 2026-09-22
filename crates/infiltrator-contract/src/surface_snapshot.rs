@@ -263,6 +263,19 @@ pub struct ProfilesPageSnapshot {
     /// failed — surfaces must not render that as "no templates".
     #[serde(default)]
     pub aggregation_templates_available: bool,
+    /// DUAL-09-06/07: the active profile's snapshot history plus the shared
+    /// prune view. `None` means no history has been loaded in this process yet.
+    #[serde(default)]
+    pub snapshot_history: Option<crate::snapshot_history::SnapshotHistorySnapshot>,
+    /// DUAL-09-11: the last apply transaction of the host core. `None` means no
+    /// transaction has run in this process yet — surfaces must not claim the
+    /// config is verified.
+    #[serde(default)]
+    pub apply_transaction: Option<crate::apply_transaction::ApplyTransactionSnapshot>,
+    /// DUAL-09-03/14: the stored document the editor surfaces render. `None`
+    /// means no document has been loaded yet.
+    #[serde(default)]
+    pub profile_document: Option<crate::profile_document::ProfileDocumentSnapshot>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

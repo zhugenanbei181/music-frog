@@ -264,6 +264,9 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
         yaml_ast_diff: None,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
     }
 }
 
@@ -449,6 +452,9 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
+            snapshot_history: value.snapshot_history,
+            apply_transaction: value.apply_transaction,
+            profile_document: value.profile_document,
             aggregation: value.aggregation,
             aggregation_templates: value.aggregation_templates,
             aggregation_templates_available: value.aggregation_templates_available,

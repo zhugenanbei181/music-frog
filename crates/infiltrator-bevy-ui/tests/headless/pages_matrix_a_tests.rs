@@ -9,6 +9,8 @@ use std::sync::Arc;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::Text;
@@ -608,6 +610,9 @@ fn test_profiles_empty_and_edge_case_projection() {
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
         yaml_ast_diff: None,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
     };
     app.world_mut()
         .commands()
@@ -2623,6 +2628,9 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
         yaml_ast_diff: None,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3224,6 +3232,9 @@ fn aggregation_page_projection() -> ProfilesProjection {
         }],
         aggregation_templates_available: true,
         yaml_ast_diff: None,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
     }
 }
 
@@ -3597,6 +3608,9 @@ fn snapshot_diff_page_projection(
         aggregation_templates: Vec::new(),
         aggregation_templates_available: true,
         yaml_ast_diff: diff,
+        snapshot_history: None,
+        apply_transaction: None,
+        profile_document: None,
     }
 }
 
@@ -3728,4 +3742,332 @@ fn test_profiles_snapshot_diff_states_are_honest_without_a_diff() {
         subtree_has_text(app.world(), root, "快照与当前配置内容一致"),
         "an identical diff reports equality instead of a fake change"
     );
+}
+
+// ---- DUAL-09-03/05/06/07/11/14: history controls + the document editor -----
+
+fn snapshot_history_fixture() -> infiltrator_contract::snapshot_history::SnapshotHistorySnapshot {
+    use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
+    SnapshotHistorySnapshot {
+        profile: "main".to_owned(),
+        entries: vec![
+            SnapshotEntry {
+                id: "/fake/configs/main-history/snap-002.yaml".to_owned(),
+                file_name: "1750000100000-cafebabe.yaml".to_owned(),
+                timestamp_millis: 1_750_000_100_000,
+                sha256: "cafebabe00112233445566778899aabbccddeeff00112233445566778899aabb"
+                    .to_owned(),
+                is_newest: true,
+                is_duplicate: false,
+            },
+            SnapshotEntry {
+                id: "/fake/configs/main-history/snap-001.yaml".to_owned(),
+                file_name: "1750000000000-deadbeef.yaml".to_owned(),
+                timestamp_millis: 1_750_000_000_000,
+                sha256: "deadbeef00112233445566778899aabbccddeeff00112233445566778899aabb"
+                    .to_owned(),
+                is_newest: false,
+                is_duplicate: true,
+            },
+        ],
+        keep_limit: 20,
+        pending_prune: 1,
+        duplicate_entries: 1,
+        last_prune: None,
+    }
+}
+
+fn editor_page_projection(
+    protection: infiltrator_contract::profile_protection::ProfileWriteProtection,
+    content: &str,
+) -> ProfilesProjection {
+    use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+    let mut projection = snapshot_diff_page_projection(None);
+    projection.profile_document = Some(ProfileDocumentSnapshot::new("main", content, protection));
+    projection.snapshot_history = Some(snapshot_history_fixture());
+    projection
+}
+
+fn keyboard_press(logical_key: Key, text: Option<&str>) -> KeyboardInput {
+    KeyboardInput {
+        key_code: bevy::input::keyboard::KeyCode::KeyA,
+        logical_key,
+        state: ButtonState::Pressed,
+        text: text.map(|value| value.into()),
+        repeat: false,
+        window: bevy::ecs::entity::Entity::PLACEHOLDER,
+    }
+}
+
+#[test]
+fn test_profiles_snapshot_history_lists_prunes_and_backs_up_through_the_shared_app() {
+    use infiltrator_bevy_ui::pages::profiles_diff::SnapshotDiffViewState;
+    use infiltrator_bevy_ui::pages::profiles_diff_history::{
+        BackupSnapshotButton, PruneSnapshotsButton, RefreshSnapshotHistoryButton,
+        SnapshotHistoryEntryButton, SnapshotPruneKeepButton,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let mut projection = snapshot_diff_page_projection(None);
+    projection.snapshot_history = Some(snapshot_history_fixture());
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "main · 2 份快照（上限 20）· 待修剪 1 份"),
+        "the summary comes from the shared history snapshot"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "重复内容"),
+        "the duplicated entry is marked from the shared prune view"
+    );
+
+    let keep = {
+        let mut query = app
+            .world_mut()
+            .query::<(Entity, &SnapshotPruneKeepButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.keep == 10)
+            .map(|(entity, _)| entity)
+            .expect("keep preset 10")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: keep });
+    app.update();
+    assert_eq!(
+        app.world().resource::<SnapshotDiffViewState>().prune_keep,
+        10,
+        "the retention preset is surface view state, the prune itself is shared"
+    );
+
+    let prune = marker_entity::<PruneSnapshotsButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: prune });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::PruneSnapshots { keep: Some(10) }),
+        "prune submits the shared dedupe+LRU command"
+    );
+
+    let backup = marker_entity::<BackupSnapshotButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: backup });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::CreateBackupSnapshot),
+        "manual backup uses the shared snapshot application"
+    );
+
+    let refresh = marker_entity::<RefreshSnapshotHistoryButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: refresh });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadSnapshotHistory),
+        "refresh reloads the shared history read model"
+    );
+
+    let entry = {
+        let mut query = app
+            .world_mut()
+            .query::<(Entity, &SnapshotHistoryEntryButton)>();
+        query
+            .iter(app.world())
+            .find(|(_, button)| button.id.ends_with("snap-001.yaml"))
+            .map(|(entity, _)| entity)
+            .expect("history entry row")
+    };
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: entry });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::LoadSnapshotDiff {
+            snapshot_id: Some("/fake/configs/main-history/snap-001.yaml".to_owned()),
+        }),
+        "selecting a history entry diffs that exact snapshot through the shared app"
+    );
+    assert_eq!(
+        app.world()
+            .resource::<SnapshotDiffViewState>()
+            .selected_snapshot
+            .as_deref(),
+        Some("/fake/configs/main-history/snap-001.yaml"),
+        "the surface remembers which entry it asked to diff"
+    );
+}
+
+#[test]
+fn test_profiles_editor_runs_the_shared_preflight_and_formatter() {
+    use infiltrator_bevy_ui::pages::profiles_editor::{
+        ProfileEditorFocusButton, ProfileEditorFormatButton,
+    };
+    use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_page_projection(
+            infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+            "# 手写注释\nmode: rule\n",
+        )));
+    app.update();
+    assert!(
+        subtree_has_text(app.world(), root, "语法正确（共享预检实时通过）"),
+        "the loaded document passes the shared preflight"
+    );
+
+    let focus = marker_entity::<ProfileEditorFocusButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: focus });
+    app.update();
+    assert!(
+        app.world().resource::<ProfileEditorState>().focused,
+        "the explicit keyboard seam is armed by the focus button"
+    );
+
+    // Type an invalid document: the shared preflight reports the line live.
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character("x".into()), Some("x")));
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character(":".into()), Some(": ")));
+    app.world_mut()
+        .write_message(keyboard_press(Key::Character("[".into()), Some("[")));
+    app.update();
+    {
+        let state = app.world().resource::<ProfileEditorState>();
+        assert!(
+            state.diagnostic.is_some(),
+            "the shared preflight flags the incomplete flow mapping"
+        );
+        assert!(state.dirty, "an edit marks the buffer dirty");
+    }
+    assert!(
+        subtree_has_text(app.world(), root, "语法错误"),
+        "the banner and pill render the live verdict"
+    );
+
+    // Formatting an invalid buffer is refused with the shared error, and the
+    // user's bytes survive.
+    let before = app
+        .world()
+        .resource::<ProfileEditorState>()
+        .buffer
+        .full_text();
+    let format = marker_entity::<ProfileEditorFormatButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: format });
+    app.update();
+    let state = app.world().resource::<ProfileEditorState>();
+    assert_eq!(
+        state.buffer.full_text(),
+        before,
+        "a formatter refusal never rewrites the user's bytes"
+    );
+    assert!(
+        state
+            .notice
+            .as_deref()
+            .is_some_and(|notice| notice.contains("格式化")),
+        "the refusal reason is surfaced"
+    );
+}
+
+#[test]
+fn test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_guard() {
+    use infiltrator_bevy_ui::pages::profiles_editor::{
+        ProfileEditorFormatButton, ProfileEditorProtectionToggle, ProfileEditorSaveButton,
+    };
+    use infiltrator_bevy_ui::pages::profiles_editor_state::ProfileEditorState;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+
+    // 4-space indentation with a comment: the shared formatter normalizes the
+    // layout and keeps the comment, unlike a serde re-serialize.
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(editor_page_projection(
+            infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
+            "# 手写注释\nmode: rule\nrules:\n    - MATCH,DIRECT\n",
+        )));
+    app.update();
+
+    let format = marker_entity::<ProfileEditorFormatButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: format });
+    app.update();
+    let text = app
+        .world()
+        .resource::<ProfileEditorState>()
+        .buffer
+        .full_text();
+    assert!(
+        text.contains("# 手写注释"),
+        "comments survive the formatter"
+    );
+    assert!(
+        text.contains("\n  - MATCH,DIRECT"),
+        "the shared formatter normalizes the indentation: {text}"
+    );
+
+    // A protected subscription refuses to save until explicitly unlocked.
+    let save = marker_entity::<ProfileEditorSaveButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    assert!(
+        !sink
+            .submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::SaveProfileDocument { .. })),
+        "a protected profile without the explicit unlock submits nothing"
+    );
+
+    let unlock = marker_entity::<ProfileEditorProtectionToggle>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: unlock });
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+    match sink.submitted().last() {
+        Some(UiCommand::SaveProfileDocument {
+            profile,
+            content,
+            allow_protected,
+        }) => {
+            assert_eq!(profile, "main");
+            assert!(content.contains("# 手写注释"));
+            assert!(
+                *allow_protected,
+                "the unlock travels with the save so the application guard re-checks it"
+            );
+        }
+        other => panic!("expected a SaveProfileDocument command, got {other:?}"),
+    }
 }

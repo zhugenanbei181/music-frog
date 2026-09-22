@@ -392,6 +392,27 @@ pub enum CommandIntent {
     LoadSnapshotDiff {
         snapshot_id: Option<String>,
     },
+    /// DUAL-09-06/07: refresh the active profile's snapshot history and publish
+    /// it (entries + the shared prune view) for both surfaces.
+    LoadSnapshotHistory,
+    /// DUAL-09-07: run the shared dedupe+LRU prune now. `keep = None` keeps the
+    /// default retention.
+    PruneSnapshots {
+        keep: Option<usize>,
+    },
+    /// DUAL-09-03/14: load the active profile's stored document (content +
+    /// protection + shared syntax preflight) for the editor surfaces.
+    LoadProfileDocument {
+        profile: Option<String>,
+    },
+    /// DUAL-09-14: commit an editor buffer through the shared guarded write
+    /// path (`save_edited_profile_content`, the same transaction the Iced
+    /// editor uses).
+    SaveProfileDocument {
+        profile: String,
+        content: String,
+        allow_protected: bool,
+    },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// DUAL-05-14: decode a share link into the shared protocol draft and
@@ -530,6 +551,10 @@ impl CommandIntent {
             | Self::ResolveConflictTakeRemote
             | Self::RestoreSnapshot { .. }
             | Self::LoadSnapshotDiff { .. } => CommandKind::Sync,
+            Self::LoadSnapshotHistory | Self::PruneSnapshots { .. } => CommandKind::Sync,
+            Self::LoadProfileDocument { .. } | Self::SaveProfileDocument { .. } => {
+                CommandKind::Profile
+            }
             Self::RollbackCore | Self::UpdateSetting { .. } | Self::CheckUpdates => {
                 CommandKind::Update
             }

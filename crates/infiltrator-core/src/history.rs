@@ -83,13 +83,20 @@ pub async fn read_snapshot(path: &Path) -> Result<String> {
         .map_err(MihomoError::from)
 }
 
-/// Keep only the `keep` newest snapshots of `profile`; older ones are
-/// deleted. `keep == 0` clears the profile's history.
+/// DUAL-09-07: prune `profile`'s history with the shared smart policy —
+/// duplicate content is deduplicated (oldest copies first) and everything past
+/// `keep` is evicted LRU-style. `keep == 0` clears the profile's history.
+///
+/// The decision itself lives in
+/// [`infiltrator_domain::backup::prune_snapshots`] so the manual prune control
+/// and the automatic post-apply prune can never diverge.
 pub async fn prune_snapshots(config_dir: &Path, profile: &str, keep: usize) -> Result<usize> {
-    let snapshots = list_snapshots(config_dir, profile).await?;
+    let mut snapshots = list_snapshots(config_dir, profile).await?;
+    snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
+    let doomed = infiltrator_domain::backup::prune_snapshots(&snapshots, keep);
     let mut removed = 0;
-    for meta in snapshots.into_iter().skip(keep) {
-        if tokio::fs::remove_file(&meta.path).await.is_ok() {
+    for path in doomed {
+        if tokio::fs::remove_file(&path).await.is_ok() {
             removed += 1;
         }
     }
@@ -160,6 +167,23 @@ mod tests {
         let list = list_snapshots(&config, "main").await.unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(read_snapshot(&list[0].path).await.unwrap(), "port: 5");
+    }
+
+    #[tokio::test]
+    async fn prune_deduplicates_identical_content_before_the_lru_cut() {
+        let (_dir, config) = config_dir();
+        for content in ["port: 1", "port: 2", "port: 2", "port: 2"] {
+            save_snapshot(&config, "main", content).await.unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        // Three identical copies plus a distinct one: dedupe keeps the newest
+        // copy of each content, so the limit of 20 removes the two duplicates.
+        let removed = prune_snapshots(&config, "main", 20).await.unwrap();
+        assert_eq!(removed, 2);
+        let list = list_snapshots(&config, "main").await.unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(read_snapshot(&list[0].path).await.unwrap(), "port: 2");
+        assert_eq!(read_snapshot(&list[1].path).await.unwrap(), "port: 1");
     }
 
     #[tokio::test]

@@ -169,3 +169,36 @@ apply 事务（`apply.rs`）的五步——`validate_config`（yaml-rust2 语法
 **验证门槛**：`bash scripts/test.sh`（16 用例全绿）；
 `cargo clippy -p infiltrator-core --all-targets -- -D warnings` 零告警；
 `scripts/quality/line-guard.py`（800 行预算）零违规。
+
+## 7. 排版路径（`yaml_edit::format`，DUAL-09-05，2026-09-22 落地）
+
+格式化的目标与写路径不同：它**明确要改排版**，但仍不得改变文档语义或丢掉
+用户的注释/锚点。`yaml_edit/format.rs::format_yaml` 的实现契约：
+
+1. **输入形状**：复用 `SourceDoc::parse`（多文档、tab 缩进直接 `Err`），
+   `|`/`>` 块标量内容整体豁免（内容行的缩进、空行、行尾空白逐字保留）。
+2. **允许的改动**：行尾空白清理、连续空行折叠为 1、缩进按"结构行出现过的
+   宽度排名"重映射为 2 的倍数、文末补一个换行、顶层键按
+   `CLASH_TOP_LEVEL_ORDER`（Clash 常用键序表，未知键按原相对序排在其后）归位；
+   紧贴键上方的连续注释块随该键移动，文件头注释（preamble）不动。
+3. **硬校验**：改完把结果交给 `yaml-rust2` 重新解析，并与原文比较
+   **键序无关的规范签名**（映射按键排序、标量带类型标签）。签名不一致即
+   `Err(Unsupported)`，调用方必须保留原文；文档本身语法错误同样拒绝。
+4. **主动跳过**：含锚点/别名（`AnchorOccurrence` 非空）、含合并键 `<<:`、
+   顶层是序列、或顶层出现既非键也非项的写法时不做键排序，通过
+   `FormatSkipReason`（`anchors_present` / `root_sequence` / `merge_key` /
+   `unclassified_top_level_line` / `nothing_to_order` / `empty_document`）
+   如实告知；缩进/空行清理仍会执行并通过第 3 条校验。
+5. **不做的事**：不按键名对齐冒号、不转换换行风格（CRLF/BOM 保留）、不重排
+   注释位置、不排序嵌套映射的键。这些留给后续立项，避免"看起来更整齐但
+   语义/字节不可验证"的改动。
+
+**调用方**：Iced 编辑器「格式化文档」（`crates/infiltrator-iced/src/update/ui.rs`
+的 `FormatYamlEditor`，已删除 `serde_yaml_ng` 重序列化）与 Bevy 编辑器
+「格式化（共享保真）」（`crates/infiltrator-bevy-ui/src/pages/profiles_editor.rs`）。
+守卫 `scripts/quality/yaml-diff-guard.py` 禁止 Iced 格式化路径重新引入 serde 重序列化，
+并固化领域 8 项格式化单测与双端各 1 项。
+
+**验证门槛**：`cargo nextest run --workspace`（2832 用例全绿，含本文件 §7 的
+8 项格式化单测）；`cargo clippy --workspace --all-targets -- -D warnings`；
+`python3 scripts/quality/yaml-diff-guard.py --mode enforce`。

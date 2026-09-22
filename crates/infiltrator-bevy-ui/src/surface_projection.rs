@@ -172,6 +172,11 @@ pub(super) fn profiles_projection(
             aggregation_templates: value.aggregation_templates.clone(),
             aggregation_templates_available: value.aggregation_templates_available,
             yaml_ast_diff: snapshot.yaml_ast_diff.clone(),
+            // DUAL-09-06/07/11/14: the shared history, apply transaction and
+            // loaded editor document travel with the page read model.
+            snapshot_history: value.snapshot_history.clone(),
+            apply_transaction: value.apply_transaction.clone(),
+            profile_document: value.profile_document.clone(),
         })
         .unwrap_or_else(empty_profiles)
 }

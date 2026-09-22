@@ -3,6 +3,11 @@
 //! These tests prove the shared application computes the diff from real
 //! snapshot bytes, publishes it with its storage identity, and clears the
 //! cache after a restore — the facts both surfaces render.
+//!
+//! `await_holding_lock` is allowed: the process-wide caches must stay stable
+//! between the act and the assert, and these tests use a current-thread
+//! runtime, so holding the guard across an await cannot deadlock.
+#![allow(clippy::await_holding_lock)]
 
 use super::*;
 use async_trait::async_trait;
@@ -230,6 +235,26 @@ impl SnapshotStore for FakeSnapshotStore {
             })
             .ok_or_else(|| PortError::NotFound(path.display().to_string()))
     }
+
+    async fn delete(&self, profile: &str, path: &Path) -> Result<(), PortError> {
+        let mut guard = self.snapshots.lock().expect("snapshots lock");
+        let items = guard
+            .get_mut(profile)
+            .ok_or_else(|| PortError::NotFound(profile.to_string()))?;
+        let before = items.len();
+        items.retain(|(meta, _)| meta.path != path);
+        if items.len() == before {
+            return Err(PortError::NotFound(path.display().to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// The diff/history caches are process-wide; tests that assert on them take
+/// this lock so a parallel test cannot publish between the act and the assert.
+fn cache_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn application(profile_content: &str, snapshot_content: &str) -> SnapshotApplication {
@@ -245,6 +270,7 @@ fn application(profile_content: &str, snapshot_content: &str) -> SnapshotApplica
 
 #[tokio::test]
 async fn diff_newest_publishes_the_real_diff_and_its_snapshot_path() {
+    let _cache = cache_lock();
     let app = application(
         "port: 7890\nmode: global\n# 用户注释\n",
         "port: 7890\nmode: rule\n# 用户注释\n",
@@ -279,6 +305,7 @@ async fn diff_newest_publishes_the_real_diff_and_its_snapshot_path() {
 
 #[tokio::test]
 async fn diff_newest_is_none_without_history_and_clears_the_cache() {
+    let _cache = cache_lock();
     let app = SnapshotApplication::new(
         Arc::new(FakeProfileStore::with_profile("main", "mode: rule\n")),
         Arc::new(FakeSnapshotStore::default()),
@@ -289,6 +316,7 @@ async fn diff_newest_is_none_without_history_and_clears_the_cache() {
 
 #[tokio::test]
 async fn restore_clears_the_cached_diff() {
+    let _cache = cache_lock();
     let app = application("port: 7890\nmode: global\n", "port: 7890\nmode: rule\n");
     let diff = app.diff_newest("main").await.expect("diff").expect("diff");
     let path = diff.source_path.expect("path");
@@ -309,9 +337,96 @@ async fn restore_clears_the_cached_diff() {
 
 #[tokio::test]
 async fn creating_a_snapshot_clears_the_stale_diff_cache() {
+    let _cache = cache_lock();
     let app = application("port: 7890\nmode: rule\n", "port: 7890\nmode: rule\n");
     publish_snapshot_diff(infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot::demo_fixture());
     assert!(last_snapshot_diff().is_some());
     app.create("main").await.expect("create snapshot");
     assert!(last_snapshot_diff().is_none());
+}
+
+#[tokio::test]
+async fn history_reports_duplicates_and_the_shared_prune_view() {
+    let _cache = cache_lock();
+    let app = SnapshotApplication::new(
+        Arc::new(FakeProfileStore::with_profile("main", "port: 2\n")),
+        Arc::new(FakeSnapshotStore::with_snapshots(
+            "main",
+            [
+                (1_750_000_000_000, "port: 1\n".to_string()),
+                (1_750_000_000_100, "port: 1\n".to_string()),
+                (1_750_000_000_200, "port: 2\n".to_string()),
+            ],
+        )),
+    );
+
+    let history = app.history("main", 20).await.expect("history");
+    assert_eq!(history.entries.len(), 3);
+    assert!(history.entries[0].is_newest);
+    assert!(
+        history.entries[0].timestamp_millis > history.entries[1].timestamp_millis,
+        "entries are newest first"
+    );
+    assert_eq!(history.duplicate_entries, 1, "one older duplicate copy");
+    assert_eq!(history.pending_prune, 1, "the older duplicate is prunable");
+    assert_eq!(history.keep_limit, 20);
+    assert_eq!(history.entries[1].short_hash().len(), 8);
+    assert!(history.summary_zh().contains("待修剪 1 份"));
+    assert!(
+        last_snapshot_history().is_some_and(|cached| cached.profile == "main"),
+        "the shared history is published for the Bevy projection"
+    );
+}
+
+#[tokio::test]
+async fn prune_executes_the_shared_policy_and_publishes_the_report() {
+    let _cache = cache_lock();
+    let store = Arc::new(FakeSnapshotStore::with_snapshots(
+        "main",
+        [
+            (1_750_000_000_000, "port: 1\n".to_string()),
+            (1_750_000_000_100, "port: 1\n".to_string()),
+            (1_750_000_000_200, "port: 2\n".to_string()),
+            (1_750_000_000_300, "port: 3\n".to_string()),
+        ],
+    ));
+    let app = SnapshotApplication::new(
+        Arc::new(FakeProfileStore::with_profile("main", "port: 3\n")),
+        store.clone(),
+    );
+
+    let report = app
+        .prune("main", 20, SnapshotPruneSource::Manual)
+        .await
+        .expect("prune");
+    assert_eq!(report.removed, 1, "only the older duplicate is removed");
+    assert_eq!(report.keep_limit, 20);
+    assert_eq!(report.source, SnapshotPruneSource::Manual);
+    assert_eq!(store.list("main").await.expect("list").len(), 3);
+
+    // The keep limit is the second half of the shared policy.
+    let limited = app
+        .prune("main", 1, SnapshotPruneSource::Apply)
+        .await
+        .expect("prune to one");
+    assert_eq!(limited.removed, 2);
+    assert_eq!(store.list("main").await.expect("list").len(), 1);
+
+    let history = last_snapshot_history().expect("history published");
+    assert_eq!(history.entries.len(), 1);
+    assert_eq!(history.pending_prune, 0);
+    assert_eq!(history.last_prune.map(|report| report.removed), Some(2));
+}
+
+#[tokio::test]
+async fn prune_clamps_the_requested_retention_to_the_supported_range() {
+    let app = application("port: 7890\n", "port: 7890\n");
+    let report = app
+        .prune("main", 0, SnapshotPruneSource::Manual)
+        .await
+        .expect("prune");
+    assert_eq!(
+        report.keep_limit, 1,
+        "0 is clamped to the documented minimum"
+    );
 }

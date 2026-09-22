@@ -55,4 +55,13 @@ impl SnapshotStore for FileSnapshotStore {
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
+
+    async fn delete(&self, profile: &str, path: &Path) -> Result<(), PortError> {
+        // `safe_path` canonicalizes first, so the shared prune policy can only
+        // ever delete inside `<config_dir>/snapshots/<profile>`.
+        let path = self.safe_path(profile, path).await?;
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))
+    }
 }

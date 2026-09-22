@@ -352,3 +352,80 @@ rules:
     );
     assert!(saved.contains("# 规则块说明"));
 }
+
+// ---- DUAL-09-03/06/07/14: document + history commands ----------------------
+
+#[tokio::test]
+async fn load_and_save_profile_document_round_trips_through_the_shared_guard() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let application = application(&store);
+
+    application
+        .execute(CommandIntent::LoadProfileDocument { profile: None })
+        .await
+        .expect("load");
+    let document = infiltrator_contract::profile_document::last_profile_document()
+        .expect("the shared document is published for the surfaces");
+    assert_eq!(document.profile, "main");
+    assert_eq!(document.content, THREE_RULES);
+    assert!(
+        document.is_clean(),
+        "a valid stored document has no diagnostic"
+    );
+    assert!(!document.write_protection.is_protected());
+    assert_eq!(document.line_count, THREE_RULES.lines().count());
+
+    // A typed syntax error is rejected by the shared preflight and never
+    // reaches the apply transaction.
+    let error = application
+        .execute(CommandIntent::SaveProfileDocument {
+            profile: "main".to_owned(),
+            content: "rules: [\n".to_owned(),
+            allow_protected: false,
+        })
+        .await
+        .expect_err("invalid yaml is rejected");
+    assert!(
+        error.message.contains("YAML 语法错误"),
+        "unexpected failure: {}",
+        error.message
+    );
+    assert_eq!(store.content(), THREE_RULES, "the store is untouched");
+
+    // A valid buffer commits through `save_edited_profile_content` and the
+    // stored document is re-read for the surfaces.
+    let saved = "rules:\n  - MATCH,DIRECT\n";
+    application
+        .execute(CommandIntent::SaveProfileDocument {
+            profile: "main".to_owned(),
+            content: saved.to_owned(),
+            allow_protected: false,
+        })
+        .await
+        .expect("save");
+    assert_eq!(store.content(), saved);
+    assert_eq!(
+        infiltrator_contract::profile_document::last_profile_document()
+            .expect("published")
+            .content,
+        saved
+    );
+}
+
+#[tokio::test]
+async fn snapshot_history_intents_require_the_shared_application() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let application = application(&store);
+
+    let error = application
+        .execute(CommandIntent::LoadSnapshotHistory)
+        .await
+        .expect_err("a host without the snapshot port must say so");
+    assert!(error.message.contains("snapshot application"), "{error:?}");
+
+    let error = application
+        .execute(CommandIntent::PruneSnapshots { keep: Some(5) })
+        .await
+        .expect_err("a host without the snapshot port must say so");
+    assert!(error.message.contains("snapshot application"), "{error:?}");
+}

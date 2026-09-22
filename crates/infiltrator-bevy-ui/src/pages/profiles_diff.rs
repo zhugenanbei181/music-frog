@@ -28,6 +28,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::snapshot_history::{SNAPSHOT_DEFAULT_KEEP, SnapshotHistorySnapshot};
+
+use super::profiles_diff_history::{SnapshotHistoryBody, SnapshotHistorySummaryText};
 use infiltrator_contract::yaml_ast_diff::{DiffKind, DiffLine, YamlAstDiffSnapshot};
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -73,10 +76,25 @@ pub enum SnapshotDiffViewMode {
 }
 
 /// Surface-local view state plus the two-step rollback confirmation.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotDiffViewState {
     pub mode: SnapshotDiffViewMode,
     pub rollback_armed: bool,
+    /// DUAL-09-06: history entry the user selected to diff (and roll back to).
+    pub selected_snapshot: Option<String>,
+    /// DUAL-09-07: retention requested by the manual prune control.
+    pub prune_keep: usize,
+}
+
+impl Default for SnapshotDiffViewState {
+    fn default() -> Self {
+        Self {
+            mode: SnapshotDiffViewMode::default(),
+            rollback_armed: false,
+            selected_snapshot: None,
+            prune_keep: SNAPSHOT_DEFAULT_KEEP,
+        }
+    }
 }
 
 /// Snapshot Diff & Rollback scene. Both the mode chips and the actions are
@@ -96,6 +114,11 @@ pub fn snapshot_diff_scene(
         SnapshotDiffViewMode::Inline,
         palette,
     );
+
+    let history = projection.snapshot_history.clone();
+    let history_summary = snapshot_history_summary(history.as_ref(), SNAPSHOT_DEFAULT_KEEP);
+    let initial_history_rows =
+        super::profiles_diff_history::history_rows_scene(history.as_ref(), None, palette);
 
     surface_scene(
         vec![
@@ -154,12 +177,56 @@ pub fn snapshot_diff_scene(
                     (
                         Node {
                             width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
+                            ( Text({ history_summary }) SnapshotHistorySummaryText TextRole(Role::Caption) ),
+                            (
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    ( { super::profiles_diff_history::backup_button(palette) } ),
+                                    ( { super::profiles_diff_history::history_refresh_button(palette) } ),
+                                    ( { super::profiles_diff_history::prune_keep_row(palette) } ),
+                                    ( { super::profiles_diff_history::prune_button(palette) } ),
+                                ]
+                            ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            width: percent(100),
                             flex_direction: FlexDirection::Column,
                             row_gap: Val::Px(space::S2),
                         }
-                        SnapshotDiffBody
+                        SnapshotHistoryBody
                         Children [
-                            ( { initial_rows } ),
+                            ( { initial_history_rows } ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(space::S4),
+                            padding: UiRect::top(Val::Px(space::S4)),
+                        }
+                        Children [
+                            (
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S2),
+                                }
+                                SnapshotDiffBody
+                                Children [
+                                    ( { initial_rows } ),
+                                ]
+                            ),
                         ]
                     ),
                 ]
@@ -167,6 +234,28 @@ pub fn snapshot_diff_scene(
         ],
         palette,
     )
+}
+
+/// DUAL-09-06/07: the shared history summary. Never claims retention facts
+/// that have not been loaded from the shared application.
+pub fn snapshot_history_summary(history: Option<&SnapshotHistorySnapshot>, keep: usize) -> String {
+    match history {
+        Some(history) => {
+            let mut summary = history.summary_zh();
+            if history.duplicate_entries > 0 {
+                summary.push_str(&format!(" · 重复内容 {} 份", history.duplicate_entries));
+            }
+            if let Some(report) = history.last_prune {
+                summary.push_str(&format!(
+                    " · 上次{}：删除 {} 份",
+                    report.source.label_zh(),
+                    report.removed
+                ));
+            }
+            summary
+        }
+        None => format!("尚未读取快照历史（上限 {keep} 份）：点击「刷新列表」从共享快照应用读取"),
+    }
 }
 
 fn mode_button(label: &str, split: bool, palette: &UiPalette) -> Box<dyn Scene> {
@@ -293,7 +382,7 @@ fn diff_line_scene(line: &DiffLine, palette: &UiPalette) -> Box<dyn Scene> {
     })
 }
 
-fn diff_notice_scene(text: &str) -> Box<dyn Scene> {
+pub(super) fn diff_notice_scene(text: &str) -> Box<dyn Scene> {
     let label = text.to_owned();
     Box::new(bsn! {
         Node {
@@ -373,14 +462,27 @@ pub(super) fn sync_snapshot_diff(
         (
             With<SnapshotDiffSummaryText>,
             Without<ProfileProtectionText>,
+            Without<SnapshotHistorySummaryText>,
         ),
     >,
     mut protection_texts: Query<
         (&mut Text, &ProfileProtectionText),
-        Without<SnapshotDiffSummaryText>,
+        (
+            Without<SnapshotDiffSummaryText>,
+            Without<SnapshotHistorySummaryText>,
+        ),
     >,
     mut mode_buttons: Query<(&SnapshotDiffModeButton, &mut BackgroundColor)>,
     bodies: Query<Entity, With<SnapshotDiffBody>>,
+    mut history_summaries: Query<
+        &mut Text,
+        (
+            With<SnapshotHistorySummaryText>,
+            Without<SnapshotDiffSummaryText>,
+            Without<ProfileProtectionText>,
+        ),
+    >,
+    history_bodies: Query<Entity, With<SnapshotHistoryBody>>,
 ) {
     let projection = &update.0;
     let summary_text = diff_summary(projection.yaml_ast_diff.as_ref());
@@ -410,6 +512,23 @@ pub(super) fn sync_snapshot_diff(
             view.mode,
             &palette,
         );
+    }
+
+    let history_summary_text =
+        snapshot_history_summary(projection.snapshot_history.as_ref(), view.prune_keep);
+    for mut text in &mut history_summaries {
+        if text.0 != history_summary_text {
+            text.0 = history_summary_text.clone();
+        }
+    }
+    for entity in &history_bodies {
+        commands.entity(entity).despawn_children();
+        let scene = super::profiles_diff_history::history_rows_scene(
+            projection.snapshot_history.as_ref(),
+            view.selected_snapshot.as_deref(),
+            &palette,
+        );
+        commands.spawn_scene(scene).insert(ChildOf(entity));
     }
 }
 

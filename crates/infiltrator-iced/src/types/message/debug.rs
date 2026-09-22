@@ -635,11 +635,11 @@ impl std::fmt::Debug for Message {
                 write!(f, "ProfileContentLoaded(Err({:?}))", e)
             }
             Message::LoadProfileSnapshots => write!(f, "LoadProfileSnapshots"),
-            Message::ProfileSnapshotsLoaded(Ok(snapshots)) => {
+            Message::ProfileSnapshotsLoaded(Ok(history)) => {
                 write!(
                     f,
                     "ProfileSnapshotsLoaded(Ok({} snapshots))",
-                    snapshots.len()
+                    history.entries.len()
                 )
             }
             Message::ProfileSnapshotsLoaded(Err(error)) => {
@@ -821,6 +821,23 @@ impl std::fmt::Debug for Message {
             Message::CloseSingleConnection(id) => write!(f, "CloseSingleConnection({id})"),
             Message::InsertYamlSnippet(snip) => write!(f, "InsertYamlSnippet({snip})"),
             Message::FormatYamlEditor => write!(f, "FormatYamlEditor"),
+            Message::BackupProfileSnapshot => write!(f, "BackupProfileSnapshot"),
+            Message::ProfileSnapshotBackedUp(Ok(())) => {
+                write!(f, "ProfileSnapshotBackedUp(Ok)")
+            }
+            Message::ProfileSnapshotBackedUp(Err(error)) => {
+                write!(f, "ProfileSnapshotBackedUp(Err({error:?}))")
+            }
+            Message::SetSnapshotPruneKeep(keep) => write!(f, "SetSnapshotPruneKeep({keep})"),
+            Message::PruneProfileSnapshots => write!(f, "PruneProfileSnapshots"),
+            Message::ProfileSnapshotsPruned(Ok(report)) => write!(
+                f,
+                "ProfileSnapshotsPruned(Ok(removed={}, keep={}))",
+                report.removed, report.keep_limit
+            ),
+            Message::ProfileSnapshotsPruned(Err(error)) => {
+                write!(f, "ProfileSnapshotsPruned(Err({error:?}))")
+            }
             Message::RefreshAppRoutingProcesses => write!(f, "RefreshAppRoutingProcesses"),
             Message::AppRoutingProcessesLoaded(p) => {
                 write!(f, "AppRoutingProcessesLoaded({} procs)", p.len())

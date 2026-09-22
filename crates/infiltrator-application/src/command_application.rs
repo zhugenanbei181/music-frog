@@ -29,6 +29,7 @@ use crate::pac_application::PacApplication;
 use crate::port_conflict_application::PortConflictApplication;
 use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
+use crate::profile_document_application::ProfileDocumentApplication;
 use crate::routing_application::RoutingApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::service_mode_application::ServiceModeApplication;
@@ -643,6 +644,52 @@ impl CommandApplication {
                     None => snapshots.diff_newest(&profile).await.map(|_| ()),
                 }
             }
+            // DUAL-09-06/07: refresh the shared snapshot history (entries plus
+            // the shared prune view) for the active profile.
+            CommandIntent::LoadSnapshotHistory => {
+                let profile = self.profile()?.current_profile().await?;
+                self.snapshots()?
+                    .history(
+                        &profile,
+                        infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP,
+                    )
+                    .await
+                    .map(|_| ())
+            }
+            CommandIntent::PruneSnapshots { keep } => {
+                let profile = self.profile()?.current_profile().await?;
+                let keep = keep
+                    .map(
+                        infiltrator_contract::snapshot_history::SnapshotHistorySnapshot::clamp_keep,
+                    )
+                    .unwrap_or(infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP);
+                self.snapshots()?
+                    .prune(
+                        &profile,
+                        keep,
+                        infiltrator_contract::snapshot_history::SnapshotPruneSource::Manual,
+                    )
+                    .await
+                    .map(|_| ())
+            }
+            // DUAL-09-03/14: the editor surfaces load/commit the stored profile
+            // document through the shared read model and guarded write path.
+            CommandIntent::LoadProfileDocument { profile } => self
+                .profile_document()?
+                .load(profile.as_deref())
+                .await
+                .map(|_| ()),
+            CommandIntent::SaveProfileDocument {
+                profile,
+                content,
+                allow_protected,
+            } => {
+                let runtime = self.managed_runtime.clone();
+                self.profile_document()?
+                    .save(runtime, &profile, &content, allow_protected)
+                    .await
+                    .map(|_| ())
+            }
             CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
             CommandIntent::PrepareServiceMode => self.service_mode()?.prepare().await.map(|_| ()),
             CommandIntent::RepairPortConflicts => self.port_conflicts()?.repair().await.map(|_| ()),
@@ -1087,6 +1134,11 @@ impl CommandApplication {
         self.settings
             .clone()
             .ok_or_else(|| missing("settings application"))
+    }
+
+    /// DUAL-09-03/14: profile document use-cases over the same profile store.
+    fn profile_document(&self) -> Result<ProfileDocumentApplication, Failure> {
+        Ok(ProfileDocumentApplication::new(self.profile()?.clone()))
     }
 
     fn snapshots(&self) -> Result<SnapshotApplication, Failure> {

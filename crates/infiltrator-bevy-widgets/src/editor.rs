@@ -121,6 +121,121 @@ impl CodeEditorState {
         self.undo_stack.push(self.lines.clone());
         self.redo_stack.clear();
     }
+
+    /// Replace the whole document (profile load or a shared formatter result).
+    /// The undo history is kept, so a load can be undone like any other edit.
+    pub fn set_text(&mut self, text: &str) {
+        self.snapshot_undo();
+        let lines: Vec<String> = text.lines().map(|line| line.to_string()).collect();
+        self.lines = if lines.is_empty() {
+            vec![String::new()]
+        } else {
+            lines
+        };
+        self.cursor_row = 0;
+        self.cursor_col = 0;
+        self.selection_anchor = None;
+    }
+
+    /// Insert a whole string at the cursor (`\n` splits lines).
+    pub fn insert_text(&mut self, text: &str) {
+        for character in text.chars() {
+            if !character.is_control() || character == '\n' {
+                self.insert_char(character);
+            }
+        }
+    }
+
+    fn clamp_cursor(&mut self) {
+        self.cursor_row = self.cursor_row.min(self.lines.len().saturating_sub(1));
+        self.cursor_col = self.cursor_col.min(self.lines[self.cursor_row].len());
+    }
+
+    /// Move one character left, crossing line boundaries.
+    pub fn move_left(&mut self) -> bool {
+        if self.cursor_col > 0 {
+            self.cursor_col -= 1;
+            true
+        } else if self.cursor_row > 0 {
+            self.cursor_row -= 1;
+            self.cursor_col = self.lines[self.cursor_row].len();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move one character right, crossing line boundaries.
+    pub fn move_right(&mut self) -> bool {
+        if self.cursor_col < self.lines[self.cursor_row].len() {
+            self.cursor_col += 1;
+            true
+        } else if self.cursor_row + 1 < self.lines.len() {
+            self.cursor_row += 1;
+            self.cursor_col = 0;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move one line up, keeping the column when it fits.
+    pub fn move_up(&mut self) -> bool {
+        if self.cursor_row > 0 {
+            self.cursor_row -= 1;
+            self.clamp_cursor();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move one line down, keeping the column when it fits.
+    pub fn move_down(&mut self) -> bool {
+        if self.cursor_row + 1 < self.lines.len() {
+            self.cursor_row += 1;
+            self.clamp_cursor();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move to the start of the current line.
+    pub fn move_home(&mut self) -> bool {
+        let moved = self.cursor_col != 0;
+        self.cursor_col = 0;
+        moved
+    }
+
+    /// Move to the end of the current line.
+    pub fn move_end(&mut self) -> bool {
+        let end = self.lines[self.cursor_row].len();
+        let moved = self.cursor_col != end;
+        self.cursor_col = end;
+        moved
+    }
+
+    /// Delete the character under the cursor, joining lines at the boundary.
+    pub fn delete_forward(&mut self) -> bool {
+        if self.cursor_col < self.lines[self.cursor_row].len() {
+            self.snapshot_undo();
+            self.lines[self.cursor_row].remove(self.cursor_col);
+            true
+        } else if self.cursor_row + 1 < self.lines.len() {
+            self.snapshot_undo();
+            let next = self.lines.remove(self.cursor_row + 1);
+            self.lines[self.cursor_row].push_str(&next);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Insert the two-space indentation step at the cursor.
+    pub fn indent(&mut self) {
+        self.insert_text("  ");
+    }
 }
 
 /// Tokenize a line of YAML / Rule configuration.

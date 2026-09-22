@@ -6,6 +6,7 @@
 
 pub mod active_exit;
 pub mod aggregator;
+pub mod apply_transaction;
 pub mod cadence;
 pub mod capability;
 pub mod command;
@@ -30,6 +31,7 @@ pub mod overview_matrix;
 pub mod pac;
 pub mod port_conflict;
 pub mod privileged_network;
+pub mod profile_document;
 pub mod profile_protection;
 pub mod protocol_fidelity;
 pub mod proxies;
@@ -49,6 +51,7 @@ pub mod service_mode;
 pub mod session;
 pub mod shortcuts;
 pub mod snapshot;
+pub mod snapshot_history;
 pub mod speedtest;
 pub mod speedtest_matrix;
 pub mod subscription_import;
