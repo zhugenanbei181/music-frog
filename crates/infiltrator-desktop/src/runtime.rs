@@ -747,6 +747,17 @@ impl HostRuntime for MihomoRuntime {
         ))
     }
 
+    fn mini_hud_window_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::mini_hud_window::MiniHudWindowPort>> {
+        // The desktop host owns the adapter; the active surface registers the
+        // live window handle when its window id resolves. Until then every
+        // apply answers a typed unsupported (never a fake "Applied").
+        Some(Arc::new(
+            crate::mini_hud_window::DesktopMiniHudWindow::shared(),
+        ))
+    }
+
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }

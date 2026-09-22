@@ -542,6 +542,9 @@ pub struct ShellState {
     pub window_id: Option<iced::window::Id>,
     pub mini_hud_mode: bool,
     pub always_on_top: bool,
+    /// Whether the OS window currently has focus (DUAL-15-08). Drives the
+    /// shared render-cadence policy: 60 FPS foreground, 2 FPS background.
+    pub window_focused: bool,
     /// Shared appearance preference (pinned skin or system follow).
     pub theme_preference: infiltrator_contract::theme::ThemePreference,
     /// Latest OS appearance signal (`true` = the OS prefers dark).

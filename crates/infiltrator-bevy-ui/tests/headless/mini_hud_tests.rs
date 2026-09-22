@@ -7,15 +7,18 @@ use std::sync::Arc;
 use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
+use bevy::ecs::query::With;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::Text;
-use infiltrator_bevy_ui::app::ShellPlugin;
+use bevy::ui_widgets::Activate;
+use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
-    MiniHudMode, MiniHudModel, MiniHudRoot, SetMiniHudPinned, ToggleMiniHud,
+    MiniHudMode, MiniHudModel, MiniHudRoot, MiniHudSystemProxyToggle, MiniHudTunToggle,
+    SetMiniHudPinned, ToggleMiniHud,
 };
 use infiltrator_bevy_ui::route::PagesPlugin;
-use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {
     let mut app = App::new();
@@ -126,6 +129,87 @@ fn the_pin_request_persists_through_the_shared_settings_command() {
                 if key == "mini_hud.pinned" && value == "true"
         )),
         "the pin write goes through the validated shared settings path: {:?}",
+        sink.submitted()
+    );
+}
+
+fn mount_hud_with_toggles(app: &mut App) {
+    app.insert_resource(SidebarToggleProjection(SystemToggleSnapshot::from_legacy(
+        true,
+        Some(false),
+        0,
+    )));
+    app.world_mut().commands().trigger(ToggleMiniHud);
+    app.update();
+    app.update();
+}
+
+fn first_entity<M: bevy::ecs::component::Component>(app: &mut App) -> bevy::ecs::entity::Entity {
+    let world = app.world_mut();
+    let mut query = world.query_filtered::<bevy::ecs::entity::Entity, With<M>>();
+    query
+        .iter(world)
+        .next()
+        .expect("the mounted HUD owns this marker")
+}
+
+#[test]
+fn the_hud_quick_switches_dispatch_the_shared_toggle_commands() {
+    let (mut app, sink) = mounted_app();
+    mount_hud_with_toggles(&mut app);
+
+    let proxy = first_entity::<MiniHudSystemProxyToggle>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: proxy });
+    app.update();
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::SetSystemProxy { enabled: false })),
+        "the HUD proxy switch resolves the desired state through the shared snapshot: {:?}",
+        sink.submitted()
+    );
+
+    let tun = first_entity::<MiniHudTunToggle>(&mut app);
+    app.world_mut().commands().trigger(Activate { entity: tun });
+    app.update();
+    assert!(
+        sink.submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::ToggleTun { enabled: true })),
+        "the HUD TUN switch uses the same command as the sidebar: {:?}",
+        sink.submitted()
+    );
+
+    // Both presses went through the shared pending projection, so the read
+    // model reports them as in-flight.
+    let toggles = app.world().resource::<SidebarToggleProjection>();
+    assert!(toggles.0.state(SystemToggle::SystemProxy).is_pending());
+    assert!(toggles.0.state(SystemToggle::Tun).is_pending());
+    let model = app.world().resource::<MiniHudModel>().0.clone();
+    assert_eq!(model.next_value(SystemToggle::SystemProxy), None);
+}
+
+#[test]
+fn a_pending_hud_quick_switch_dispatches_nothing() {
+    let (mut app, sink) = mounted_app();
+    mount_hud_with_toggles(&mut app);
+    {
+        let mut toggles = app.world_mut().resource_mut::<SidebarToggleProjection>();
+        toggles.0 = toggles.0.clone().with_pending(SystemToggle::Tun, true);
+    }
+    app.update();
+
+    let tun = first_entity::<MiniHudTunToggle>(&mut app);
+    app.world_mut().commands().trigger(Activate { entity: tun });
+    app.update();
+    assert!(
+        !sink
+            .submitted()
+            .iter()
+            .any(|command| matches!(command, UiCommand::ToggleTun { .. })),
+        "a toggle already in flight cannot be pressed again: {:?}",
         sink.submitted()
     );
 }

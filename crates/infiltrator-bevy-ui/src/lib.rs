@@ -18,6 +18,7 @@
 
 pub mod app;
 pub mod appearance;
+pub mod cadence;
 pub mod capture;
 pub mod command;
 pub mod command_palette;
@@ -151,6 +152,8 @@ fn run_with_command_sink_and_surface(
         ..WindowPlugin::default()
     }));
     app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
+    // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
+    app.add_plugins(cadence::CadencePlugin);
     app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly). A host

@@ -178,7 +178,7 @@ fn test_frame_pacing_cadence() {
     assert_eq!(FramePacingMode::PowerSaver.target_frame_time_ms(), 100);
     assert_eq!(
         FramePacingMode::BackgroundThrottled.target_frame_time_ms(),
-        1000
+        500
     );
     assert_eq!(FramePacingMode::Suspended.target_frame_time_ms(), 0);
     assert!(FramePacingMode::HighRefresh.is_active());

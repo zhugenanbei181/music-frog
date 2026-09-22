@@ -48,6 +48,10 @@ pub enum Message {
     /// projection ([`infiltrator_contract::responsive_viewport`]); the payload
     /// is `(width_px, height_px)`.
     WindowResized(f32, f32),
+    /// Window focus changed. Drives the shared render-cadence policy
+    /// ([`infiltrator_contract::cadence`], DUAL-15-08): foreground keeps the
+    /// 60 FPS tick, background drops to 2 FPS.
+    WindowFocusChanged(bool),
     Navigate(Route),
     NavigateBack,
     NavigateForward,

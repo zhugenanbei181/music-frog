@@ -379,14 +379,60 @@ impl AppState {
                 .map(|(_id, size)| Message::WindowResized(size.width, size.height)),
         );
 
-        // 5. 高性能动画订阅：只有正在转场时才开启帧回调
+        // 4c. 窗口焦点订阅（DUAL-15-08）：唯一驱动共享渲染调步的宿主事实。
+        subs.push(window::events().filter_map(|(_id, event)| match event {
+            window::Event::Focused => Some(Message::WindowFocusChanged(true)),
+            window::Event::Unfocused => Some(Message::WindowFocusChanged(false)),
+            _ => None,
+        }));
+
+        // 5. 高性能动画订阅：只有正在转场时才开启帧回调；帧率由共享
+        //    `RenderCadence` 决定（前台跟随真实帧信号，后台 2 FPS）。
         if self.shell.transition.start_time.is_some()
             || (self.shell.current_route == Route::Overview
                 && self.runtime.traffic_topology.is_flowing())
         {
-            subs.push(window::frames().map(Message::TickFrame));
+            subs.push(frame_cadence_subscription(
+                infiltrator_contract::cadence::RenderCadence::from_focused(
+                    self.shell.window_focused,
+                ),
+            ));
         }
 
         Subscription::batch(subs)
+    }
+}
+
+/// The animation frame tick at the shared cadence (DUAL-15-08): the foreground
+/// keeps Iced's real frame signal, the background is a 2 FPS timer, and a
+/// suspended host schedules no frames at all.
+pub(crate) fn frame_cadence_subscription(
+    cadence: infiltrator_contract::cadence::RenderCadence,
+) -> Subscription<Message> {
+    use infiltrator_contract::cadence::RenderCadence;
+    match cadence {
+        RenderCadence::Active => window::frames().map(Message::TickFrame),
+        RenderCadence::Background => Subscription::run_with(cadence, |cadence: &RenderCadence| {
+            let cadence = *cadence;
+            stream::channel(
+                4,
+                move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                    let Some(interval) = cadence.frame_interval() else {
+                        return;
+                    };
+                    let mut ticker = tokio::time::interval(interval);
+                    loop {
+                        ticker.tick().await;
+                        if output
+                            .try_send(Message::TickFrame(std::time::Instant::now()))
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                },
+            )
+        }),
+        RenderCadence::Suspended => Subscription::none(),
     }
 }

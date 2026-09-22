@@ -65,7 +65,7 @@ impl AppState {
             .map(|s| s.enabled)
             .unwrap_or(false);
 
-        Self {
+        let state = Self {
             runtime: crate::state::RuntimeState {
                 runtime: None,
                 runtime_generation: 0,
@@ -483,6 +483,7 @@ impl AppState {
                 window_id: None,
                 mini_hud_mode: false,
                 always_on_top: false,
+                window_focused: true,
                 theme_preference: infiltrator_contract::theme::ThemePreference::System,
                 system_prefers_dark: true,
                 shortcut_registry: infiltrator_contract::shortcuts::ShortcutRegistry::with_defaults(
@@ -494,7 +495,12 @@ impl AppState {
             surface: Default::default(),
             surface_bridge: None,
             exit_cleanup: None,
-        }
+        };
+        // DUAL-15-04: bind the Iced window handle into the desktop host port
+        // so a persisted HUD placement reaches this window once its id is
+        // resolved (before that the adapter answers typed unsupported).
+        crate::mini_hud_window::install_host_handle();
+        state
     }
 
     pub fn new() -> (Self, Task<Message>) {

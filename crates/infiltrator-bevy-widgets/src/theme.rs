@@ -2,9 +2,11 @@
 //!
 //! Business-agnostic by law: this module knows nothing about infiltrator or
 //! mihomo — it is the future extraction candidate shared across projects.
-//! The palette values intentionally mirror the iced frontend's iOS design
-//! language (iOS blue accent, iOS gray scales, iOS semantic colors) so both
-//! surfaces speak one product language without sharing toolkit code.
+//! The palette mirrors the shared product token contract
+//! (`infiltrator_contract::design_tokens::skin_core`, DUAL-15-14) which the
+//! Iced shell consumes directly; this crate cannot depend on contract, so the
+//! mirror is enforced by `tests/headless/design_token_tests.rs` and the
+//! numeric source scan in `scripts/quality/multimodal-shell-guard.py`.
 //!
 //! Every product color this layer paints must originate here as a token and
 //! reach bevy only through [`crate::palette`] — never as a literal at a call
@@ -148,44 +150,44 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             mode: ThemeSkin::Dark,
-            window_bg: TokenColor::rgb(0.055, 0.063, 0.078), // #0E1014
-            surface: TokenColor::rgb(0.129, 0.141, 0.161),   // #212429
-            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.06),
-            ink: TokenColor::rgb(1.0, 1.0, 1.0),
-            ink_dim: TokenColor::rgba(0.922, 0.922, 0.961, 0.6),
-            accent: TokenColor::rgb(0.039, 0.518, 1.0), // #0A84FF
+            window_bg: TokenColor::rgb(0.082, 0.094, 0.102), // #15181A
+            surface: TokenColor::rgb(0.145, 0.161, 0.173),   // #25292C
+            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.07),
+            ink: TokenColor::rgb(0.93, 0.95, 0.94), // #EDEFEF
+            ink_dim: TokenColor::rgba(0.88, 0.90, 0.92, 0.65),
+            accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgb(0.051, 0.224, 0.443), // #0D3971 (iced banner, measured)
-            sidebar: TokenColor::rgb(0.086, 0.094, 0.110),          // #16181C
-            icon_tile: TokenColor::rgba(0.039, 0.518, 1.0, 0.62),   // accent @ 0.62
+            sidebar: TokenColor::rgb(0.106, 0.118, 0.125),          // #1B1E20
+            icon_tile: TokenColor::rgba(0.12, 0.56, 0.96, 0.62),    // accent @ 0.62
             hover: TokenColor::rgba(1.0, 1.0, 1.0, 0.08),
             pressed: TokenColor::rgba(1.0, 1.0, 1.0, 0.14),
-            border: TokenColor::rgba(1.0, 1.0, 1.0, 0.10),
-            success: TokenColor::rgb(0.188, 0.820, 0.345), // #30D158
-            warning: TokenColor::rgb(1.0, 0.624, 0.039),   // #FF9F0A
-            danger: TokenColor::rgb(1.0, 0.271, 0.227),    // #FF453A
+            border: TokenColor::rgba(0.85, 0.90, 0.95, 0.10),
+            success: TokenColor::rgb(0.24, 0.78, 0.44), // #3DC770
+            warning: TokenColor::rgb(0.96, 0.62, 0.15), // #F59E26
+            danger: TokenColor::rgb(0.96, 0.35, 0.32),  // #F55952
         }
     }
 
     pub fn light() -> Self {
         Self {
             mode: ThemeSkin::Light,
-            window_bg: TokenColor::rgb(0.949, 0.949, 0.969), // #F2F2F7
-            surface: TokenColor::rgb(1.0, 1.0, 1.0),         // #FFFFFF
-            surface_elevated: TokenColor::rgb(0.949, 0.949, 0.969),
-            ink: TokenColor::rgb(0.110, 0.110, 0.118), // #1C1C1E
-            ink_dim: TokenColor::rgba(0.235, 0.235, 0.263, 0.6),
-            accent: TokenColor::rgb(0.0, 0.478, 1.0), // #007AFF
+            window_bg: TokenColor::rgb(0.953, 0.957, 0.957), // #F3F4F4
+            surface: TokenColor::rgb(0.988, 0.992, 0.988),   // #FCFDFC
+            surface_elevated: TokenColor::rgba(0.0, 0.0, 0.0, 0.05),
+            ink: TokenColor::rgb(0.12, 0.15, 0.14), // #1E2623
+            ink_dim: TokenColor::rgba(0.24, 0.28, 0.26, 0.65),
+            accent: TokenColor::rgb(0.04, 0.44, 0.88), // #0A70E0
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgb(0.898, 0.910, 0.973), // #E5E8F8 (iced banner, measured)
-            sidebar: TokenColor::rgb(0.965, 0.965, 0.980),          // #F6F6FA
-            icon_tile: TokenColor::rgba(0.0, 0.478, 1.0, 0.18),     // accent @ 0.18
+            sidebar: TokenColor::rgb(0.965, 0.969, 0.969),          // #F6F7F7
+            icon_tile: TokenColor::rgba(0.04, 0.44, 0.88, 0.18),    // accent @ 0.18
             hover: TokenColor::rgba(0.0, 0.0, 0.0, 0.06),
             pressed: TokenColor::rgba(0.0, 0.0, 0.0, 0.12),
-            border: TokenColor::rgba(0.0, 0.0, 0.0, 0.08),
-            success: TokenColor::rgb(0.204, 0.780, 0.349), // #34C759
-            warning: TokenColor::rgb(1.0, 0.584, 0.0),     // #FF9500
-            danger: TokenColor::rgb(1.0, 0.231, 0.188),    // #FF3B30
+            border: TokenColor::rgba(0.18, 0.22, 0.20, 0.10),
+            success: TokenColor::rgb(0.18, 0.68, 0.38), // #2EAD61
+            warning: TokenColor::rgb(0.88, 0.52, 0.05), // #E0850D
+            danger: TokenColor::rgb(0.88, 0.24, 0.22),  // #E03D38
         }
     }
 
@@ -197,7 +199,7 @@ impl Theme {
             mode: ThemeSkin::Forest,
             window_bg: TokenColor::rgb(0.937, 0.961, 0.925), // #EFF5EC canvas
             surface: TokenColor::rgb(0.973, 0.984, 0.961),   // #F8FBF5 card
-            surface_elevated: TokenColor::rgba(0.341, 0.439, 0.353, 0.12),
+            surface_elevated: TokenColor::rgba(0.341, 0.439, 0.353, 0.09),
             ink: TokenColor::rgb(0.122, 0.208, 0.145), // #1F3525
             ink_dim: TokenColor::rgba(0.341, 0.439, 0.353, 0.75),
             accent: TokenColor::rgb(0.188, 0.435, 0.306), // #306F4E
@@ -221,7 +223,7 @@ impl Theme {
             mode: ThemeSkin::Amoled,
             window_bg: TokenColor::rgb(0.0, 0.0, 0.0), // #000000
             surface: TokenColor::rgb(0.086, 0.098, 0.110), // #16191C
-            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.12),
+            surface_elevated: TokenColor::rgba(1.0, 1.0, 1.0, 0.09),
             ink: TokenColor::rgb(0.973, 0.980, 0.988), // #F8FAFC
             ink_dim: TokenColor::rgba(0.90, 0.92, 0.94, 0.68),
             accent: TokenColor::rgb(0.12, 0.56, 0.96), // #1E8FF5
@@ -239,7 +241,12 @@ impl Theme {
     }
 }
 
-/// Spacing scale (px), mirroring the iced spacing ladder.
+/// Spacing scale (px), mirroring the shared contract ladder
+/// (`infiltrator_contract::design_tokens::space`: XS=4, SM=8, MD=12, LG=16,
+/// XL=20, XXL=24). This crate is business-agnostic by charter and cannot
+/// depend on contract, so the mirror is enforced by
+/// `tests/headless/design_token_tests.rs` and the numeric scan in
+/// `scripts/quality/multimodal-shell-guard.py`.
 pub mod space {
     pub const S2: f32 = 2.0;
     pub const S4: f32 = 4.0;
@@ -252,10 +259,11 @@ pub mod space {
     pub const S32: f32 = 32.0;
 }
 
-/// Corner radius scale (px).
+/// Corner radius scale (px), mirroring `design_tokens::radius`
+/// (CARD=16, CONTROL=10). [`SHEET_TOP`] is the surface-only sheet radius.
 pub mod radius {
-    pub const CARD: f32 = 12.0;
-    pub const CONTROL: f32 = 8.0;
+    pub const CARD: f32 = 16.0;
+    pub const CONTROL: f32 = 10.0;
     pub const SHEET_TOP: f32 = 16.0;
 }
 

@@ -23,6 +23,44 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 LEDGER = "docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md"
 RESPONSIVE_LEDGER = "docs/RESPONSIVE_PARITY_LEDGER.md"
+MATRIX = "docs/MULTIMODAL_SHELL_MATRIX.md"
+DESIGN_TOKENS = "crates/infiltrator-contract/src/design_tokens.rs"
+ICED_THEME = "crates/infiltrator-iced/src/view/theme.rs"
+BEVY_THEME = "crates/infiltrator-bevy-widgets/src/theme.rs"
+
+#: Contract core-palette field -> the Bevy widget mirror's field name.
+BEVY_CORE_FIELDS = {
+    "canvas": "window_bg",
+    "sidebar": "sidebar",
+    "card": "surface",
+    "card_border": "border",
+    "control_bg": "surface_elevated",
+    "ink": "ink",
+    "ink_dim": "ink_dim",
+    "accent": "accent",
+    "on_accent": "on_accent",
+    "success": "success",
+    "warning": "warning",
+    "danger": "danger",
+}
+
+#: Contract core-palette field -> the Iced shell token field it resolves into.
+ICED_CORE_FIELDS = {
+    "canvas": "canvas",
+    "sidebar": "sidebar",
+    "card": "card_bg",
+    "card_border": "card_border",
+    "control_bg": "control_bg",
+    "ink": "text_primary",
+    "ink_dim": "text_secondary",
+    "accent": "accent",
+    "on_accent": "on_accent",
+    "success": "success",
+    "warning": "warning",
+    "danger": "danger",
+}
+
+SKINS = ("Dark", "Light", "Forest", "Amoled")
 
 
 def read(path: str) -> str:
@@ -61,6 +99,242 @@ def skin_settings(path: str) -> set[str]:
     if not match:
         return set()
     return set(re.findall(r'=>\s*"([a-z]+)"', match.group("body")))
+
+
+def color_fields(body: str) -> dict[str, tuple[float, ...]]:
+    """Extract `name: Ctor(0.1, 0.2, 0.3[, 0.4])` token tuples."""
+    fields: dict[str, tuple[float, ...]] = {}
+    for match in re.finditer(
+        r"(\w+):\s*\w+::rgba?\(([^)]*)\)", body, re.DOTALL
+    ):
+        fields[match.group(1)] = tuple(
+            float(value.strip()) for value in match.group(2).split(",")
+        )
+    return fields
+
+
+def contract_cores() -> dict[str, dict[str, tuple[float, ...]]]:
+    """The authoritative per-skin core palette from the shared contract."""
+    text = read(DESIGN_TOKENS)
+    cores: dict[str, dict[str, tuple[float, ...]]] = {}
+    for skin in SKINS:
+        match = re.search(
+            rf"ThemeSkin::{skin} => SkinCorePalette \{{(?P<body>.*?)\n        \}},",
+            text,
+            re.DOTALL,
+        )
+        if match:
+            cores[skin] = color_fields(match.group("body"))
+    return cores
+
+
+def bevy_cores() -> dict[str, dict[str, tuple[float, ...]]]:
+    """The mirrored per-skin palettes from the Bevy widget layer."""
+    text = read(BEVY_THEME)
+    cores: dict[str, dict[str, tuple[float, ...]]] = {}
+    for skin in SKINS:
+        match = re.search(
+            rf"pub fn {skin.lower()}\(\) -> Self \{{(?P<body>.*?)\n    \}}",
+            text,
+            re.DOTALL,
+        )
+        if match:
+            cores[skin] = color_fields(match.group("body"))
+    return cores
+
+
+def number_const(text: str, name: str) -> float | None:
+    match = re.search(
+        rf"pub const {name}\s*:\s*f32\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*;", text
+    )
+    return float(match.group(1)) if match else None
+
+
+def check_matrix(violations: list[str]) -> None:
+    """Verify the group 15 regression matrix against the real test sources.
+
+    This is what makes `DUAL-15-15` a machine-checkable claim instead of a doc
+    promise: every `path::test_name` evidence token must point at an existing
+    file that really contains that test, closed items must carry evidence from
+    both surfaces, and planned items must not claim any.
+    """
+    text = read(MATRIX)
+    evidence = re.compile(r"`(crates/[^`\s]+?\.rs)::([A-Za-z0-9_]+)`")
+    rows: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.startswith("| `DUAL-15-"):
+            continue
+        item = re.match(r"\| `(DUAL-15-\d+)` \|", line)
+        if not item:
+            continue
+        rows[item.group(1)] = line
+
+    expected = [f"DUAL-15-{index:02d}" for index in range(1, 16)]
+    for item in expected:
+        if item not in rows:
+            violations.append(f"{MATRIX} missing matrix row for {item}")
+            continue
+        line = rows[item]
+        status_match = re.match(r"\| `DUAL-15-\d+` \| (?P<status>[^|]+)\|", line)
+        status_cell = status_match.group("status").strip() if status_match else ""
+        if not any(
+            status in status_cell
+            for status in ("parity-ready", "shared-ready", "planned")
+        ):
+            violations.append(f"{MATRIX} {item} has no known status: {status_cell!r}")
+        tokens = evidence.findall(line)
+        for path, name in tokens:
+            try:
+                source = read(path)
+            except FileNotFoundError:
+                violations.append(f"{MATRIX} {item} cites missing file {path}")
+                continue
+            if name not in source:
+                violations.append(
+                    f"{MATRIX} {item} cites {path}::{name} but the test is absent"
+                )
+        if "planned" in status_cell:
+            if tokens:
+                violations.append(
+                    f"{MATRIX} {item} is planned but claims evidence {tokens}"
+                )
+            continue
+        if "外链" in status_cell:
+            continue
+        surfaces = {
+            "iced": any("/infiltrator-iced/" in path for path, _ in tokens),
+            "bevy": any("/infiltrator-bevy-ui/" in path for path, _ in tokens),
+        }
+        if not all(surfaces.values()):
+            violations.append(
+                f"{MATRIX} {item} is {status_cell} but lacks dual-surface evidence: {surfaces}"
+            )
+
+
+def check_design_token_mirrors(violations: list[str]) -> None:
+    """Numeric drift check across the shared contract, Iced and Bevy.
+
+    This is the real 15-14 gate: the same numbers must appear in the contract
+    (authoritative), be consumed by the Iced token module by name, and be
+    mirrored channel-exactly by the business-agnostic Bevy widget layer.
+    """
+    cores = contract_cores()
+    if set(cores) != set(SKINS):
+        violations.append(
+            f"{DESIGN_TOKENS} must define skin_core for every skin, found {sorted(cores)}"
+        )
+        return
+    for skin, fields in cores.items():
+        missing = set(BEVY_CORE_FIELDS) - set(fields)
+        if missing:
+            violations.append(
+                f"{DESIGN_TOKENS} {skin} core palette missing {sorted(missing)}"
+            )
+
+    mirror = bevy_cores()
+    if set(mirror) != set(SKINS):
+        violations.append(
+            f"{BEVY_THEME} must define all four skins, found {sorted(mirror)}"
+        )
+        return
+    for skin in SKINS:
+        for field, bevy_field in BEVY_CORE_FIELDS.items():
+            expected = cores[skin].get(field)
+            actual = mirror[skin].get(bevy_field)
+            if expected is None:
+                continue
+            if actual is None:
+                violations.append(
+                    f"{BEVY_THEME} {skin} missing token {bevy_field!r}"
+                )
+                continue
+            if len(expected) != len(actual) or any(
+                abs(left - right) > 1e-6 for left, right in zip(expected, actual)
+            ):
+                violations.append(
+                    f"{BEVY_THEME} {skin}.{bevy_field}={actual} must mirror "
+                    f"contract {field}={expected}"
+                )
+
+    iced_text = read(ICED_THEME)
+    for skin in SKINS:
+        core_name = f"{skin.upper()}_CORE"
+        if f"skin_core(ThemeSkin::{skin})" not in iced_text:
+            violations.append(
+                f"{ICED_THEME} must resolve {skin} from the shared skin_core"
+            )
+            continue
+        block = re.search(
+            rf"pub const {skin.upper()}: Tokens = Tokens \{{(?P<body>.*?)\n\}};",
+            iced_text,
+            re.DOTALL,
+        )
+        if not block:
+            violations.append(f"{ICED_THEME} missing the {skin.upper()} token block")
+            continue
+        body = block.group("body")
+        for field, iced_field in ICED_CORE_FIELDS.items():
+            if f"{iced_field}: token_color({core_name}.{field})" not in body:
+                violations.append(
+                    f"{ICED_THEME} {skin.upper()}.{iced_field} must consume "
+                    f"{core_name}.{field}"
+                )
+
+    # Structural ladders: contract numbers, Iced by-name consumption, Bevy
+    # numeric mirror.
+    contract_text = read(DESIGN_TOKENS)
+    expected_space = {
+        "XS": 4.0,
+        "SM": 8.0,
+        "MD": 12.0,
+        "LG": 16.0,
+        "XL": 20.0,
+        "XXL": 24.0,
+    }
+    for name, expected in expected_space.items():
+        contract_value = number_const(contract_text, name)
+        if contract_value != expected:
+            violations.append(
+                f"{DESIGN_TOKENS} space::{name}={contract_value!r}, expected {expected}"
+            )
+        if f"pub const SP_{name}: f32 = infiltrator_contract::design_tokens::space::{name};" not in iced_text:
+            violations.append(
+                f"{ICED_THEME} SP_{name} must consume the shared spacing ladder"
+            )
+    for name, expected in {"CARD": 16.0, "CONTROL": 10.0}.items():
+        contract_value = number_const(contract_text, name)
+        if contract_value != expected:
+            violations.append(
+                f"{DESIGN_TOKENS} radius::{name}={contract_value!r}, expected {expected}"
+            )
+        if f"pub const R_{name}: f32 = infiltrator_contract::design_tokens::radius::{name};" not in iced_text:
+            violations.append(
+                f"{ICED_THEME} R_{name} must consume the shared radius ladder"
+            )
+
+    bevy_text = read(BEVY_THEME)
+    bevy_space = {
+        "S4": "XS",
+        "S8": "SM",
+        "S12": "MD",
+        "S16": "LG",
+        "S20": "XL",
+        "S24": "XXL",
+    }
+    for bevy_name, contract_name in bevy_space.items():
+        bevy_value = number_const(bevy_text, bevy_name)
+        expected = expected_space[contract_name]
+        if bevy_value != expected:
+            violations.append(
+                f"{BEVY_THEME} space::{bevy_name}={bevy_value!r} must mirror "
+                f"contract space::{contract_name}={expected}"
+            )
+    for name, expected in {"CARD": 16.0, "CONTROL": 10.0}.items():
+        bevy_value = number_const(bevy_text, name)
+        if bevy_value != expected:
+            violations.append(
+                f"{BEVY_THEME} radius::{name}={bevy_value!r} must mirror contract {expected}"
+            )
 
 
 def main() -> int:
@@ -456,7 +730,7 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-iced/src/mini_hud_store.rs",
-        "MiniHudApplication::new",
+        "MiniHudApplication::with_window_port",
         "place_from",
         "set_pinned_from",
     )
@@ -549,6 +823,216 @@ def main() -> int:
         "a_host_without_the_window_adapter_reports_typed_unsupported",
     )
 
+    # ---- Batch C (DUAL-15-03/04/08/14/15): the desktop HUD window adapter,
+    # the shared design tokens, the shared render cadence and the matrix.
+    require(
+        violations,
+        LEDGER,
+        "2026-09-22 组 15 批次 C",
+        "DesktopMiniHudWindow",
+        "MiniHudWindowHandle",
+        "IcedMiniHudWindowHandle",
+        "RenderCadence",
+        "design_tokens",
+        "MULTIMODAL_SHELL_MATRIX.md",
+        "a_persisted_placement_reaches_the_iced_window_handle",
+        "the_placement_update_drains_the_host_window_requests",
+        "a_bound_handle_receives_the_placement_and_the_visibility_request",
+        "an_unbound_or_stale_handle_reports_typed_unsupported",
+        "the_hud_quick_switches_dispatch_the_shared_toggle_commands",
+        "a_pending_hud_quick_switch_dispatches_nothing",
+        "the_widget_palette_mirrors_the_shared_design_tokens",
+        "the_widget_ladders_mirror_the_shared_contract_numbers",
+        "the_iced_tokens_resolve_the_shared_design_contract",
+        "the_shell_tracks_window_focus_for_the_shared_cadence",
+        "the_winit_modes_follow_the_shared_cadence",
+        "focus_and_occlusion_events_reselect_the_winit_cadence",
+        "the_widget_frame_pacing_vocabulary_mirrors_the_shared_cadence",
+    )
+
+    # Ports: the window-owner half of the HUD window capability.
+    require(
+        violations,
+        "crates/infiltrator-ports/src/mini_hud_window.rs",
+        "pub trait MiniHudWindowHandle",
+        "fn apply_placement(&self, placement: MiniHudPlacement) -> bool",
+        "fn set_visible(&self, visible: bool) -> bool",
+    )
+    # Desktop: the real host adapter + runtime capability.
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/mini_hud_window.rs",
+        "pub struct DesktopMiniHudWindow",
+        "pub fn shared",
+        "pub fn bind",
+        "impl MiniHudWindowPort for DesktopMiniHudWindow",
+        "MiniHudHostOutcome::Unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "fn mini_hud_window_port",
+        "DesktopMiniHudWindow::shared()",
+    )
+    # Iced: the window handle, the update-path drain and the store port.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_window.rs",
+        "pub struct IcedMiniHudWindowHandle",
+        "pub fn install_host_handle",
+        "pub fn host_requests_task",
+        "pub fn mark_live",
+        "pub fn take_pending",
+        "impl MiniHudWindowHandle for IcedMiniHudWindowHandle",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/mini_hud.rs",
+        "host_requests_task",
+        "mark_live",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_store.rs",
+        "crate::host::mini_hud::window_port",
+    )
+    # The concrete desktop dependency stays at the composition boundary.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/host.rs",
+        "DesktopMiniHudWindow::shared",
+        "pub fn window_port",
+        "pub fn bind_window_handle",
+    )
+    # Iced: the shared render cadence.
+    require(
+        violations,
+        "crates/infiltrator-iced/src/subscription.rs",
+        "frame_cadence_subscription",
+        "window::Event::Focused",
+        "window::Event::Unfocused",
+        "RenderCadence::from_focused",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "pub window_focused",
+    )
+    # Contract: the shared palette + cadence policy.
+    require(
+        violations,
+        DESIGN_TOKENS,
+        "pub struct RgbaToken",
+        "pub struct SkinCorePalette",
+        "pub const fn skin_core",
+        "pub mod space",
+        "pub mod radius",
+        "pub mod metrics",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/cadence.rs",
+        "pub enum RenderCadence",
+        "pub const fn from_focused",
+        "pub const fn from_visible_focused",
+        "pub const fn frame_time_ms",
+        "pub fn frame_interval",
+        "BACKGROUND_FRAME_TIME_MS",
+    )
+    # Bevy: cadence projection onto winit + the HUD quick switches.
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/cadence.rs",
+        "pub fn winit_settings_for",
+        "pub fn sync_window_cadence",
+        "pub struct CadencePlugin",
+        "WinitSettings",
+        "WindowFocused",
+        "WindowOccluded",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/lib.rs",
+        "pub mod cadence",
+        "cadence::CadencePlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud.rs",
+        "MiniHudSystemProxyToggle",
+        "MiniHudTunToggle",
+        "ButtonDisabled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/mini_hud_shell.rs",
+        "on_mini_hud_system_proxy_activated",
+        "on_mini_hud_tun_activated",
+        "submit_toggle",
+        "UiCommand::ToggleTun",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-widgets/src/cadence.rs",
+        "FramePacingMode::BackgroundThrottled => 500",
+    )
+    # The dual tests introduced by this batch.
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/mini_hud_window.rs",
+        "fn a_bound_handle_receives_the_placement_and_the_visibility_request",
+        "fn an_unbound_or_stale_handle_reports_typed_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_window.rs",
+        "fn a_handle_without_a_live_window_refuses_the_placement",
+        "fn a_live_window_accepts_exactly_once_per_request",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/mini_hud_store.rs",
+        "fn a_persisted_placement_reaches_the_iced_window_handle",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/multimodal_shell_tests.rs",
+        "the_placement_update_drains_the_host_window_requests",
+        "the_iced_tokens_resolve_the_shared_design_contract",
+        "the_shell_tracks_window_focus_for_the_shared_cadence",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/mini_hud_tests.rs",
+        "the_hud_quick_switches_dispatch_the_shared_toggle_commands",
+        "a_pending_hud_quick_switch_dispatches_nothing",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/design_token_tests.rs",
+        "the_widget_palette_mirrors_the_shared_design_tokens",
+        "the_widget_ladders_mirror_the_shared_contract_numbers",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/cadence_tests.rs",
+        "the_winit_modes_follow_the_shared_cadence",
+        "focus_and_occlusion_events_reselect_the_winit_cadence",
+        "the_widget_frame_pacing_vocabulary_mirrors_the_shared_cadence",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/cadence.rs",
+        "fn every_host_fact_maps_to_one_cadence",
+        "fn the_product_rates_are_sixty_and_two_fps",
+    )
+    require(
+        violations,
+        DESIGN_TOKENS,
+        "fn every_skin_has_a_distinct_core_palette",
+        "fn the_spacing_and_radius_ladders_are_positive_and_ordered",
+    )
+
     # The mirrored skin vocabulary must match the contract numerically.
     contract_skins = skin_settings("crates/infiltrator-contract/src/theme.rs")
     widget_skins = skin_settings("crates/infiltrator-bevy-widgets/src/theme.rs")
@@ -557,6 +1041,12 @@ def main() -> int:
             "skin setting vocabulary drift: contract "
             f"{sorted(contract_skins)} != widget {sorted(widget_skins)}"
         )
+
+    # DUAL-15-14: the numeric design-token mirror (contract -> Iced -> Bevy).
+    check_design_token_mirrors(violations)
+
+    # DUAL-15-15: the machine-checkable multimodal regression matrix.
+    check_matrix(violations)
 
     # Fixed defects must not regress.
     forbid(

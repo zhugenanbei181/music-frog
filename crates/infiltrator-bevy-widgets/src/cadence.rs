@@ -1,4 +1,13 @@
 //! Energy-efficient rendering modes and frame pacing cadence control.
+//!
+//! The three product cadences mirror the shared contract
+//! (`infiltrator_contract::cadence::RenderCadence`, DUAL-15-08): 16ms active
+//! (≈60 FPS), 500ms background (2 FPS), 0ms suspended. This crate is
+//! business-agnostic by charter and cannot depend on contract, so the mirror
+//! is enforced by `crates/infiltrator-bevy-ui/tests/headless/cadence_tests.rs`
+//! and the numeric scan in `scripts/quality/multimodal-shell-guard.py`.
+//! [`FramePacingMode::PowerSaver`] is the widget layer's own intermediate
+//! energy saver and has no product-cadence counterpart.
 
 use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
@@ -7,14 +16,14 @@ use bevy::ecs::system::ResMut;
 /// Target rendering cadence for power-saving / high-refresh modes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum FramePacingMode {
-    /// High refresh rate (60Hz - 144Hz) for smooth interactive animations.
+    /// High refresh rate: the shared active cadence (16ms, ≈60 FPS).
     HighRefresh,
     /// Energy-efficient mode (10Hz - 30Hz) for static page viewing.
     #[default]
     PowerSaver,
-    /// Background or minimized state (1Hz throttle).
+    /// Background window: the shared 2 FPS throttle (500ms).
     BackgroundThrottled,
-    /// Suspended / fully asleep (0Hz, wake on OS/network event only).
+    /// Suspended / fully asleep: no scheduled frames.
     Suspended,
 }
 
@@ -23,7 +32,7 @@ impl FramePacingMode {
         match self {
             FramePacingMode::HighRefresh => 16,
             FramePacingMode::PowerSaver => 100,
-            FramePacingMode::BackgroundThrottled => 1000,
+            FramePacingMode::BackgroundThrottled => 500,
             FramePacingMode::Suspended => 0,
         }
     }

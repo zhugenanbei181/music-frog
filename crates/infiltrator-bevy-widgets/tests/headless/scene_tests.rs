@@ -55,12 +55,33 @@ fn pill_scene_spawns_button_with_stamped_label() {
     assert_eq!(role.0, Role::Body);
     assert_eq!(
         ink.0,
-        UiPalette::new(&Theme::dark()).ink,
-        "body ink stamped"
+        UiPalette::new(&Theme::dark()).on_accent,
+        "a selected pill stamps the on-accent ink"
     );
     assert!(
         matches!(font.font_size, FontSize::Px(size) if size == 15.0),
         "body size stamped from the type scale"
+    );
+}
+
+#[test]
+fn an_unselected_pill_stamps_the_ordinary_ink() {
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(pill_scene("direct".to_string(), false, &palette));
+        },
+    );
+    app.update();
+
+    let world = app.world_mut();
+    let mut texts = world.query::<(&TextColor, &PillLabel)>();
+    let (ink, _) = texts.iter(world).next().expect("pill spawns one label");
+    assert_eq!(
+        ink.0,
+        UiPalette::new(&Theme::dark()).ink,
+        "an idle pill keeps the ordinary reading ink"
     );
 }
 

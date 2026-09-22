@@ -270,6 +270,35 @@ fn always_on_top_mirrors_the_pin_onto_the_shared_placement() {
     assert!(!state.shell.mini_hud_placement.pinned);
 }
 
+/// DUAL-15-04: the placement update that the desktop host port accepted is
+/// drained into the window task exactly once, and only while the host window
+/// is live.
+#[test]
+fn the_placement_update_drains_the_host_window_requests() {
+    use infiltrator_ports::mini_hud_window::MiniHudWindowHandle;
+
+    let (mut state, _) = AppState::new();
+    let handle = crate::mini_hud_window::IcedMiniHudWindowHandle::host();
+    handle.mark_live(false);
+    let _ = handle.take_pending();
+    let placement = infiltrator_contract::mini_hud::MiniHudPlacement::new(0, 12);
+
+    // A host window that is not live refuses the request: nothing to drain.
+    assert!(!handle.apply_placement(placement));
+    let _ = state.update(Message::MiniHudPlacementUpdated(Ok(placement)));
+    assert!(handle.take_pending().is_empty());
+
+    // A live window accepts it, and the update path consumes it.
+    handle.mark_live(true);
+    assert!(handle.apply_placement(placement));
+    let _ = state.update(Message::MiniHudPlacementUpdated(Ok(placement)));
+    assert!(
+        handle.take_pending().is_empty(),
+        "the accepted request became a window task, not a replayed queue entry"
+    );
+    assert_eq!(state.shell.mini_hud_placement, placement);
+}
+
 #[test]
 fn capture_records_the_conflict_without_touching_the_binding() {
     let (mut state, _) = AppState::new();
@@ -327,4 +356,84 @@ fn identical_toasts_are_coalesced_and_the_stack_is_capped() {
         Some("distinct message 4".to_string())
     );
     assert_eq!(state.shell.toast_ids.len(), state.shell.toasts.len());
+}
+
+/// DUAL-15-14: the Iced token set resolves the shared design contract, so the
+/// surface the Bevy widget mirror is checked against cannot itself drift.
+#[test]
+fn the_iced_tokens_resolve_the_shared_design_contract() {
+    use crate::view::theme;
+    use infiltrator_contract::design_tokens::{RgbaToken, skin_core};
+    use infiltrator_contract::theme::ThemeSkin;
+
+    let tokens_for = |skin: ThemeSkin| match skin {
+        ThemeSkin::Dark => &theme::DARK,
+        ThemeSkin::Light => &theme::LIGHT,
+        ThemeSkin::Forest => &theme::FOREST,
+        ThemeSkin::Amoled => &theme::AMOLED,
+    };
+    let assert_color = |color: iced::Color, token: RgbaToken, field: &str| {
+        assert_eq!(
+            (color.r, color.g, color.b, color.a),
+            (token.r, token.g, token.b, token.a),
+            "the Iced token `{field}` drifted from the shared contract"
+        );
+    };
+
+    for skin in ThemeSkin::ALL {
+        let core = skin_core(skin);
+        let resolved = tokens_for(skin);
+        assert_color(resolved.canvas, core.canvas, "canvas");
+        assert_color(resolved.sidebar, core.sidebar, "sidebar");
+        assert_color(resolved.card_bg, core.card, "card");
+        assert_color(resolved.card_border, core.card_border, "card_border");
+        assert_color(resolved.control_bg, core.control_bg, "control_bg");
+        assert_color(resolved.text_primary, core.ink, "ink");
+        assert_color(resolved.text_secondary, core.ink_dim, "ink_dim");
+        assert_color(resolved.accent, core.accent, "accent");
+        assert_color(resolved.on_accent, core.on_accent, "on_accent");
+        assert_color(resolved.success, core.success, "success");
+        assert_color(resolved.warning, core.warning, "warning");
+        assert_color(resolved.danger, core.danger, "danger");
+    }
+
+    use infiltrator_contract::design_tokens::{radius, space};
+    assert_eq!(theme::SP_XS, space::XS);
+    assert_eq!(theme::SP_SM, space::SM);
+    assert_eq!(theme::SP_MD, space::MD);
+    assert_eq!(theme::SP_LG, space::LG);
+    assert_eq!(theme::SP_XL, space::XL);
+    assert_eq!(theme::SP_XXL, space::XXL);
+    assert_eq!(theme::R_CARD, radius::CARD);
+    assert_eq!(theme::R_CONTROL, radius::CONTROL);
+}
+
+/// DUAL-15-08: the shell tracks the only window power fact Iced exposes and
+/// resolves it through the shared cadence policy.
+#[test]
+fn the_shell_tracks_window_focus_for_the_shared_cadence() {
+    use infiltrator_contract::cadence::RenderCadence;
+
+    let (mut state, _) = AppState::new();
+    assert!(state.shell.window_focused, "a live window starts focused");
+    assert_eq!(
+        RenderCadence::from_focused(state.shell.window_focused),
+        RenderCadence::Active
+    );
+
+    let _ = state.update(Message::WindowFocusChanged(false));
+    assert!(!state.shell.window_focused);
+    assert_eq!(
+        RenderCadence::from_focused(state.shell.window_focused),
+        RenderCadence::Background,
+        "the background frame tick drops to the shared 2 FPS rate"
+    );
+    assert_eq!(RenderCadence::Background.frame_time_ms(), 500);
+
+    let _ = state.update(Message::WindowFocusChanged(true));
+    assert!(state.shell.window_focused);
+    assert_eq!(
+        RenderCadence::from_focused(state.shell.window_focused),
+        RenderCadence::Active
+    );
 }

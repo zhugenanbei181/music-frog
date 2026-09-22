@@ -14,13 +14,15 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui_widgets::Activate;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::system_toggle::SystemToggle;
 
 use crate::app::SidebarToggleProjection;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::mini_hud::{
     MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton, MiniHudRoot,
-    SetMiniHudPinned, ToggleMiniHud, mini_hud_scene,
+    MiniHudSystemProxyToggle, MiniHudTunToggle, SetMiniHudPinned, ToggleMiniHud, mini_hud_scene,
 };
 use crate::pages::overview::{LastOverviewProjection, mode_label};
 use crate::surface::LatestSurfaceSnapshot;
@@ -152,6 +154,77 @@ pub fn on_set_mini_hud_pinned(trigger: On<SetMiniHudPinned>, sink: Option<Res<Co
     });
 }
 
+/// The HUD quick switch and the sidebar switch share one action rule
+/// (`SystemToggleApplication::intent`) and one command vocabulary; this maps
+/// the desired state onto the UI command and the local pending projection.
+fn submit_toggle(
+    toggle: SystemToggle,
+    desired: bool,
+    projection: &SidebarToggleProjection,
+    sink: &CommandSinkHandle,
+    commands: &mut Commands,
+) {
+    if SystemToggleApplication::intent(&projection.0, toggle, desired).is_err() {
+        return;
+    }
+    let command = match toggle {
+        SystemToggle::SystemProxy => UiCommand::SetSystemProxy { enabled: desired },
+        SystemToggle::Tun => UiCommand::ToggleTun { enabled: desired },
+    };
+    sink.submit(command);
+    commands.insert_resource(SidebarToggleProjection(
+        projection.0.clone().with_pending(toggle, desired),
+    ));
+}
+
+/// Observer: the HUD system-proxy quick switch.
+pub fn on_mini_hud_system_proxy_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<MiniHudSystemProxyToggle>>,
+    projection: Res<SidebarToggleProjection>,
+    sink: Option<Res<CommandSinkHandle>>,
+    mut commands: Commands,
+) {
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    let Some(sink) = sink else {
+        return;
+    };
+    let desired = !projection.0.state(SystemToggle::SystemProxy).is_enabled();
+    submit_toggle(
+        SystemToggle::SystemProxy,
+        desired,
+        &projection,
+        &sink,
+        &mut commands,
+    );
+}
+
+/// Observer: the HUD TUN quick switch.
+pub fn on_mini_hud_tun_activated(
+    activate: On<Activate>,
+    buttons: Query<(), With<MiniHudTunToggle>>,
+    projection: Res<SidebarToggleProjection>,
+    sink: Option<Res<CommandSinkHandle>>,
+    mut commands: Commands,
+) {
+    if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    let Some(sink) = sink else {
+        return;
+    };
+    let desired = !projection.0.state(SystemToggle::Tun).is_enabled();
+    submit_toggle(
+        SystemToggle::Tun,
+        desired,
+        &projection,
+        &sink,
+        &mut commands,
+    );
+}
+
 /// The Mini HUD plugin: model, mount latch, observers.
 pub struct MiniHudPlugin;
 
@@ -164,6 +237,8 @@ impl Plugin for MiniHudPlugin {
         app.add_observer(on_expand_mini_hud);
         app.add_observer(on_pin_mini_hud);
         app.add_observer(on_set_mini_hud_pinned);
+        app.add_observer(on_mini_hud_system_proxy_activated);
+        app.add_observer(on_mini_hud_tun_activated);
         app.add_systems(Update, (sync_mini_hud_model, sync_mini_hud_overlay).chain());
     }
 }

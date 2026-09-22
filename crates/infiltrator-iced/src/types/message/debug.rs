@@ -11,6 +11,9 @@ impl std::fmt::Debug for Message {
             ),
             Message::Navigate(route) => write!(f, "Navigate({:?})", route),
             Message::WindowResized(w, h) => write!(f, "WindowResized({w}x{h})"),
+            Message::WindowFocusChanged(focused) => {
+                write!(f, "WindowFocusChanged({focused})")
+            }
             Message::NavigateBack => write!(f, "NavigateBack"),
             Message::NavigateForward => write!(f, "NavigateForward"),
             Message::StartProxy => write!(f, "StartProxy"),

@@ -17,12 +17,14 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::mini_hud::MiniHudReadModel;
+use infiltrator_contract::system_toggle::SystemToggle;
 
 /// Toggle state for Mini HUD mode.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -67,6 +69,15 @@ pub struct MiniHudNodeLabel;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudToggleLabel;
 
+/// Marker on the HUD's system-proxy quick switch (same shared command path as
+/// the sidebar switch).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudSystemProxyToggle;
+
+/// Marker on the HUD's TUN quick switch.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudTunToggle;
+
 /// Format a byte/second rate with shared product units (B/KB/MB/GB).
 pub fn format_rate(bytes_per_second: u64) -> String {
     const KB: u64 = 1024;
@@ -97,6 +108,14 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
     let toggle_line = model.status_line();
     let pinned = model.placement.pinned;
     let pin_label = if pinned { "取消置顶" } else { "置顶" };
+    // The two quick switches use the same shared action rule as the sidebar:
+    // a pending/unknown toggle offers no press (no fabricated transition).
+    let proxy_actionable = model.next_value(SystemToggle::SystemProxy).is_some();
+    let tun_actionable = model.next_value(SystemToggle::Tun).is_some();
+    let proxy_label = model.system_proxy.compact_label().to_owned();
+    let proxy_selected = model.system_proxy.is_enabled();
+    let tun_label = model.tun.compact_label().to_owned();
+    let tun_selected = model.tun.is_enabled();
     let edge = palette.border;
     let scrim = Color::NONE;
 
@@ -231,13 +250,15 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             ),
                         ]
                     ),
-                    // Footer: real exit node pill + shared toggle states
+                    // Footer: real exit node pill + the shared quick switches
+                    // and toggle-state line (same command path as the sidebar).
                     (
                         Node {
                             width: percent(100),
                             align_items: AlignItems::Center,
                             justify_content: JustifyContent::SpaceBetween,
                             padding: UiRect::top(Val::Px(space::S4)),
+                            column_gap: Val::Px(space::S6),
                         }
                         Children [
                             (
@@ -255,9 +276,27 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                                 ]
                             ),
                             (
-                                Text(toggle_line)
-                                TextRole(Role::Caption)
-                                MiniHudToggleLabel
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S6),
+                                }
+                                Children [
+                                    (
+                                        { pill_caption_scene(proxy_label, proxy_selected, palette) }
+                                        MiniHudSystemProxyToggle
+                                        ButtonDisabled({ !proxy_actionable })
+                                    ),
+                                    (
+                                        { pill_caption_scene(tun_label, tun_selected, palette) }
+                                        MiniHudTunToggle
+                                        ButtonDisabled({ !tun_actionable })
+                                    ),
+                                    (
+                                        Text(toggle_line)
+                                        TextRole(Role::Caption)
+                                        MiniHudToggleLabel
+                                    ),
+                                ]
                             ),
                         ]
                     ),

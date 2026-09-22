@@ -10,6 +10,7 @@ pub mod exit_cleanup;
 pub mod graceful_reboot;
 pub mod host;
 pub mod log_formatter;
+pub mod mini_hud_window;
 pub mod mtu;
 pub mod network_roaming;
 pub mod notify;

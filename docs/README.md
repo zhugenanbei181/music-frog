@@ -11,10 +11,11 @@
 5. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
 6. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
 7. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
-8. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
-9. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
-10. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
-11. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
+8. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 多模态外壳的可机检无头回归矩阵（逐项绑定 `路径::测试名`，守卫逐条校验）。
+9. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
+10. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
+11. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
+12. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
 
 ## 文档与待办的权威关系
 
@@ -27,6 +28,7 @@
 | 功能归属 | `docs/FUNCTIONAL_MAP.md` | 一项功能只指定一个逻辑 owner |
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
 | 双端多尺寸弹性 | `docs/RESPONSIVE_PARITY_LEDGER.md` | 断点单一事实源、四阶形态规范与逐页弹性收口；`DUAL-03-14`/`DUAL-15-01` 的权威验收台账 |
+| 多模态外壳回归矩阵 | `docs/MULTIMODAL_SHELL_MATRIX.md` | 组 15 逐项状态与双侧证据；证据标记由 `scripts/quality/multimodal-shell-guard.py` 逐条校验 |
 | Iced 落地台账 | `docs/ICED_CORE_MATURITY_GAPS.md` | Iced 端 4 维度与各 Wave 落地状态及测试证据 |
 | Bevy UI 落地台账 | `docs/BEVY_CORE_MATURITY_GAPS.md` | Bevy UI 端 10 维度 150 项工程缺口落地状态及无头测试证据 |
 | 核心协议与 AST 台账 | `docs/MATURITY_GAP_ANALYSIS.md` | 核心层与协议层 10×10 成熟度全景差距台账 |

@@ -129,6 +129,13 @@ impl AppState {
                 self.diag.connections_page_size = tier.list_page_rows(100);
                 Task::none()
             }
+            // DUAL-15-08: focus is the only window power fact Iced exposes, so
+            // the shared cadence resolves to Active (60 FPS) or Background
+            // (2 FPS) for the animation frame tick.
+            Message::WindowFocusChanged(focused) => {
+                self.shell.window_focused = focused;
+                Task::none()
+            }
             // Overview card order is the shared `OverviewLayoutSnapshot`; the
             // view assembles its cards from this local projection of it.
             Message::MoveOverviewCardUp(kind) => {

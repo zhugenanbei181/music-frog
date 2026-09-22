@@ -1,10 +1,11 @@
 //! Design tokens for the Infiltrator desktop shell.
 //!
-//! Single source of truth for every color / spacing / radius decision in the
-//! UI. Page views and shared components must never hardcode a `Color` — take
-//! [`tokens`] (resolved from the active [`iced::Theme`]) and read from the
-//! returned [`Tokens`] instead, so light, dark, eye-care forest and amoled black stay
-//! equally first-class.
+//! The canonical numbers live in `infiltrator_contract::design_tokens`
+//! (DUAL-15-14); this module resolves them for Iced and owns the surface-only
+//! decoration (shadows, hover washes, tertiary ink). Page views and shared
+//! components must never hardcode a `Color` — take [`tokens`] (resolved from
+//! the active [`iced::Theme`]) and read from the returned [`Tokens`] instead,
+//! so light, dark, eye-care forest and amoled black stay equally first-class.
 //!
 //! Reference aesthetics:
 //! - Light: soft warm-paper light with low-glare card surfaces.
@@ -13,20 +14,37 @@
 //! - AMOLED: pitch-black OLED appearance with high-contrast surfaces.
 
 use iced::{Color, Shadow, Theme, Vector};
+use infiltrator_contract::design_tokens::{RgbaToken, SkinCorePalette, skin_core};
+use infiltrator_contract::theme::ThemeSkin;
 
-/// Spacing scale (logical pixels). Use these instead of raw numbers so
-/// rhythm stays consistent across pages.
-pub const SP_XS: f32 = 4.0;
-pub const SP_SM: f32 = 8.0;
-pub const SP_MD: f32 = 12.0;
-pub const SP_LG: f32 = 16.0;
-pub const SP_XL: f32 = 20.0;
-pub const SP_XXL: f32 = 24.0;
+/// Resolve a shared token into an Iced color.
+const fn token_color(token: RgbaToken) -> Color {
+    Color {
+        r: token.r,
+        g: token.g,
+        b: token.b,
+        a: token.a,
+    }
+}
+
+const LIGHT_CORE: SkinCorePalette = skin_core(ThemeSkin::Light);
+const DARK_CORE: SkinCorePalette = skin_core(ThemeSkin::Dark);
+const FOREST_CORE: SkinCorePalette = skin_core(ThemeSkin::Forest);
+const AMOLED_CORE: SkinCorePalette = skin_core(ThemeSkin::Amoled);
+
+/// Spacing scale (logical pixels), from the shared contract ladder. Use these
+/// instead of raw numbers so rhythm stays consistent across pages.
+pub const SP_XS: f32 = infiltrator_contract::design_tokens::space::XS;
+pub const SP_SM: f32 = infiltrator_contract::design_tokens::space::SM;
+pub const SP_MD: f32 = infiltrator_contract::design_tokens::space::MD;
+pub const SP_LG: f32 = infiltrator_contract::design_tokens::space::LG;
+pub const SP_XL: f32 = infiltrator_contract::design_tokens::space::XL;
+pub const SP_XXL: f32 = infiltrator_contract::design_tokens::space::XXL;
 
 /// Corner radius scale (logical pixels). [`R_CHIP`] is a "fully rounded"
 /// pill: any value ≥ half the chip height renders as a capsule.
-pub const R_CARD: f32 = 16.0;
-pub const R_CONTROL: f32 = 10.0;
+pub const R_CARD: f32 = infiltrator_contract::design_tokens::radius::CARD;
+pub const R_CONTROL: f32 = infiltrator_contract::design_tokens::radius::CONTROL;
 pub const R_CHIP: f32 = 999.0;
 
 /// Font used for latency / bytes / speed numerals. JetBrains Mono has
@@ -100,13 +118,10 @@ pub struct Tokens {
 
 /// Soft warm-paper light appearance (anti-glare).
 pub const LIGHT: Tokens = Tokens {
-    canvas: Color::from_rgb(0.953, 0.957, 0.957),  // #F3F4F4
-    sidebar: Color::from_rgb(0.965, 0.969, 0.969), // #F6F7F7
-    card_bg: Color::from_rgb(0.988, 0.992, 0.988), // #FCFDFC
-    card_border: Color {
-        a: 0.10,
-        ..Color::from_rgb(0.18, 0.22, 0.20)
-    },
+    canvas: token_color(LIGHT_CORE.canvas),
+    sidebar: token_color(LIGHT_CORE.sidebar),
+    card_bg: token_color(LIGHT_CORE.card),
+    card_border: token_color(LIGHT_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
             a: 0.05,
@@ -123,25 +138,22 @@ pub const LIGHT: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 12.0,
     },
-    accent: Color::from_rgb(0.04, 0.44, 0.88), // #0A70E0
+    accent: token_color(LIGHT_CORE.accent),
     accent_soft: Color {
         a: 0.12,
-        ..Color::from_rgb(0.04, 0.44, 0.88)
+        ..token_color(LIGHT_CORE.accent)
     },
-    on_accent: Color::WHITE,
+    on_accent: token_color(LIGHT_CORE.on_accent),
     badge_accent: Color::from_rgb(0.04, 0.44, 0.88),
-    text_primary: Color::from_rgb(0.12, 0.15, 0.14), // #1E2623
-    text_secondary: Color {
-        a: 0.65,
-        ..Color::from_rgb(0.24, 0.28, 0.26)
-    },
+    text_primary: token_color(LIGHT_CORE.ink),
+    text_secondary: token_color(LIGHT_CORE.ink_dim),
     text_tertiary: Color {
         a: 0.38,
         ..Color::from_rgb(0.24, 0.28, 0.26)
     },
-    success: Color::from_rgb(0.18, 0.68, 0.38), // #2EAD61
-    warning: Color::from_rgb(0.88, 0.52, 0.05), // #E0850D
-    danger: Color::from_rgb(0.88, 0.24, 0.22),  // #E03D38
+    success: token_color(LIGHT_CORE.success),
+    warning: token_color(LIGHT_CORE.warning),
+    danger: token_color(LIGHT_CORE.danger),
     chip_bg: Color {
         a: 0.06,
         ..Color::BLACK
@@ -155,10 +167,7 @@ pub const LIGHT: Tokens = Tokens {
         a: 0.55,
         ..Color::from_rgb(0.24, 0.28, 0.26)
     },
-    control_bg: Color {
-        a: 0.05,
-        ..Color::BLACK
-    },
+    control_bg: token_color(LIGHT_CORE.control_bg),
     overlay: Color {
         a: 0.90,
         ..Color::BLACK
@@ -181,13 +190,10 @@ pub const LIGHT: Tokens = Tokens {
 
 /// Soft dark appearance (deep balanced charcoal).
 pub const DARK: Tokens = Tokens {
-    canvas: Color::from_rgb(0.082, 0.094, 0.102),  // #15181A
-    sidebar: Color::from_rgb(0.106, 0.118, 0.125), // #1B1E20
-    card_bg: Color::from_rgb(0.145, 0.161, 0.173), // #25292C
-    card_border: Color {
-        a: 0.10,
-        ..Color::from_rgb(0.85, 0.90, 0.95)
-    },
+    canvas: token_color(DARK_CORE.canvas),
+    sidebar: token_color(DARK_CORE.sidebar),
+    card_bg: token_color(DARK_CORE.card),
+    card_border: token_color(DARK_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
             a: 0.32,
@@ -204,25 +210,22 @@ pub const DARK: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 14.0,
     },
-    accent: Color::from_rgb(0.12, 0.56, 0.96), // #1E8FF5
+    accent: token_color(DARK_CORE.accent),
     accent_soft: Color {
         a: 0.16,
-        ..Color::from_rgb(0.12, 0.56, 0.96)
+        ..token_color(DARK_CORE.accent)
     },
-    on_accent: Color::WHITE,
+    on_accent: token_color(DARK_CORE.on_accent),
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: Color::from_rgb(0.93, 0.95, 0.94), // #EDEFEF
-    text_secondary: Color {
-        a: 0.65,
-        ..Color::from_rgb(0.88, 0.90, 0.92)
-    },
+    text_primary: token_color(DARK_CORE.ink),
+    text_secondary: token_color(DARK_CORE.ink_dim),
     text_tertiary: Color {
         a: 0.35,
         ..Color::from_rgb(0.88, 0.90, 0.92)
     },
-    success: Color::from_rgb(0.24, 0.78, 0.44), // #3DC770
-    warning: Color::from_rgb(0.96, 0.62, 0.15), // #F59E26
-    danger: Color::from_rgb(0.96, 0.35, 0.32),  // #F55952
+    success: token_color(DARK_CORE.success),
+    warning: token_color(DARK_CORE.warning),
+    danger: token_color(DARK_CORE.danger),
     chip_bg: Color {
         a: 0.10,
         ..Color::WHITE
@@ -236,10 +239,7 @@ pub const DARK: Tokens = Tokens {
         a: 0.45,
         ..Color::WHITE
     },
-    control_bg: Color {
-        a: 0.07,
-        ..Color::WHITE
-    },
+    control_bg: token_color(DARK_CORE.control_bg),
     overlay: Color {
         a: 0.92,
         ..Color::from_rgb(0.11, 0.11, 0.12)
@@ -262,13 +262,10 @@ pub const DARK: Tokens = Tokens {
 
 /// Eye-care forest appearance (EyeForest, TaskForest-inspired).
 pub const FOREST: Tokens = Tokens {
-    canvas: Color::from_rgb(0.937, 0.961, 0.925),  // #EFF5EC
-    sidebar: Color::from_rgb(0.851, 0.910, 0.843), // #D9E8D7
-    card_bg: Color::from_rgb(0.973, 0.984, 0.961), // #F8FBF5
-    card_border: Color {
-        a: 0.22,
-        ..Color::from_rgb(0.341, 0.439, 0.353) // #57705A @ 22%
-    },
+    canvas: token_color(FOREST_CORE.canvas),
+    sidebar: token_color(FOREST_CORE.sidebar),
+    card_bg: token_color(FOREST_CORE.card),
+    card_border: token_color(FOREST_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
             a: 0.06,
@@ -285,25 +282,22 @@ pub const FOREST: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 12.0,
     },
-    accent: Color::from_rgb(0.188, 0.435, 0.306), // #306F4E
+    accent: token_color(FOREST_CORE.accent),
     accent_soft: Color {
         a: 0.14,
-        ..Color::from_rgb(0.188, 0.435, 0.306)
+        ..token_color(FOREST_CORE.accent)
     },
-    on_accent: Color::WHITE,
+    on_accent: token_color(FOREST_CORE.on_accent),
     badge_accent: Color::from_rgb(0.188, 0.435, 0.306),
-    text_primary: Color::from_rgb(0.122, 0.208, 0.145), // #1F3525
-    text_secondary: Color {
-        a: 0.75,
-        ..Color::from_rgb(0.341, 0.439, 0.353) // #57705A @ 75%
-    },
+    text_primary: token_color(FOREST_CORE.ink),
+    text_secondary: token_color(FOREST_CORE.ink_dim),
     text_tertiary: Color {
         a: 0.45,
         ..Color::from_rgb(0.341, 0.439, 0.353)
     },
-    success: Color::from_rgb(0.243, 0.490, 0.314), // #3E7D50
-    warning: Color::from_rgb(0.663, 0.439, 0.157), // #A97028
-    danger: Color::from_rgb(0.702, 0.231, 0.275),  // #B33B46
+    success: token_color(FOREST_CORE.success),
+    warning: token_color(FOREST_CORE.warning),
+    danger: token_color(FOREST_CORE.danger),
     chip_bg: Color {
         a: 0.12,
         ..Color::from_rgb(0.341, 0.439, 0.353)
@@ -317,10 +311,7 @@ pub const FOREST: Tokens = Tokens {
         a: 0.65,
         ..Color::from_rgb(0.341, 0.439, 0.353)
     },
-    control_bg: Color {
-        a: 0.09,
-        ..Color::from_rgb(0.341, 0.439, 0.353)
-    },
+    control_bg: token_color(FOREST_CORE.control_bg),
     overlay: Color {
         a: 0.94,
         ..Color::from_rgb(0.122, 0.208, 0.145)
@@ -343,13 +334,10 @@ pub const FOREST: Tokens = Tokens {
 
 /// Pure pitch-black appearance optimized for OLED displays and battery savings.
 pub const AMOLED: Tokens = Tokens {
-    canvas: Color::from_rgb(0.0, 0.0, 0.0),        // #000000
-    sidebar: Color::from_rgb(0.051, 0.059, 0.067), // #0D0F11
-    card_bg: Color::from_rgb(0.086, 0.098, 0.110), // #16191C
-    card_border: Color {
-        a: 0.12,
-        ..Color::from_rgb(0.85, 0.90, 0.95)
-    },
+    canvas: token_color(AMOLED_CORE.canvas),
+    sidebar: token_color(AMOLED_CORE.sidebar),
+    card_bg: token_color(AMOLED_CORE.card),
+    card_border: token_color(AMOLED_CORE.card_border),
     card_shadow: Shadow {
         color: Color {
             a: 0.45,
@@ -366,25 +354,22 @@ pub const AMOLED: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 16.0,
     },
-    accent: Color::from_rgb(0.12, 0.56, 0.96), // #1E8FF5
+    accent: token_color(AMOLED_CORE.accent),
     accent_soft: Color {
         a: 0.18,
-        ..Color::from_rgb(0.12, 0.56, 0.96)
+        ..token_color(AMOLED_CORE.accent)
     },
-    on_accent: Color::WHITE,
+    on_accent: token_color(AMOLED_CORE.on_accent),
     badge_accent: Color::from_rgb(0.46, 0.72, 1.0), // #76B8FF
-    text_primary: Color::from_rgb(0.973, 0.980, 0.988), // #F8FAFC
-    text_secondary: Color {
-        a: 0.68,
-        ..Color::from_rgb(0.90, 0.92, 0.94)
-    },
+    text_primary: token_color(AMOLED_CORE.ink),
+    text_secondary: token_color(AMOLED_CORE.ink_dim),
     text_tertiary: Color {
         a: 0.38,
         ..Color::from_rgb(0.90, 0.92, 0.94)
     },
-    success: Color::from_rgb(0.063, 0.725, 0.506), // #10B981
-    warning: Color::from_rgb(0.96, 0.62, 0.15),    // #F59E26
-    danger: Color::from_rgb(0.96, 0.35, 0.32),     // #F55952
+    success: token_color(AMOLED_CORE.success),
+    warning: token_color(AMOLED_CORE.warning),
+    danger: token_color(AMOLED_CORE.danger),
     chip_bg: Color {
         a: 0.12,
         ..Color::WHITE
@@ -398,10 +383,7 @@ pub const AMOLED: Tokens = Tokens {
         a: 0.50,
         ..Color::WHITE
     },
-    control_bg: Color {
-        a: 0.09,
-        ..Color::WHITE
-    },
+    control_bg: token_color(AMOLED_CORE.control_bg),
     overlay: Color {
         a: 0.95,
         ..Color::from_rgb(0.05, 0.06, 0.07)

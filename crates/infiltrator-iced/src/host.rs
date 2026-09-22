@@ -24,6 +24,24 @@ pub mod desktop {
     }
 }
 
+pub mod mini_hud {
+    /// The desktop host's floating-window capability adapter. It is a process
+    /// singleton bound to this surface's window handle via
+    /// [`bind_window_handle`]; with no live handle it answers typed
+    /// unsupported (never a fake "Applied").
+    pub fn window_port() -> std::sync::Arc<dyn infiltrator_ports::mini_hud_window::MiniHudWindowPort>
+    {
+        std::sync::Arc::new(infiltrator_desktop::mini_hud_window::DesktopMiniHudWindow::shared())
+    }
+
+    /// Register the surface-owned window handle with the desktop host adapter.
+    pub fn bind_window_handle(
+        handle: std::sync::Arc<dyn infiltrator_ports::mini_hud_window::MiniHudWindowHandle>,
+    ) {
+        infiltrator_desktop::mini_hud_window::DesktopMiniHudWindow::shared().bind(handle);
+    }
+}
+
 pub mod process_enumerator {
     pub type ExtendedProcessInfo = infiltrator_desktop::process_enumerator::ExtendedProcessInfo;
     pub type ProcessCategory = infiltrator_desktop::process_enumerator::ProcessCategory;

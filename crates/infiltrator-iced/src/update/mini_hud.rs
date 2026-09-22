@@ -97,7 +97,10 @@ impl AppState {
                 Ok(placement) => {
                     self.shell.mini_hud_placement = placement;
                     self.shell.always_on_top = placement.pinned;
-                    Task::none()
+                    // The desktop host port accepted (or refused) the placement
+                    // while persisting; accepted requests become the real
+                    // window tasks here, on the update path.
+                    crate::mini_hud_window::host_requests_task(self.shell.window_id)
                 }
                 Err(error) => self.push_toast(error, ToastStatus::Error),
             },
@@ -114,6 +117,10 @@ impl AppState {
             }
             Message::WindowIdResolved(id) => {
                 self.shell.window_id = id;
+                // The shared application's host port only accepts placement
+                // requests while the host window is alive; the desktop adapter
+                // answers typed unsupported until then.
+                crate::mini_hud_window::IcedMiniHudWindowHandle::host().mark_live(id.is_some());
                 Task::none()
             }
 

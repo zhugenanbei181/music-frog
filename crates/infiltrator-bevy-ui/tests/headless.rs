@@ -39,3 +39,9 @@ mod shortcut_tests;
 
 #[path = "headless/toast_overlay_tests.rs"]
 mod toast_overlay_tests;
+
+#[path = "headless/design_token_tests.rs"]
+mod design_token_tests;
+
+#[path = "headless/cadence_tests.rs"]
+mod cadence_tests;

@@ -6,11 +6,13 @@
 
 pub mod active_exit;
 pub mod aggregator;
+pub mod cadence;
 pub mod capability;
 pub mod command;
 pub mod command_catalogue;
 pub mod connection;
 pub mod controller;
+pub mod design_tokens;
 pub mod dns;
 pub mod dns_form;
 pub mod doctor;
