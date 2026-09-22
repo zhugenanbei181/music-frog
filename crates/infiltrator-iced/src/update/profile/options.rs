@@ -44,14 +44,25 @@ impl AppState {
                     None => self.sync_document_viewport(EditorPane::Mixin, ViewportSync::Caret),
                 }
                 let text = self.editor.mixin_content.text();
-                match infiltrator_domain::config::preflight_yaml_syntax(&text) {
-                    Ok(()) => {
-                        self.editor.syntax_error = None;
+                // DUAL-10-10: the shared syntax + merge + validation preflight
+                // gates the pane (the same rule the application re-runs).
+                let report = self.mixin_preflight(&text);
+                self.editor.syntax_error = report.error;
+                self.editor.syntax_error_line = None;
+                Task::none()
+            }
+            Message::ToggleMixinPreset(id, enabled) => {
+                let text = self.editor.mixin_content.text();
+                match infiltrator_domain::mixin_studio::set_toggle(&text, &id, enabled) {
+                    Ok(updated) => {
+                        self.editor.mixin_content = text_editor::Content::with_text(&updated);
+                        self.reset_document_viewport(EditorPane::Mixin);
+                        let report = self.mixin_preflight(&updated);
+                        self.editor.syntax_error = report.error;
                         self.editor.syntax_error_line = None;
                     }
-                    Err(diag) => {
-                        self.editor.syntax_error = Some(diag.message);
-                        self.editor.syntax_error_line = Some(diag.line);
+                    Err(error) => {
+                        self.set_error(InfiltratorError::Config(error));
                     }
                 }
                 Task::none()
@@ -223,6 +234,16 @@ impl AppState {
             .map(str::to_string)
     }
 
+    /// DUAL-10-10: run the shared Mixin preflight against the open profile
+    /// document as the base. Both the live pane verdict and the save gate call it.
+    fn mixin_preflight(
+        &self,
+        mixin_yaml: &str,
+    ) -> infiltrator_domain::mixin_studio::MixinPreflightReport {
+        let base = self.editor.editor_content.text();
+        infiltrator_domain::mixin_studio::preflight_mixin(&base, mixin_yaml)
+    }
+
     fn save_mixin(&mut self) -> Task<Message> {
         if self.editor.is_saving_mixin {
             return Task::none();
@@ -230,20 +251,24 @@ impl AppState {
         let Some(profile) = self.editor_profile_name() else {
             return Task::none();
         };
-        // Validation gate: a malformed overlay is rejected before any state
-        // flips or task spawns, so the editor keeps its content for fixing.
+        // DUAL-10-10 validation gate: a malformed or unmergeable overlay is
+        // rejected by the shared preflight before any state flips or task
+        // spawns, so the editor keeps its content for fixing.
         let lang = Lang(&self.shell.lang);
-        if let Err(error) = serde_yaml_ng::from_str::<infiltrator_domain::mixin::MixinConfig>(
-            &self.editor.mixin_content.text(),
-        ) {
+        let text = self.editor.mixin_content.text();
+        let report = self.mixin_preflight(&text);
+        if let Some(error) = report.error {
             let error =
                 InfiltratorError::Config(format!("{}: {error}", lang.tr("toast_mixin_invalid")));
+            self.editor.syntax_error = Some(error.to_string());
+            self.editor.syntax_error_line = None;
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         }
+        self.editor.syntax_error = None;
+        self.editor.syntax_error_line = None;
         self.editor.is_saving_mixin = true;
         let runtime = self.runtime.runtime.clone();
-        let text = self.editor.mixin_content.text();
         Task::perform(
             async move {
                 let manager = crate::configs_dir::config_manager().await?;

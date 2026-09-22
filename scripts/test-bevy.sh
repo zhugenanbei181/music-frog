@@ -99,3 +99,4 @@ python3 "$repo_root/scripts/quality/yaml-diff-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/multimodal-shell-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/protocol-ecosystem-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/notification-timeout-guard.py" --mode enforce
+python3 "$repo_root/scripts/quality/scripting-sandbox-guard.py" --mode enforce

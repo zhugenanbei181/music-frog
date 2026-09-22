@@ -398,6 +398,8 @@ pub enum Message {
     MixinLoaded(Result<String, InfiltratorError>),
     SaveMixin,
     MixinSaved(Result<(), InfiltratorError>),
+    /// DUAL-10-11: flip one shared Mixin preset toggle in the overlay buffer.
+    ToggleMixinPreset(String, bool),
     // Profile options: subscription filter editor (Profiles page card).
     LoadProfileFilter,
     ProfileFilterLoaded(

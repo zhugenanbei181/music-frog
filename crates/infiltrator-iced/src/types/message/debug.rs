@@ -760,6 +760,9 @@ impl std::fmt::Debug for Message {
             Message::SaveMixin => write!(f, "SaveMixin"),
             Message::MixinSaved(Ok(_)) => write!(f, "MixinSaved(Ok)"),
             Message::MixinSaved(Err(e)) => write!(f, "MixinSaved(Err({:?}))", e),
+            Message::ToggleMixinPreset(id, enabled) => {
+                write!(f, "ToggleMixinPreset({id}, {enabled})")
+            }
             Message::LoadProfileFilter => write!(f, "LoadProfileFilter"),
             Message::ProfileFilterLoaded(Ok(_)) => write!(f, "ProfileFilterLoaded(Ok)"),
             Message::ProfileFilterLoaded(Err(e)) => write!(f, "ProfileFilterLoaded(Err({:?}))", e),

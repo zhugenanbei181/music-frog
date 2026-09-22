@@ -410,6 +410,7 @@ impl AppState {
             | Message::MixinLoaded(_)
             | Message::SaveMixin
             | Message::MixinSaved(_)
+            | Message::ToggleMixinPreset(_, _)
             | Message::LoadProfileFilter
             | Message::ProfileFilterLoaded(_)
             | Message::UpdateFilterInclude(_)

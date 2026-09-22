@@ -13,3 +13,7 @@ mod demo_fixture_tests;
 
 #[path = "headless/i18n_parity_tests.rs"]
 mod i18n_parity_tests;
+
+// DUAL-10-15: the shared scripting-sandbox regression matrix on Iced.
+#[path = "headless/scripting_matrix_tests.rs"]
+mod scripting_matrix_tests;

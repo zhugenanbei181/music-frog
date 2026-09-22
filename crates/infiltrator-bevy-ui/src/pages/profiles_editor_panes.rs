@@ -38,6 +38,7 @@ use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 
 use crate::pages::profiles::ProfilesProjection;
 use crate::pages::profiles_editor_body::editor_rows_scene;
+use crate::pages::profiles_editor_mixin_studio::MixinStudioBody;
 use crate::pages::profiles_editor_state::{ProfileEditorState, diagnostic_line, status_line};
 
 /// Which document the editor card shows.
@@ -210,6 +211,9 @@ pub struct ProfileEditorOptionsState {
     /// The profile whose sidecar has already been requested, so opening a
     /// pane does not spam the shared command pump.
     pub requested_for: Option<String>,
+    /// DUAL-10-08/11: last (document, overlay) generations the shared-studio
+    /// rows were rendered for, so the body rebuilds when either moves.
+    pub studio_generation: (u64, u64),
 }
 
 impl Default for ProfileEditorOptionsState {
@@ -223,6 +227,7 @@ impl Default for ProfileEditorOptionsState {
             filter_focus: None,
             filter_notice: None,
             requested_for: None,
+            studio_generation: (u64::MAX, u64::MAX),
         }
     }
 }
@@ -337,6 +342,13 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
             row_gap: Val::Px(space::S8),
         }
         Children [
+            (
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Column,
+                }
+                MixinStudioBody
+            ),
             (
                 Text({ "Mixin 覆盖：保存先剥离上一版注入的规则行，再经共享保真引擎合并并应用".to_owned() })
                 TextRole(Role::Caption)

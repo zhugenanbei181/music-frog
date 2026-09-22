@@ -40,6 +40,7 @@ pub mod profiles_diff;
 pub mod profiles_diff_history;
 pub mod profiles_editor;
 pub mod profiles_editor_body;
+pub mod profiles_editor_mixin_studio;
 pub mod profiles_editor_panes;
 pub mod profiles_editor_panes_sync;
 pub mod profiles_editor_state;

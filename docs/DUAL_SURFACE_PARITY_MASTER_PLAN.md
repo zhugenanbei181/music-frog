@@ -80,7 +80,7 @@
 | 组 07 订阅生命周期与定时更新 | 15 | `parity-ready` | `subscription`、`filter` 管道 | 15/15 收口（2026-09-22）：07-09/14 于批次 E 双端接线（见组 07 逐项账目） |
 | 组 08 多源聚合器与自动拓扑 | 15 | `parity-ready (15/15)` | `profile_aggregator.rs`（domain）、`aggregator_modal.rs`（Iced）、`profiles_aggregator.rs`/`profiles_aggregator_wizard.rs`（Bevy） | 15/15 收口（2026-09-22）：批次 A 收口 08-01/02/03/04/05/06/14/15，批次 B 收口 08-07/08/09/10/11/12/13（见组 08 逐项账目） |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `parity-ready (15/15)` | `yaml_edit/`（domain）、`snapshot_diff_modal.rs`（Iced）、`profiles_diff.rs`/`profiles_editor_panes.rs`（Bevy） | 2026-09-22 四批收口（见组 09 逐项账目）：批次一 01/08/09/10/12/15、批次二 03/05/06/07/11、批次三 02/04/13、批次四 14，全部 `parity-ready` |
-| 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
+| 组 10 脚本沙箱与多级 Mixin | 15 | `in progress (4/15)` | `script_console.rs`、`profiles_script.rs`、`mixin_studio.rs` | 2026-09-22 逐项展开（见组 10 逐项账目）：08/10/11/15 已双端收口，02/03/04/06/07/12/13 为 `shared-ready`（真实共享后端 + 矩阵覆盖，无逐端 UI），01/05/09/14 `planned`（无真实 QuickJS 引擎 / 控制台单端 / 编辑器非三栏 / 脚本视口未镜像） |
 | 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：01/02/03/04/09/10/11/12/13/15 已双端收口（10/15），05/08 为 `shared-ready`（304 仅存核内、无 O(1) 虚拟滚动），06/07/14 `planned` |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 已双端收口，04/05/10/12/14 `planned`（04 宿主无阶段耗时、05 无 ASN 事实源、10/12 无瞬时速率、14 受 04 阻塞） |
@@ -780,6 +780,48 @@
 13. **异常处理安全降级**：脚本报错时不影响原有配置基础运行，弹出告警通知。
 14. **双端脚本控制台与 Mixin 视口对齐**：Iced (`script_console.rs`) 与 Bevy (`profiles_script.rs`) 对等呈现。
 15. **QuickJS 引擎与沙箱熔断单测**：超时熔断、内存限制与 AST 变换测试 100% 覆盖。
+
+### 组 10 逐项账目（2026-09-22 展开）
+
+组 10 闭环口径同其余组 = shared contract/application（或共享纯归约）+ Iced + Bevy + 双端无头测试 + 守卫。
+本轮关键事实：仓库内 **无真实 QuickJS 引擎**——`infiltrator-domain::script_engine` 是识别已知指令
+（`filter_nodes_by_regex`/`auto_country_groups`/…）并按字符串正则改写 YAML AST 的 *指令 DSL*，
+不执行任意 JavaScript，故 10-01 诚实记为 `planned`，绝不把指令识别冒充 JS 沙箱。
+本轮收口 10-08/10/11/15：新增共享纯归约 `infiltrator-domain::mixin_studio`（预检 / 预设开关 / 级联预览）、
+共享契约 + 应用 `script_sandbox_matrix`（真实跑 domain 引擎与 `ScriptApplication` 的回归矩阵），
+Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编解码。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `planned` | **无真实 QuickJS 引擎**：`infiltrator-domain/src/script_engine.rs:40` 的 `execute_transform` 经 `script_engine_directives.rs:13` 用正则识别已知指令后改写 YAML AST；`script_engine_runtime.rs:72` 甚至以字符串匹配拒绝 `while(true)`。这是诚实的指令 DSL，不是 JS 解释器，故不宣称沙箱执行；矩阵 `DUAL-10-01` 行明示未覆盖 |
+| `DUAL-10-02` | Pre/Post-Process 钩子 | `shared-ready` | domain `HookStage`（`script_engine.rs:26`，`pre_download/post_download/pre_merge/post_merge`）与 `execute_transform_detailed`（`script_engine_runtime.rs:60`）真实携带阶段；矩阵 `check_hook_stages` 实测 `PostMerge` 回读；**诚实边界**：双端尚无钩子阶段编辑 UI，故不记 `parity-ready` |
+| `DUAL-10-03` | 沙箱资源熔断安全防护（64MB/500ms） | `shared-ready` | domain 常量 `DEFAULT_SCRIPT_TIMEOUT_MS`/`DEFAULT_MAX_MEMORY_BYTES`（`script_engine.rs:20`）、内存门（`script_engine_runtime.rs:67`）；`ScriptApplication` 以 64MB/500ms 构造引擎（`script_application.rs:32`）；矩阵 `check_resource_limits` 实测超时 + 内存超标 typed 错误；**诚实边界**：无逐端熔断参数 UI |
+| `DUAL-10-04` | 内置三大官方常用脚本模板 | `shared-ready` | 共享目录 `ScriptEngine::builtin_presets`（`script_engine_presets.rs:6`，四个真实模板）经 `ScriptApplication::builtin_presets`（`script_application.rs:186`）发布为 `ScriptPresetSummary`；Iced 控制台预设仍为 `update/ui.rs:543` 内联硬编码，Bevy `profiles_script.rs:29` 为演示名，均未消费共享目录，故不记 `parity-ready` |
+| `DUAL-10-05` | 实时代码调试控制台视口 | `planned` | **脚本控制台仍未镜像**：Iced `view/script_console.rs` 直接渲染 `ScriptSandboxState`，Bevy `profiles_script.rs` 为演示卡；`SurfaceSnapshot.script_sandbox` 由 reader 恒定发布 `None`（`surface_reader.rs:687`），无共享读模型可供 Bevy 消费；矩阵 `DUAL-10-05` 行明示未覆盖 |
+| `DUAL-10-06` | `console.log` 流式捕获与拦截 | `shared-ready` | `ScriptApplication::run_sandbox` 经 `extract_console_logs`（`script_application.rs:221`，四级 `log/info/warn/error`）捕获并连同 domain 正则结果去重；矩阵 `check_console_capture` 实测两条日志；**诚实边界**：仅 Iced 渲染日志，Bevy 未接线 |
+| `DUAL-10-07` | AST 变换前后实时对比预览 | `shared-ready` | `run_sandbox` 经 `myers_diff::compute_diff`（`script_application.rs:107`）产出 `YamlAstDiffSnapshot`；矩阵 `check_ast_diff` 实测 `has_differences()`；**诚实边界**：双端均未渲染 diff（Iced 只显示变换后 YAML） |
+| `DUAL-10-08` | 多级配置覆写流水线 (Cascade Pipeline) | `parity-ready` | domain 真实五段 `CascadeOverlayPipeline`（`mixin.rs:92`，Base→Subscription→Custom→Pre-Mixin→Post-Mixin）与共享纯归约 `mixin_studio::preview_cascade`（`mixin_studio.rs:293`）/`preview_cascade_from_yaml`（`:272`，逐段真实输出、非法输入阻断）；Iced `view/mixin_studio.rs:132 cascade_strip` 渲染共享阶段行；Bevy `profiles_editor_mixin_studio.rs:145 cascade_line` 渲染同一报告并挂 `MixinStudioBody`（`:49`）+ `refresh_mixin_studio_body`（`:197`）原位重盖；双端测试 Bevy `test_profiles_mixin_studio_renders_shared_preflight_toggles_and_cascade`、Iced `mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module`、矩阵 `check_cascade_pipeline` |
+| `DUAL-10-09` | 三栏式 Mixin 编辑器 | `planned` | 双端 Mixin 面板为**分页式而非 Base/Mixin/合成三栏**：Iced 以 `EditorPane` 单页签切换（`view/editor.rs`），Bevy 以 `ProfileEditorPane::{Profile,Mixin,Filter}` 页签（`profiles_editor_panes.rs:52`），未同屏并列 Base/覆写/合成；矩阵 `DUAL-10-09` 行明示未覆盖 |
+| `DUAL-10-10` | Mixin 脚本语法检查与错误阻断 | `parity-ready` | 共享纯归约 `mixin_studio::preflight_mixin`（`mixin_studio.rs:56`，解析→保真合并→`validate_yaml` 三步与 `is_blocking`）；Iced `update/profile/options.rs` 新增 `fn mixin_preflight` 并在实时编辑与 `save_mixin` 门使用（替换仅 YAML 语法的旧门），`view/mixin_studio.rs:73 preflight_banner` 渲染判定；Bevy `profiles_editor_panes_sync.rs` 的保存/Ctrl+S 门改用 `mixin_studio::preflight_mixin`（非法即“共享预检”拒绝、不提交）；双端测试同上；矩阵 `check_mixin_preflight` |
+| `DUAL-10-11` | 常用 Mixin 预设一键开关 | `parity-ready` | 共享目录 `MIXIN_PRESET_TOGGLES`（`mixin_studio.rs:128`，IPv6/Allow-LAN/DNS fake-ip/TUN/sniffer/debug，6 项）与 `set_toggle`（`:211`）/`toggle_enabled`（`:196`）走真实 `MixinConfig` 编解码；Iced `view/mixin_studio.rs:45 toggle_row` + `Message::ToggleMixinPreset`（`types/message.rs:402`）；Bevy `profiles_editor_mixin_studio.rs:32 MixinToggleButton` + `on_mixin_toggle_activated`（`:169`）；双端测试同上；矩阵 `check_mixin_toggles` |
+| `DUAL-10-12` | 扩展脚本导出与社区分享 | `shared-ready` | 共享 `ExtensionPackage` + SHA-256 校验（`script_engine.rs:89`）与 `export_extension`/`import_extension`（`script_application.rs:199`）；矩阵 `check_extension_round_trip` 实测导出→导入→校验和；**诚实边界**：无逐端导出 UI（模板要求 `.js` 文件，当前为 JSON 包），未接线 |
+| `DUAL-10-13` | 异常处理安全降级 | `shared-ready` | `run_sandbox` 失败路径返回 typed `ScriptSandboxStatus` + `error_detail` 且 `transformed_yaml` 为 `None`、`input_yaml` 原样保留（`script_application.rs:130`）；矩阵 `check_safe_degradation` 以非法正则指令实测；**诚实边界**：仅 Iced 以 toast 告警，Bevy 无脚本面板可告警 |
+| `DUAL-10-14` | 双端脚本控制台与 Mixin 视口对齐 | `planned` | Mixin 视口已双端同源（DUAL-09-14），但**脚本控制台仍未镜像**：Iced 在 `update/ui.rs:520` 内联直跑 `domain::script_engine`，`ScriptApplication` 未被任何 surface 消费、`SurfaceSnapshot.script_sandbox` 从未发布；矩阵 `DUAL-10-14` 行明示未覆盖 |
+| `DUAL-10-15` | QuickJS 引擎与沙箱熔断单测 | `parity-ready` | 共享契约 `ScriptSandboxMatrixReport`/`ScriptSandboxMatrixScenario`（`infiltrator-contract/src/script_sandbox_matrix.rs`，聚合只声明已覆盖项）；共享执行器 `ScriptSandboxMatrixApplication::run_deterministic_matrix`（`script_sandbox_matrix_application.rs:292`）真实跑 domain 引擎 + `ScriptApplication`：钩子阶段、超时/内存熔断、预设、日志捕获、AST diff、级联、预检、开关、导出往返、安全降级、`ScriptCircuitBreaker` 触发/复位（`check_circuit_breaker`，`:233`），15 行中 11 行 `covered` 全过、4 行诚实 `planned`；双端断言同一矩阵 Iced `script_sandbox_matrix_passes_on_the_iced_surface`、Bevy `test_script_sandbox_matrix_passes_on_the_bevy_surface`、application `deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones`/`matrix_is_deterministic_across_runs` |
+
+> **2026-09-22 组 10 批次 A**：`DUAL-10-08/10/11/15` 收口为 `parity-ready`。
+> 08：新增共享纯归约 `infiltrator-domain::mixin_studio::preview_cascade`，逐段运行真实
+> `CascadeOverlayPipeline` 并报告每段输出；Iced Mixin 面板新增 `cascade_strip`，Bevy
+> 编辑卡新增 `mixin_studio_scene`/`cascade_line` 与 `refresh_mixin_studio_body` 原位重盖。
+> 10：共享 `preflight_mixin`（解析 + 保真合并 + 最终校验）同时作为 Iced 与 Bevy 的
+> 保存门，替换仅 YAML 语法的旧门，非法覆写在提交前被阻断。
+> 11：共享 `MIXIN_PRESET_TOGGLES`（6 项）与 `set_toggle`；Iced 新增
+> `Message::ToggleMixinPreset` + 中英词条（`mixin_toggle_*`/`mixin_studio_*`），
+> Bevy 新增 `MixinToggleButton` observer，两端都回写真实 `MixinConfig`。
+> 15：新增共享 `script_sandbox_matrix` 契约与执行器，双端无头断言同一矩阵；矩阵对
+> `DUAL-10-01` 明示 **无真实 QuickJS 引擎**、对 05/09/14 明示未覆盖。
+> 守卫 `scripts/quality/scripting-sandbox-guard.py` 固化本组账目与关键标记（含反向断言
+> 禁止引入伪造 JS 引擎依赖）。
 
 ### 组 11：分流规则引擎、MRS 二进制加速与逻辑子规则 (Rules & Rule-Providers)
 1. **28+ 规则类型全矩阵支持**：DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, IP-CIDR, SRC-IP-CIDR, GEOIP, GEOSITE, PROCESS-NAME, PROCESS-PATH, DSCP, UID 等。

@@ -287,3 +287,66 @@ fn filter_save_without_an_open_profile_is_an_inert_noop() {
     assert!(!state.editor.is_saving_filter);
     assert!(last_toast(&state).is_none());
 }
+
+/// DUAL-10-10/11/08 — the Iced Mixin pane consumes the shared studio: the
+/// preset toggles flip the buffer through the real codec, the preflight
+/// banner renders the shared verdict, the cascade strip renders the shared
+/// stage report, and a broken overlay is blocked before any write.
+#[test]
+fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
+    let home = TempHome::acquire("mixin-studio");
+    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    let profile_path = home.configs().join("alpha.yaml");
+    let mut state = fresh_state();
+    feed(
+        &mut state,
+        Message::ProfileContentLoaded(Ok((
+            profile_path,
+            super::support::SAMPLE_PROFILE_YAML.into(),
+        ))),
+    );
+    feed(
+        &mut state,
+        Message::Navigate(crate::types::app::Route::Editor),
+    );
+    feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
+    feed(&mut state, Message::MixinLoaded(Ok("{}\n".into())));
+
+    // DUAL-10-11: toggling flips a real MixinConfig field, not a text splice.
+    feed(&mut state, Message::ToggleMixinPreset("ipv6".into(), true));
+    assert!(
+        state.editor.mixin_content.text().contains("ipv6: true"),
+        "toggle wrote the real field: {}",
+        state.editor.mixin_content.text()
+    );
+    feed(
+        &mut state,
+        Message::ToggleMixinPreset("dns-fake-ip".into(), true),
+    );
+    assert!(state.editor.mixin_content.text().contains("fake-ip"));
+    assert!(
+        state.editor.syntax_error.is_none(),
+        "valid overlay preflight"
+    );
+
+    // DUAL-10-10/08: the pane builds the shared preflight banner and the real
+    // cascade strip over the open document.
+    {
+        let _banner = crate::view::mixin_studio::preflight_banner(&state);
+        let _strip = crate::view::mixin_studio::cascade_strip(&state);
+        let _chips = crate::view::mixin_studio::toggle_row(&state);
+    }
+
+    // A broken overlay is blocked by the shared preflight before any write.
+    feed(
+        &mut state,
+        Message::MixinLoaded(Ok("mode: [unterminated\n".into())),
+    );
+    let units = feed(&mut state, Message::SaveMixin);
+    assert_eq!(units, 1, "gate rejection arms only the error toast");
+    assert!(!state.editor.is_saving_mixin);
+    assert!(
+        !home.configs().join("options/alpha.yaml").exists(),
+        "blocked overlay must not write a sidecar"
+    );
+}

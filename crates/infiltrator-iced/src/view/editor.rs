@@ -309,14 +309,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 &state.editor.mixin_content,
                 state.editor.mixin_viewport.first_line(),
             );
-            row![
-                editor_viewport::gutter(&state.editor.mixin_content, viewport),
-                Space::new().width(theme::SP_XS),
-                editor_viewport::editor_element(
-                    &state.editor.mixin_content,
-                    Message::MixinEditorAction,
-                    viewport.rendered_len(),
-                ),
+            column![
+                crate::view::mixin_studio::preflight_banner(state),
+                Space::new().height(theme::SP_SM),
+                crate::view::mixin_studio::toggle_row(state),
+                Space::new().height(theme::SP_SM),
+                row![
+                    editor_viewport::gutter(&state.editor.mixin_content, viewport),
+                    Space::new().width(theme::SP_XS),
+                    editor_viewport::editor_element(
+                        &state.editor.mixin_content,
+                        Message::MixinEditorAction,
+                        viewport.rendered_len(),
+                    ),
+                ],
+                Space::new().height(theme::SP_SM),
+                crate::view::mixin_studio::cascade_strip(state),
             ]
             .into()
         }

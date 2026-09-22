@@ -88,6 +88,7 @@ python3 scripts/quality/yaml-diff-guard.py --mode enforce
 python3 scripts/quality/multimodal-shell-guard.py --mode enforce
 python3 scripts/quality/protocol-ecosystem-guard.py --mode enforce
 python3 scripts/quality/notification-timeout-guard.py --mode enforce
+python3 scripts/quality/scripting-sandbox-guard.py --mode enforce
 
 nextest_mode=()
 if [[ $# -eq 1 ]]; then

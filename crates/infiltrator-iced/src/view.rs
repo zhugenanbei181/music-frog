@@ -16,6 +16,7 @@ pub mod lan_security_card;
 pub mod lan_sharing_card;
 pub mod latency_radar_card;
 pub mod mini_hud;
+pub mod mixin_studio;
 pub mod mrs_panel;
 pub mod net_roam_card;
 pub mod overview;

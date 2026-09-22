@@ -560,6 +560,27 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "editor_viewport_label" => "Viewport".into(),
         "editor_viewport_hidden_above" => "{count} lines above not rendered".into(),
         "editor_viewport_hidden_below" => "{count} lines below not rendered".into(),
+        "mixin_studio_toggles_title" => "Common overlay toggles".into(),
+        "mixin_toggle_ipv6" => "Enable IPv6".into(),
+        "mixin_toggle_allow_lan" => "Allow LAN".into(),
+        "mixin_toggle_dns_fake_ip" => "Inject DNS fake-ip".into(),
+        "mixin_toggle_tun" => "Inject TUN".into(),
+        "mixin_toggle_sniffer" => "Inject sniffer".into(),
+        "mixin_toggle_log_debug" => "Debug log level".into(),
+        "mixin_studio_preflight_ok" => "Mixin preflight passed".into(),
+        "mixin_studio_preflight_blocked" => "Mixin preflight blocked".into(),
+        "mixin_studio_preflight_hint" => {
+            "Syntax, merge and final validation all passed; saving applies it.".into()
+        }
+        "mixin_studio_cascade_title" => "Overlay pipeline".into(),
+        "mixin_cascade_base" => "Base profile".into(),
+        "mixin_cascade_subscription" => "Subscription".into(),
+        "mixin_cascade_merge" => "Merge rules".into(),
+        "mixin_cascade_pre_mixin" => "Pre-Mixin".into(),
+        "mixin_cascade_post_mixin" => "Post-Mixin".into(),
+        "mixin_studio_cascade_undeclared" => "not declared".into(),
+        "mixin_studio_cascade_merged" => "Composed output".into(),
+        "mixin_studio_cascade_lines" => "lines".into(),
         _ => key.to_string().into(),
     }
 }

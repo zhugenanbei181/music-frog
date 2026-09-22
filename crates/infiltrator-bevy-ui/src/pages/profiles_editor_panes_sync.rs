@@ -332,6 +332,16 @@ pub fn on_mixin_editor_save(
         options.mixin.notice = Some("Mixin 覆盖未通过共享语法预检，未提交".to_owned());
         return;
     }
+    // DUAL-10-10: the shared preflight (syntax + merge + output validation)
+    // is the real gate; a local YAML-only check would miss a merge that the
+    // kernel cannot load.
+    let base = document.buffer.full_text();
+    let report =
+        infiltrator_domain::mixin_studio::preflight_mixin(&base, &options.mixin.buffer.full_text());
+    if let Some(error) = report.error {
+        options.mixin.notice = Some(format!("Mixin 覆盖未通过共享预检：{error}"));
+        return;
+    }
     options.mixin.notice = None;
     // The dirty flag clears when the shared snapshot publishes the stored
     // bytes back (a failed save leaves the buffer marked as unsaved).
@@ -506,14 +516,21 @@ pub fn route_editor_keyboard(
                         && !modifiers.meta
                         && matches!(key, Key::Character(text) if text.eq_ignore_ascii_case("s"));
                     if is_save
-                        && options.mixin.diagnostic.is_none()
                         && !options.mixin.profile.is_empty()
                         && let Some(handle) = handle.as_ref()
                     {
-                        handle.submit(UiCommand::SaveMixinOverlay {
-                            profile: options.mixin.profile.clone(),
-                            mixin_yaml: options.mixin.buffer.full_text(),
-                        });
+                        let report = infiltrator_domain::mixin_studio::preflight_mixin(
+                            &document.buffer.full_text(),
+                            &options.mixin.buffer.full_text(),
+                        );
+                        if report.is_blocking() {
+                            options.mixin.notice = report.error;
+                        } else {
+                            handle.submit(UiCommand::SaveMixinOverlay {
+                                profile: options.mixin.profile.clone(),
+                                mixin_yaml: options.mixin.buffer.full_text(),
+                            });
+                        }
                     }
                     continue;
                 }
@@ -591,6 +608,7 @@ impl Plugin for ProfilesEditorPanesPlugin {
         app.add_observer(on_mixin_editor_focus);
         app.add_observer(on_mixin_editor_reload);
         app.add_observer(on_mixin_editor_save);
+        app.add_observer(crate::pages::profiles_editor_mixin_studio::on_mixin_toggle_activated);
         app.add_observer(on_mixin_editor_snippet_activated);
         app.add_observer(on_editor_filter_dedup_activated);
         app.add_observer(on_editor_filter_save);
@@ -598,7 +616,12 @@ impl Plugin for ProfilesEditorPanesPlugin {
         app.add_observer(sync_profile_editor_panes);
         app.add_systems(
             Update,
-            (sync_profile_editor_pane_areas, refresh_mixin_editor_body).chain(),
+            (
+                sync_profile_editor_pane_areas,
+                refresh_mixin_editor_body,
+                crate::pages::profiles_editor_mixin_studio::refresh_mixin_studio_body,
+            )
+                .chain(),
         );
     }
 }

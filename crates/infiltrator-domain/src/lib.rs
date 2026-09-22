@@ -26,6 +26,7 @@ pub mod hosts_engine;
 pub mod idle_connection_sweeper;
 pub mod lan_security;
 pub mod mixin;
+pub mod mixin_studio;
 pub mod mrs;
 pub mod mtu_optimizer;
 pub mod network_roaming;
