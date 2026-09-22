@@ -5184,6 +5184,7 @@ dependencies = [
  "image",
  "infiltrator-admin",
  "infiltrator-application",
+ "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-core",
  "infiltrator-desktop",

@@ -7,6 +7,7 @@ use crate::types::message::Message;
 use chrono::Utc;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
     SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
@@ -201,8 +202,16 @@ impl AppState {
                         let cm = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(cm);
                         let source = crate::host::storage::subscription_source();
-                        let mut report = application
-                            .update_subscription_conditional(&source, &profile_name)
+                        // DUAL-07-05/06: retry with exponential backoff through
+                        // the injected runtime, guarded by the shared
+                        // single-flight slot so a scheduled tick cannot race
+                        // this manual refresh.
+                        let refresh = SubscriptionRefreshApplication::with_default_policy(
+                            application.clone(),
+                            crate::host::runtime::application_runtime(),
+                        );
+                        let mut report = refresh
+                            .refresh_profile(&source, &profile_name)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
                         let current = application
@@ -373,8 +382,15 @@ impl AppState {
                         let manager = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(manager);
                         let source = crate::host::storage::subscription_source();
-                        let report = application
-                            .update_all_subscriptions(&source, BATCH_UPDATE_CONCURRENCY)
+                        // DUAL-07-05/06: the batch shares the retry/backoff and
+                        // single-flight orchestration with the single-profile
+                        // refresh instead of re-implementing it.
+                        let refresh = SubscriptionRefreshApplication::with_default_policy(
+                            application.clone(),
+                            crate::host::runtime::application_runtime(),
+                        );
+                        let report = refresh
+                            .refresh_all(&source, BATCH_UPDATE_CONCURRENCY)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
 

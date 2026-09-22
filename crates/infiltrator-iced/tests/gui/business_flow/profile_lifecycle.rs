@@ -588,3 +588,123 @@ fn subscription_fetch_options_load_and_not_modified_feedback() {
     );
     assert_eq!(success_status, crate::types::app::ToastStatus::Success);
 }
+
+/// A source that fails the first `failures_before_success` conditional fetches
+/// and then reports modified content, counting every attempt.
+struct FlakyUpdateSource {
+    failures_before_success: usize,
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+impl FlakyUpdateSource {
+    fn new(failures_before_success: usize) -> Self {
+        Self {
+            failures_before_success,
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    fn calls(&self) -> usize {
+        self.calls.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[async_trait::async_trait]
+impl infiltrator_ports::subscription_source::SubscriptionSource for FlakyUpdateSource {
+    async fn fetch(
+        &self,
+        _profile: &str,
+        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+    ) -> Result<
+        infiltrator_ports::subscription_source::SubscriptionDocument,
+        infiltrator_ports::error::PortError,
+    > {
+        Err(infiltrator_ports::error::PortError::Network(
+            "use fetch_conditional".into(),
+        ))
+    }
+
+    async fn fetch_conditional(
+        &self,
+        _profile: &str,
+        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+        _headers: &infiltrator_ports::subscription_source::ConditionalFetchHeaders,
+    ) -> Result<
+        infiltrator_ports::subscription_source::ConditionalDocumentResult,
+        infiltrator_ports::error::PortError,
+    > {
+        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        if call <= self.failures_before_success {
+            return Err(infiltrator_ports::error::PortError::Network(format!(
+                "attempt {call} failed"
+            )));
+        }
+        Ok(
+            infiltrator_ports::subscription_source::ConditionalDocumentResult::Modified {
+                document: infiltrator_ports::subscription_source::SubscriptionDocument {
+                    content: "proxies:\n  - name: n1\n    type: ss\n".into(),
+                    userinfo: None,
+                },
+                etag: Some("\"refresh-etag\"".into()),
+                last_modified: None,
+            },
+        )
+    }
+}
+
+/// DUAL-07-05 / 07-06 — the Iced manual update path runs through the shared
+/// `SubscriptionRefreshApplication`: it retries a transient failure through the
+/// injected runtime seam and rejects a concurrent refresh of the same profile
+/// with a typed `InvalidState` instead of double-downloading.
+#[test]
+fn subscription_refresh_retries_and_single_flights_through_shared_application() {
+    let home = TempHome::acquire("sub-refresh-application");
+    home.seed_profile("Paid", LOCAL_IMPORT_YAML);
+
+    block_on(async {
+        use infiltrator_application::subscription_refresh_application::SubscriptionRefreshApplication;
+        use infiltrator_contract::error::ErrorCode;
+        use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
+
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
+        metadata.subscription_url = Some("https://sub.example.com/token".into());
+        manager
+            .update_profile_metadata("Paid", &metadata)
+            .await
+            .unwrap();
+
+        let application = ProfileApplication::new(manager);
+        let refresh = SubscriptionRefreshApplication::new(
+            application,
+            crate::host::runtime::application_runtime(),
+            RetryBackoffPolicy::new(vec![std::time::Duration::from_millis(1)]),
+        );
+        let source = FlakyUpdateSource::new(1);
+
+        let report = refresh
+            .refresh_profile(&source, "Paid")
+            .await
+            .expect("retry succeeds");
+        assert!(matches!(
+            report.outcome,
+            SubscriptionUpdateOutcome::Updated { .. }
+        ));
+        assert_eq!(source.calls(), 2, "one transient failure then a success");
+
+        let guard = refresh.begin_refresh("Paid").expect("claim slot");
+        let busy = refresh
+            .refresh_profile(&source, "Paid")
+            .await
+            .expect_err("concurrent refresh is rejected");
+        assert_eq!(busy.code, ErrorCode::InvalidState);
+        assert_eq!(source.calls(), 2, "no duplicate download while in flight");
+        drop(guard);
+
+        refresh
+            .refresh_profile(&source, "Paid")
+            .await
+            .expect("slot released");
+        assert_eq!(source.calls(), 3);
+    });
+}

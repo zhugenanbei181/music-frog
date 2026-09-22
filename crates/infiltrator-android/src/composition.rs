@@ -72,9 +72,11 @@ where
     };
     let runtime = infiltrator_composition::tokio_application_runtime()
         .expect("Tokio application runtime must be constructible");
-    let application = CoreApplication::new_with_overview(process, readiness, reader, runtime);
+    let application =
+        CoreApplication::new_with_overview(process, readiness, reader, runtime.clone());
     let mtu = MtuApplication::new(Arc::new(AndroidBridgeAdapter::new(bridge.clone())));
     let mut handler = CommandApplication::new()
+        .with_application_runtime(runtime)
         .with_mtu(mtu)
         .with_vpn(VpnServiceApplication::new(Arc::new(
             AndroidVpnServicePort::shared(),

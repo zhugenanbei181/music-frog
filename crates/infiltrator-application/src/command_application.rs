@@ -11,6 +11,7 @@ use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
 use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::collections::HashSet;
@@ -30,6 +31,7 @@ use crate::runtime_query_application::RuntimeQueryApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::settings_application::SettingsApplication;
 use crate::snapshot_application::SnapshotApplication;
+use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
@@ -49,6 +51,8 @@ pub struct CommandApplication {
     profile: Option<ProfileApplication>,
     runtime: Option<Arc<dyn RuntimeGateway>>,
     managed_runtime: Option<Arc<dyn ManagedRuntime>>,
+    /// DUAL-07-05/06: executor-neutral delay seam + single-flight refresh.
+    application_runtime: Option<Arc<dyn ApplicationRuntime>>,
     subscription_source: Option<Arc<dyn SubscriptionSource>>,
     doctor: Option<DoctorApplication>,
     routing: Option<RoutingApplication>,
@@ -92,6 +96,14 @@ impl CommandApplication {
 
     pub fn with_subscription_source(mut self, source: Arc<dyn SubscriptionSource>) -> Self {
         self.subscription_source = Some(source);
+        self
+    }
+
+    /// Install the executor-neutral delay seam used by subscription
+    /// retry/backoff (DUAL-07-05) and the shared single-flight refresh
+    /// (DUAL-07-06). A host that does not compose one keeps the plain path.
+    pub fn with_application_runtime(mut self, runtime: Arc<dyn ApplicationRuntime>) -> Self {
+        self.application_runtime = Some(runtime);
         self
     }
 
@@ -320,18 +332,32 @@ impl CommandApplication {
             CommandIntent::UpdateProfile { profile_id } => {
                 let profile = self.profile()?;
                 let source = self.subscription_source()?;
-                profile
-                    .update_subscription(source.as_ref(), &profile_id)
-                    .await
-                    .map(|_| ())
+                if let Some(runtime) = self.application_runtime.clone() {
+                    SubscriptionRefreshApplication::with_default_policy(profile, runtime)
+                        .refresh_profile(source.as_ref(), &profile_id)
+                        .await
+                        .map(|_| ())
+                } else {
+                    profile
+                        .update_subscription(source.as_ref(), &profile_id)
+                        .await
+                        .map(|_| ())
+                }
             }
             CommandIntent::UpdateAllSubscriptions => {
                 let profile = self.profile()?;
                 let source = self.subscription_source()?;
-                profile
-                    .update_all_subscriptions(source.as_ref(), BATCH_UPDATE_CONCURRENCY)
-                    .await
-                    .map(|_| ())
+                if let Some(runtime) = self.application_runtime.clone() {
+                    SubscriptionRefreshApplication::with_default_policy(profile, runtime)
+                        .refresh_all(source.as_ref(), BATCH_UPDATE_CONCURRENCY)
+                        .await
+                        .map(|_| ())
+                } else {
+                    profile
+                        .update_all_subscriptions(source.as_ref(), BATCH_UPDATE_CONCURRENCY)
+                        .await
+                        .map(|_| ())
+                }
             }
             CommandIntent::RestoreSubscriptionBackup { profile_id } => self
                 .profile()?

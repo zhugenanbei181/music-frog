@@ -86,6 +86,12 @@ pub struct ActivateProfileButton {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UpdateAllSubscriptionsButton;
 
+/// DUAL-07-05: per-profile "update now" button. Drives the shared
+/// `CommandIntent::UpdateProfile`, which applies the application-level
+/// retry/backoff and single-flight guard.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct UpdateProfileButton(pub usize);
+
 /// A single subscription profile snapshot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProfileItem {
@@ -389,6 +395,21 @@ fn profile_card_scene(
                                 justify_content: JustifyContent::Center,
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                             }
+                            BackgroundColor({ palette.surface_elevated })
+                            Button
+                            UpdateProfileButton(idx)
+                            Children [
+                                ( Text({ "立即更新".to_owned() }) TextRole(Role::Body) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
                             BackgroundColor({ btn_bg })
                             ControlVisual({ profile.is_active })
                             ActivateProfileButton {
@@ -419,6 +440,7 @@ fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.init_resource::<LastProfilesProjection>();
     commands.add_observer(apply_profiles_projection);
     commands.add_observer(on_profiles_action_activated);
+    commands.add_observer(on_update_profile_activated);
     commands.add_observer(on_update_all_subscriptions_activated);
     commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
     commands.add_observer(crate::pages::profiles_import::on_save_subscription_fetch_settings);
@@ -452,6 +474,32 @@ pub(crate) fn on_profiles_action_activated(
             id: btn.profile_id.clone(),
         });
     }
+}
+
+/// DUAL-07-05: route a per-profile "update now" click into the shared command
+/// bus; retry/backoff and the single-flight guard are the application's job.
+pub(crate) fn on_update_profile_activated(
+    activate: On<Activate>,
+    buttons: Query<&UpdateProfileButton>,
+    last: Option<Res<LastProfilesProjection>>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    let Some(profile) = last
+        .as_ref()
+        .and_then(|last| last.0.as_ref())
+        .and_then(|projection| projection.profiles.get(button.0))
+    else {
+        return;
+    };
+    handle.submit(UiCommand::UpdateProfile {
+        id: profile.id.clone(),
+    });
 }
 
 #[allow(clippy::type_complexity)]

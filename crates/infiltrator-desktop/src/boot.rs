@@ -457,6 +457,8 @@ impl BootEngine for ProductionEngine<'_> {
                     ),
                 ),
                 infiltrator_application::rule_tracer_application::RuleTracerApplication::new(),
+                cm.clone(),
+                Arc::new(crate::storage::subscription_source()),
             )
             .map_err(|error| {
                 AttemptFailure::new(

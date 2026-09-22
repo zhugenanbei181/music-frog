@@ -68,6 +68,8 @@ def main() -> int:
         "组 07 逐项账目",
         "DUAL-07-02",
         "DUAL-07-04",
+        "DUAL-07-05",
+        "DUAL-07-06",
         "DUAL-07-11",
         "DUAL-07-12",
         "DUAL-07-13",
@@ -166,7 +168,7 @@ def main() -> int:
         "crates/infiltrator-iced/src/update/profile/subscription.rs",
         "Message::UpdateSubscriptionUserAgent",
         "Message::UpdateSubscriptionInsecureSkipVerify",
-        "update_subscription_conditional",
+        "SubscriptionRefreshApplication::with_default_policy",
         "pub(crate) fn subscription_update_toast",
     )
     require(
@@ -276,7 +278,7 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-iced/src/update/profile/subscription.rs",
-        "update_all_subscriptions",
+        "refresh_all",
         "BATCH_UPDATE_CONCURRENCY",
         "pub(crate) fn batch_update_toast",
     )
@@ -416,6 +418,91 @@ def main() -> int:
         violations,
         "scripts/test-bevy.sh",
         'subscription-lifecycle-guard.py" --mode enforce',
+    )
+
+    # 12. DUAL-07-05/06 "retry/backoff + single-flight": one shared refresh
+    #     orchestration that both surfaces drive through the runtime sleep seam.
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application.rs",
+        "pub struct SubscriptionRefreshApplication",
+        "pub struct SubscriptionRefreshGuard",
+        "pub async fn refresh_profile",
+        "pub async fn refresh_all",
+        "pub fn begin_refresh",
+        "fn inflight_refreshes",
+        "ApplicationRuntime",
+        "RetryBackoffPolicy",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "with_application_runtime",
+        "SubscriptionRefreshApplication",
+        "refresh_profile",
+        "refresh_all",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/host.rs",
+        "pub mod runtime",
+        "tokio_application_runtime",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "SubscriptionRefreshApplication",
+        "refresh_profile",
+        "refresh_all",
+        "application_runtime",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "UpdateProfileButton",
+        "on_update_profile_activated",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "UpdateProfile",
+    )
+    for composition in (
+        "crates/infiltrator-composition/src/lib.rs",
+        "crates/infiltrator-desktop/src/composition.rs",
+        "crates/infiltrator-android/src/composition.rs",
+    ):
+        require(violations, composition, "with_application_runtime")
+    # The desktop host composes the profile store + subscription source into
+    # the shared command path so the Bevy UpdateProfile / batch / fetch-settings
+    # commands reach the retry+single-flight application in the shipped app.
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/composition.rs",
+        "with_profile(ProfileApplication::new(profile_store))",
+        "with_subscription_source(subscription_source)",
+    )
+
+    # 13. Dual-surface headless tests for the retry/backoff + single-flight batch.
+    require(
+        violations,
+        "crates/infiltrator-application/src/subscription_refresh_application_test.rs",
+        "retries_transient_failures_then_succeeds",
+        "backoff_delays_ride_the_injected_runtime_sleep_seam",
+        "gives_up_when_the_policy_is_exhausted",
+        "refresh_is_single_flight_per_store_and_profile",
+        "refresh_all_aggregates_and_skips_url_less_profiles",
+        "command_application_update_profile_uses_the_shared_retry_seam",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "subscription_refresh_retries_and_single_flights_through_shared_application",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_update_button_submits_shared_command",
     )
 
     if violations:

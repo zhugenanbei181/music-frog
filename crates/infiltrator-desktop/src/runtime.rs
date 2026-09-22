@@ -160,6 +160,8 @@ impl MihomoRuntime {
             endpoint.secret.clone(),
             speedtest.clone(),
             rule_tracer.clone(),
+            cm.clone(),
+            Arc::new(crate::storage::subscription_source()),
         )?);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.

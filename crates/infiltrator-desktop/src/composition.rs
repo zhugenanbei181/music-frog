@@ -10,9 +10,12 @@ use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
@@ -31,6 +34,8 @@ pub fn core_application(
     secret: Option<String>,
     speedtest: infiltrator_application::speedtest_application::SpeedtestApplication,
     rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
+    profile_store: std::sync::Arc<dyn ProfileStore>,
+    subscription_source: std::sync::Arc<dyn SubscriptionSource>,
 ) -> anyhow::Result<CoreApplication> {
     let controller_url = controller_url.into();
     let client = MihomoClient::new(&controller_url, secret.clone())?;
@@ -40,7 +45,7 @@ pub fn core_application(
         service.core_process(),
         std::sync::Arc::new(ControllerReadiness::new(controller_url, secret)),
         std::sync::Arc::new(ControllerOverviewReader::new(client.clone())),
-        runtime,
+        runtime.clone(),
     );
     // Keep the Bevy command seam live in the desktop composition: version
     // rollback is an application use-case, not a UI-local file operation.
@@ -64,6 +69,9 @@ pub fn core_application(
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
+            .with_application_runtime(runtime)
+            .with_profile(ProfileApplication::new(profile_store))
+            .with_subscription_source(subscription_source)
             .with_mtu(MtuApplication::new(std::sync::Arc::new(
                 crate::mtu::DesktopMtuProbe::new(),
             )))

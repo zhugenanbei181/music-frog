@@ -124,11 +124,12 @@ where
             secret.clone(),
         )),
         std::sync::Arc::new(ControllerOverviewReader::new(client.clone())),
-        runtime,
+        runtime.clone(),
     );
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client))
+            .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
     ));
     Ok(application)

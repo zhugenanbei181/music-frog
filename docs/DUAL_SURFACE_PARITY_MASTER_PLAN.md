@@ -77,7 +77,7 @@
 | :--- | :---: | :--- | :--- | :--- |
 | 组 05 协议生态保真与多路复用 | 15 | `planned` | `infiltrator-domain::profile_converter` | 后端解析已有测试；双端 UI 编辑面未验收 |
 | 组 06 并发测速与稳定性评估 | 15 | `parity-ready` | `SpeedtestApplication` 引擎 | 15/15 收口（2026-09-22 批次 D）：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；出口 IP 对比、双端明细弹窗与共享状态机矩阵已闭环 |
-| 组 07 订阅生命周期与定时更新 | 15 | `in progress` | `subscription`、`filter` 管道 | 2026-09-22 起逐项展开（见组 07 逐项账目）：07-02/04/11/12/13 已双端收口，其余 07-01/03/05/06/07/08/10/15 为 `shared-ready`，07-09/14 `planned` |
+| 组 07 订阅生命周期与定时更新 | 15 | `in progress` | `subscription`、`filter` 管道 | 2026-09-22 起逐项展开（见组 07 逐项账目）：07-02/04/05/06/11/12/13 已双端收口，其余 07-01/03/07/08/10/15 为 `shared-ready`，07-09/14 `planned` |
 | 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
@@ -195,8 +195,8 @@
 | `DUAL-07-02` | 自定义单个订阅 User-Agent | `parity-ready` | 共享 `ProfileApplication::update_subscription_conditional`（`profile_application.rs:179`）从 `ProfileMetadata.user_agent` 组装 `ConditionalFetchHeaders.custom_user_agent`（`ports/subscription_source.rs:16`），core `subscription_io.rs:66` 写入 `User-Agent` 头；Iced 编辑器加载/保存（`update/profile/subscription.rs:21`、`:84`，此前 `UpdateSubscriptionUserAgent` 是死消息）+ 输入框 `view/profiles.rs:738`；Bevy `SubscriptionUserAgentField` + `SaveUserAgentButton` 观察者提交 `UiCommand::SaveSubscriptionFetchSettings`（`pages/profiles_import.rs:46`、`:421`）；application 测试 `conditional_update_sends_stored_validators_and_persists_new_etag`、Iced `subscription_fetch_options_load_and_not_modified_feedback`、Bevy `test_profiles_save_fetch_settings_submits_shared_command` |
 | `DUAL-07-03` | 定时自动轮询与 Cron 表达式 | `shared-ready` | domain `CronSchedule`（`subscription_scheduler_policy.rs:30`，含宏与 next_occurrence 测试）与 `SubscriptionSchedule`（`:250`）；admin 作业用 `cron_expression` 计算 `next_update`（`scheduler/subscription.rs:325`）；但 `sync_profile_job`（`scheduler.rs:98`）与 `run_profile_subscription_tick`（`:39`）仍要求 `update_interval_hours>0`，纯 Cron-only profile 不会被排程；Iced/Bevy 无 Cron 输入 |
 | `DUAL-07-04` | 条件请求 ETag / If-Modified-Since | `parity-ready` | port `ConditionalFetchHeaders`/`fetch_conditional`（`ports/subscription_source.rs:16`、`:54`）；core 304 处理并回读 `etag`/`last-modified`（`core/subscription_io.rs:66`）；application 仅 `200` 落盘、`304` 只刷新配额与排程（`profile_application.rs:179`、`:465`），validator 持久化进 `ProfileMetadata`；表面快照新增 `etag`/`last_modified`（`contract/surface_snapshot.rs:189`）经 reader（`application/surface_reader.rs:396`）发布；Iced 展示缓存状态并给出 304 toast（`view/profiles.rs`、`update/profile/subscription.rs:540`），Bevy 状态行由 `sync_subscription_fetch_controls`（`pages/profiles_import.rs:370`）重盖；双端测试见 07-15 |
-| `DUAL-07-05` | 网络重试与指数退避（30s/1m/5m） | `shared-ready` | domain `RetryBackoffPolicy`（`subscription_scheduler_policy.rs:286`，含 30/60/300 值测试）；admin `update_profile_subscription_with_retry`（`scheduler/subscription.rs:283`）按策略重试，测试注入 `test_immediate`；application/双端 UI 不暴露退避 |
-| `DUAL-07-06` | 单飞防重入调度 (Single Flight) | `shared-ready` | admin `JobScheduler` 每作业串行、天然单飞（`scheduler/job_scheduler.rs:108` 注释与并发测试），`subscription_jobs()` 进程级注册（`scheduler.rs:50`）；Iced 仅用 `is_updating_subscription_now` 防手动全量重入；shared application 无并发合流守卫 |
+| `DUAL-07-05` | 网络重试与指数退避（30s/1m/5m） | `parity-ready` | domain `RetryBackoffPolicy`（`subscription_scheduler_policy.rs:286`，含 30/60/300 值测试）；共享 `SubscriptionRefreshApplication::refresh_profile`（`subscription_refresh_application.rs`）按策略重试，退避经注入的 `ApplicationRuntime::sleep` 端口等待，application 层不引 Tokio；Bevy 命令路径经 `CommandApplication::with_application_runtime` 复用同一重试路径（`command_application.rs`），Iced 手动更新与批量改走共享刷新（`update/profile/subscription.rs`）+ `host::runtime::application_runtime()`（`host.rs`）；宿主 composition 注入运行时端口（`composition/lib.rs`、`desktop/composition.rs`、`android/composition.rs`）并在桌面宿主把 profile store + subscription source 组合进共享命令路径（`desktop/composition.rs` 的 `with_profile`/`with_subscription_source`，`runtime.rs`/`boot.rs` 传入）；application 测试 `retries_transient_failures_then_succeeds`、`backoff_delays_ride_the_injected_runtime_sleep_seam`、`gives_up_when_the_policy_is_exhausted`，`CommandApplication` 路径测试 `command_application_update_profile_uses_the_shared_retry_seam`，Iced `subscription_refresh_retries_and_single_flights_through_shared_application`，Bevy `test_profiles_update_button_submits_shared_command` |
+| `DUAL-07-06` | 单飞防重入调度 (Single Flight) | `parity-ready` | 共享进程级注册表 `inflight_refreshes()`（键=`(config_dir, profile)`，`subscription_refresh_application.rs`），`begin_refresh` 返回 RAII `SubscriptionRefreshGuard`，并发重入返回 typed `InvalidState` 而非重复下载；`refresh_profile`/`refresh_all` 全程持锁，两个表面共用同一守卫；admin `JobScheduler` 每作业串行（`scheduler/job_scheduler.rs:108`）保留为宿主定时侧实现；application 测试 `refresh_is_single_flight_per_store_and_profile`、Iced `subscription_refresh_retries_and_single_flights_through_shared_application`、Bevy `test_profiles_update_button_submits_shared_command` |
 | `DUAL-07-07` | 订阅用量与到期三级预警 | `parity-ready` | domain `QuotaWarningPolicy`（`subscription_scheduler_policy.rs:332`，85%/3天阈值 + 测试）；application 更新报告写入 `usage_warning`/`expiry_warning`（`profile_application.rs:480`）；共享 `SubscriptionQuotaSnapshot` 经 `subscription_quota.rs` 三级预警，Iced Overview 配额卡与 Bevy `SubscriptionQuotaCard`/`subscription_quota_scene`（`pages/overview_cards.rs:337`）同源渲染（另见 `DUAL-03-06`） |
 | `DUAL-07-08` | 订阅节点关键词清洗管道 | `shared-ready` | domain `FilterPipeline`/`FilterStage`（`filter.rs`、`filter_pipeline.rs`）与 `SubscriptionFilterPipeline::apply_to_yaml`（`filter_subscription.rs:19`），含白/黑名单、协议过滤、正则重命名与去重；Iced 过滤面板 `view/profile_filter.rs:17` 经 `update/profile/options.rs:291` 落库并重跑；Bevy 无过滤面板 |
 | `DUAL-07-09` | 更新后自动重启核心可选 | `planned` | `auto_reload_core` 仅作为持久化字段存在（`domain/profiles.rs:27`、`mihomo-config/manager/metadata.rs:93`、`manager/profiles.rs:226`），无任何更新路径消费它；Iced 更新后仍无条件 `ApplyStrategy::AlwaysRestart`（`update/profile/subscription.rs`），Bevy 无对应开关 |
@@ -234,6 +234,21 @@
 > 还原上次写入前的 `.bak`（`restore_backup` 仍由 store 校验后恢复，缺失时诚实
 > 返回 `false` 而非伪造成功）。守卫追加 07-11/07-13 的共享 + 双端 + 双端测试
 > 标记。
+>
+> **2026-09-22 组 07 批次 C**：`DUAL-07-05/06` 收口为 `parity-ready`。
+> 新增共享 `SubscriptionRefreshApplication`（`subscription_refresh_application.rs`）
+> 把「按 `RetryBackoffPolicy` 指数退避重试」与「按 `(config_dir, profile)`
+> 进程级单飞」放进 application 层：退避延迟只经注入的
+> `ApplicationRuntime::sleep` 端口等待（application 仍不引 Tokio），单飞用
+> RAII `SubscriptionRefreshGuard`，并发重入诚实返回 typed `InvalidState`
+> 而非重复下载。Bevy 命令路径经 `CommandApplication::with_application_runtime`
+> 复用同一刷新（`UpdateProfile`/`UpdateAllSubscriptions`），Iced 手动更新与
+> 批量改走 `refresh_profile`/`refresh_all` 并注入
+> `host::runtime::application_runtime()`，桌面宿主 composition 把 profile store
+> 与 subscription source 一并组合进共享命令路径（`with_profile`/
+> `with_subscription_source`），三处宿主 composition 安装该运行时端口。Bevy
+> Profiles 卡片新增 `UpdateProfileButton` → `UiCommand::UpdateProfile`
+> 映射。守卫追加 07-05/07-06 的共享 + 双端 + 双端测试标记。
 
 ---
 

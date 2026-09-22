@@ -74,6 +74,25 @@ pub mod boot {
     }
 }
 
+/// DUAL-07-05: executor-neutral delay seam the shared subscription refresh
+/// uses for exponential backoff. The Iced worker already runs on Tokio, so the
+/// composition root's runtime is reused instead of Iced importing an executor
+/// into the application layer.
+pub mod runtime {
+    pub fn application_runtime()
+    -> std::sync::Arc<dyn infiltrator_ports::application_runtime::ApplicationRuntime> {
+        static RUNTIME: std::sync::OnceLock<
+            std::sync::Arc<dyn infiltrator_ports::application_runtime::ApplicationRuntime>,
+        > = std::sync::OnceLock::new();
+        RUNTIME
+            .get_or_init(|| {
+                infiltrator_composition::tokio_application_runtime()
+                    .expect("Tokio application runtime must be constructible")
+            })
+            .clone()
+    }
+}
+
 pub mod storage {
     use infiltrator_domain::profile_options::ProfileOptions;
     use infiltrator_domain::snapshots::SnapshotMeta;

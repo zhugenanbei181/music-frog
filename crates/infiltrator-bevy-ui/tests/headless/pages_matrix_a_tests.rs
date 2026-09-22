@@ -450,6 +450,37 @@ fn test_profiles_activate_button_submits_command() {
 }
 
 #[test]
+fn test_profiles_update_button_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(ProfilesProjection::demo()));
+    app.update();
+
+    let update = app
+        .world_mut()
+        .query::<(Entity, &UpdateProfileButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.0 == 1)
+        .map(|(entity, _)| entity)
+        .expect("sub-2 update button");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: update });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::UpdateProfile {
+            id: "sub-2".to_owned(),
+        }],
+        "per-profile update routes through the shared command (retry/backoff + single-flight)"
+    );
+}
+
+#[test]
 fn test_profiles_projection_in_place_update() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
