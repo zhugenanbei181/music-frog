@@ -21,7 +21,7 @@ use infiltrator_bevy_ui::pages::connections::{
     ConnSpeedText, ConnectionItem, ConnectionsProjection, ConnectionsProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::dns::{
-    DnsMode, DnsProjection, DnsProjectionUpdated, DnsServerItem, DnsServerLatency,
+    DnsProjection, DnsProjectionUpdated, DnsServerItem, DnsServerLatency,
 };
 use infiltrator_bevy_ui::pages::doctor::{
     CheckStateText, DoctorCheckItem, DoctorCheckState, DoctorProjection, DoctorProjectionUpdated,
@@ -48,6 +48,7 @@ use infiltrator_bevy_ui::pages::sync::{
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
+use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
@@ -582,14 +583,17 @@ fn dns_page_in_place_update() {
     app.update();
 
     let updated = DnsProjection {
-        mode: DnsMode::RedirHost,
+        mode: DnsEnhancedMode::RedirHost,
         cache_entries: 512,
         fake_ip_range: "198.18.0.0/15".to_owned(),
+        switches: DnsCoreSwitches::default(),
+        filter_mode: DnsFakeIpFilterMode::Whitelist,
         servers: vec![DnsServerItem {
             address: "https://dns.quad9.net/dns-query".to_owned(),
             protocol: "DoH (Quad9)".to_owned(),
             latency_ms: Some(19),
             is_fallback: false,
+            tags: Vec::new(),
         }],
     };
 

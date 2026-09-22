@@ -63,6 +63,11 @@ pub struct DnsConfigPatch {
     pub ipv6: Option<bool>,
     pub default_nameserver: Option<Vec<String>>,
     pub enhanced_mode: Option<String>,
+    /// Clear the `enhanced-mode` key (the workbench `Unmapped` mode). A plain
+    /// `enhanced_mode: None` patch cannot express "remove the key" because the
+    /// patch is a merge, so this explicit flag carries the intent.
+    #[serde(default)]
+    pub clear_enhanced_mode: bool,
     pub fake_ip_range: Option<String>,
     pub fake_ip_filter: Option<Vec<String>>,
     pub fake_ip_filter_mode: Option<String>,
@@ -97,6 +102,7 @@ impl From<DnsConfig> for DnsConfigPatch {
             ipv6: c.ipv6,
             default_nameserver: c.default_nameserver,
             enhanced_mode: c.enhanced_mode,
+            clear_enhanced_mode: false,
             fake_ip_range: c.fake_ip_range,
             fake_ip_filter: c.fake_ip_filter,
             fake_ip_filter_mode: c.fake_ip_filter_mode,
@@ -173,6 +179,9 @@ impl DnsConfig {
         }
         if let Some(v) = patch.enhanced_mode {
             self.enhanced_mode = Some(v);
+        }
+        if patch.clear_enhanced_mode {
+            self.enhanced_mode = None;
         }
         if let Some(v) = patch.fake_ip_range {
             self.fake_ip_range = Some(v);
@@ -598,7 +607,7 @@ pub fn validate_dns_config(config: &DnsConfig) -> Result<()> {
     }
     if let Some(mode) = config.fake_ip_filter_mode.as_ref() {
         let lower = mode.trim().to_ascii_lowercase();
-        if lower != "whitelist" && lower != "blacklist" {
+        if lower != "whitelist" && lower != "blacklist" && lower != "rule" {
             return Err(anyhow!("unsupported fake-ip-filter-mode: {}", mode));
         }
     }

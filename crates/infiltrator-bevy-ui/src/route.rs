@@ -296,6 +296,7 @@ impl Plugin for PagesPlugin {
         app.init_resource::<ActiveRoute>();
         app.init_resource::<RouteHistory>();
         app.init_resource::<LastOverviewProjection>();
+        app.init_resource::<crate::pages::dns::LastDnsProjection>();
         app.init_resource::<crate::pages::connections::LastConnectionsProjection>();
         app.init_resource::<crate::pages::connections_view::ConnectionsViewState>();
         app.init_resource::<crate::pages::connections_view::ConnectionsCloseAllState>();

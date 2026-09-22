@@ -231,6 +231,10 @@ pub enum CommandIntent {
     },
     ClearDnsCache,
     TestDnsLatency,
+    /// Apply a shared DNS workbench patch (switches / mapping mode / filter mode).
+    ApplyDnsSettings {
+        patch: crate::dns::DnsSettingsPatch,
+    },
     RunDoctorDiagnostics,
     RepairDoctorIssue {
         check_id: String,
@@ -385,6 +389,7 @@ impl CommandIntent {
             Self::ClearLogs
             | Self::SetLogLevelFilter { .. }
             | Self::TestDnsLatency
+            | Self::ApplyDnsSettings { .. }
             | Self::RunDoctorDiagnostics
             | Self::RepairDoctorIssue { .. }
             | Self::RepairAllDoctorIssues => CommandKind::Runtime,

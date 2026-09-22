@@ -84,7 +84,7 @@
 | 组 11 规则引擎与 MRS 治理 | 15 | `in progress` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 起逐项展开（见组 11 逐项账目）：03/04/13 已双端收口，01/02/05/08/09/10/11/12/15 为 `shared-ready`，06/07/14 `planned` |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `in progress` | `connections.rs`、`connection_drawer.rs` | 2026-09-22 起逐项展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 已双端收口，04/05/10/12/14 `planned`（04 宿主无阶段耗时、05 无 ASN 事实源、10/12 无瞬时速率、14 受 04 阻塞） |
-| 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
+| 组 14 DNS 工作台与泄漏探活 | 15 | `in progress` | `dns.rs`（两端） | 2026-09-22 起逐项展开（见组 14 逐项账目）：01/02/03/12 已双端收口，04/05/07/14/15 为 `shared-ready`，06/08/09/10/11/13 `planned` |
 | 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
 
 ### 组 06 逐项账目（2026-09-12 展开）
@@ -655,6 +655,45 @@ Bevy 抽屉同样伪造（`18/42/65/110 ms`），而 mihomo `/connections` 载�
 13. **DNS 故障自愈检测**：检测 DNS 监听端口占用与上游无法解析异常并提示修复。
 14. **双端 DNS 工作台表单完全一致**：Iced (`dns.rs`) 与 Bevy (`dns.rs`) 结构化表单完全同步。
 15. **DNS 解析与探活状态机无头单测**：模式切换、泄漏探测与缓存清理测试 100% 覆盖。
+
+### 组 14 逐项账目（2026-09-22 展开）
+
+组 14 闭环口径同组 06/13：shared contract/application + Iced + Bevy + 双端测试 + 守卫。
+本轮关键事实：Bevy 的 6 项开关此前只发出 `UiCommand::UpdateSetting { key: "dns.enable",
+value: "toggle" }`——`CommandApplication::update_setting` 只接受
+`language/theme/notifications_enabled/close_to_tray`，即点击必然被拒；且开关状态是
+`dns_switch_row_scene(..., true, ...)` 硬编码，Iced 的过滤模式分段器为 `Message::Noop`
+（不可交互）。本轮把 DNS 工作台表单收敛到共享契约 `infiltrator_contract::dns`
+（`DnsCoreSwitches`/`DnsEnhancedMode`/`DnsFakeIpFilterMode`/`DnsServerTag`/
+`DnsSettingsPatch`），共享应用 `ConfigurationApplication::apply_dns_settings` 走
+已校验的 profile 写路径，Bevy 经 `UiCommand::ApplyDnsSettings` 提交，不再有伪开关命令。
+
+| 项 | 任务 | 状态 | 证据 |
+| :--- | :--- | :--- | :--- |
+| `DUAL-14-01` | DNS 6 项系统级核心开关表单 | `parity-ready` | 共享 `DnsCoreSwitches`/`DnsSwitchField`（`infiltrator-contract/src/dns.rs:142`/`:107`）；契约快照 `DnsPageSnapshot.switches`（`surface_snapshot.rs:330`）由 `surface_reader.rs:878 dns_core_switches` 从真实 `DnsConfig` 填充；共享写入 `ConfigurationApplication::apply_dns_settings`（`configuration_application.rs:47`）+ `CommandIntent::ApplyDnsSettings`（`command.rs:235`）；Iced 6 个 `form_toggle_row`（`view/dns.rs:352` 起，`Message::UpdateDnsForm*`）；Bevy `DnsSwitchButton(field, enabled)` 渲染真实状态并提交共享补丁（`pages/dns.rs:102`、`on_dns_action_activated` `pages/dns.rs:480`）；双端测试 `test_dns_switch_submits_shared_patch`、`test_dns_page_mounting_and_default_state`、应用 `switch_toggle_patch_derives_from_current_value`、`dns_settings_patch_maps_onto_domain_patch` |
+| `DUAL-14-02` | 域名映射模式 (Fake-IP/Redir-Host/None) 分段器 | `parity-ready` | 共享三态 `DnsEnhancedMode`（`contract/src/dns.rs:13`）；`Unmapped` 经 `clear_enhanced_mode` 真正删除配置键（`domain/dns.rs:70`、`:183`），应用映射 `configuration_application.rs:182`；Iced `domain_mapping_mode_control`（`view/dns.rs:276`）+ `dns_patch_from_form`（`update/core/dns_config.rs:89`）；Bevy `DnsEnhancedModePill`（`pages/dns.rs:122`）经 observer 提交 `EnhancedMode`（`pages/dns.rs:517`）；双端测试 `test_dns_enhanced_mode_pill_submits_shared_patch`、`test_domain_mapping_and_filter_mode_controls`、契约 `enhanced_mode_round_trips_and_clears`、应用 `unmapped_mapping_mode_clears_the_key`、领域 `test_clear_enhanced_mode_removes_the_key` |
+| `DUAL-14-03` | 过滤模式 (Blacklist/Whitelist/Rules) 分段器 | `parity-ready` | 共享 `DnsFakeIpFilterMode`，`Rules` 使用宿主值 `rule`（`contract/src/dns.rs:61`）；领域校验放开 `rule`（`domain/dns.rs:610` `lower != "whitelist" && lower != "blacklist" && lower != "rule"`）；应用映射 `configuration_application.rs:188`；Iced `filter_mode_control`（`view/dns.rs:294`）经 `Message::UpdateDnsFormFilterMode`（`update/core/dns_config.rs:281`）；Bevy `DnsFilterModePill`（`pages/dns.rs:126`）经 observer 提交（`pages/dns.rs:526`）；双端测试 `test_dns_filter_mode_pill_submits_shared_patch`、契约 `filter_mode_supports_rule`、领域 `test_filter_mode_accepts_rule_host_value` |
+| `DUAL-14-04` | 上游加密 DNS (DoH/DoT/DoQ/HTTP3) 配置 | `shared-ready` | 共享 `DnsServerSnapshot`/`DnsServerTag`（`surface_snapshot.rs:311`），应用从真实 `nameserver` 列表填充（`surface_reader.rs:851 dns_servers`）；Iced 具备完整 token 编辑器与协议芯片（`view/dns.rs:154 dns_protocol_chip`、`dynamic_token_section`）；Bevy 只读渲染共享服务器列表（`pages/dns.rs:421`），尚无上游列表编辑控件，故未达双端可写 |
+| `DUAL-14-05` | 回退解析策略 (Fallback DNS / fallback-filter) | `shared-ready` | 领域 `FallbackFilter`/校验（`domain/dns.rs:47`、`:679`），共享快照以 `is_fallback` 发布 fallback 服务器（`surface_reader.rs:851`）；Iced fallback token 编辑器可用；Bevy 仅显示 `[Fallback]` 徽标（`pages/dns.rs`），GEOIP 阈值/fallback-filter 无 Bevy 编辑面，未双端收口 |
+| `DUAL-14-06` | Fake-IP 映射池实时检索与检视 | `planned` | 领域 `FakeIpPool`（`domain/fake_ip.rs:183`、`reverse_lookup:274`）是进程内模拟器，未接入 mihomo 的实时映射来源；无共享只读快照发布 198.18.x.x ↔ 域名绑定，不伪造映射池 |
+| `DUAL-14-07` | 一键清空 Fake-IP 缓存与系统 DNS 缓存 | `shared-ready` | Fake-IP 清空已双端接线：`CommandIntent::ClearDnsCache` → `RuntimeGateway::flush_fakeip_cache`（`command_application.rs:405`），Iced `Message::FlushFakeIpCache`（`update/core/dns_config.rs:554`），Bevy `ClearDnsCacheButton`（`pages/dns.rs`）+ `test_dns_clear_cache_submits_command`；OS 系统 DNS 缓存刷新（`ipconfig /flushdns`、`resolvectl`、`dscacheutil`）尚未接入应用端口，故未达 `parity-ready` |
+| `DUAL-14-08` | DNS 泄漏多源并发交叉探测 | `planned` | **宿主事实缺失**：Iced `Message::RunDnsLeakProbe`（`update/ui.rs:555`）只从 `probe_public_ip` 取真实出口 IP，`country="US"`、`isp="Cloudflare"`、`is_leak_detected=false` 与 `tested_dns_servers` 均为硬编码，且无共享契约、Bevy 无对应面板；多源并发伪子域探测需真实网络，保持 `planned`，不伪造探测结论 |
+| `DUAL-14-09` | WebRTC 公网 IP 穿透探测 | `planned` | 领域 `PrivacyLeakDetectionSuite` 可基于连接/DNS 日志判定 STUN/TURN DIRECT 泄漏（`domain/diagnostics.rs:711`），`infiltrator-core::diagnostics_adapter` 已接；但无共享快照、无浏览器/STUN 实时探测、双端无该面板，保持 `planned` |
+| `DUAL-14-10` | DNS 解析测速与延迟高亮 | `planned` | 领域纯逻辑 `DnsTester::rank_fastest_dns`（`domain/dns_tester.rs:344`）与 `DnsTestResult.latency_ms`；应用层 `CommandIntent::TestDnsLatency` 明确 `unsupported`（`command_application.rs:642`），无真实逐 Nameserver 延迟事实源，不填充假延迟 |
+| `DUAL-14-11` | 自定义 Hosts 映射表图形化编辑 | `planned` | 领域 `HostsEngine`/`parse_hosts_file`（`domain/hosts_engine.rs:14`）存在但仅由 `lib.rs` 暴露、无 application/共享快照/双端 UI，未验收 |
+| `DUAL-14-12` | Nameservers 动态标签芯片 | `parity-ready` | 共享纯分类 `DnsServerTag::classify`（`contract/src/dns.rs:195`）派生 `Domestic/Fallback/Encrypted/Plain`；应用发布 `DnsServerSnapshot.tags`（`surface_snapshot.rs:317`、`surface_reader.rs:851`）；Iced `server_tag_label` 芯片（`view/dns.rs:309`、`token_row`）；Bevy `DnsLineKind::ServerTags`（`pages/dns.rs:421`）+ `server_tags_text`（`pages/dns.rs:244`）；i18n `dns_tag_domestic/fallback/encrypted/plain`；测试契约 `server_tags_classify_fallback_domestic_encrypted`、Iced `test_server_tag_labels_are_localized` |
+| `DUAL-14-13` | DNS 故障自愈检测 | `planned` | 领域静态审计 `validate_dns_topology`（`domain/dns_topology.rs:24`）与端口占用检测各自存在，但无共享 DNS 自愈快照/双端提示与修复动作，未验收 |
+| `DUAL-14-14` | 双端 DNS 工作台表单完全一致 | `shared-ready` | 14-01/02/03/12 后两端消费同一 `DnsPageSnapshot`（`enhanced_mode`/`switches`/`filter_mode`/`servers.tags`），Bevy `surface_projection::dns_projection` 与 Iced 共享枚举已对齐；但 14-04/05 的服务器/回退列表仍只有 Iced 可写，故整体仍差一半 |
+| `DUAL-14-15` | DNS 解析与探活状态机无头单测 | `shared-ready` | 新增双端无头：Bevy `test_dns_switch_submits_shared_patch`/`test_dns_enhanced_mode_pill_submits_shared_patch`/`test_dns_filter_mode_pill_submits_shared_patch`/`test_dns_projection_in_place_update`，Iced `test_domain_mapping_and_filter_mode_controls`/`test_server_tag_labels_are_localized`，应用与领域单测见 14-01..03/12；泄漏探测（14-08）与系统 DNS 缓存清理（14-07）未闭环，未达 100% |
+
+> **2026-09-22 组 14 批次 A**：`DUAL-14-01/02/03/12` 收口为 `parity-ready`。
+> 新增共享 `infiltrator-contract::dns`（6 开关值对象、三态映射、三态过滤、服务器语义标签、
+> `DnsSettingsPatch`）与 `CommandIntent::ApplyDnsSettings`/`ConfigurationApplication::
+> apply_dns_settings`；Iced 过滤模式从 `Message::Noop` 改为共享枚举可交互，映射模式 None 现在
+> 真正清除 `enhanced-mode`；Bevy 6 开关改为真实状态 + 共享补丁、映射/过滤分段器改为可交互
+> 胶囊并接入 `LastDnsProjection`，删除伪造的 `UpdateSetting { key: "dns.*" }` 路径；
+> 服务器行新增共享语义标签芯片。守卫 `scripts/quality/dns-studio-guard.py`。
+> 06/08/09/10/11/13 因宿主事实缺失保持 `planned`（不伪造映射池/泄漏结论/延迟/Hosts 编辑）。
 
 ### 组 15：桌面/移动多模态形态、系统托盘、独立悬浮小窗与极客命令流 (Multimodal & UX)
 1. **4 阶响应式形态断点架构**：桌面宽屏 (Wide)、标准桌面 (Sidebar)、平板导轨 (Rail 64px)、移动紧凑 (BottomNav)。

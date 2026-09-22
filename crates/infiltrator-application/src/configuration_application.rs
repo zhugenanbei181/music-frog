@@ -1,6 +1,7 @@
 //! Configuration-file use-cases over the profile store port.
 
 use crate::profile_application::ProfileApplication;
+use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
 use infiltrator_ports::profile_store::ProfileStore;
@@ -39,6 +40,15 @@ impl ConfigurationApplication {
             dns::extract_dns_config_from_doc(&parse_yaml(&updated)?).map_err(config_failure)?;
         self.profiles.save_profile(&profile, &updated).await?;
         Ok(config)
+    }
+
+    /// Apply the shared DNS workbench patch (six switches, mapping mode and
+    /// Fake-IP filter mode) through the validated profile write path.
+    pub async fn apply_dns_settings(
+        &self,
+        patch: DnsSettingsPatch,
+    ) -> Result<dns::DnsConfig, Failure> {
+        self.save_dns_config(dns_patch_from_settings(patch)).await
     }
 
     pub async fn load_fake_ip_config(&self) -> Result<fake_ip::FakeIpConfig, Failure> {
@@ -159,10 +169,78 @@ impl ConfigurationApplication {
     }
 }
 
+fn dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
+    let mut domain_patch = dns::DnsConfigPatch::default();
+    if let Some(switches) = patch.switches {
+        domain_patch.enable = Some(switches.enable);
+        domain_patch.ipv6 = Some(switches.ipv6);
+        domain_patch.cache = Some(switches.cache);
+        domain_patch.use_hosts = Some(switches.use_hosts);
+        domain_patch.use_system_hosts = Some(switches.use_system_hosts);
+        domain_patch.respect_rules = Some(switches.respect_rules);
+    }
+    if let Some(mode) = patch.enhanced_mode {
+        match mode.config_value() {
+            Some(value) => domain_patch.enhanced_mode = Some(value.to_owned()),
+            None => domain_patch.clear_enhanced_mode = true,
+        }
+    }
+    if let Some(mode) = patch.filter_mode {
+        domain_patch.fake_ip_filter_mode = Some(mode.config_value().to_owned());
+    }
+    domain_patch
+}
+
 fn parse_yaml(content: &str) -> Result<Value, Failure> {
     serde_yaml_ng::from_str(content).map_err(config_failure)
 }
 
 fn config_failure(error: impl std::fmt::Display) -> Failure {
     Failure::new(ErrorCode::Configuration, error.to_string(), false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use infiltrator_contract::dns::{
+        DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
+    };
+
+    #[test]
+    fn dns_settings_patch_maps_onto_domain_patch() {
+        let switches = DnsCoreSwitches {
+            enable: true,
+            respect_rules: true,
+            ..DnsCoreSwitches::default()
+        };
+        let patch = dns_patch_from_settings(DnsSettingsPatch {
+            switches: Some(switches),
+            enhanced_mode: Some(DnsEnhancedMode::RedirHost),
+            filter_mode: Some(DnsFakeIpFilterMode::Rules),
+        });
+        assert_eq!(patch.enable, Some(true));
+        assert_eq!(patch.respect_rules, Some(true));
+        assert_eq!(patch.enhanced_mode.as_deref(), Some("redir-host"));
+        assert!(!patch.clear_enhanced_mode);
+        assert_eq!(patch.fake_ip_filter_mode.as_deref(), Some("rule"));
+    }
+
+    #[test]
+    fn unmapped_mapping_mode_clears_the_key() {
+        let patch = dns_patch_from_settings(DnsSettingsPatch {
+            enhanced_mode: Some(DnsEnhancedMode::Unmapped),
+            ..DnsSettingsPatch::default()
+        });
+        assert!(patch.clear_enhanced_mode);
+        assert!(patch.enhanced_mode.is_none());
+    }
+
+    #[test]
+    fn switch_toggle_patch_derives_from_current_value() {
+        let current = DnsCoreSwitches::default();
+        let patch = DnsSettingsPatch::toggle(DnsSwitchField::Cache, current);
+        let mapped = dns_patch_from_settings(patch);
+        assert_eq!(mapped.cache, Some(true));
+        assert_eq!(mapped.enable, Some(false));
+    }
 }

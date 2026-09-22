@@ -113,6 +113,7 @@ fn test_apply_patch_full() {
         ecs_override_policy: Some("strip".to_string()),
         bogus_nxdomain: Some(vec!["243.185.187.39".to_string()]),
         store_fake_ip: Some(true),
+        clear_enhanced_mode: false,
     };
 
     config.apply_patch(patch);
@@ -662,4 +663,27 @@ fn test_payload_config_conversions() {
 
     let converted_back: DnsConfig = payload.into();
     assert_eq!(converted_back, config);
+}
+
+#[test]
+fn test_filter_mode_accepts_rule_host_value() {
+    let config = DnsConfig {
+        fake_ip_filter_mode: Some("rule".to_string()),
+        ..DnsConfig::default()
+    };
+    validate_dns_config(&config).expect("rule filter mode is a supported host value");
+}
+
+#[test]
+fn test_clear_enhanced_mode_removes_the_key() {
+    let yaml = "dns:\n  enable: true\n  enhanced-mode: fake-ip\n";
+    let patch = DnsConfigPayload {
+        clear_enhanced_mode: true,
+        ..DnsConfigPayload::default()
+    };
+    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply clear patch");
+    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
+    let config = extract_dns_config_from_doc(&doc).expect("extract config");
+    assert!(config.enhanced_mode.is_none());
+    assert_eq!(config.enable, Some(true));
 }

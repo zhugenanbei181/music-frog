@@ -452,7 +452,10 @@ impl std::fmt::Debug for Message {
             Message::UpdateDnsFormEnable(v) => write!(f, "UpdateDnsFormEnable({})", v),
             Message::UpdateDnsFormNameserver(v) => write!(f, "UpdateDnsFormNameserver({})", v),
             Message::UpdateDnsFormFallback(v) => write!(f, "UpdateDnsFormFallback({})", v),
-            Message::UpdateDnsFormEnhancedMode(v) => write!(f, "UpdateDnsFormEnhancedMode({})", v),
+            Message::UpdateDnsFormEnhancedMode(v) => {
+                write!(f, "UpdateDnsFormEnhancedMode({:?})", v)
+            }
+            Message::UpdateDnsFormFilterMode(v) => write!(f, "UpdateDnsFormFilterMode({:?})", v),
             Message::UpdateDnsFormFakeIpRange(v) => write!(f, "UpdateDnsFormFakeIpRange({})", v),
             Message::UpdateDnsFormFakeIpFilter(v) => write!(f, "UpdateDnsFormFakeIpFilter({})", v),
             Message::UpdateDnsFormIpv6(v) => write!(f, "UpdateDnsFormIpv6({})", v),

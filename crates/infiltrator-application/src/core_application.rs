@@ -766,6 +766,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::SetLogLevelFilter { .. } => "set_log_level_filter",
         CommandIntent::ClearDnsCache => "clear_dns_cache",
         CommandIntent::TestDnsLatency => "test_dns_latency",
+        CommandIntent::ApplyDnsSettings { .. } => "apply_dns_settings",
         CommandIntent::RunDoctorDiagnostics => "run_doctor_diagnostics",
         CommandIntent::RepairDoctorIssue { .. } => "repair_doctor_issue",
         CommandIntent::RepairAllDoctorIssues => "repair_all_doctor_issues",
