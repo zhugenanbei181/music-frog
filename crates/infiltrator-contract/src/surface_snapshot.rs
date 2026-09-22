@@ -246,6 +246,14 @@ pub struct ProfilesPageSnapshot {
     /// has been previewed in this process yet.
     #[serde(default)]
     pub aggregation: Option<crate::aggregator::AggregationReport>,
+    /// DUAL-08-13: persisted aggregation template library.
+    #[serde(default)]
+    pub aggregation_templates: Vec<crate::aggregator::AggregationTemplate>,
+    /// Whether the profile store exposed the template sidecar. `false` means
+    /// the host keeps no template library (typed unsupported) or the read
+    /// failed — surfaces must not render that as "no templates".
+    #[serde(default)]
+    pub aggregation_templates_available: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

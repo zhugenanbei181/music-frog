@@ -3,17 +3,20 @@
 //!
 //! [`ProfileAggregator::plan`] is the single source of truth behind
 //! [`crate::profile_converter::MultiSubscriptionAggregator::aggregate`]. It
-//! merges the selected source documents, runs the shared [`FilterPipeline`]
-//! (content-fingerprint dedup, name dedup, country-code normalisation, emoji
-//! removal, sorting), clusters the surviving nodes by ISO region, synthesises
-//! the proxy-group cascade, and renders the mihomo YAML document.
+//! merges the selected source documents, optionally drops the nodes failing
+//! the required-field precheck, runs the user's rename rules first and then
+//! the shared [`FilterPipeline`] (content-fingerprint dedup, name dedup,
+//! country-code normalisation, emoji removal, sorting), clusters the
+//! surviving nodes by ISO region, synthesises the proxy-group cascade (region
+//! groups plus the user-authored groups), and renders the mihomo YAML
+//! document.
 //!
 //! Unlike the legacy string-only aggregate, the plan surfaces the per-stage
 //! counters and the derived topology, so both surfaces can render real dedup
 //! facts and real regional groups instead of fabricated placeholders.
 
-use anyhow::{Result, anyhow};
-use std::collections::BTreeMap;
+use anyhow::{Result, anyhow, bail};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::filter::{
     ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage, NodeSortOrder,
@@ -26,6 +29,11 @@ use crate::profile_converter::{
 #[cfg(test)]
 #[path = "profile_aggregator_test.rs"]
 mod profile_aggregator_test;
+
+/// Bounded number of precheck findings surfaced in the report (DUAL-08-09).
+pub const MAX_PRECHECK_SAMPLES: usize = 8;
+/// Proxy-group types a user-authored custom group may use (DUAL-08-10).
+pub const CUSTOM_GROUP_TYPES: [&str; 2] = ["select", "url-test"];
 
 /// Default health-check URL used by every generated `url-test` group.
 pub const AGGREGATION_HEALTH_CHECK_URL: &str = "http://www.gstatic.com/generate_204";
@@ -73,6 +81,8 @@ pub struct GeneratedGroup {
     pub group_type: String,
     /// Whether this is the master selector that cascades the region groups.
     pub is_master: bool,
+    /// DUAL-08-10: whether this group came from the user-authored topology.
+    pub is_custom: bool,
     /// Member names (region-group references and/or concrete nodes).
     pub members: Vec<String>,
 }
@@ -90,6 +100,12 @@ pub struct AggregationPlan {
     pub duplicates_removed: usize,
     /// Nodes renamed by country-code normalisation.
     pub renamed_nodes: usize,
+    /// DUAL-08-08: nodes renamed by the user's regex rules.
+    pub rule_renamed_nodes: usize,
+    /// DUAL-08-09: nodes dropped by the required-field precheck.
+    pub invalid_nodes_removed: usize,
+    /// DUAL-08-09: bounded sample of the dropped-node findings.
+    pub invalid_node_samples: Vec<String>,
     /// ISO region clusters derived from the surviving nodes.
     pub regions: Vec<RegionalCluster>,
     /// Synthesized cascade groups (empty when group generation is disabled).
@@ -107,8 +123,13 @@ impl ProfileAggregator {
         sources: &[SourceSubscription],
         options: &AggregationOptions,
     ) -> Result<AggregationPlan> {
+        Self::validate_options(options)?;
+
         let mut all_nodes: Vec<ProxyNodeItem> = Vec::new();
         let mut contributing_sources = 0usize;
+        let mut merged_nodes = 0usize;
+        let mut invalid_nodes_removed = 0usize;
+        let mut invalid_node_samples: Vec<String> = Vec::new();
 
         for source in sources {
             let converted = ProfileConverter::detect_and_convert(&source.content)?;
@@ -125,20 +146,36 @@ impl ProfileAggregator {
                     }
                 }
             }
+            merged_nodes += nodes.len();
+            if options.availability_precheck {
+                nodes = Self::precheck_nodes(
+                    nodes,
+                    &converted,
+                    &mut invalid_nodes_removed,
+                    &mut invalid_node_samples,
+                );
+            }
             all_nodes.extend(nodes);
         }
 
-        if all_nodes.is_empty() {
+        if all_nodes.is_empty() && invalid_nodes_removed == 0 {
             return Err(anyhow!(
                 "No valid proxy nodes found across sources to aggregate"
             ));
         }
+        if all_nodes.is_empty() {
+            bail!("all {invalid_nodes_removed} nodes failed the availability precheck");
+        }
 
-        let input_nodes = all_nodes.len();
+        let input_nodes = merged_nodes;
+        let rule_renamed_nodes = Self::rename_pipeline(options)?
+            .apply_pipeline(&mut all_nodes)
+            .renamed_count;
         let stats = Self::pipeline(options).apply_pipeline(&mut all_nodes);
         let regions = Self::cluster_regions(&all_nodes);
         let groups = if options.generate_proxy_groups {
-            Self::synthesize_groups(&regions, &all_nodes)
+            Self::validate_custom_groups(&regions, options)?;
+            Self::synthesize_groups(&regions, &all_nodes, &options.custom_groups)
         } else {
             Vec::new()
         };
@@ -150,10 +187,113 @@ impl ProfileAggregator {
             total_nodes: all_nodes.len(),
             duplicates_removed: stats.deduplicated_count,
             renamed_nodes: stats.renamed_count,
+            rule_renamed_nodes,
+            invalid_nodes_removed,
+            invalid_node_samples,
             regions,
             groups,
             yaml,
         })
+    }
+
+    /// DUAL-08-09: drop the nodes that fail the required-field precheck,
+    /// recording how many were removed and a bounded sample of findings.
+    ///
+    /// The rich typed model is paired by index when both readers walk the same
+    /// `proxies:` list; a node without a rich counterpart is still checked by
+    /// the flat [`crate::proxy_nodes::validate::validate_item`] rules.
+    fn precheck_nodes(
+        nodes: Vec<ProxyNodeItem>,
+        converted: &str,
+        removed: &mut usize,
+        samples: &mut Vec<String>,
+    ) -> Vec<ProxyNodeItem> {
+        let rich = crate::proxy_nodes::profile_yaml::parse_profile_yaml(converted)
+            .ok()
+            .filter(|rich| rich.len() == nodes.len());
+        let mut kept = Vec::with_capacity(nodes.len());
+        for (index, node) in nodes.into_iter().enumerate() {
+            let mut issues = crate::proxy_nodes::validate::validate_item(&node);
+            if let Some(rich) = &rich {
+                issues.extend(crate::proxy_nodes::validate::validate(&rich[index]));
+            }
+            if issues.is_empty() {
+                kept.push(node);
+                continue;
+            }
+            *removed += 1;
+            if samples.len() < MAX_PRECHECK_SAMPLES {
+                let name = if node.name.trim().is_empty() {
+                    "(unnamed)".to_owned()
+                } else {
+                    node.name.clone()
+                };
+                samples.push(format!("{name}: {}", issues[0]));
+            }
+        }
+        kept
+    }
+
+    /// Reject custom-group names that would collide with the synthesized
+    /// topology before any group is written (DUAL-08-10).
+    fn validate_custom_groups(
+        regions: &[RegionalCluster],
+        options: &AggregationOptions,
+    ) -> Result<()> {
+        let mut reserved: BTreeSet<String> = [
+            MASTER_SELECT_GROUP,
+            AUTO_SELECT_GROUP,
+            DIRECT_GROUP,
+            REJECT_GROUP,
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        reserved.extend(regions.iter().map(RegionalCluster::group_name));
+        for group in &options.custom_groups {
+            if !reserved.insert(group.name.trim().to_owned()) {
+                bail!(
+                    "custom group `{}` collides with an existing proxy group",
+                    group.name
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// DUAL-08-08/08-10: reject option values the pipeline cannot honour
+    /// instead of silently ignoring them.
+    fn validate_options(options: &AggregationOptions) -> Result<()> {
+        for (index, group) in options.custom_groups.iter().enumerate() {
+            if group.name.trim().is_empty() {
+                bail!("custom group #{} needs a name", index + 1);
+            }
+            let group_type = group.group_type.trim();
+            if !CUSTOM_GROUP_TYPES.contains(&group_type) {
+                bail!(
+                    "custom group `{}` has unsupported type `{}` (expected one of {:?})",
+                    group.name,
+                    group_type,
+                    CUSTOM_GROUP_TYPES
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// DUAL-08-08: the user-authored rename stages, applied before the shared
+    /// cleaning pipeline so country-code normalisation and dedup see the
+    /// renamed values. Invalid patterns surface as an actionable error.
+    pub fn rename_pipeline(options: &AggregationOptions) -> Result<FilterPipeline> {
+        let mut pipeline = FilterPipeline::new();
+        for (index, rule) in options.rename_rules.iter().enumerate() {
+            pipeline.add_stage(
+                FilterStage::regex_rename(&rule.pattern, rule.replacement.clone()).map_err(
+                    |error| anyhow!("rename rule #{} ({:?}): {error}", index + 1, rule.pattern),
+                )?,
+            );
+        }
+        Ok(pipeline)
     }
 
     /// The shared cleaning pipeline: the exact stage order both surfaces and
@@ -199,18 +339,25 @@ impl ProfileAggregator {
             .collect()
     }
 
-    /// DUAL-08-04/08-05: synthesize the master selector, the global auto
-    /// `url-test`, one `url-test` per region, and the direct/reject groups.
+    /// DUAL-08-04/08-05/08-10: synthesize the master selector, the global auto
+    /// `url-test`, one `url-test` per region, the user-authored groups, and the
+    /// direct/reject groups.
     pub fn synthesize_groups(
         regions: &[RegionalCluster],
         nodes: &[ProxyNodeItem],
+        custom_groups: &[infiltrator_contract::aggregator::AggregationCustomGroup],
     ) -> Vec<GeneratedGroup> {
         let node_names: Vec<String> = nodes.iter().map(|node| node.name.clone()).collect();
 
-        // DUAL-08-05: the master selector cascades `auto`, `direct` and every
-        // regional group before listing the concrete nodes.
+        // DUAL-08-05: the master selector cascades `auto`, `direct`, every
+        // regional group, every custom group, then the concrete nodes.
         let mut master_members = vec![AUTO_SELECT_GROUP.to_owned(), DIRECT_GROUP.to_owned()];
         master_members.extend(regions.iter().map(RegionalCluster::group_name));
+        master_members.extend(
+            custom_groups
+                .iter()
+                .map(|group| group.name.trim().to_owned()),
+        );
         master_members.extend(node_names.iter().cloned());
 
         let mut groups = vec![
@@ -218,12 +365,14 @@ impl ProfileAggregator {
                 name: MASTER_SELECT_GROUP.to_owned(),
                 group_type: "select".to_owned(),
                 is_master: true,
+                is_custom: false,
                 members: master_members,
             },
             GeneratedGroup {
                 name: AUTO_SELECT_GROUP.to_owned(),
                 group_type: "url-test".to_owned(),
                 is_master: false,
+                is_custom: false,
                 members: node_names.clone(),
             },
         ];
@@ -233,7 +382,18 @@ impl ProfileAggregator {
                 name: region.group_name(),
                 group_type: "url-test".to_owned(),
                 is_master: false,
+                is_custom: false,
                 members: region.node_names.clone(),
+            });
+        }
+
+        for custom in custom_groups {
+            groups.push(GeneratedGroup {
+                name: custom.name.trim().to_owned(),
+                group_type: custom.group_type.trim().to_owned(),
+                is_master: false,
+                is_custom: true,
+                members: custom_members(nodes, &custom.member_keywords),
             });
         }
 
@@ -241,12 +401,14 @@ impl ProfileAggregator {
             name: DIRECT_GROUP.to_owned(),
             group_type: "select".to_owned(),
             is_master: false,
+            is_custom: false,
             members: vec!["DIRECT".to_owned()],
         });
         groups.push(GeneratedGroup {
             name: REJECT_GROUP.to_owned(),
             group_type: "select".to_owned(),
             is_master: false,
+            is_custom: false,
             members: vec!["REJECT".to_owned(), "DIRECT".to_owned()],
         });
 
@@ -327,6 +489,28 @@ impl ProfileAggregator {
 
         serde_yaml_ng::to_string(&serde_yaml_ng::Value::Mapping(doc)).map_err(|e| anyhow!("{e}"))
     }
+}
+
+/// DUAL-08-10: member selection for a user-authored group. Empty keywords
+/// select every surviving node; otherwise a node joins when its name contains
+/// any keyword (case-insensitive).
+fn custom_members(nodes: &[ProxyNodeItem], keywords: &[String]) -> Vec<String> {
+    let needles: Vec<String> = keywords
+        .iter()
+        .map(|keyword| keyword.trim().to_lowercase())
+        .filter(|keyword| !keyword.is_empty())
+        .collect();
+    if needles.is_empty() {
+        return nodes.iter().map(|node| node.name.clone()).collect();
+    }
+    nodes
+        .iter()
+        .filter(|node| {
+            let lower = node.name.to_lowercase();
+            needles.iter().any(|needle| lower.contains(needle))
+        })
+        .map(|node| node.name.clone())
+        .collect()
 }
 
 /// Human label for an ISO region, sourced from the shared [`COUNTRY_DEFS`]

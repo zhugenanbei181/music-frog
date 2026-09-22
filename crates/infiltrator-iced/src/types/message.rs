@@ -543,9 +543,46 @@ pub enum Message {
     AggregationPreviewFinished(
         Result<infiltrator_contract::aggregator::AggregationReport, InfiltratorError>,
     ),
-    /// DUAL-08-06: save the preview as a brand new independent profile.
+    /// DUAL-08-06/08-12: save the preview as a brand new independent profile,
+    /// optionally activating it through the shared activation path.
     CreateAggregatedProfile,
-    AggregatedProfileCreated(Result<String, InfiltratorError>),
+    AggregatedProfileCreated(
+        Result<infiltrator_contract::aggregator::AggregatedProfileOutcome, InfiltratorError>,
+    ),
+    /// DUAL-08-09: toggle the required-field precheck filter.
+    ToggleAggregatorAvailabilityPrecheck,
+    /// DUAL-08-12: switch the "set as active profile" wizard toggle.
+    ToggleAggregatorActivateAfterCreate,
+    /// DUAL-08-08: edit the regex rename rules (`模式 => 替换`, one per line).
+    UpdateAggregatorRenames(String),
+    /// DUAL-08-10: custom group name input.
+    UpdateAggregatorCustomGroupName(String),
+    /// DUAL-08-10: custom group member keywords input.
+    UpdateAggregatorCustomGroupKeywords(String),
+    /// DUAL-08-10: append the typed custom group to the draft.
+    AddAggregatorCustomGroup,
+    /// DUAL-08-10: drop the custom group at this index.
+    RemoveAggregatorCustomGroup(usize),
+    /// DUAL-08-13: load the persisted aggregation template library.
+    LoadAggregatorTemplates,
+    AggregatorTemplatesLoaded(
+        Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, InfiltratorError>,
+    ),
+    /// DUAL-08-13: prefill the wizard from a saved template.
+    ApplyAggregatorTemplate(String),
+    /// DUAL-08-13: persist the current draft under the typed template name.
+    SaveAggregatorTemplate,
+    /// DUAL-08-13: template name input.
+    UpdateAggregatorTemplateName(String),
+    AggregatorTemplateSaved(Result<String, InfiltratorError>),
+    /// DUAL-08-13: delete a saved template.
+    DeleteAggregatorTemplate(String),
+    AggregatorTemplateDeleted(Result<(String, bool), InfiltratorError>),
+    /// DUAL-08-07: re-read the sources and refresh the generated profile.
+    ReAggregateProfile(String),
+    AggregationReaggregated(
+        Result<infiltrator_contract::aggregator::AggregatedProfileOutcome, InfiltratorError>,
+    ),
     // Connection Grouping & Quick Rule (Category 4)
     SetConnectionGroupingMode(infiltrator_domain::connection_view::ConnectionGroupingMode),
     AddQuickRuleFromConnection {

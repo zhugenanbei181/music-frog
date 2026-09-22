@@ -812,6 +812,9 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ImportSubscription { .. } => "import_subscription",
         CommandIntent::PreviewProfileAggregation { .. } => "preview_profile_aggregation",
         CommandIntent::CreateAggregatedProfile { .. } => "create_aggregated_profile",
+        CommandIntent::SaveAggregationTemplate { .. } => "save_aggregation_template",
+        CommandIntent::DeleteAggregationTemplate { .. } => "delete_aggregation_template",
+        CommandIntent::ReAggregateProfile { .. } => "reaggregate_profile",
     }
 }
 

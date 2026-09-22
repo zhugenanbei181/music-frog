@@ -5953,6 +5953,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
  "log",

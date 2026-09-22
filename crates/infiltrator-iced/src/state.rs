@@ -233,6 +233,23 @@ pub struct ProfileState {
     pub aggregator_generate_groups: bool,
     /// Strip emoji characters from node names before grouping.
     pub aggregator_remove_emojis: bool,
+    /// DUAL-08-09: drop nodes failing the required-field precheck.
+    pub aggregator_availability_precheck: bool,
+    /// DUAL-08-12: make the generated profile the active profile (and hot
+    /// reload the kernel when the host owns a managed runtime).
+    pub aggregator_activate_after_create: bool,
+    /// DUAL-08-08: free-text regex rename rules (`模式 => 替换`).
+    pub aggregator_renames: String,
+    /// DUAL-08-10: custom group name being typed.
+    pub aggregator_custom_name: String,
+    /// DUAL-08-10: custom group member keywords being typed.
+    pub aggregator_custom_keywords: String,
+    /// DUAL-08-10: appended custom groups awaiting the next preview/save.
+    pub aggregator_custom_groups: Vec<infiltrator_contract::aggregator::AggregationCustomGroup>,
+    /// DUAL-08-13: persisted template library (never built locally).
+    pub aggregator_templates: Vec<infiltrator_contract::aggregator::AggregationTemplate>,
+    /// DUAL-08-13: name typed for the "save as template" action.
+    pub aggregator_template_name: String,
     pub is_aggregating: bool,
     pub encrypted_backup: crate::types::options::EncryptedBackupState,
     pub quota_schedule: crate::types::options::QuotaScheduleState,

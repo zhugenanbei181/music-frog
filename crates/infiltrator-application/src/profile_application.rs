@@ -254,6 +254,27 @@ impl ProfileApplication {
             .map_err(Failure::from)
     }
 
+    /// DUAL-08-13: load the persisted aggregation template library.
+    pub async fn load_aggregation_templates(
+        &self,
+    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, Failure> {
+        self.store
+            .load_aggregation_templates()
+            .await
+            .map_err(Failure::from)
+    }
+
+    /// DUAL-08-13: persist the aggregation template library.
+    pub async fn save_aggregation_templates(
+        &self,
+        templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+    ) -> Result<(), Failure> {
+        self.store
+            .save_aggregation_templates(templates)
+            .await
+            .map_err(Failure::from)
+    }
+
     /// DUAL-07-08: run the shared node-keyword filter pipeline over a profile's
     /// stored document, commit the filtered content through the managed
     /// runtime seam, and persist the spec so the next subscription update

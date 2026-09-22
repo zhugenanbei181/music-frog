@@ -148,3 +148,216 @@ fn plan_rejects_empty_sources() {
     let empty = SourceSubscription::new("Empty", "proxies: []\n");
     assert!(ProfileAggregator::plan(&[empty], &options()).is_err());
 }
+
+fn promo_source() -> SourceSubscription {
+    SourceSubscription::with_prefix(
+        "Airport-Promo",
+        r#"
+proxies:
+  - name: "🇭🇰 香港 01-Pro"
+    type: ss
+    server: 1.1.1.1
+    port: 443
+    password: pass
+  - name: "🇯🇵 Tokyo 01-Pro"
+    type: ss
+    server: 2.2.2.2
+    port: 443
+    password: pass
+"#,
+        "Promo",
+    )
+}
+
+/// DUAL-08-08: user-authored regex rules rename nodes before cleaning and the
+/// plan reports the real renamed count; invalid patterns fail typed.
+#[test]
+fn plan_applies_regex_rename_rules_before_clustering() {
+    let renamed = AggregationOptions {
+        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+            pattern: "-Pro$".to_string(),
+            replacement: String::new(),
+        }],
+        ..options()
+    };
+    let plan = ProfileAggregator::plan(&[promo_source()], &renamed).unwrap();
+    assert_eq!(plan.rule_renamed_nodes, 2);
+    assert!(
+        plan.regions
+            .iter()
+            .flat_map(|region| region.node_names.iter())
+            .all(|name| !name.ends_with("-Pro")),
+        "rename rules must run before clustering: {:?}",
+        plan.regions
+    );
+    assert!(plan.yaml.contains("香港 01"));
+    assert!(!plan.yaml.contains("-Pro"));
+
+    let broken = AggregationOptions {
+        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+            pattern: "(unclosed".to_string(),
+            replacement: "x".to_string(),
+        }],
+        ..options()
+    };
+    let failure = ProfileAggregator::plan(&[promo_source()], &broken).unwrap_err();
+    assert!(
+        failure.to_string().contains("rename rule #1"),
+        "the failing rule is named in the error: {failure}"
+    );
+}
+
+/// DUAL-08-09: the precheck drops nodes missing required fields and the plan
+/// publishes both the count and a bounded sample of real findings.
+#[test]
+fn plan_precheck_drops_invalid_nodes_and_reports_samples() {
+    let mixed = SourceSubscription::new(
+        "Mixed",
+        r#"
+proxies:
+  - name: "🇭🇰 香港 01"
+    type: ss
+    server: 1.1.1.1
+    port: 443
+    cipher: aes-128-gcm
+    password: pass
+  - name: "Broken Port"
+    type: ss
+    server: 2.2.2.2
+    port: 0
+    cipher: aes-128-gcm
+    password: pass
+  - name: "Broken Key"
+    type: vmess
+    server: 3.3.3.3
+    port: 443
+"#,
+    );
+    let prechecked = AggregationOptions {
+        availability_precheck: true,
+        ..options()
+    };
+    let plan = ProfileAggregator::plan(std::slice::from_ref(&mixed), &prechecked).unwrap();
+    assert_eq!(plan.input_nodes, 3);
+    assert_eq!(plan.total_nodes, 1);
+    assert_eq!(plan.invalid_nodes_removed, 2);
+    assert_eq!(plan.invalid_node_samples.len(), 2);
+    assert!(
+        plan.invalid_node_samples.iter().any(
+            |sample| sample.contains("Broken Port") && sample.contains("port must be positive")
+        )
+    );
+    assert!(
+        plan.invalid_node_samples
+            .iter()
+            .any(|sample| sample.contains("Broken Key") && sample.contains("uuid is required"))
+    );
+    assert!(!plan.yaml.contains("Broken Port"));
+    assert!(!plan.yaml.contains("Broken Key"));
+
+    // Without the precheck the same source keeps every node (opt-in cleaning).
+    let unchecked = ProfileAggregator::plan(&[mixed], &options()).unwrap();
+    assert_eq!(unchecked.total_nodes, 3);
+    assert_eq!(unchecked.invalid_nodes_removed, 0);
+    assert!(unchecked.invalid_node_samples.is_empty());
+}
+
+#[test]
+fn plan_precheck_failure_names_the_dropped_nodes() {
+    let all_broken = SourceSubscription::new(
+        "Broken",
+        r#"
+proxies:
+  - name: "Broken"
+    type: trojan
+    server: 1.1.1.1
+    port: 443
+"#,
+    );
+    let prechecked = AggregationOptions {
+        availability_precheck: true,
+        ..options()
+    };
+    let failure = ProfileAggregator::plan(&[all_broken], &prechecked).unwrap_err();
+    assert!(
+        failure.to_string().contains("availability precheck"),
+        "the failure explains the precheck dropped every node: {failure}"
+    );
+}
+
+/// DUAL-08-10: user-authored groups join the cascade with keyword-selected
+/// members; colliding or unknown definitions fail typed.
+#[test]
+fn plan_synthesizes_custom_groups_with_keyword_members() {
+    let custom = AggregationOptions {
+        custom_groups: vec![
+            infiltrator_contract::aggregator::AggregationCustomGroup {
+                name: "流媒体专用".to_string(),
+                group_type: "select".to_string(),
+                member_keywords: vec!["west".to_string()],
+            },
+            infiltrator_contract::aggregator::AggregationCustomGroup {
+                name: "游戏专用".to_string(),
+                group_type: "url-test".to_string(),
+                member_keywords: Vec::new(),
+            },
+        ],
+        ..options()
+    };
+    let plan = ProfileAggregator::plan(&[hk_jp_source(), duplicate_us_source()], &custom).unwrap();
+
+    let streaming = plan
+        .groups
+        .iter()
+        .find(|group| group.name == "流媒体专用")
+        .expect("custom select group");
+    assert!(streaming.is_custom);
+    assert_eq!(streaming.group_type, "select");
+    assert_eq!(streaming.members.len(), 1);
+    assert!(streaming.members[0].contains("US West"));
+
+    let gaming = plan
+        .groups
+        .iter()
+        .find(|group| group.name == "游戏专用")
+        .expect("custom url-test group");
+    assert!(gaming.is_custom);
+    assert_eq!(gaming.members.len(), plan.total_nodes);
+
+    let master = plan.groups.iter().find(|group| group.is_master);
+    assert!(master.is_some());
+    let members = &master.unwrap().members;
+    let streaming_position = members.iter().position(|m| m == "流媒体专用").unwrap();
+    let concrete = &plan.regions[0].node_names[0];
+    let node_position = members
+        .iter()
+        .position(|m| m == concrete)
+        .unwrap_or_else(|| panic!("concrete node member {concrete} missing from {members:?}"));
+    assert!(
+        streaming_position < node_position,
+        "custom groups cascade before concrete nodes"
+    );
+    assert!(plan.yaml.contains("流媒体专用"));
+
+    let colliding = AggregationOptions {
+        custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+            name: MASTER_SELECT_GROUP.to_string(),
+            group_type: "select".to_string(),
+            member_keywords: Vec::new(),
+        }],
+        ..options()
+    };
+    let failure = ProfileAggregator::plan(&[hk_jp_source()], &colliding).unwrap_err();
+    assert!(failure.to_string().contains("collides"));
+
+    let unknown_type = AggregationOptions {
+        custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+            name: "自定义".to_string(),
+            group_type: "load-balance".to_string(),
+            member_keywords: Vec::new(),
+        }],
+        ..options()
+    };
+    let failure = ProfileAggregator::plan(&[hk_jp_source()], &unknown_type).unwrap_err();
+    assert!(failure.to_string().contains("unsupported type"));
+}

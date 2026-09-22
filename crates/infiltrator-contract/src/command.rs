@@ -242,6 +242,20 @@ pub enum CommandIntent {
     CreateAggregatedProfile {
         draft: crate::aggregator::AggregationDraft,
     },
+    /// DUAL-08-13: upsert the draft as a reusable aggregation template.
+    SaveAggregationTemplate {
+        name: String,
+        draft: crate::aggregator::AggregationDraft,
+    },
+    /// DUAL-08-13: delete a saved aggregation template.
+    DeleteAggregationTemplate {
+        name: String,
+    },
+    /// DUAL-08-07: re-read the sources of a saved template, re-run the shared
+    /// aggregation and overwrite the profile the template produced.
+    ReAggregateProfile {
+        template_name: String,
+    },
     RefreshRuleProviders,
     SimulateRuleTrace {
         query: String,
@@ -428,6 +442,9 @@ impl CommandIntent {
             | Self::DeleteProfile { .. }
             | Self::PreviewProfileAggregation { .. }
             | Self::CreateAggregatedProfile { .. }
+            | Self::SaveAggregationTemplate { .. }
+            | Self::DeleteAggregationTemplate { .. }
+            | Self::ReAggregateProfile { .. }
             | Self::RefreshRuleProviders
             | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }

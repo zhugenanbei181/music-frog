@@ -23,8 +23,11 @@ use infiltrator_bevy_ui::pages::connections_view::*;
 use infiltrator_bevy_ui::pages::logs::*;
 use infiltrator_bevy_ui::pages::profiles::*;
 use infiltrator_bevy_ui::pages::profiles_aggregator::{
-    AggregatorNameField, AggregatorSourceToggle, PreviewAggregationButton,
-    SaveAggregatedProfileButton,
+    AddAggregatorCustomGroupButton, AggregatorCustomGroupKeywordsField,
+    AggregatorCustomGroupNameField, AggregatorNameField, AggregatorRenamesField,
+    AggregatorSourceToggle, AggregatorSwitch, AggregatorSwitchKind, AggregatorTemplateNameField,
+    DeleteAggregationTemplateButton, PreviewAggregationButton, ReAggregateTemplateButton,
+    SaveAggregatedProfileButton, SaveAggregationTemplateButton, UseAggregationTemplateButton,
 };
 use infiltrator_bevy_ui::pages::profiles_import::{
     ChooseLocalFileButton, ImportLocalFileButton, ProfilesImportRoot,
@@ -595,6 +598,8 @@ fn test_profiles_empty_and_edge_case_projection() {
         auto_update_interval_hours: 0,
         updating: false,
         aggregation: None,
+        aggregation_templates: Vec::new(),
+        aggregation_templates_available: true,
     };
     app.world_mut()
         .commands()
@@ -2607,6 +2612,8 @@ fn subscription_fetch_projection() -> ProfilesProjection {
         auto_update_interval_hours: 12,
         updating: false,
         aggregation: None,
+        aggregation_templates: Vec::new(),
+        aggregation_templates_available: true,
         profiles: vec![ProfileItem {
             id: "sub-fetch".to_owned(),
             name: "抓取选项订阅".to_owned(),
@@ -3113,6 +3120,17 @@ fn aggregation_preview_report() -> infiltrator_contract::aggregator::Aggregation
             geo_cluster: true,
             generate_groups: true,
             remove_emojis: true,
+            rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+                pattern: "-广告$".to_owned(),
+                replacement: String::new(),
+            }],
+            custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+                name: "流媒体专用".to_owned(),
+                group_type: "select".to_owned(),
+                member_keywords: vec!["香港".to_owned()],
+            }],
+            availability_precheck: true,
+            activate_after_create: false,
         },
         source_count: 3,
         missing_sources: vec![],
@@ -3120,6 +3138,9 @@ fn aggregation_preview_report() -> infiltrator_contract::aggregator::Aggregation
         total_nodes: 30,
         duplicates_removed: 2,
         renamed_nodes: 30,
+        rule_renamed_nodes: 4,
+        invalid_nodes_removed: 2,
+        invalid_node_samples: vec!["广告节点: trojan: password is required".to_owned()],
         regions: vec![
             RegionalClusterSnapshot {
                 iso: "HK".to_owned(),
@@ -3141,16 +3162,25 @@ fn aggregation_preview_report() -> infiltrator_contract::aggregator::Aggregation
                 name: "🚀 节点选择".to_owned(),
                 group_type: "select".to_owned(),
                 is_master: true,
+                is_custom: false,
                 members: vec!["♻️ 自动选择".to_owned(), "香港自动测速".to_owned()],
             },
             GeneratedGroupSnapshot {
                 name: "香港自动测速".to_owned(),
                 group_type: "url-test".to_owned(),
                 is_master: false,
+                is_custom: false,
                 members: vec!["香港 01".to_owned()],
             },
+            GeneratedGroupSnapshot {
+                name: "流媒体专用".to_owned(),
+                group_type: "select".to_owned(),
+                is_master: false,
+                is_custom: true,
+                members: vec!["香港 01".to_owned(), "香港 02".to_owned()],
+            },
         ],
-        yaml: "proxies: []\n".to_owned(),
+        yaml: "port: 7890\nproxies: []\nproxy-groups:\n  - name: 🚀 节点选择\n".to_owned(),
         generated_at: "2026-09-22T10:00:00+00:00".to_owned(),
     }
 }
@@ -3161,6 +3191,27 @@ fn aggregation_page_projection() -> ProfilesProjection {
         auto_update_interval_hours: 0,
         updating: false,
         aggregation: Some(aggregation_preview_report()),
+        aggregation_templates: vec![infiltrator_contract::aggregator::AggregationTemplate {
+            name: "已保存模板".to_owned(),
+            draft: infiltrator_contract::aggregator::AggregationDraft {
+                source_profiles: vec!["主力高速订阅 (Primary VIP)".to_owned()],
+                target_name: "Template-Target".to_owned(),
+                deduplicate: false,
+                deduplicate_names: true,
+                geo_cluster: false,
+                generate_groups: true,
+                remove_emojis: false,
+                rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+                    pattern: "-广告$".to_owned(),
+                    replacement: String::new(),
+                }],
+                custom_groups: Vec::new(),
+                availability_precheck: false,
+                activate_after_create: true,
+            },
+            updated_at: "2026-09-22T11:00:00+00:00".to_owned(),
+        }],
+        aggregation_templates_available: true,
     }
 }
 
@@ -3178,6 +3229,27 @@ fn set_source_checked(app: &mut App, name: &str, checked: bool) {
             }
         }
         found.expect("source toggle row")
+    };
+    let mut entity = app.world_mut().entity_mut(child);
+    if checked {
+        entity.insert(Checked);
+    } else {
+        entity.remove::<Checked>();
+    }
+}
+
+/// Flip the `Checked` state of one named wizard switch.
+fn set_switch_checked(app: &mut App, kind: AggregatorSwitchKind, checked: bool) {
+    let child = {
+        let mut query = app.world_mut().query::<(&AggregatorSwitch, &Children)>();
+        let mut found = None;
+        for (switch, children) in query.iter(app.world()) {
+            if switch.0 == kind {
+                found = children.iter().next().copied();
+                break;
+            }
+        }
+        found.expect("switch row")
     };
     let mut entity = app.world_mut().entity_mut(child);
     if checked {
@@ -3217,8 +3289,29 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
         subtree_has_text(app.world(), root, "去重 2"),
         "the dedup counter restamps from the shared report"
     );
+    // DUAL-08-09/08-11/08-13: the new preview lines all restamp from the
+    // shared report and the projected template library.
+    assert!(
+        subtree_has_text(app.world(), root, "预检剔除 2"),
+        "the precheck counter restamps from the shared report"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "聚合 YAML 结构（共 4 行）"),
+        "the YAML viewport renders the shared document"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "流媒体专用 [自定义]"),
+        "the custom group rides the shared group cascade"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "已保存模板 → Template-Target"),
+        "the template library restamps from the shared projection"
+    );
 
-    // Local edits: rename the target and deselect two of the three sources.
+    // The card's switches are user input (the projection supplies the report),
+    // so the test states them explicitly: everything on except activation.
+    set_switch_checked(&mut app, AggregatorSwitchKind::ActivateAfterCreate, false);
+    set_marker_text::<AggregatorRenamesField>(&mut app, "-广告$ => ");
     set_marker_text::<AggregatorNameField>(&mut app, "Merged-New");
     set_source_checked(&mut app, "备用容灾线路 (Backup Anycast)", false);
     set_source_checked(&mut app, "局域网调试配置 (LAN Lab)", false);
@@ -3237,6 +3330,13 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
         geo_cluster: true,
         generate_groups: true,
         remove_emojis: true,
+        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+            pattern: "-广告$".to_owned(),
+            replacement: String::new(),
+        }],
+        custom_groups: Vec::new(),
+        availability_precheck: true,
+        activate_after_create: false,
     };
     assert_eq!(
         sink.submitted(),
@@ -3258,5 +3358,189 @@ fn test_profiles_aggregator_previews_and_saves_through_shared_command() {
             draft: expected.clone(),
         }),
         "the save action rides the shared create command"
+    );
+    sink.clear();
+
+    // DUAL-08-10: the appended custom group joins the submitted draft.
+    set_marker_text::<AggregatorCustomGroupNameField>(&mut app, "游戏专用");
+    set_marker_text::<AggregatorCustomGroupKeywordsField>(&mut app, "LAN, 调试");
+    let add = marker_entity::<AddAggregatorCustomGroupButton>(&mut app);
+    app.world_mut().commands().trigger(Activate { entity: add });
+    app.update();
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "自定义策略组：游戏专用 · select · LAN, 调试"
+        ),
+        "the appended custom group restamps onto the composer line"
+    );
+    let preview = marker_entity::<PreviewAggregationButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: preview });
+    app.update();
+    let mut with_group = expected.clone();
+    with_group.custom_groups = vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+        name: "游戏专用".to_owned(),
+        group_type: "select".to_owned(),
+        member_keywords: vec!["LAN".to_owned(), "调试".to_owned()],
+    }];
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::PreviewProfileAggregation {
+            draft: with_group.clone(),
+        }),
+        "the custom group rides the shared preview command"
+    );
+    sink.clear();
+
+    // DUAL-08-12: the activation switch rides the shared draft.
+    set_switch_checked(&mut app, AggregatorSwitchKind::ActivateAfterCreate, true);
+    let preview = marker_entity::<PreviewAggregationButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: preview });
+    app.update();
+    let mut activated = with_group.clone();
+    activated.activate_after_create = true;
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::PreviewProfileAggregation {
+            draft: activated.clone(),
+        }),
+        "the activation switch rides the shared draft"
+    );
+    sink.clear();
+
+    // DUAL-08-08: a malformed rename line is refused at the surface, and the
+    // previous command is not repeated.
+    set_marker_text::<AggregatorRenamesField>(&mut app, "missing arrow");
+    let preview = marker_entity::<PreviewAggregationButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: preview });
+    app.update();
+    assert!(
+        sink.submitted().is_empty(),
+        "a malformed rename rule never reaches the shared bus"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "重命名规则格式错误"),
+        "the wizard status line points at the malformed rule"
+    );
+    set_marker_text::<AggregatorRenamesField>(&mut app, "-广告$ => ");
+
+    // DUAL-08-13: "use template" prefills the wizard from the projection.
+    set_marker_text::<AggregatorTemplateNameField>(&mut app, "已保存模板");
+    let use_template = marker_entity::<UseAggregationTemplateButton>(&mut app);
+    app.world_mut().commands().trigger(Activate {
+        entity: use_template,
+    });
+    app.update();
+    let preview = marker_entity::<PreviewAggregationButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: preview });
+    app.update();
+    let from_template = infiltrator_contract::aggregator::AggregationDraft {
+        source_profiles: vec!["主力高速订阅 (Primary VIP)".to_owned()],
+        target_name: "Template-Target".to_owned(),
+        deduplicate: false,
+        deduplicate_names: true,
+        geo_cluster: false,
+        generate_groups: true,
+        remove_emojis: false,
+        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+            pattern: "-广告$".to_owned(),
+            replacement: String::new(),
+        }],
+        custom_groups: Vec::new(),
+        availability_precheck: false,
+        activate_after_create: true,
+    };
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::PreviewProfileAggregation {
+            draft: from_template.clone(),
+        }),
+        "the reused template drives the wizard's own fields"
+    );
+    sink.clear();
+
+    // DUAL-08-13: save the live draft as a template under the typed name.
+    let save_template = marker_entity::<SaveAggregationTemplateButton>(&mut app);
+    app.world_mut().commands().trigger(Activate {
+        entity: save_template,
+    });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::SaveAggregationTemplate {
+            name: "已保存模板".to_owned(),
+            draft: from_template.clone(),
+        }),
+        "the template save rides the shared command"
+    );
+    sink.clear();
+
+    // DUAL-08-07: re-aggregate resolves the template by name and submits it.
+    let reaggregate = marker_entity::<ReAggregateTemplateButton>(&mut app);
+    app.world_mut().commands().trigger(Activate {
+        entity: reaggregate,
+    });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::ReAggregateProfile {
+            template_name: "已保存模板".to_owned(),
+        }),
+        "the re-aggregate action rides the shared command"
+    );
+    sink.clear();
+
+    // DUAL-08-13: deleting the named template rides the shared command.
+    let delete = marker_entity::<DeleteAggregationTemplateButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: delete });
+    app.update();
+    assert_eq!(
+        sink.submitted().last(),
+        Some(&UiCommand::DeleteAggregationTemplate {
+            name: "已保存模板".to_owned(),
+        }),
+        "the template delete rides the shared command"
+    );
+    sink.clear();
+
+    // Unknown template names are refused with a status hint, not a command.
+    set_marker_text::<AggregatorTemplateNameField>(&mut app, "不存在");
+    let delete = marker_entity::<DeleteAggregationTemplateButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: delete });
+    app.update();
+    assert!(
+        sink.submitted().is_empty(),
+        "an unknown template never reaches the shared bus"
+    );
+
+    // DUAL-08-13: a host without the template sidecar is reported as such, not
+    // as an empty template library.
+    let mut unavailable = aggregation_page_projection();
+    unavailable.aggregation_templates.clear();
+    unavailable.aggregation_templates_available = false;
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(unavailable));
+    app.update();
+    assert!(
+        subtree_has_text(
+            app.world(),
+            root,
+            "历史聚合模板：宿主未提供模板存储（不支持）"
+        ),
+        "the unsupported template store is stated explicitly"
     );
 }

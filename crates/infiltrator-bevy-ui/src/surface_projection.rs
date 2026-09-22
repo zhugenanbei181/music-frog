@@ -167,6 +167,8 @@ pub(super) fn profiles_projection(
             auto_update_interval_hours: value.auto_update_interval_hours,
             updating: value.updating,
             aggregation: value.aggregation.clone(),
+            aggregation_templates: value.aggregation_templates.clone(),
+            aggregation_templates_available: value.aggregation_templates_available,
         })
         .unwrap_or_else(empty_profiles)
 }

@@ -153,6 +153,23 @@ impl AppState {
             | Message::ToggleAggregatorGeoCluster
             | Message::ToggleAggregatorGenerateGroups
             | Message::ToggleAggregatorRemoveEmojis
+            | Message::ToggleAggregatorAvailabilityPrecheck
+            | Message::ToggleAggregatorActivateAfterCreate
+            | Message::UpdateAggregatorRenames(_)
+            | Message::UpdateAggregatorCustomGroupName(_)
+            | Message::UpdateAggregatorCustomGroupKeywords(_)
+            | Message::AddAggregatorCustomGroup
+            | Message::RemoveAggregatorCustomGroup(_)
+            | Message::LoadAggregatorTemplates
+            | Message::AggregatorTemplatesLoaded(_)
+            | Message::ApplyAggregatorTemplate(_)
+            | Message::SaveAggregatorTemplate
+            | Message::UpdateAggregatorTemplateName(_)
+            | Message::AggregatorTemplateSaved(_)
+            | Message::DeleteAggregatorTemplate(_)
+            | Message::AggregatorTemplateDeleted(_)
+            | Message::ReAggregateProfile(_)
+            | Message::AggregationReaggregated(_)
             | Message::PreviewProfileAggregation
             | Message::AggregationPreviewFinished(_)
             | Message::CreateAggregatedProfile
