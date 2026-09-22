@@ -23,6 +23,17 @@ pub(crate) mod uri_parse_aux;
 #[path = "profile_converter_test.rs"]
 mod profile_converter_test;
 
+/// WireGuard `reserved` value: a byte list (`[1, 2, 3]`) or a base64 string.
+///
+/// The shape that parsed is the shape that serializes, so neither form is
+/// normalised into the other (DUAL-05-04 保形).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ReservedField {
+    Array(Vec<u8>),
+    Base64(String),
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxyNodeItem {
@@ -101,14 +112,28 @@ pub struct ProxyNodeItem {
     pub version: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub padding_range: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// mihomo's key is `idle-session-timeout` (milliseconds); the old
+    /// `idle-timeout` shape still parses as an alias (DUAL-05-08 fix).
+    #[serde(
+        rename = "idle-session-timeout",
+        alias = "idle-timeout",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub idle_timeout: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub private_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// mihomo's key is `pre-shared-key`; the old `preshared-key` shape still
+    /// parses as an alias (DUAL-05-04 key-name fidelity fix).
+    #[serde(
+        rename = "pre-shared-key",
+        alias = "preshared-key",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub preshared_key: Option<String>,
+    /// WireGuard `reserved` in either authored shape (byte list or base64),
+    /// matching mihomo's "保形" behaviour (DUAL-05-04).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reserved: Option<Vec<u8>>,
+    pub reserved: Option<ReservedField>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,7 +148,13 @@ pub struct ProxyNodeItem {
     pub persistent_keepalive: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_ips: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// mihomo's key is `amnezia-wg-option`; the old `amnezia-opts` shape still
+    /// parses as an alias (DUAL-05-04 key-name fidelity fix).
+    #[serde(
+        rename = "amnezia-wg-option",
+        alias = "amnezia-opts",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub amnezia_opts: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers: Option<serde_json::Value>,
@@ -137,7 +168,13 @@ pub struct ProxyNodeItem {
     pub uot_version: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub username: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// mihomo's key is `private-key-passphrase`; `passphrase` still parses as
+    /// an alias (DUAL-05-07 key-name fidelity fix).
+    #[serde(
+        rename = "private-key-passphrase",
+        alias = "passphrase",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub passphrase: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host_key_algorithms: Option<Vec<String>>,
@@ -276,6 +313,34 @@ impl ProxyNodeItem {
 
     pub fn get_effective_password(&self) -> Option<&str> {
         self.password.as_deref().or(self.auth.as_deref())
+    }
+
+    /// `reserved` as the authored comma list or base64 text; `None` when unset.
+    pub fn reserved_text(&self) -> Option<String> {
+        match self.reserved.as_ref()? {
+            ReservedField::Array(bytes) => Some(
+                bytes
+                    .iter()
+                    .map(u8::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
+            ReservedField::Base64(text) => Some(text.clone()),
+        }
+    }
+
+    /// `true` when `reserved` was authored as a base64 string.
+    pub fn reserved_is_base64(&self) -> bool {
+        matches!(self.reserved, Some(ReservedField::Base64(_)))
+    }
+
+    /// `reserved` decoded to bytes (base64 form decoded with the standard
+    /// alphabet; an undecodable string yields `None`).
+    pub fn reserved_bytes(&self) -> Option<Vec<u8>> {
+        match self.reserved.as_ref()? {
+            ReservedField::Array(bytes) => Some(bytes.clone()),
+            ReservedField::Base64(text) => STANDARD.decode(text.trim()).ok(),
+        }
     }
 
     pub fn get_ports_spec(&self) -> Option<PortHopping> {

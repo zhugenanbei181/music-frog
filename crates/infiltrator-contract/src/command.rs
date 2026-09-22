@@ -427,7 +427,9 @@ pub enum CommandIntent {
     /// DUAL-05-14: commit a shared draft into the active profile document,
     /// preserving every other section and every unknown node key.
     SaveCustomNodeDraft {
-        draft: crate::protocol_fidelity::ProtocolDraft,
+        /// Boxed: the typed draft grew with the DUAL-05 parameter blocks, and
+        /// the intent enum must stay small (clippy::large_enum_variant).
+        draft: Box<crate::protocol_fidelity::ProtocolDraft>,
     },
     UpdateSetting {
         key: String,

@@ -273,7 +273,12 @@ fn test_parse_wireguard() {
     assert_eq!(node.ip.as_deref(), Some("10.0.0.2"));
     assert_eq!(node.ipv6.as_deref(), Some("fd00::2"));
     assert_eq!(node.mtu, Some(1420));
-    assert_eq!(node.reserved, Some(vec![1, 2, 3]));
+    assert_eq!(
+        node.reserved,
+        Some(crate::profile_converter::ReservedField::Array(vec![
+            1, 2, 3
+        ]))
+    );
     assert_eq!(node.udp, Some(true));
 
     let exported = ProfileConverter::export_uri(&node).unwrap();

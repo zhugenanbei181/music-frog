@@ -35,12 +35,19 @@ pub mod privileged_network;
 pub mod profile_document;
 pub mod profile_protection;
 pub mod protocol_fidelity;
+pub mod protocol_matrix;
+pub mod protocol_params;
+pub mod protocol_params_ext;
 pub mod provider_cache;
 pub mod proxies;
 
 #[cfg(test)]
 #[path = "protocol_fidelity_test.rs"]
 mod protocol_fidelity_test;
+
+#[cfg(test)]
+#[path = "protocol_params_test.rs"]
+mod protocol_params_test;
 pub mod proxy_mode;
 pub mod public_ip;
 pub mod reconnect_mask;

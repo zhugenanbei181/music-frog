@@ -597,6 +597,11 @@ pub struct ProtocolDraft {
     pub tls: bool,
     pub skip_cert_verify: bool,
     pub alpn: Vec<String>,
+    /// DUAL-05-03…05-12: typed parameter blocks (congestion, WireGuard keys,
+    /// transports, SIP003 plugins, SSH, AnyTLS, ECH). One field keeps the
+    /// draft vocabulary in `protocol_params`.
+    #[serde(default)]
+    pub params: crate::protocol_params::ProtocolParams,
     /// Keys captured by the codec's flatten catch-all and passed through
     /// verbatim (DUAL-05-14 未知字段无损流通).
     #[serde(default)]
@@ -636,10 +641,12 @@ impl ProtocolDraft {
             ProtocolFamily::Shadowsocks
             | ProtocolFamily::Trojan
             | ProtocolFamily::Anytls
-            | ProtocolFamily::Hysteria2
-            | ProtocolFamily::Ssh => &["password"],
-            // WireGuard keys and unknown protocols are not modelled here.
-            ProtocolFamily::WireGuard | ProtocolFamily::Unknown => &[],
+            | ProtocolFamily::Hysteria2 => &["password"],
+            // SSH accepts a password *or* a private key; that OR-rule lives in
+            // `SshParams::validate`, so the slot list stays empty here.
+            ProtocolFamily::Ssh => &[],
+            ProtocolFamily::WireGuard => &["private-key"],
+            ProtocolFamily::Unknown => &[],
         }
     }
 
@@ -648,6 +655,7 @@ impl ProtocolDraft {
         self.required_credentials().iter().all(|slot| match *slot {
             "uuid" => !self.uuid.trim().is_empty(),
             "password" => !self.password.trim().is_empty(),
+            "private-key" => !self.params.wireguard.private_key.trim().is_empty(),
             _ => true,
         })
     }
@@ -677,6 +685,7 @@ impl ProtocolDraft {
             let filled = match *slot {
                 "uuid" => !self.uuid.trim().is_empty(),
                 "password" => !self.password.trim().is_empty(),
+                "private-key" => !self.params.wireguard.private_key.trim().is_empty(),
                 _ => true,
             };
             if !filled {
@@ -735,6 +744,10 @@ impl ProtocolDraft {
         if self.alpn.iter().any(|entry| entry.trim().is_empty()) {
             issues.push(ProtocolIssue::new("alpn", "ALPN entries must not be empty"));
         }
+
+        // DUAL-05-03…05-12: typed parameter blocks, gated by the family.
+        self.params
+            .validate(self.family(), &self.password, &self.alpn, &mut issues);
 
         issues
     }
@@ -796,6 +809,9 @@ pub struct ProtocolFidelityReport {
     pub smux_chips: Vec<String>,
     pub smux_overrides: bool,
     pub issues: Vec<ProtocolIssue>,
+    /// DUAL-05-03…05-12: typed parameter chips + honest non-blocking notes.
+    #[serde(default)]
+    pub params: crate::protocol_params::ProtocolParamsReport,
 }
 
 impl ProtocolFidelityReport {
@@ -822,7 +838,27 @@ impl ProtocolFidelityReport {
             },
             smux_overrides: smux.has_overrides(),
             issues: draft.validate(),
+            params: crate::protocol_params::ProtocolParamsReport::from_draft(draft),
         }
+    }
+
+    /// Every chip both surfaces render: family, cipher, flow, REALITY, smux and
+    /// the DUAL-05-03…05-12 parameter chips.
+    pub fn all_chips(&self) -> Vec<String> {
+        let mut chips = vec![self.family.label_zh().to_string()];
+        if let Some(cipher) = &self.cipher_chip {
+            chips.push(cipher.clone());
+        }
+        if let Some(flow) = &self.flow_chip {
+            chips.push(flow.clone());
+        }
+        chips.extend(self.reality_chips.iter().cloned());
+        chips.extend(self.smux_chips.iter().cloned());
+        if let Some(bytes) = self.cipher_key_bytes {
+            chips.push(format!("PSK {bytes}B"));
+        }
+        chips.extend(self.params.chips());
+        chips
     }
 
     pub fn is_valid(&self) -> bool {

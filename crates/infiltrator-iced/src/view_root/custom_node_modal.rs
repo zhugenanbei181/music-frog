@@ -18,7 +18,6 @@ use iced::widget::{Space, button, column, container, row, scrollable, text, text
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
-
 fn draft_with(mut draft: ProtocolDraft, edit: impl FnOnce(&mut ProtocolDraft)) -> Message {
     edit(&mut draft);
     Message::UpdateCustomNodeDraft(Box::new(draft))
@@ -68,19 +67,9 @@ fn fidelity_section<'a>(
     let Some(report) = studio.report.as_ref() else {
         return Space::new().height(0).into();
     };
-    let mut chips: Vec<String> = Vec::new();
-    chips.push(report.family.label_zh().to_string());
-    if let Some(cipher) = &report.cipher_chip {
-        chips.push(cipher.clone());
-    }
-    if let Some(flow) = &report.flow_chip {
-        chips.push(flow.clone());
-    }
-    chips.extend(report.reality_chips.iter().cloned());
-    chips.extend(report.smux_chips.iter().cloned());
-    if let Some(bytes) = report.cipher_key_bytes {
-        chips.push(format!("PSK {bytes}B"));
-    }
+    // DUAL-05-03…05-12: one shared chip list (family, cipher, flow, REALITY,
+    // smux, PSK + every typed parameter chip) instead of a second vocabulary.
+    let chips = report.all_chips();
 
     let issues = studio.issue_lines();
     let gap_template = lang.tr("custom_node_uri_gap");
@@ -450,6 +439,8 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     // Shared fidelity report: protocol family, chips, issues, URI gaps.
     let fidelity = fidelity_section(studio, &lang);
+    // DUAL-05-03…05-12 typed parameter editors (family-gated inside).
+    let params_editor = super::custom_node_params::params_section(state);
 
     let export_section: Element<'_, Message> = if let Some(uri) = &studio.uri_preview {
         container(
@@ -512,6 +503,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         mux_row,
         mux_row_2,
         tls_row,
+        params_editor,
         export_section,
         Space::new().height(theme::SP_MD),
         row![Space::new().width(Length::Fill), actions],

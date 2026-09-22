@@ -252,6 +252,162 @@ rules:
     );
 }
 
+/// 32-byte base64 key used by the WireGuard fixtures.
+const WG_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+#[test]
+fn importing_wireguard_surfaces_the_shared_typed_parameters() {
+    let uri = format!(
+        "wireguard://{WG_KEY}@wg.example.com:51820?public_key={WG_KEY}&preshared_key={WG_KEY}&ip=172.16.0.2%2F32&mtu=1420&persistent_keepalive=25&reserved=1,2,3&jc=4&jmin=40&jmax=70#WG-Matrix"
+    );
+    let mut state = state_with_modal();
+    let _ = state.update(Message::UpdateCustomNodeUriInput(uri));
+    let _ = state.update(Message::ParseAndImportCustomUri);
+
+    let studio = &state.runtime.custom_node_studio;
+    let draft = studio.draft.as_ref().expect("shared draft");
+    assert_eq!(draft.node_type, "wireguard");
+    assert_eq!(draft.params.wireguard.private_key, WG_KEY);
+    assert_eq!(draft.params.wireguard.mtu, 1420);
+    assert_eq!(draft.params.wireguard.reserved, "1,2,3");
+    assert!(!draft.params.wireguard.reserved_is_base64);
+    assert_eq!(draft.params.wireguard.amnezia.jc, Some(4));
+
+    let report = studio.report.as_ref().expect("shared report");
+    assert!(report.is_valid(), "{:?}", report.issues);
+    assert!(
+        report
+            .params
+            .wireguard_chips
+            .contains(&"wg:key".to_string()),
+        "{:?}",
+        report.params.wireguard_chips
+    );
+    assert!(
+        report
+            .params
+            .wireguard_chips
+            .contains(&"awg:jc=4".to_string()),
+        "{:?}",
+        report.params.wireguard_chips
+    );
+
+    // The mihomo-correct key spellings are what actually gets written.
+    let commit =
+        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", draft).unwrap();
+    assert!(commit.profile_yaml.contains("pre-shared-key:"));
+    assert!(commit.profile_yaml.contains("amnezia-wg-option:"));
+}
+
+#[test]
+fn importing_tuic_hysteria2_and_ssh_surfaces_the_shared_blocks() {
+    let mut state = state_with_modal();
+    let tuic_uri = "tuic://b831381d-6324-4d53-ad4f-8cda48b30811:pw@tuic.example.com:443?congestion_controller=bbr&udp_relay_mode=quic&reduce_rtt=1&heartbeat_interval=10000#TUIC";
+    let _ = state.update(Message::UpdateCustomNodeUriInput(tuic_uri.to_owned()));
+    let _ = state.update(Message::ParseAndImportCustomUri);
+    let tuic = state
+        .runtime
+        .custom_node_studio
+        .draft
+        .as_ref()
+        .expect("tuic draft");
+    assert_eq!(tuic.params.tuic.congestion_controller, "bbr");
+    assert_eq!(tuic.params.tuic.udp_relay_mode, "quic");
+    assert!(tuic.params.tuic.reduce_rtt);
+    let chips = &state
+        .runtime
+        .custom_node_studio
+        .report
+        .as_ref()
+        .unwrap()
+        .params
+        .congestion_chips;
+    assert!(chips.contains(&"cc:bbr".to_string()), "{chips:?}");
+    assert!(chips.contains(&"udp:quic".to_string()), "{chips:?}");
+
+    let hy2_uri = "hysteria2://pw@hy2.example.com:443?mport=20000-30000,8443&hop_interval=30&obfs=salamander&obfs-password=obfs&up=100%20Mbps#HY2";
+    let _ = state.update(Message::UpdateCustomNodeUriInput(hy2_uri.to_owned()));
+    let _ = state.update(Message::ParseAndImportCustomUri);
+    let hy2 = state
+        .runtime
+        .custom_node_studio
+        .draft
+        .as_ref()
+        .expect("hy2 draft");
+    assert_eq!(hy2.params.hysteria2.ports, "20000-30000,8443");
+    assert_eq!(hy2.params.hysteria2.obfs, "salamander");
+    let chips = &state
+        .runtime
+        .custom_node_studio
+        .report
+        .as_ref()
+        .unwrap()
+        .params
+        .congestion_chips;
+    assert!(
+        chips.contains(&"ports:20000-30000,8443".to_string()),
+        "{chips:?}"
+    );
+
+    // SSH: typed identity slots + the username rule from the shared validator.
+    let ssh_uri = "ssh://root:pw@ssh.example.com:22?private_key=key-material&passphrase=phrase&host_key_algorithms=ssh-ed25519#SSH";
+    let _ = state.update(Message::UpdateCustomNodeUriInput(ssh_uri.to_owned()));
+    let _ = state.update(Message::ParseAndImportCustomUri);
+    let studio = &state.runtime.custom_node_studio;
+    let ssh = studio.draft.as_ref().expect("ssh draft");
+    assert_eq!(ssh.params.ssh.username, "root");
+    assert_eq!(ssh.params.ssh.private_key, "key-material");
+    let report = studio.report.as_ref().unwrap();
+    assert!(report.is_valid(), "{:?}", report.issues);
+    assert!(
+        report.params.ssh_chips.contains(&"ssh:root".to_string()),
+        "{:?}",
+        report.params.ssh_chips
+    );
+}
+
+#[test]
+fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
+    let mut state = state_with_modal();
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "quic-node".to_owned();
+    draft.server = "example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.params.transport.network = "quic".to_owned();
+    draft.params.transport.xhttp.mode = "stream-up".to_owned();
+    let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(draft)));
+
+    let notes = &state
+        .runtime
+        .custom_node_studio
+        .report
+        .as_ref()
+        .unwrap()
+        .params
+        .notes;
+    assert!(notes.iter().any(|note| note.contains("TCP")), "{notes:?}");
+    assert!(
+        notes.iter().any(|note| note.contains("v1.19.18")),
+        "{notes:?}"
+    );
+}
+
+#[test]
+fn protocol_codec_matrix_passes_on_the_iced_surface() {
+    let report = infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    assert!(
+        report.all_covered_passed(),
+        "matrix failures: {:?}",
+        report.failed_ids()
+    );
+    assert_eq!(report.covered_passed_count(), 12);
+    assert_eq!(
+        report.not_covered_ids(),
+        vec!["DUAL-05-09", "DUAL-05-10", "DUAL-05-13"]
+    );
+}
+
 #[test]
 fn new_locale_keys_resolve_in_both_languages() {
     let zh = Lang("zh-CN");
@@ -269,6 +425,20 @@ fn new_locale_keys_resolve_in_both_languages() {
         "custom_node_skip_verify",
         "custom_node_issues_hint",
         "custom_node_uri_gap",
+        "custom_node_params_title",
+        "custom_node_alpn",
+        "custom_node_ech_config",
+        "custom_node_tuic_cc",
+        "custom_node_tuic_udp_relay",
+        "custom_node_hy2_ports",
+        "custom_node_wg_private_key",
+        "custom_node_wg_reserved",
+        "custom_node_transport_network",
+        "custom_node_ws_early_data",
+        "custom_node_plugin_name",
+        "custom_node_ssh_username",
+        "custom_node_anytls_idle",
+        "custom_node_trojan_ss",
     ] {
         assert_ne!(zh.tr(key).as_ref(), key, "zh missing {key}");
         assert_ne!(en.tr(key).as_ref(), key, "en missing {key}");

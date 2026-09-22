@@ -285,6 +285,52 @@ pub fn validate(node: &RawNode) -> Vec<String> {
             if node.password.as_deref().is_none_or(|p| p.trim().is_empty()) {
                 issues.push("trojan: password is required".to_string());
             }
+            if let Some(ss) = node.ss_opts.as_ref() {
+                let enabled = ss.enabled.unwrap_or(false);
+                if enabled {
+                    if ss.method.as_deref().is_none_or(|m| m.trim().is_empty()) {
+                        issues.push("trojan ss-opts: method is required".to_string());
+                    }
+                    if ss.password.as_deref().is_none_or(|p| p.trim().is_empty()) {
+                        issues.push("trojan ss-opts: password is required".to_string());
+                    }
+                } else if ss.method.is_some() || ss.password.is_some() {
+                    issues.push(
+                        "trojan ss-opts: options are set while enabled is off; the core ignores them"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+        ProxyNode::Ssh(node) => {
+            validate_common(&node.common, &mut issues);
+            if node.username.trim().is_empty() {
+                issues.push("ssh: username is required".to_string());
+            }
+            let has_password = node
+                .password
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty());
+            let has_key = node
+                .private_key
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty());
+            if !has_password && !has_key {
+                issues.push("ssh: password or private-key is required".to_string());
+            }
+            if node
+                .private_key_passphrase
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
+                && !has_key
+            {
+                issues.push("ssh: private-key-passphrase needs a private-key".to_string());
+            }
+            if let Some(algorithms) = node.host_key_algorithms.as_ref()
+                && algorithms.iter().any(|entry| entry.trim().is_empty())
+            {
+                issues.push("ssh: host-key-algorithms must not contain empty entries".to_string());
+            }
         }
         ProxyNode::Vmess(node) => {
             validate_common(&node.common, &mut issues);

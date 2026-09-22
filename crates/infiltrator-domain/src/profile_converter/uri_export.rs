@@ -45,6 +45,12 @@ fn export_shadowsocks(node: &ProxyNodeItem) -> Result<String> {
                     }
                 } else if let Some(s) = v.as_str() {
                     plugin_val.push_str(&format!(";{}={}", k, s));
+                } else if let Some(n) = v.as_i64() {
+                    // SIP003 options are text on the wire; numeric options
+                    // (e.g. shadow-tls `version`) must not be dropped.
+                    plugin_val.push_str(&format!(";{}={}", k, n));
+                } else if let Some(n) = v.as_f64() {
+                    plugin_val.push_str(&format!(";{}={}", k, n));
                 }
             }
         }
@@ -369,13 +375,8 @@ fn export_wireguard(node: &ProxyNodeItem) -> Result<String> {
     if let Some(ka) = node.persistent_keepalive {
         params.push(format!("persistent_keepalive={ka}"));
     }
-    if let Some(ref reserved) = node.reserved {
-        let r_str = reserved
-            .iter()
-            .map(|b| b.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        params.push(format!("reserved={}", r_str));
+    if let Some(reserved) = node.reserved_text() {
+        params.push(format!("reserved={}", urlencoding::encode(&reserved)));
     }
 
     if let Some(ref awg) = node.amnezia_opts

@@ -5,6 +5,7 @@ mod aggregator_modal;
 mod command_palette;
 mod connection_drawer;
 mod custom_node_modal;
+mod custom_node_params;
 mod modals;
 mod snapshot_diff_modal;
 pub(crate) mod speedtest_detail_modal;
