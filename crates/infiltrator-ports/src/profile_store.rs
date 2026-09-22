@@ -2,6 +2,7 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
+use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use std::path::PathBuf;
 
@@ -27,6 +28,11 @@ pub trait ProfileStore: Send + Sync {
         metadata: &ProfileMetadata,
     ) -> Result<(), PortError>;
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError>;
+    /// DUAL-07-08: load a profile's option sidecar (filter + mixin). A missing
+    /// sidecar is the default (empty) options, not an error.
+    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError>;
+    /// DUAL-07-08: persist a profile's option sidecar; empty options remove it.
+    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError>;
     async fn delete_options(&self, profile: &str) -> Result<(), PortError>;
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError>;
     async fn restore_backup(&self, profile: &str) -> Result<bool, PortError>;

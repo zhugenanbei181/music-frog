@@ -23,6 +23,9 @@ use infiltrator_contract::subscription_import::{
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::subscription_notification::{
+    SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
+};
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -69,6 +72,7 @@ pub struct SubscriptionRefreshApplication {
     profile: ProfileApplication,
     runtime: Arc<dyn ApplicationRuntime>,
     policy: RetryBackoffPolicy,
+    notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
 }
 
 impl SubscriptionRefreshApplication {
@@ -81,6 +85,7 @@ impl SubscriptionRefreshApplication {
             profile,
             runtime,
             policy,
+            notifier: None,
         }
     }
 
@@ -90,6 +95,14 @@ impl SubscriptionRefreshApplication {
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
         Self::new(profile, runtime, RetryBackoffPolicy::default())
+    }
+
+    /// DUAL-07-10: attach the host notification port. Every terminal refresh
+    /// outcome then emits one locale-neutral notification; without a port the
+    /// orchestration stays silent (a headless host).
+    pub fn with_notifier(mut self, notifier: Arc<dyn SubscriptionNotificationPort>) -> Self {
+        self.notifier = Some(notifier);
+        self
     }
 
     /// The retry policy this application applies.
@@ -132,6 +145,20 @@ impl SubscriptionRefreshApplication {
         source: &S,
         name: &str,
     ) -> Result<SubscriptionUpdateReport, Failure> {
+        let result = self.refresh_profile_inner(source, name).await;
+        if let Some(notifier) = &self.notifier {
+            notifier.notify(notification_for_refresh(name, &result));
+        }
+        result
+    }
+
+    /// The refresh body without notification, so the batch path can aggregate
+    /// one notification for the whole run instead of one per profile.
+    async fn refresh_profile_inner<S: SubscriptionSource + ?Sized>(
+        &self,
+        source: &S,
+        name: &str,
+    ) -> Result<SubscriptionUpdateReport, Failure> {
         let _guard = self.begin_refresh(name)?;
         self.refresh_with_retry(source, name).await
     }
@@ -164,7 +191,7 @@ impl SubscriptionRefreshApplication {
         };
 
         let outcomes = stream::iter(targets.into_iter().map(|name| async move {
-            let result = self.refresh_profile(source, &name).await;
+            let result = self.refresh_profile_inner(source, &name).await;
             (name, result)
         }))
         .buffer_unordered(concurrency.max(1))
@@ -201,6 +228,10 @@ impl SubscriptionRefreshApplication {
             }
         }
 
+        if let Some(notifier) = &self.notifier {
+            notifier.notify(notification_for_batch(&report));
+        }
+
         Ok(report)
     }
 
@@ -226,6 +257,62 @@ impl SubscriptionRefreshApplication {
             }
         }
     }
+}
+
+/// Map a single-profile refresh result to its locale-neutral notification.
+fn notification_for_refresh(
+    name: &str,
+    result: &Result<SubscriptionUpdateReport, Failure>,
+) -> SubscriptionNotification {
+    match result {
+        Ok(report) => {
+            let kind = match &report.outcome {
+                SubscriptionUpdateOutcome::Updated { .. } => SubscriptionNotificationKind::Updated,
+                SubscriptionUpdateOutcome::NotModified { .. } => {
+                    SubscriptionNotificationKind::NotModified
+                }
+                SubscriptionUpdateOutcome::Failed { .. } => SubscriptionNotificationKind::Failed,
+            };
+            if kind == SubscriptionNotificationKind::Failed {
+                let error = match &report.outcome {
+                    SubscriptionUpdateOutcome::Failed { error, .. } => error.clone(),
+                    _ => String::new(),
+                };
+                SubscriptionNotification::failure(vec![name.to_string()], error)
+            } else {
+                SubscriptionNotification::for_profiles(kind, vec![name.to_string()])
+            }
+        }
+        Err(failure) => {
+            SubscriptionNotification::failure(vec![name.to_string()], failure.message.clone())
+        }
+    }
+}
+
+/// Map an aggregated batch to one locale-neutral notification.
+fn notification_for_batch(report: &SubscriptionBatchReport) -> SubscriptionNotification {
+    let profiles = report
+        .outcomes
+        .iter()
+        .map(|outcome| outcome.profile_name.clone())
+        .collect::<Vec<_>>();
+    if report.failed > 0 {
+        let error = report
+            .outcomes
+            .iter()
+            .find_map(|outcome| match &outcome.outcome {
+                SubscriptionUpdateOutcome::Failed { error, .. } => Some(error.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| "subscription update failed".to_string());
+        return SubscriptionNotification::failure(profiles, error);
+    }
+    let kind = if report.updated > 0 {
+        SubscriptionNotificationKind::Updated
+    } else {
+        SubscriptionNotificationKind::NotModified
+    };
+    SubscriptionNotification::for_profiles(kind, profiles)
 }
 
 #[cfg(test)]

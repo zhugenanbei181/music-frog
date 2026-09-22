@@ -26,6 +26,11 @@ use infiltrator_bevy_ui::pages::profiles_import::{
     RestoreSubscriptionBackupButton, SaveUserAgentButton, SubscriptionBackupStatus,
     SubscriptionInsecureToggle, SubscriptionUserAgentField,
 };
+use infiltrator_bevy_ui::pages::profiles_import_channels::{
+    ImportClipboardSubscriptionButton, ImportLocalPathField, ImportLocalSubscriptionButton,
+    ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
+    SaveSubscriptionFilterButton, SubscriptionFilterIncludeField,
+};
 use infiltrator_bevy_ui::pages::proxies::*;
 use infiltrator_bevy_ui::pages::rules::*;
 use infiltrator_bevy_ui::pages::rules_builder::{
@@ -2340,6 +2345,12 @@ fn subscription_fetch_projection() -> ProfilesProjection {
             etag: Some("\"fetch-etag\"".to_owned()),
             last_modified: Some("Tue, 22 Sep 2026 09:00:00 GMT".to_owned()),
             has_backup: true,
+            cron_expression: Some("0 */6 * * *".to_owned()),
+            filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft {
+                include: "香港".to_owned(),
+                exclude: "广告".to_owned(),
+                ..Default::default()
+            },
         }],
     }
 }
@@ -2423,6 +2434,135 @@ fn test_profiles_save_fetch_settings_submits_shared_command() {
             user_agent: Some("Custom-UA/9".to_owned()),
             insecure_skip_verify: true,
         }]
+    );
+}
+
+/// Overwrite the single-marker text field's state in a headless app.
+fn set_marker_text<M: bevy::ecs::component::Component>(app: &mut App, value: &str) {
+    let field = {
+        let mut wrappers = app
+            .world_mut()
+            .query_filtered::<&Children, bevy::ecs::query::With<M>>();
+        *wrappers
+            .single(app.world())
+            .expect("field wrapper")
+            .iter()
+            .next()
+            .expect("text field child")
+    };
+    app.world_mut()
+        .get_mut::<TextField>(field)
+        .expect("text field state")
+        .0
+        .apply(TextFieldInput::SetText(value.to_owned()));
+}
+
+fn marker_entity<M: bevy::ecs::component::Component>(app: &mut App) -> Entity {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<M>>();
+    query.single(app.world()).expect("marker entity")
+}
+
+// ---- DUAL-07-03/08: cron schedule + node cleaning pipeline dual surface ------
+
+#[test]
+fn test_profiles_filter_panel_restamps_and_submits_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(subscription_fetch_projection()));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "香港"),
+        "stored include filter restamps onto the panel"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "清洗管道"),
+        "filter pipeline status line renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "0 */6 * * *"),
+        "cron schedule is visible on the import card (DUAL-07-03)"
+    );
+
+    set_marker_text::<SubscriptionFilterIncludeField>(&mut app, "香港, 日本");
+    let save = marker_entity::<SaveSubscriptionFilterButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: save });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::SaveSubscriptionFilter {
+            profile_id: "sub-fetch".to_owned(),
+            filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft {
+                include: "香港, 日本".to_owned(),
+                exclude: "广告".to_owned(),
+                dedup_index: 0,
+                ..Default::default()
+            },
+        }],
+        "the filter editor rides the shared command (shared pipeline)"
+    );
+}
+
+#[test]
+fn test_profiles_import_channels_submit_shared_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Profiles);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(subscription_fetch_projection()));
+    app.update();
+
+    set_marker_text::<ImportSubscriptionNameField>(&mut app, "new-sub");
+    set_marker_text::<ImportSubscriptionUrlField>(&mut app, "https://example.com/sub");
+    set_marker_text::<ImportLocalPathField>(&mut app, "/tmp/local.yaml");
+
+    let url_button = marker_entity::<ImportSubscriptionUrlButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: url_button });
+    app.update();
+    let local_button = marker_entity::<ImportLocalSubscriptionButton>(&mut app);
+    app.world_mut().commands().trigger(Activate {
+        entity: local_button,
+    });
+    app.update();
+    let clipboard_button = marker_entity::<ImportClipboardSubscriptionButton>(&mut app);
+    app.world_mut().commands().trigger(Activate {
+        entity: clipboard_button,
+    });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![
+            UiCommand::ImportSubscription {
+                profile_id: "new-sub".to_owned(),
+                channel: infiltrator_contract::subscription_import::SubscriptionImportChannel::Url,
+                source: "https://example.com/sub".to_owned(),
+            },
+            UiCommand::ImportSubscription {
+                profile_id: "new-sub".to_owned(),
+                channel:
+                    infiltrator_contract::subscription_import::SubscriptionImportChannel::LocalFile,
+                source: "/tmp/local.yaml".to_owned(),
+            },
+            UiCommand::ImportSubscription {
+                profile_id: "new-sub".to_owned(),
+                channel:
+                    infiltrator_contract::subscription_import::SubscriptionImportChannel::Clipboard,
+                source: String::new(),
+            },
+        ],
+        "all three import channels route through the shared command bus"
     );
 }
 

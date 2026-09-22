@@ -80,6 +80,7 @@ pub enum Message {
     UpdateSubscriptionUrl(String),
     UpdateSubscriptionAutoUpdate(bool),
     UpdateSubscriptionInterval(String),
+    UpdateSubscriptionCron(String),
     UpdateSubscriptionUserAgent(String),
     UpdateSubscriptionInsecureSkipVerify(bool),
     SaveSubscriptionSettings,

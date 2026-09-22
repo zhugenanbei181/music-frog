@@ -8,15 +8,19 @@ use chrono::Utc;
 use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
-    SubscriptionBatchReport, SubscriptionQuotaFacts, SubscriptionUpdateOutcome,
-    SubscriptionUpdateReport,
+    SubscriptionBatchReport, SubscriptionImportChannel, SubscriptionImportReport,
+    SubscriptionQuotaFacts, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::filter::FilterReport;
+use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::{
     ProfileDetail, ProfileInfo, ProfileMetadata, sanitize_profile_name,
 };
 use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
-use infiltrator_domain::subscription_scheduler_policy::{FormatDetector, QuotaWarningPolicy};
+use infiltrator_domain::subscription_scheduler_policy::{
+    FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
+};
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::subscription_source::{
@@ -167,12 +171,121 @@ impl ProfileApplication {
         name: &str,
         url: &str,
     ) -> Result<ProfileInfo, Failure> {
+        let report = self.import_subscription_report(source, name, url).await?;
+        self.load_profile_info(&report.profile_name).await
+    }
+
+    /// DUAL-07-01: import a subscription URL and report the detected format and
+    /// node count alongside the saved profile name.
+    pub async fn import_subscription_report<S: SubscriptionSource + ?Sized>(
+        &self,
+        source: &S,
+        name: &str,
+        url: &str,
+    ) -> Result<SubscriptionImportReport, Failure> {
         let name = valid_name(name)?;
         let url = CheckedSubscriptionUrl::parse(url)
             .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))?;
         let document = source.fetch(&name, &url).await.map_err(Failure::from)?;
+        let content_bytes = document.content.len();
+        let format = FormatDetector::detect(&document.content);
+        let node_count = FormatDetector::count_nodes(&document.content);
         commit_subscription_document(&self.store, &name, url.as_str(), document).await?;
-        self.load_profile_info(&name).await
+        Ok(SubscriptionImportReport {
+            profile_name: name,
+            channel: SubscriptionImportChannel::Url,
+            format,
+            node_count,
+            content_bytes,
+        })
+    }
+
+    /// DUAL-07-01: import an already-read document (local file / clipboard),
+    /// normalizing URI/Base64 payloads through the shared converter and
+    /// validating the result before it is committed.
+    pub async fn import_document(
+        &self,
+        name: &str,
+        content: &str,
+        channel: SubscriptionImportChannel,
+    ) -> Result<SubscriptionImportReport, Failure> {
+        let name = valid_name(name)?;
+        let converted =
+            infiltrator_domain::profile_converter::ProfileConverter::detect_and_convert(content)
+                .unwrap_or_else(|_| content.to_string());
+        if converted.trim().is_empty() {
+            return Err(Failure::new(
+                ErrorCode::Configuration,
+                "imported document is empty",
+                false,
+            ));
+        }
+        infiltrator_domain::config::validate_yaml(&converted)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        let format = FormatDetector::detect(&converted);
+        let node_count = FormatDetector::count_nodes(&converted);
+        let content_bytes = converted.len();
+        self.store
+            .save(&name, &converted)
+            .await
+            .map_err(Failure::from)?;
+        Ok(SubscriptionImportReport {
+            profile_name: name,
+            channel,
+            format,
+            node_count,
+            content_bytes,
+        })
+    }
+
+    /// DUAL-07-08: load a profile's option sidecar (filter + mixin).
+    pub async fn load_options(&self, name: &str) -> Result<ProfileOptions, Failure> {
+        let name = valid_name(name)?;
+        self.store.load_options(&name).await.map_err(Failure::from)
+    }
+
+    /// DUAL-07-08: persist a profile's option sidecar.
+    pub async fn save_options(&self, name: &str, options: &ProfileOptions) -> Result<(), Failure> {
+        let name = valid_name(name)?;
+        self.store
+            .save_options(&name, options)
+            .await
+            .map_err(Failure::from)
+    }
+
+    /// DUAL-07-08: run the shared node-keyword filter pipeline over a profile's
+    /// stored document, commit the filtered content through the managed
+    /// runtime seam, and persist the spec so the next subscription update
+    /// recomposes from the same node strategy.
+    pub async fn apply_subscription_filter<R: ManagedRuntime + ?Sized>(
+        &self,
+        runtime: Option<Arc<R>>,
+        name: &str,
+        spec: FilterSpec,
+    ) -> Result<FilterReport, Failure> {
+        let name = valid_name(name)?;
+        let rule = spec
+            .to_rule()
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        let content = self.store.load(&name).await.map_err(Failure::from)?;
+        let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
+            .apply_to_yaml(&content)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        infiltrator_domain::config::validate_yaml(&filtered)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        self.save_profile_content(runtime, name.clone(), filtered, ApplyStrategy::PreferReload)
+            .await?;
+        let mut options = self
+            .store
+            .load_options(&name)
+            .await
+            .map_err(Failure::from)?;
+        options.filter = Some(spec);
+        self.store
+            .save_options(&name, &options)
+            .await
+            .map_err(Failure::from)?;
+        Ok(report)
     }
 
     pub async fn update_subscription<S: SubscriptionSource + ?Sized>(
@@ -539,13 +652,19 @@ fn schedule_next_update(
     metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
     now: chrono::DateTime<Utc>,
 ) {
-    metadata.next_update = if metadata.auto_update_enabled {
-        metadata
-            .update_interval_hours
-            .map(|hours| now + chrono::Duration::hours(hours as i64))
-    } else {
-        None
-    };
+    if !metadata.auto_update_enabled {
+        metadata.next_update = None;
+        return;
+    }
+    // DUAL-07-03: a profile may carry either a fixed interval or a cron
+    // expression; the domain schedule picks cron first and reports a malformed
+    // expression as an error instead of silently falling back to the interval.
+    metadata.next_update = SubscriptionSchedule::from_metadata(
+        metadata.update_interval_hours,
+        metadata.cron_expression.as_deref(),
+    )
+    .ok()
+    .and_then(|schedule| schedule.next_run(now));
 }
 
 fn report_from_metadata(

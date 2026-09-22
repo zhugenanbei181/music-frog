@@ -157,6 +157,8 @@ pub(super) fn profiles_projection(
                     etag: profile.etag.clone(),
                     last_modified: profile.last_modified.clone(),
                     has_backup: profile.has_backup,
+                    cron_expression: profile.cron_expression.clone(),
+                    filter: profile.filter.clone(),
                 })
                 .collect(),
             auto_update_interval_hours: value.auto_update_interval_hours,

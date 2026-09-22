@@ -609,6 +609,46 @@ pub fn strip_utf8_bom(text: &str) -> &str {
     text.strip_prefix("\u{feff}").unwrap_or(text)
 }
 
+/// DUAL-07-01: extract a subscription URL from raw clipboard text.
+///
+/// Accepts a plain `http(s)://` URL and the `clash://install-config?url=`
+/// deeplink scheme, percent-decoding the embedded target. Returns `None` for
+/// anything that is not a URL so the caller can fall back to importing the
+/// text as a local document.
+pub fn extract_subscription_url(text: &str) -> Option<String> {
+    let clean =
+        strip_utf8_bom(text.trim()).trim_matches(|c: char| c.is_whitespace() || c == '\u{200B}');
+    if let Some(rest) = clean.strip_prefix("clash://install-config?url=") {
+        let encoded = rest.split('&').next().unwrap_or(rest);
+        let decoded = percent_decode(encoded);
+        return (!decoded.is_empty()).then_some(decoded);
+    }
+    if clean.starts_with("http://") || clean.starts_with("https://") {
+        return Some(clean.to_string());
+    }
+    None
+}
+
+/// Minimal percent-decoder for `clash://install-config?url=` payloads.
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut output: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[index + 1..index + 3]).unwrap_or_default();
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                output.push(byte);
+                index += 3;
+                continue;
+            }
+        }
+        output.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&output).into_owned()
+}
+
 pub fn decode_subscription_bytes(bytes: Vec<u8>, encoding: Option<&str>) -> Result<Vec<u8>> {
     if bytes.is_empty() {
         return Ok(Vec::new());

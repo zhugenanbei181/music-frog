@@ -163,9 +163,13 @@ impl AppState {
                         let profile_name =
                             infiltrator_domain::profiles::sanitize_profile_name(&name)
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let content = tokio::fs::read_to_string(&path)
+                        // DUAL-07-01: the local-file channel goes through the
+                        // host import port so Iced no longer owns a second
+                        // filesystem read path.
+                        let content = crate::host::storage::subscription_import_port()
+                            .read_local_file(&path)
                             .await
-                            .map_err(|e| InfiltratorError::Io(e.to_string()))?;
+                            .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         let content = infiltrator_domain::profile_converter::ProfileConverter::detect_and_convert(&content)
                             .unwrap_or(content);
                         infiltrator_domain::config::validate_yaml(&content)

@@ -96,6 +96,21 @@ impl ProfileStore for FakeStore {
     async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
         Ok(false)
     }
+
+    async fn load_options(
+        &self,
+        _profile: &str,
+    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
+        Ok(infiltrator_domain::profile_options::ProfileOptions::default())
+    }
+
+    async fn save_options(
+        &self,
+        _profile: &str,
+        _options: &infiltrator_domain::profile_options::ProfileOptions,
+    ) -> Result<(), PortError> {
+        Ok(())
+    }
 }
 
 const THREE_RULES: &str =

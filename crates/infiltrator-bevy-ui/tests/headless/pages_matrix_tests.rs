@@ -200,6 +200,8 @@ fn profiles_page_in_place_update() {
             etag: Some("\"etag-custom\"".to_owned()),
             last_modified: None,
             has_backup: false,
+            cron_expression: None,
+            filter: Default::default(),
         }],
     };
 

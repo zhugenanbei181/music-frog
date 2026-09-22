@@ -12,9 +12,9 @@ use crate::types::message::Message;
 use crate::types::options::{EditorPane, FilterDraft};
 use iced::Task;
 use iced::widget::text_editor;
+use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::filter::SubscriptionFilterPipeline;
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::profile_options::FilterSpec;
 use infiltrator_domain::profile_options::{self, ProfileOptions};
@@ -203,10 +203,11 @@ impl AppState {
         self.editor.filter_loaded_for = Some(profile.clone());
         Task::perform(
             async move {
-                let config_dir = crate::configs_dir::configs_dir().await?;
-                let options = crate::host::storage::load_profile_options(&config_dir, &profile)
+                let manager = crate::configs_dir::config_manager().await?;
+                let options = ProfileApplication::new(manager)
+                    .load_options(&profile)
                     .await
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
                 Ok(FilterDraft::from_spec(options.filter.as_ref()))
             },
             Message::ProfileFilterLoaded,
@@ -315,41 +316,11 @@ impl AppState {
         let runtime = self.runtime.runtime.clone();
         Task::perform(
             async move {
-                let rule = spec
-                    .to_rule()
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                 let manager = crate::configs_dir::config_manager().await?;
-                let content = manager
-                    .load(&profile)
+                ProfileApplication::new(manager)
+                    .apply_subscription_filter(runtime, &profile, spec)
                     .await
-                    .map_err(infiltrator_contract::error::from_mihomo)?;
-                let (filtered, report) = SubscriptionFilterPipeline::new(rule)
-                    .apply_to_yaml(&content)
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                infiltrator_domain::config::validate_yaml(&filtered)
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                crate::update::core::profile_apply::save_profile_content(
-                    runtime,
-                    profile.clone(),
-                    filtered,
-                    ApplyStrategy::PreferReload,
-                )
-                .await?;
-                let config_dir = crate::configs_dir::configs_dir().await?;
-                let old = crate::host::storage::load_profile_options(&config_dir, &profile)
-                    .await
-                    .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                crate::host::storage::save_profile_options(
-                    &config_dir,
-                    &profile,
-                    &ProfileOptions {
-                        mixin: old.mixin,
-                        filter: Some(spec),
-                    },
-                )
-                .await
-                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                Ok(report)
+                    .map_err(|failure| InfiltratorError::Config(failure.message))
             },
             Message::ProfileFilterSaved,
         )

@@ -808,6 +808,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::MoveRule { .. } => "move_rule",
         CommandIntent::AddCustomRule { .. } => "add_custom_rule",
         CommandIntent::ApplyGameRoutingPresets { .. } => "apply_game_routing_presets",
+        CommandIntent::SaveSubscriptionFilter { .. } => "save_subscription_filter",
+        CommandIntent::ImportSubscription { .. } => "import_subscription",
     }
 }
 

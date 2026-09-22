@@ -338,6 +338,11 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "profiles_insecure_skip_verify_hint" => {
             "仅对当前订阅生效；跳过证书校验会降低安全性，请仅在自签证书源站使用".into()
         }
+        "profiles_cron_placeholder" => "Cron 表达式 (例如 0 */6 * * *，留空则按小时)".into(),
+        "profiles_cron_hint" => {
+            "5 段 UTC Cron（分 时 日 月 周），支持 @daily / @hourly 等宏；填写后优先于小时周期"
+                .into()
+        }
         "profiles_conditional_request" => "条件请求已缓存".into(),
         "profiles_conditional_request_empty" => "条件请求：尚无 ETag / Last-Modified 缓存".into(),
         "sub_update_not_modified" => "订阅未变更 (304 Not Modified)".into(),

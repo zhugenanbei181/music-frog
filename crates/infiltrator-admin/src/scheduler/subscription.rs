@@ -62,10 +62,16 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
         Some(url) if !url.trim().is_empty() => {}
         _ => return Ok(()),
     }
-    let interval_hours = match profile.update_interval_hours {
-        Some(hours) if hours > 0 => hours,
-        _ => return Ok(()),
-    };
+    // DUAL-07-03: profiles may be scheduled purely by a Cron expression with
+    // no interval; the due-check below still gates the actual run.
+    match SubscriptionSchedule::from_metadata(
+        profile.update_interval_hours,
+        profile.cron_expression.as_deref(),
+    ) {
+        Ok(SubscriptionSchedule::ManualOnly) => return Ok(()),
+        Ok(_) => {}
+        Err(err) => return Err(format!("订阅排程解析失败: {err}")),
+    }
     let now = Utc::now();
     let due = profile.next_update.map(|next| next <= now).unwrap_or(true);
     if !due {
@@ -98,7 +104,13 @@ pub(super) async fn run_profile_subscription_tick<C: AdminApiContext>(
                 Some(redact_line(&err.to_string(), &[])),
             )
             .await;
-            let _ = schedule_next_attempt(&application, &profile.name, interval_hours, now).await;
+            let _ = schedule_next_attempt(
+                &application,
+                &profile.name,
+                profile.update_interval_hours.unwrap_or(0),
+                now,
+            )
+            .await;
             // Redacted: this string becomes the JobScheduler's last_error and
             // admin-facing status text; anyhow chains can embed the full
             // request URL including its subscription token.
@@ -327,9 +339,8 @@ pub(crate) async fn schedule_next_attempt(
         updated.cron_expression.as_deref(),
     )
     .ok()
-    .and_then(|sched| sched.next_run(now))
-    .unwrap_or_else(|| now + chrono::Duration::hours(interval_hours as i64));
-    updated.next_update = Some(next_update);
+    .and_then(|sched| sched.next_run(now));
+    updated.next_update = next_update;
     application
         .update_metadata(profile_name, &updated)
         .await

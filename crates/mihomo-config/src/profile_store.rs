@@ -102,6 +102,43 @@ where
             .map_err(storage_error)
     }
 
+    async fn load_options(
+        &self,
+        profile: &str,
+    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
+        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
+        let Ok(text) = tokio::fs::read_to_string(&path).await else {
+            return Ok(Default::default());
+        };
+        serde_yaml_ng::from_str(&text).map_err(storage_error)
+    }
+
+    async fn save_options(
+        &self,
+        profile: &str,
+        options: &infiltrator_domain::profile_options::ProfileOptions,
+    ) -> Result<(), PortError> {
+        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
+        if options.is_empty() {
+            let _ = tokio::fs::remove_file(&path).await;
+            return Ok(());
+        }
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(storage_error)?;
+        }
+        let text = serde_yaml_ng::to_string(options).map_err(storage_error)?;
+        let temp = path.with_file_name(format!(
+            ".{}.options-tmp",
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("profile")
+        ));
+        tokio::fs::write(&temp, text).await.map_err(storage_error)?;
+        tokio::fs::rename(&temp, &path).await.map_err(storage_error)
+    }
+
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {
         ConfigManager::delete_subscription_credential(self, profile)
             .await

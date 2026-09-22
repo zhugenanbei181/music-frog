@@ -6,8 +6,8 @@ mod tests {
         update_all_subscriptions,
     };
     use crate::scheduler::{
-        cancel_profile_update_job, schedule_profile_update_job, seed_subscription_jobs,
-        subscription_job_name, subscription_jobs, sync_profile_job,
+        cancel_profile_update_job, schedule_cron_profile_update_job, schedule_profile_update_job,
+        seed_subscription_jobs, subscription_job_name, subscription_jobs, sync_profile_job,
     };
     use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
@@ -440,7 +440,14 @@ mod tests {
         wait_for_notifications(&ctx, 2).await;
 
         // 关闭：auto-update switched off in metadata cancels the job.
-        sync_profile_job(&ctx, &profile_name, false, Some(&subscription_url), Some(1));
+        sync_profile_job(
+            &ctx,
+            &profile_name,
+            false,
+            Some(&subscription_url),
+            Some(1),
+            None,
+        );
         assert!(!subscription_jobs().is_active(&job_name));
         assert!(subscription_jobs().snapshot().is_empty());
 
@@ -457,6 +464,80 @@ mod tests {
 
         // Cleanup: keep the process-wide registry empty for other tests.
         cancel_profile_update_job(&profile_name);
+        mihomo_platform::paths::clear_home_dir_override();
+    }
+
+    /// DUAL-07-03: a cron-only profile (no interval) is scheduled instead of
+    /// silently dropped, and both the sync path and the direct path register
+    /// a job that can be cancelled again.
+    #[tokio::test]
+    async fn test_cron_only_profile_is_scheduled_and_cancelled() {
+        let _guard = TEST_LOCK.lock().await;
+        let temp_dir = tempfile::Builder::new()
+            .prefix("sub-test-cron-")
+            .tempdir()
+            .unwrap();
+        mihomo_platform::paths::clear_home_dir_override();
+        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+
+        let manager = ConfigManager::with_home_and_store(
+            temp_dir.path().to_path_buf(),
+            DefaultCredentialStore::default(),
+        )
+        .unwrap();
+        let profile_name = "cron-only".to_string();
+        let configs_dir = temp_dir.path().join("configs");
+        let _ = std::fs::create_dir_all(&configs_dir);
+        let profile_path = configs_dir.join(format!("{profile_name}.yaml"));
+        std::fs::write(&profile_path, "port: 7890").unwrap();
+        let mut profile = Profile::new(profile_name.clone(), profile_path, false);
+        profile.subscription_url = Some("https://example.com/sub".to_string());
+        profile.auto_update_enabled = true;
+        profile.update_interval_hours = None;
+        profile.cron_expression = Some("0 */6 * * *".to_string());
+        manager
+            .update_profile_metadata(&profile_name, &profile)
+            .await
+            .unwrap();
+
+        let ctx = MockContext {
+            notifications: Arc::new(Mutex::new(vec![])),
+        };
+        let job_name = subscription_job_name(&profile_name);
+
+        sync_profile_job(
+            &ctx,
+            &profile_name,
+            true,
+            Some("https://example.com/sub"),
+            None,
+            Some("0 */6 * * *"),
+        );
+        assert!(
+            subscription_jobs().is_active(&job_name),
+            "cron-only profile must be scheduled"
+        );
+
+        // The direct cron scheduling entry point also registers.
+        cancel_profile_update_job(&profile_name);
+        let cron = infiltrator_domain::subscription_scheduler_policy::CronSchedule::parse("@daily")
+            .unwrap();
+        schedule_cron_profile_update_job(&ctx, &profile_name, cron);
+        assert!(subscription_jobs().is_active(&job_name));
+
+        // A malformed stored expression does not silently widen the schedule.
+        sync_profile_job(
+            &ctx,
+            &profile_name,
+            true,
+            Some("https://example.com/sub"),
+            None,
+            Some("not a cron"),
+        );
+        assert!(!subscription_jobs().is_active(&job_name));
+
+        cancel_profile_update_job(&profile_name);
+        assert!(!subscription_jobs().is_active(&job_name));
         mihomo_platform::paths::clear_home_dir_override();
     }
 

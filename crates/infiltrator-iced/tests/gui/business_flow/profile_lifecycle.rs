@@ -708,3 +708,130 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
         assert_eq!(source.calls(), 3);
     });
 }
+
+/// DUAL-07-08: the Iced filter editor state round-trips into the shared
+/// `profile_options` pipeline, which reshapes the stored document.
+#[test]
+fn subscription_filter_panel_rides_the_shared_pipeline() {
+    let home = TempHome::acquire("sub-filter-panel");
+    home.seed_profile(
+        "Paid",
+        "proxies:\n  - name: 香港-01\n    type: ss\n  - name: 广告-02\n    type: vmess\n",
+    );
+    let mut state = fresh_state();
+
+    // The view model loads the stored draft; editing replaces it.
+    feed(
+        &mut state,
+        Message::ProfileFilterLoaded(Ok(crate::types::options::FilterDraft {
+            include: "香港".into(),
+            ..Default::default()
+        })),
+    );
+    assert_eq!(state.editor.filter_draft.include, "香港");
+    feed(
+        &mut state,
+        Message::UpdateFilterInclude("香港, 日本".into()),
+    );
+    feed(&mut state, Message::UpdateFilterExclude("广告".into()));
+    assert_eq!(state.editor.filter_draft.include, "香港, 日本");
+
+    // The editor's draft compiles into the shared spec and runs the shared
+    // pipeline over the real config-manager store.
+    let spec = state.editor.filter_draft.to_spec().expect("draft compiles");
+    block_on(async {
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let application = ProfileApplication::new(manager.clone());
+        let runtime: Option<
+            std::sync::Arc<dyn infiltrator_ports::runtime_gateway::ManagedRuntime>,
+        > = None;
+        let report = application
+            .apply_subscription_filter(runtime, "Paid", spec)
+            .await
+            .expect("shared filter runs");
+        assert_eq!(report.total_input, 2);
+        assert_eq!(report.passed, 1);
+
+        let stored = manager.load("Paid").await.unwrap();
+        assert!(stored.contains("香港-01"));
+        assert!(!stored.contains("广告-02"), "excluded node is dropped");
+
+        let options = application.load_options("Paid").await.expect("options");
+        assert_eq!(
+            options.filter.expect("filter persisted").exclude_keywords,
+            vec!["广告".to_string()]
+        );
+    });
+}
+
+/// DUAL-07-01: the Iced local-import task reads through the shared host port
+/// instead of owning a second filesystem path.
+#[test]
+fn local_import_reads_through_the_host_import_port() {
+    let home = TempHome::acquire("sub-import-port");
+    let source = home.join("picked.yaml");
+    std::fs::write(&source, LOCAL_IMPORT_YAML).unwrap();
+
+    let port = crate::host::storage::subscription_import_port();
+    let content =
+        block_on(port.read_local_file(&source.to_string_lossy())).expect("port reads file");
+    assert_eq!(content, LOCAL_IMPORT_YAML);
+
+    let missing = block_on(port.read_local_file("/definitely/not/here.yaml"));
+    assert!(missing.is_err(), "a missing local file is an honest error");
+}
+
+/// DUAL-07-03: the Iced subscription editor loads and validates a cron
+/// expression; a malformed one is rejected before any save task is spawned.
+#[test]
+fn subscription_cron_editor_loads_and_validates() {
+    let home = TempHome::acquire("sub-cron-editor");
+    home.seed_profile("Paid", LOCAL_IMPORT_YAML);
+    let mut state = fresh_state();
+    state.shell.lang = "zh-CN".into();
+
+    block_on(async {
+        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
+        metadata.subscription_url = Some("https://sub.example.com/token".into());
+        metadata.auto_update_enabled = true;
+        metadata.update_interval_hours = Some(24);
+        metadata.cron_expression = Some("0 */6 * * *".into());
+        manager
+            .update_profile_metadata("Paid", &metadata)
+            .await
+            .unwrap();
+    });
+
+    feed(&mut state, Message::ProfilesLoaded(Ok(list_profiles())));
+    feed(
+        &mut state,
+        Message::SelectSubscriptionProfile("Paid".into()),
+    );
+    assert_eq!(
+        state.profile.subscription_cron_expression, "0 */6 * * *",
+        "stored cron expression loads into the editor"
+    );
+
+    // A malformed expression is rejected before the save spawns.
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionCron("not a cron".into()),
+    );
+    let units = feed(&mut state, Message::SaveSubscriptionSettings);
+    assert!(units >= 1, "rejection raises a toast");
+    assert!(
+        !state.profile.is_saving_subscription,
+        "a malformed cron never starts the save task"
+    );
+
+    // A valid expression is accepted and the save task starts.
+    feed(
+        &mut state,
+        Message::UpdateSubscriptionCron("0 */6 * * *".into()),
+    );
+    feed(&mut state, Message::SaveSubscriptionSettings);
+    assert!(state.profile.is_saving_subscription);
+    feed(&mut state, Message::SubscriptionSettingsSaved(Ok(())));
+    assert!(!state.profile.is_saving_subscription);
+}

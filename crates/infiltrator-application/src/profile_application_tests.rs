@@ -3,6 +3,7 @@
 
 use super::*;
 use async_trait::async_trait;
+use chrono::Timelike;
 use infiltrator_domain::profiles::ProfileMetadata;
 use infiltrator_ports::error::PortError;
 use std::collections::BTreeMap;
@@ -12,6 +13,7 @@ use std::sync::Mutex;
 struct FakeStore {
     current: Mutex<String>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
+    options: Mutex<BTreeMap<String, infiltrator_domain::profile_options::ProfileOptions>>,
     deleted_options: Mutex<Vec<String>>,
     cleared_backups: Mutex<Vec<String>>,
     restorable_backups: Mutex<Vec<String>>,
@@ -156,6 +158,32 @@ impl ProfileStore for FakeStore {
             .lock()
             .expect("options lock")
             .push(profile.to_string());
+        self.options.lock().expect("options lock").remove(profile);
+        Ok(())
+    }
+
+    async fn load_options(
+        &self,
+        profile: &str,
+    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
+        Ok(self
+            .options
+            .lock()
+            .expect("options lock")
+            .get(profile)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    async fn save_options(
+        &self,
+        profile: &str,
+        options: &infiltrator_domain::profile_options::ProfileOptions,
+    ) -> Result<(), PortError> {
+        self.options
+            .lock()
+            .expect("options lock")
+            .insert(profile.to_string(), options.clone());
         Ok(())
     }
 
@@ -501,4 +529,111 @@ async fn batch_update_skips_url_less_profiles_and_aggregates_counts() {
     assert_eq!(report.not_modified, 0);
     assert_eq!(report.outcomes.len(), 1);
     assert_eq!(source.calls.lock().expect("calls lock").len(), 1);
+}
+
+/// DUAL-07-08: the shared filter runner reshapes the stored document and
+/// persists the spec sidecar so the next subscription update recomposes from
+/// the same node strategy.
+#[tokio::test]
+async fn apply_subscription_filter_reshapes_document_and_persists_spec() {
+    let store = Arc::new(FakeStore::with_profile(
+        "main",
+        "proxies:\n  - name: 香港-01\n    type: ss\n  - name: 广告-02\n    type: vmess\n",
+        true,
+    ));
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let spec = infiltrator_domain::profile_options::FilterSpec {
+        exclude_keywords: vec!["广告".to_string()],
+        ..Default::default()
+    };
+
+    let runtime: Option<Arc<dyn ManagedRuntime>> = None;
+    let report = application
+        .apply_subscription_filter(runtime, "main", spec)
+        .await
+        .expect("filter");
+    assert_eq!(report.total_input, 2);
+    assert_eq!(report.passed, 1);
+    let saved = store.load("main").await.expect("load");
+    assert!(!saved.contains("广告-02"), "excluded node must be dropped");
+    assert!(saved.contains("香港-01"));
+
+    let options = application.load_options("main").await.expect("options");
+    assert_eq!(
+        options.filter.expect("filter stored").exclude_keywords,
+        vec!["广告".to_string()]
+    );
+}
+
+/// DUAL-07-03: a successful update on a cron-only profile advances
+/// `next_update` to the Cron expression's next occurrence, not to an interval.
+#[tokio::test]
+async fn successful_cron_update_advances_to_the_next_occurrence() {
+    let store = subscription_store(None, None, None, false).await;
+    {
+        let mut profiles = store.profiles.lock().expect("profiles lock");
+        let metadata = &mut profiles.get_mut("main").expect("profile").1;
+        metadata.update_interval_hours = None;
+        metadata.cron_expression = Some("0 */6 * * *".to_string());
+    }
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let source = FakeSource::modified("proxies:\n  - name: a\n    type: ss\n", None);
+
+    application
+        .update_subscription_conditional(&source, "main")
+        .await
+        .expect("update");
+
+    let metadata = store.get_profile_metadata("main").await.expect("metadata");
+    let next = metadata
+        .next_update
+        .expect("cron schedule must set next_update");
+    let now = Utc::now();
+    assert!(next > now, "next run must be in the future");
+    let schedule =
+        infiltrator_domain::subscription_scheduler_policy::SubscriptionSchedule::from_metadata(
+            None,
+            Some("0 */6 * * *"),
+        )
+        .expect("schedule");
+    assert_eq!(
+        schedule.next_run(now),
+        Some(next),
+        "next_update must be the cron occurrence after now"
+    );
+    assert_eq!(next.minute(), 0);
+    assert_eq!(next.hour() % 6, 0);
+}
+
+/// DUAL-07-01: a local/clipboard document is normalized and validated before
+/// it is committed, reporting the detected format and node count.
+#[tokio::test]
+async fn import_document_validates_and_reports_format() {
+    let store = Arc::new(FakeStore::default());
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+
+    let report = application
+        .import_document(
+            "imported",
+            "proxies:\n  - name: a\n    type: ss\n  - name: b\n    type: ss\n",
+            infiltrator_contract::subscription_import::SubscriptionImportChannel::LocalFile,
+        )
+        .await
+        .expect("import");
+    assert_eq!(report.node_count, 2);
+    assert_eq!(
+        report.channel,
+        infiltrator_contract::subscription_import::SubscriptionImportChannel::LocalFile
+    );
+    assert!(store.load("imported").await.is_ok());
+
+    let failure = application
+        .import_document(
+            "broken",
+            "proxies: [unbalanced",
+            infiltrator_contract::subscription_import::SubscriptionImportChannel::Clipboard,
+        )
+        .await
+        .expect_err("malformed yaml must fail");
+    assert_eq!(failure.code, ErrorCode::Configuration);
 }

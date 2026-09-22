@@ -91,6 +91,16 @@ pub mod runtime {
             })
             .clone()
     }
+
+    /// DUAL-07-10: the desktop system-notification adapter the shared
+    /// subscription refresh emits through.
+    pub fn subscription_notifier() -> std::sync::Arc<
+        dyn infiltrator_ports::subscription_notification::SubscriptionNotificationPort,
+    > {
+        std::sync::Arc::new(
+            infiltrator_desktop::subscription_notification_port::DesktopSubscriptionNotificationPort,
+        )
+    }
 }
 
 pub mod storage {
@@ -140,6 +150,12 @@ pub mod storage {
 
     pub fn subscription_source() -> impl SubscriptionSource {
         infiltrator_desktop::storage::subscription_source()
+    }
+
+    /// DUAL-07-01: the desktop host's local-file / clipboard import port.
+    pub fn subscription_import_port()
+    -> Arc<dyn infiltrator_ports::subscription_import::SubscriptionImportPort> {
+        Arc::new(infiltrator_desktop::subscription_import_port::DesktopSubscriptionImportPort)
     }
 
     pub fn sync() -> anyhow::Result<impl SyncPort> {
