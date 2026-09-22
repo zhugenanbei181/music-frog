@@ -207,6 +207,9 @@ pub struct ProfileSnapshot {
     /// Cached `Last-Modified` validator from the last successful download.
     #[serde(default)]
     pub last_modified: Option<String>,
+    /// DUAL-07-13: a transient pre-save `.bak` copy exists and can be restored.
+    #[serde(default)]
+    pub has_backup: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

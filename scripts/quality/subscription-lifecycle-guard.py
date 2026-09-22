@@ -68,7 +68,9 @@ def main() -> int:
         "组 07 逐项账目",
         "DUAL-07-02",
         "DUAL-07-04",
+        "DUAL-07-11",
         "DUAL-07-12",
+        "DUAL-07-13",
         "parity-ready",
     )
 
@@ -242,6 +244,167 @@ def main() -> int:
         "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
         "test_profiles_fetch_options_projection_restamps_ua_insecure_and_validators",
         "test_profiles_save_fetch_settings_submits_shared_command",
+    )
+
+    # 9. DUAL-07-11 "update all subscriptions": one shared bounded-concurrency
+    #    batch that both surfaces drive through the same contract/application.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/subscription_import.rs",
+        "pub struct SubscriptionBatchReport",
+        "pub outcomes: Vec<SubscriptionUpdateReport>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "async fn update_all_subscriptions",
+        "buffer_unordered",
+        "SubscriptionBatchReport",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "UpdateAllSubscriptions",
+        "BATCH_UPDATE_CONCURRENCY",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "UpdateAllSubscriptions",
+        "RestoreSubscriptionBackup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "update_all_subscriptions",
+        "BATCH_UPDATE_CONCURRENCY",
+        "pub(crate) fn batch_update_toast",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/profiles.rs",
+        "profiles_update_all",
+        "Message::UpdateAllSubscriptionsNow",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "profiles_update_all",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "profiles_update_all",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "UpdateAllSubscriptions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles.rs",
+        "UpdateAllSubscriptionsButton",
+        "on_update_all_subscriptions_activated",
+    )
+
+    # 10. DUAL-07-13 "safe config backup": the pre-save `.bak` presence rides the
+    #     shared profile projection and both surfaces can restore it.
+    require(
+        violations,
+        "crates/infiltrator-domain/src/profiles.rs",
+        "pub has_backup: bool",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub has_backup: bool",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application.rs",
+        "async fn restore_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "RestoreSubscriptionBackup",
+        "restore_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "has_backup: item.has_backup",
+    )
+    require(
+        violations,
+        "crates/mihomo-config/src/manager/profiles.rs",
+        "profile.has_backup",
+    )
+    require(
+        violations,
+        "crates/mihomo-config/src/profile_store.rs",
+        "has_backup: profile.has_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/profile/subscription.rs",
+        "restore_backup",
+        "profiles_backup_restored",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/profiles.rs",
+        "profiles_restore_backup",
+        "Message::RestoreSubscriptionBackup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "profiles_backup_available",
+        "profiles_restore_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "profiles_backup_available",
+        "profiles_restore_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "RestoreSubscriptionBackup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/profiles_import.rs",
+        "RestoreSubscriptionBackupButton",
+        "SubscriptionBackupStatus",
+        "on_restore_subscription_backup",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "has_backup: profile.has_backup",
+    )
+
+    # 11. Dual-surface headless tests for the second batch.
+    require(
+        violations,
+        "crates/infiltrator-application/src/profile_application_tests.rs",
+        "batch_update_skips_url_less_profiles_and_aggregates_counts",
+        "restore_backup_reports_availability_and_is_one_shot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/business_flow/profile_lifecycle.rs",
+        "subscription_batch_update_and_backup_restore_are_shared_application_wired",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_profiles_update_all_toolbar_submits_shared_command",
+        "test_profiles_restore_backup_submits_shared_command_and_restamps_status",
     )
 
     require(

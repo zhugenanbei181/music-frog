@@ -12,7 +12,7 @@ use crate::types::runtime::RuntimeStatus;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
-    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
 use infiltrator_domain::profiles::sanitize_profile_name;
@@ -355,6 +355,51 @@ fn manual_subscription_update_reports_zero_selection_and_outcomes() {
     assert_eq!(units, 1, "error-toast leg armed");
 }
 
+/// DUAL-07-11/13 — the toolbar batch-update entry and the safe-backup restore
+/// both flow through the shared application seam: batch re-entry is guarded,
+/// the summarized report drives the toast, and a missing backup is reported
+/// honestly instead of fabricating a restore.
+#[test]
+fn subscription_batch_update_and_backup_restore_are_shared_application_wired() {
+    let mut state = fresh_state();
+    state.shell.lang = "zh-CN".into();
+    state.profile.profiles = vec![subscribed_profile("Paid", true, Some("https://x"))];
+    state.profile.subscription_profile_name = "Paid".into();
+
+    // Toolbar click arms the shared batch path.
+    let units = feed(&mut state, Message::UpdateAllSubscriptionsNow);
+    assert!(units >= 1, "batch update task spawned");
+    assert!(state.profile.is_updating_subscription_now);
+    // Single-flight guard: a second click while in flight is a no-op.
+    assert_eq!(
+        feed(&mut state, Message::UpdateAllSubscriptionsNow),
+        0,
+        "re-entry is suppressed while the batch is in flight"
+    );
+
+    let report = SubscriptionBatchReport {
+        total: 1,
+        updated: 1,
+        skipped: 0,
+        outcomes: vec![subscription_report("Paid")],
+        ..Default::default()
+    };
+    let units = feed(&mut state, Message::AllSubscriptionsUpdated(Ok(report)));
+    assert_eq!(units, 2, "LoadProfiles + summarized batch toast legs");
+    assert!(!state.profile.is_updating_subscription_now);
+
+    // Missing backup is reported honestly (informational), not as a success.
+    let units = feed(&mut state, Message::RestoreSubscriptionBackup);
+    assert!(units >= 1, "restore backup task spawned");
+    let units = feed(&mut state, Message::SubscriptionBackupRestored(Ok(false)));
+    assert_eq!(units, 2, "LoadProfiles + informational toast legs");
+
+    // A real restore reports success.
+    feed(&mut state, Message::RestoreSubscriptionBackup);
+    let units = feed(&mut state, Message::SubscriptionBackupRestored(Ok(true)));
+    assert_eq!(units, 2, "LoadProfiles + restored toast legs");
+}
+
 /// Journey 16 — 删除 profile：真实删除 yaml + options sidecar 一并清理。
 #[test]
 fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
@@ -419,10 +464,22 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     assert!(units >= 1, "update-all task armed through the router");
     assert!(state.profile.is_updating_subscription_now, "handler armed");
 
-    // Its worker result reaches the summarizing handler.
-    let units = feed(&mut state, Message::AllSubscriptionsUpdated(Ok(vec![])));
+    // Its worker result reaches the summarizing handler. The shared batch
+    // report is what the toast leg consumes.
+    let units = feed(
+        &mut state,
+        Message::AllSubscriptionsUpdated(Ok(SubscriptionBatchReport {
+            total: 1,
+            updated: 1,
+            ..Default::default()
+        })),
+    );
     assert!(units >= 1, "AllSubscriptionsUpdated dispatched");
     assert!(!state.profile.is_updating_subscription_now);
+    assert_eq!(
+        units, 2,
+        "LoadProfiles + summarized batch toast legs are armed"
+    );
 
     // Message produced by TrayIntent::SetProfileAutoUpdate (per-profile
     // checkmark): the click persists through the real metadata path.

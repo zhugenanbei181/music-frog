@@ -317,6 +317,14 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         }
         "sub_update_not_modified" => "Subscription unchanged (304 Not Modified)".into(),
         "sub_update_quota_warning" => "quota or expiry warning".into(),
+        "profiles_update_all" => "Update All Subscriptions".into(),
+        "profiles_backup_available" => {
+            "Safe backup ready: a .bak is written when a subscription config is saved".into()
+        }
+        "profiles_backup_none" => "Safe backup: none yet (created when a config is saved)".into(),
+        "profiles_restore_backup" => "Restore Safe Backup".into(),
+        "profiles_backup_restored" => "Restored the config from before the last write".into(),
+        "profiles_backup_missing" => "No safe backup is available to restore".into(),
         _ => key.to_string().into(),
     }
 }

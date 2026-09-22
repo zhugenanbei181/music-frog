@@ -27,6 +27,8 @@ pub struct Profile {
     pub cron_expression: Option<String>,
     pub insecure_skip_verify: bool,
     pub auto_reload_core: bool,
+    /// DUAL-07-13: a transient pre-save `.bak` copy exists on disk.
+    pub has_backup: bool,
 }
 
 impl Profile {
@@ -50,6 +52,7 @@ impl Profile {
             cron_expression: None,
             insecure_skip_verify: false,
             auto_reload_core: true,
+            has_backup: false,
         }
     }
 

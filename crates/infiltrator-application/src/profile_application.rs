@@ -5,9 +5,11 @@
 //! config managers and filesystem details stay in outbound adapters.
 
 use chrono::Utc;
+use futures_util::stream::{self, StreamExt};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
-    SubscriptionQuotaFacts, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    SubscriptionBatchReport, SubscriptionQuotaFacts, SubscriptionUpdateOutcome,
+    SubscriptionUpdateReport,
 };
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::profiles::{
@@ -137,6 +139,18 @@ impl ProfileApplication {
     pub async fn clear_backup(&self, name: &str) -> Result<(), Failure> {
         let name = valid_name(name)?;
         self.store.clear_backup(&name).await.map_err(Failure::from)
+    }
+
+    /// DUAL-07-13: restore the transient pre-save `.bak` copy of a profile over
+    /// its current file, returning whether a backup existed and was restored.
+    /// The store validates the backup before writing, so a corrupt backup is
+    /// rejected instead of silently clobbering the live configuration.
+    pub async fn restore_backup(&self, name: &str) -> Result<bool, Failure> {
+        let name = valid_name(name)?;
+        self.store
+            .restore_backup(&name)
+            .await
+            .map_err(Failure::from)
     }
 
     pub async fn delete_subscription_credential(&self, name: &str) -> Result<(), Failure> {
@@ -273,6 +287,77 @@ impl ProfileApplication {
                 ))
             }
         }
+    }
+
+    /// DUAL-07-11: one-click "update every subscription now" over the shared
+    /// conditional path. Every profile carrying a non-empty subscription URL
+    /// is refreshed regardless of its schedule, with bounded concurrency so a
+    /// large profile set does not open an unbounded number of sockets. The
+    /// per-profile outcomes are aggregated into one shared
+    /// [`SubscriptionBatchReport`] so both surfaces render the same counts and
+    /// neither re-implements the batch.
+    pub async fn update_all_subscriptions<S: SubscriptionSource + ?Sized>(
+        &self,
+        source: &S,
+        concurrency: usize,
+    ) -> Result<SubscriptionBatchReport, Failure> {
+        let profiles = self.list_profiles().await?;
+        let total = profiles.len();
+        let targets: Vec<String> = profiles
+            .iter()
+            .filter(|profile| {
+                profile
+                    .subscription_url
+                    .as_deref()
+                    .is_some_and(|url| !url.trim().is_empty())
+            })
+            .map(|profile| profile.name.clone())
+            .collect();
+        let mut report = SubscriptionBatchReport {
+            total,
+            skipped: total - targets.len(),
+            ..Default::default()
+        };
+
+        let outcomes = stream::iter(targets.into_iter().map(|name| async move {
+            let result = self.update_subscription_conditional(source, &name).await;
+            (name, result)
+        }))
+        .buffer_unordered(concurrency.max(1))
+        .collect::<Vec<_>>()
+        .await;
+
+        for (name, result) in outcomes {
+            match result {
+                Ok(outcome_report) => {
+                    match &outcome_report.outcome {
+                        SubscriptionUpdateOutcome::Updated { .. } => report.updated += 1,
+                        SubscriptionUpdateOutcome::NotModified { .. } => report.not_modified += 1,
+                        SubscriptionUpdateOutcome::Failed { .. } => report.failed += 1,
+                    }
+                    report.outcomes.push(outcome_report);
+                }
+                Err(failure) => {
+                    report.failed += 1;
+                    report.outcomes.push(SubscriptionUpdateReport {
+                        profile_name: name,
+                        outcome: SubscriptionUpdateOutcome::Failed {
+                            error: failure.message,
+                            attempts: 1,
+                        },
+                        etag: None,
+                        last_modified: None,
+                        quota: None,
+                        usage_warning: false,
+                        expiry_warning: false,
+                        reloaded_core: false,
+                        backed_up: false,
+                    });
+                }
+            }
+        }
+
+        Ok(report)
     }
 
     /// Persist the per-profile subscription fetch options (custom User-Agent

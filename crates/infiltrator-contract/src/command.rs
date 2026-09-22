@@ -186,6 +186,13 @@ pub enum CommandIntent {
     UpdateProfile {
         profile_id: String,
     },
+    /// DUAL-07-11: refresh every subscription profile now, ignoring its
+    /// schedule, through the shared conditional batch path.
+    UpdateAllSubscriptions,
+    /// DUAL-07-13: restore a profile's transient pre-save backup copy.
+    RestoreSubscriptionBackup {
+        profile_id: String,
+    },
     /// Persist a profile's subscription fetch options: custom User-Agent and
     /// the insecure-TLS preference used by the conditional update.
     UpdateSubscriptionFetchSettings {
@@ -344,6 +351,8 @@ impl CommandIntent {
             Self::SetCoreLogLevel { .. } | Self::SetTunStack { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
             | Self::UpdateProfile { .. }
+            | Self::UpdateAllSubscriptions
+            | Self::RestoreSubscriptionBackup { .. }
             | Self::UpdateSubscriptionFetchSettings { .. }
             | Self::DeleteProfile { .. }
             | Self::RefreshRuleProviders

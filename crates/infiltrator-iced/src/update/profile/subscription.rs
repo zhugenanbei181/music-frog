@@ -9,7 +9,7 @@ use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
-    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_shared::locales::Localizer;
@@ -360,8 +360,9 @@ impl AppState {
                 }
             },
             Message::UpdateAllSubscriptionsNow => {
-                // Tray "update all" entry: refresh every profile carrying a
-                // subscription URL right away, regardless of its schedule.
+                // Tray + toolbar "update all" entry: refresh every profile
+                // carrying a subscription URL right away, regardless of its
+                // schedule, through the shared bounded-concurrency batch path.
                 if self.profile.is_updating_subscription_now {
                     return Task::none();
                 }
@@ -371,100 +372,105 @@ impl AppState {
                     async move {
                         let manager = crate::configs_dir::config_manager().await?;
                         let application = ProfileApplication::new(manager);
-                        let profiles = application
-                            .list_profiles()
+                        let source = crate::host::storage::subscription_source();
+                        let report = application
+                            .update_all_subscriptions(&source, BATCH_UPDATE_CONCURRENCY)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = crate::host::storage::subscription_source();
-                        let mut outcomes = Vec::new();
 
-                        for profile in profiles {
-                            let Some(url) = profile.subscription_url.as_deref() else {
-                                continue;
-                            };
-                            if url.trim().is_empty() {
-                                continue;
-                            }
-                            let outcome = async {
-                                application
-                                    .update_subscription(&source, &profile.name)
-                                    .await
-                                    .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                                if profile.active {
-                                    if let Some(runtime) = runtime.as_ref() {
-                                        ManagedRuntime::apply_current_config(
-                                            runtime.as_ref(),
-                                            infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
-                                        )
-                                        .await
-                                        .map_err(
-                                            |error| InfiltratorError::Mihomo(error.to_string()),
-                                        )?;
-                                    } else {
-                                        application.clear_backup(&profile.name).await.map_err(
-                                            |failure| InfiltratorError::Config(failure.message),
-                                        )?;
-                                    }
-                                } else {
-                                    application.clear_backup(&profile.name).await.map_err(
-                                        |failure| InfiltratorError::Config(failure.message),
-                                    )?;
-                                }
-                                Ok(())
-                            }
-                            .await;
-                            outcomes.push((
-                                profile.name,
-                                outcome.map_err(|e: InfiltratorError| e.to_string()),
-                            ));
+                        let current = application
+                            .current_profile()
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        let active_updated = report.outcomes.iter().any(|outcome| {
+                            outcome.profile_name == current
+                                && matches!(
+                                    outcome.outcome,
+                                    SubscriptionUpdateOutcome::Updated { .. }
+                                )
+                        });
+                        if active_updated && let Some(runtime) = runtime.as_ref() {
+                            ManagedRuntime::apply_current_config(
+                                runtime.as_ref(),
+                                infiltrator_domain::apply::ApplyStrategy::AlwaysRestart,
+                            )
+                            .await
+                            .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
-
-                        Ok(outcomes)
+                        Ok(report)
                     },
                     Message::AllSubscriptionsUpdated,
                 )
             }
             Message::AllSubscriptionsUpdated(result) => {
                 self.profile.is_updating_subscription_now = false;
-                let toast_none = infiltrator_shared::locales::Lang(&self.shell.lang)
-                    .tr("update_all_none")
-                    .into_owned();
-                let toast_done = infiltrator_shared::locales::Lang(&self.shell.lang)
-                    .tr("sub_update_done")
-                    .into_owned();
                 match result {
-                    Ok(outcomes) => {
-                        if outcomes.iter().any(|(name, r)| {
-                            r.is_ok()
-                                && self
-                                    .profile
-                                    .profiles
-                                    .iter()
-                                    .any(|p| p.active && p.name == *name)
-                        }) && let Some(runtime) = self.runtime.runtime.clone()
-                        {
+                    Ok(report) => {
+                        let active_updated = self
+                            .profile
+                            .profiles
+                            .iter()
+                            .find(|p| p.active)
+                            .is_some_and(|active| {
+                                report.outcomes.iter().any(|outcome| {
+                                    outcome.profile_name == active.name
+                                        && matches!(
+                                            outcome.outcome,
+                                            SubscriptionUpdateOutcome::Updated { .. }
+                                        )
+                                })
+                            });
+                        if active_updated && let Some(runtime) = self.runtime.runtime.clone() {
                             self.sync_runtime_slot(Some(runtime));
                         }
                         self.refresh_tray();
-                        let failed = outcomes.iter().filter(|(_, r)| r.is_err()).count();
-                        let (toast, status) = if outcomes.is_empty() {
-                            (toast_none, ToastStatus::Info)
-                        } else if failed == 0 {
-                            (toast_done, ToastStatus::Success)
-                        } else {
-                            (
-                                format!(
-                                    "{} (✓{} ✗{})",
-                                    toast_done,
-                                    outcomes.len() - failed,
-                                    failed
-                                ),
-                                ToastStatus::Warning,
-                            )
-                        };
+                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let (toast, status) = batch_update_toast(&lang, &report);
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(toast, status)),
+                        ])
+                    }
+                    Err(e) => {
+                        self.set_error(&e);
+                        Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
+                    }
+                }
+            }
+            Message::RestoreSubscriptionBackup => {
+                // DUAL-07-13: restore the selected profile's transient
+                // pre-save `.bak` copy through the shared application.
+                let profile_name = self.profile.subscription_profile_name.clone();
+                if profile_name.is_empty() {
+                    return Task::done(Message::ShowToast(
+                        "Please select a profile".to_string(),
+                        ToastStatus::Error,
+                    ));
+                }
+                Task::perform(
+                    async move {
+                        let cm = crate::configs_dir::config_manager().await?;
+                        let application = ProfileApplication::new(cm);
+                        application
+                            .restore_backup(&profile_name)
+                            .await
+                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                    },
+                    Message::SubscriptionBackupRestored,
+                )
+            }
+            Message::SubscriptionBackupRestored(result) => {
+                let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                match result {
+                    Ok(restored) => {
+                        let (key, status) = if restored {
+                            ("profiles_backup_restored", ToastStatus::Success)
+                        } else {
+                            ("profiles_backup_missing", ToastStatus::Info)
+                        };
+                        Task::batch(vec![
+                            Task::done(Message::LoadProfiles),
+                            Task::done(Message::ShowToast(lang.tr(key).into_owned(), status)),
                         ])
                     }
                     Err(e) => {
@@ -532,6 +538,46 @@ impl AppState {
             _ => Task::none(),
         }
     }
+}
+
+/// Bounded concurrency for the shared "update all subscriptions" batch.
+const BATCH_UPDATE_CONCURRENCY: usize = 5;
+
+/// Summarize a shared batch report into user-facing toast text. An empty or
+/// all-skipped batch is informational; any failure downgrades to warning, and
+/// a batch where nothing changed is reported as not-modified rather than a
+/// fabricated success.
+pub(crate) fn batch_update_toast(
+    lang: &infiltrator_shared::locales::Lang<'_>,
+    report: &SubscriptionBatchReport,
+) -> (String, ToastStatus) {
+    use infiltrator_shared::locales::Localizer;
+    let attempted = report.updated + report.not_modified + report.failed;
+    if attempted == 0 {
+        return (lang.tr("update_all_none").into_owned(), ToastStatus::Info);
+    }
+    if report.failed > 0 {
+        return (
+            format!(
+                "{} (✓{} ⟳{} ✗{})",
+                lang.tr("sub_update_done"),
+                report.updated,
+                report.not_modified,
+                report.failed
+            ),
+            ToastStatus::Warning,
+        );
+    }
+    if report.updated == 0 {
+        return (
+            lang.tr("sub_update_not_modified").into_owned(),
+            ToastStatus::Info,
+        );
+    }
+    (
+        lang.tr("sub_update_done").into_owned(),
+        ToastStatus::Success,
+    )
 }
 
 /// Map a shared subscription update report to the user-facing toast text and

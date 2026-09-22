@@ -14,6 +14,8 @@ struct FakeStore {
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
     deleted_options: Mutex<Vec<String>>,
     cleared_backups: Mutex<Vec<String>>,
+    restorable_backups: Mutex<Vec<String>>,
+    restored_backups: Mutex<Vec<String>>,
 }
 
 impl FakeStore {
@@ -69,6 +71,11 @@ impl ProfileStore for FakeStore {
                 cron_expression: metadata.cron_expression.clone(),
                 insecure_skip_verify: metadata.insecure_skip_verify,
                 auto_reload_core: metadata.auto_reload_core,
+                has_backup: self
+                    .restorable_backups
+                    .lock()
+                    .expect("backup lock")
+                    .contains(name),
             })
             .collect())
     }
@@ -160,8 +167,18 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
-        Ok(false)
+    async fn restore_backup(&self, profile: &str) -> Result<bool, PortError> {
+        let mut restorable = self.restorable_backups.lock().expect("backup lock");
+        if let Some(index) = restorable.iter().position(|name| name == profile) {
+            restorable.remove(index);
+            self.restored_backups
+                .lock()
+                .expect("backup lock")
+                .push(profile.to_string());
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -435,5 +452,53 @@ async fn update_subscription_delegates_to_conditional_path() {
         .await
         .expect("update");
     assert_eq!(updated.name, "main");
+    assert_eq!(source.calls.lock().expect("calls lock").len(), 1);
+}
+
+#[tokio::test]
+async fn restore_backup_reports_availability_and_is_one_shot() {
+    let store = Arc::new(FakeStore::with_profile("main", "proxies: []\n", true));
+    store
+        .restorable_backups
+        .lock()
+        .expect("backup lock")
+        .push("main".to_string());
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+
+    let listed = application.list_profiles().await.expect("list");
+    assert!(listed[0].has_backup, "backup presence is projected");
+
+    assert!(
+        application.restore_backup("main").await.expect("restore"),
+        "an existing backup restores"
+    );
+    assert!(
+        !application.restore_backup("main").await.expect("restore"),
+        "a consumed backup is not restored twice"
+    );
+    let listed = application.list_profiles().await.expect("list");
+    assert!(!listed[0].has_backup, "restore clears the projected flag");
+}
+
+#[tokio::test]
+async fn batch_update_skips_url_less_profiles_and_aggregates_counts() {
+    let store = subscription_store(None, None, None, false).await;
+    store.profiles.lock().expect("profiles lock").insert(
+        "local".to_string(),
+        ("mode: rule\n".to_string(), ProfileMetadata::default()),
+    );
+    let application = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>);
+    let source = FakeSource::modified("proxies:\n  - name: n2\n    type: ss\n", None);
+
+    let report = application
+        .update_all_subscriptions(&source, 4)
+        .await
+        .expect("batch");
+    assert_eq!(report.total, 2);
+    assert_eq!(report.skipped, 1, "profile without a URL is skipped");
+    assert_eq!(report.updated, 1);
+    assert_eq!(report.failed, 0);
+    assert_eq!(report.not_modified, 0);
+    assert_eq!(report.outcomes.len(), 1);
     assert_eq!(source.calls.lock().expect("calls lock").len(), 1);
 }

@@ -109,6 +109,9 @@ impl<S: SecureStore> ConfigManager<S> {
                     apply_profile_metadata(&self.credential_store, &mut profile, profile_table)
                         .await;
                 }
+                profile.has_backup = fs::try_exists(backup_path(&profile.path))
+                    .await
+                    .unwrap_or(false);
                 profiles.push(profile);
             }
         }

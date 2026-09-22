@@ -76,6 +76,8 @@ impl AppState {
             | Message::UpdateSubscriptionNow
             | Message::SubscriptionUpdatedNow(_)
             | Message::SubscriptionAutoUpdated(_)
+            | Message::RestoreSubscriptionBackup
+            | Message::SubscriptionBackupRestored(_)
             // Tray bulk entries (update-all / per-profile auto-update).
             | Message::UpdateAllSubscriptionsNow
             | Message::AllSubscriptionsUpdated(_)

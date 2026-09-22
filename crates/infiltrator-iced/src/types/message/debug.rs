@@ -104,14 +104,20 @@ impl std::fmt::Debug for Message {
                 write!(f, "SubscriptionAutoUpdated(Err({:?}))", e)
             }
             Message::UpdateAllSubscriptionsNow => write!(f, "UpdateAllSubscriptionsNow"),
-            Message::AllSubscriptionsUpdated(Ok(results)) => write!(
+            Message::AllSubscriptionsUpdated(Ok(report)) => write!(
                 f,
-                "AllSubscriptionsUpdated(Ok({} profiles, {} failed))",
-                results.len(),
-                results.iter().filter(|(_, r)| r.is_err()).count()
+                "AllSubscriptionsUpdated(Ok({} profiles, {} updated, {} failed, {} skipped))",
+                report.total, report.updated, report.failed, report.skipped
             ),
             Message::AllSubscriptionsUpdated(Err(e)) => {
                 write!(f, "AllSubscriptionsUpdated(Err({:?}))", e)
+            }
+            Message::RestoreSubscriptionBackup => write!(f, "RestoreSubscriptionBackup"),
+            Message::SubscriptionBackupRestored(Ok(restored)) => {
+                write!(f, "SubscriptionBackupRestored(Ok({restored}))")
+            }
+            Message::SubscriptionBackupRestored(Err(e)) => {
+                write!(f, "SubscriptionBackupRestored(Err({:?}))", e)
             }
             Message::SetProfileAutoUpdate { name, enabled } => {
                 write!(f, "SetProfileAutoUpdate({name}, {enabled})")

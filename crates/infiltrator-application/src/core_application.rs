@@ -753,6 +753,8 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ReorderOverviewCards { .. } => "reorder_overview_cards",
         CommandIntent::ResetOverviewCardOrder => "reset_overview_card_order",
         CommandIntent::UpdateProfile { .. } => "update_profile",
+        CommandIntent::UpdateAllSubscriptions => "update_all_subscriptions",
+        CommandIntent::RestoreSubscriptionBackup { .. } => "restore_subscription_backup",
         CommandIntent::UpdateSubscriptionFetchSettings { .. } => {
             "update_subscription_fetch_settings"
         }

@@ -346,6 +346,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .width(Length::Fill)
     .max_width(360.0);
 
+    // DUAL-07-11: toolbar entry that refreshes every subscription at once.
+    let update_all_btn: Element<'_, Message> = if state.profile.is_updating_subscription_now {
+        text_btn(
+            lang.tr("profiles_updating_subscription").to_string(),
+            style_ghost,
+            None,
+        )
+    } else {
+        text_btn(
+            lang.tr("profiles_update_all").to_string(),
+            style_ghost,
+            Some(Message::UpdateAllSubscriptionsNow),
+        )
+    };
+
     let header = row![
         text(lang.tr("profiles_title").to_string())
             .size(24)
@@ -355,6 +370,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }),
         Space::new().width(theme::SP_LG),
         search_box,
+        Space::new().width(theme::SP_SM),
+        update_all_btn,
         Space::new().width(theme::SP_SM),
         clear_profiles_btn,
         Space::new().width(theme::SP_SM),
@@ -776,6 +793,43 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         color: Some(tokens(t).text_secondary),
                     }
                 }))
+            } else {
+                Element::from(Space::new().width(0))
+            },
+            Space::new().height(theme::SP_SM),
+            if let Some(profile) = selected_profile_meta {
+                let backup_text = if profile.has_backup {
+                    lang.tr("profiles_backup_available").to_string()
+                } else {
+                    lang.tr("profiles_backup_none").to_string()
+                };
+                let restore_action: Element<'_, Message> = if profile.has_backup {
+                    text_btn(
+                        lang.tr("profiles_restore_backup").to_string(),
+                        style_ghost,
+                        Some(Message::RestoreSubscriptionBackup),
+                    )
+                } else {
+                    text_btn(
+                        lang.tr("profiles_restore_backup").to_string(),
+                        style_ghost,
+                        None,
+                    )
+                };
+                Element::from(
+                    row![
+                        text(backup_text)
+                            .size(11)
+                            .font(MONO)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_secondary)
+                            }),
+                        Space::new().width(theme::SP_MD),
+                        restore_action,
+                        Space::new().width(Length::Fill),
+                    ]
+                    .align_y(Alignment::Center),
+                )
             } else {
                 Element::from(Space::new().width(0))
             },

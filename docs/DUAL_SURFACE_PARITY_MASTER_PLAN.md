@@ -77,12 +77,12 @@
 | :--- | :---: | :--- | :--- | :--- |
 | 组 05 协议生态保真与多路复用 | 15 | `planned` | `infiltrator-domain::profile_converter` | 后端解析已有测试；双端 UI 编辑面未验收 |
 | 组 06 并发测速与稳定性评估 | 15 | `parity-ready` | `SpeedtestApplication` 引擎 | 15/15 收口（2026-09-22 批次 D）：单端口 `SpeedtestPort`、reader 发布真实快照、Iced 渲染共享快照（不再伪造）、Bevy 按钮按 phase/progress 重盖；出口 IP 对比、双端明细弹窗与共享状态机矩阵已闭环 |
-| 组 07 订阅生命周期与定时更新 | 15 | `in progress` | `subscription`、`filter` 管道 | 2026-09-22 起逐项展开（见组 07 逐项账目）：07-02/04/12 已双端收口，其余 07-01/03/05/06/07/08/10/11/13/15 为 `shared-ready`，07-09/14 `planned` |
+| 组 07 订阅生命周期与定时更新 | 15 | `in progress` | `subscription`、`filter` 管道 | 2026-09-22 起逐项展开（见组 07 逐项账目）：07-02/04/11/12/13 已双端收口，其余 07-01/03/05/06/07/08/10/15 为 `shared-ready`，07-09/14 `planned` |
 | 组 08 多源聚合器与自动拓扑 | 15 | `planned` | `aggregator_modal.rs`（Iced） | Bevy `profiles_aggregator.rs` 与双端测试未验收 |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `planned` | `snapshot_diff_modal.rs`、`profiles_diff.rs` | 双端编辑器与回滚事务未验收 |
 | 组 10 脚本沙箱与多级 Mixin | 15 | `planned` | `script_console.rs`、`profiles_script.rs` | 双端控制台与熔断测试未验收 |
 | 组 11 规则引擎与 MRS 治理 | 15 | `planned` | `rules.rs`、`rules_mrs.rs`、`mrs` | 双端规则视口与虚拟滚动未验收 |
-| 组 12 Live Rule Tracer 与命中审计 | 15 | `in progress` | `rules_tracer.rs`（两端同名） | 2026-09-13 起逐项展开：决策链回放/预设/离线模拟已双端接线（见组 12 逐项账目），命中审计类条目未验收 |
+| 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `planned` | `connections.rs`、`connection_drawer.rs` | 双端聚合视图与瀑布流未验收 |
 | 组 14 DNS 工作台与泄漏探活 | 15 | `planned` | `dns.rs`（两端） | 双端表单与探活状态机未验收 |
 | 组 15 多模态外壳与极客命令流 | 15 | `planned` | `mini_hud.rs`、`command_palette.rs`、`sidebar.rs` | **含多尺寸弹性**，见专项台账 |
@@ -201,9 +201,9 @@
 | `DUAL-07-08` | 订阅节点关键词清洗管道 | `shared-ready` | domain `FilterPipeline`/`FilterStage`（`filter.rs`、`filter_pipeline.rs`）与 `SubscriptionFilterPipeline::apply_to_yaml`（`filter_subscription.rs:19`），含白/黑名单、协议过滤、正则重命名与去重；Iced 过滤面板 `view/profile_filter.rs:17` 经 `update/profile/options.rs:291` 落库并重跑；Bevy 无过滤面板 |
 | `DUAL-07-09` | 更新后自动重启核心可选 | `planned` | `auto_reload_core` 仅作为持久化字段存在（`domain/profiles.rs:27`、`mihomo-config/manager/metadata.rs:93`、`manager/profiles.rs:226`），无任何更新路径消费它；Iced 更新后仍无条件 `ApplyStrategy::AlwaysRestart`（`update/profile/subscription.rs`），Bevy 无对应开关 |
 | `DUAL-07-10` | 订阅更新静默系统通知 | `shared-ready` | Iced `notify.rs:54 send` + `system_notify`（`:195`），自动更新成功/失败分别走 Low/Critical（`update/profile/subscription.rs:336` 起）；桌面宿主能力在 `notify` 后端，Bevy 无通知路径 |
-| `DUAL-07-11` | 一键手动更新全部订阅 | `shared-ready` | admin `update_all_subscriptions`（`scheduler/subscription.rs:110`，限流并发 + 汇总，`subscription_test.rs:210` 并发测试）；Iced `UpdateAllSubscriptionsNow` 托盘/消息链（`types/message.rs`、`update/profile/subscription.rs`）；Bevy 仅逐 profile `UiCommand::UpdateProfile`，无全量入口 |
+| `DUAL-07-11` | 一键手动更新全部订阅 | `parity-ready` | 共享 `ProfileApplication::update_all_subscriptions`（`profile_application.rs`，`futures_util::stream::buffer_unordered` 限流并发，汇总 `SubscriptionBatchReport`）；contract `SubscriptionBatchReport`（`subscription_import.rs:128`）+ `CommandIntent::UpdateAllSubscriptions`（`command.rs`）经 `CommandApplication`（`BATCH_UPDATE_CONCURRENCY=5`）；Iced 托盘 + Profiles 工具栏同走共享批次（`update/profile/subscription.rs` 的 `update_all_subscriptions`/`batch_update_toast`、`view/profiles.rs` `profiles_update_all`），飞行中单飞防重入；Bevy `UpdateAllSubscriptionsButton` → `UiCommand::UpdateAllSubscriptions` → 共享 intent（`pages/profiles.rs`、`command.rs`）；测试 application `batch_update_skips_url_less_profiles_and_aggregates_counts`、Iced `subscription_batch_update_and_backup_restore_are_shared_application_wired`、Bevy `test_profiles_update_all_toolbar_submits_shared_command`；admin `update_all_subscriptions`（`scheduler/subscription.rs:110`）保留为宿主定时侧的独立实现 |
 | `DUAL-07-12` | 安全证书跳过 (Insecure Skip Verify) | `parity-ready` | `ProfileMetadata.insecure_skip_verify` → `ConditionalFetchHeaders.insecure_skip_verify`（`ports/subscription_source.rs:16`）；core 在命中该标记时按请求构建 `danger_accept_invalid_certs` 客户端（`infiltrator-http/src/lib.rs:39`、`core/subscription_io.rs:77`），默认客户端绝不退让；未覆写 `fetch_conditional` 的适配器在 `insecure_skip_verify` 时按 typed unsupported 拒绝而非静默忽略（`ports/subscription_source.rs`）；`ProfileApplication::update_subscription_fetch_settings`（`profile_application.rs:279`）持久化；Iced 开关 `view/profiles.rs` + `update/profile/subscription.rs:88`；Bevy `SubscriptionInsecureToggle` 经 `SaveSubscriptionFetchSettings` 命令保存；application/ports/双端测试覆盖 |
-| `DUAL-07-13` | 配置源文件安全备份 | `shared-ready` | `ConfigManager::save` 写前原子生成 `.bak`、`restore_backup` 校验后恢复、`clear_backup` 清理（`mihomo-config/manager/profiles.rs:40/57/73`）；application `clear_backup` 暴露给 Iced（`update/profile/subscription.rs`）用于成功应用后清理；Bevy 无备份交互面 |
+| `DUAL-07-13` | 配置源文件安全备份 | `parity-ready` | `ConfigManager::save` 写前原子生成 `.bak`、`restore_backup` 校验后恢复、`clear_backup` 清理（`mihomo-config/manager/profiles.rs:40/57/73`）；`list_profiles` 投影 `has_backup`（`manager/profiles.rs`）经 `ProfileStore`（`profile_store.rs`）→ `ProfileInfo.has_backup`（`domain/profiles.rs`）→ `ProfileSnapshot.has_backup`（`contract/surface_snapshot.rs`）→ reader（`surface_reader.rs`）；application `ProfileApplication::restore_backup`；`CommandIntent::RestoreSubscriptionBackup` 经 `CommandApplication`；Iced 订阅面板备份状态 + 还原按钮（`view/profiles.rs`）+ handler（`update/profile/subscription.rs`）；Bevy `SubscriptionBackupStatus`/`RestoreSubscriptionBackupButton` 经共享命令（`pages/profiles_import.rs`、`command.rs`）；测试 application `restore_backup_reports_availability_and_is_one_shot`、Iced `subscription_batch_update_and_backup_restore_are_shared_application_wired`、Bevy `test_profiles_restore_backup_submits_shared_command_and_restamps_status` |
 | `DUAL-07-14` | 双端订阅管理交互 1:1 对等 | `planned` | Bevy Profiles 页此前仅 3 条 demo 卡片 + 激活按钮，无导入/更新/删除/设置交互；本轮仅补齐 fetch 选项（UA/insecure/条件请求状态），其余仍未对齐 |
 | `DUAL-07-15` | 订阅更新流水线无头测试 | `shared-ready` | domain `subscription_scheduler_policy`（Cron/退避/阈值/格式/节点数）、admin `subscription_test.rs`（更新/并发/排程/重启重定向）；本轮新增 application 条件请求三测、Iced 无头 `subscription_fetch_options_load_and_not_modified_feedback`、Bevy 无头 `test_profiles_fetch_options_projection_restamps_ua_insecure_and_validators` 与 `test_profiles_save_fetch_settings_submits_shared_command`；无覆盖全 15 项的回归矩阵 |
 
@@ -220,6 +220,20 @@
 > Bevy fetch-选项卡片（`SubscriptionUserAgentField`/`SubscriptionInsecureToggle`
 > + `SaveSubscriptionFetchSettings` 命令）同源消费。守卫
 > `subscription-lifecycle-guard.py` 固化本组账目与关键标记。
+>
+> **2026-09-22 组 07 批次 B**：`DUAL-07-11/13` 收口为 `parity-ready`。
+> 新增共享 `ProfileApplication::update_all_subscriptions`：对带订阅 URL 的
+> profile 走 `futures_util::stream::buffer_unordered` 限流并发，忽略排程立即
+> 刷新，并汇总为既有 contract `SubscriptionBatchReport`（`updated`/
+> `not_modified`/`failed`/`skipped`）。Iced 托盘与 Profiles 工具栏
+> （`profiles_update_all`）改走同一批次并在飞行中单飞防重入，Bevy 新增
+> `UpdateAllSubscriptionsButton` → `UiCommand::UpdateAllSubscriptions` 映射到
+> 共享 `CommandIntent::UpdateAllSubscriptions`。安全备份面新增
+> `ProfileInfo.has_backup` → `ProfileSnapshot.has_backup` 投影，application
+> 暴露 `restore_backup`，Iced 订阅面板与 Bevy fetch-选项卡片同源展示并可一键
+> 还原上次写入前的 `.bak`（`restore_backup` 仍由 store 校验后恢复，缺失时诚实
+> 返回 `false` 而非伪造成功）。守卫追加 07-11/07-13 的共享 + 双端 + 双端测试
+> 标记。
 
 ---
 

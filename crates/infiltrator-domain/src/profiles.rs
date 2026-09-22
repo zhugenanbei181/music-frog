@@ -50,6 +50,9 @@ pub struct ProfileInfo {
     pub cron_expression: Option<String>,
     pub insecure_skip_verify: bool,
     pub auto_reload_core: bool,
+    /// Whether a transient pre-save `.bak` copy currently exists for this
+    /// profile (DUAL-07-13). Surfaces use it to offer a safe restore.
+    pub has_backup: bool,
 }
 
 #[derive(Debug, Serialize)]
