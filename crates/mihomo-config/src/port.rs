@@ -18,6 +18,18 @@ pub fn parse_port_from_addr(addr: &str) -> Option<u16> {
         .map(|socket_addr| socket_addr.port())
 }
 
+/// DUAL-14-13: split a `host:port` listener address as the profile writes it.
+///
+/// The host may be empty (`:53`) and an IPv6 host may be bracketed
+/// (`[::]:53`); a value with no port is not a listener address at all.
+pub fn split_listen_addr(addr: &str) -> Option<(String, u16)> {
+    let value = addr.trim();
+    let (host, port) = value.rsplit_once(':')?;
+    let port = port.trim().parse::<u16>().ok()?;
+    let host = host.trim().trim_start_matches('[').trim_end_matches(']');
+    Some((host.to_owned(), port))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,5 +61,23 @@ mod tests {
         assert_eq!(parse_port_from_addr("127.0.0.1:9090"), Some(9090));
         assert_eq!(parse_port_from_addr("localhost:8080"), Some(8080));
         assert_eq!(parse_port_from_addr("invalid"), None);
+    }
+
+    #[test]
+    fn test_split_listen_addr() {
+        assert_eq!(
+            split_listen_addr("127.0.0.1:1053"),
+            Some(("127.0.0.1".to_owned(), 1053))
+        );
+        assert_eq!(split_listen_addr(":53"), Some((String::new(), 53)));
+        assert_eq!(split_listen_addr("[::]:53"), Some(("::".to_owned(), 53)));
+        assert_eq!(
+            split_listen_addr(" 0.0.0.0:5353 "),
+            Some(("0.0.0.0".to_owned(), 5353))
+        );
+        assert_eq!(split_listen_addr("1053"), None);
+        assert_eq!(split_listen_addr("127.0.0.1:"), None);
+        assert_eq!(split_listen_addr("127.0.0.1:http"), None);
+        assert_eq!(split_listen_addr(""), None);
     }
 }

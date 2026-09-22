@@ -7,10 +7,12 @@
 //! different DNS facts.
 
 use infiltrator_contract::dns::{
-    DnsHostEntry, DnsLatencyStatus, DnsUpstreamProtocol, FakeIpMappingEntry, FakeIpMappingPool,
-    FakeIpMappingSource, join_server_list,
+    DnsHostEntry, DnsUpstreamProtocol, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
+    join_server_list,
 };
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 use infiltrator_contract::surface_snapshot::DnsServerSnapshot;
 use infiltrator_domain::dns;
 
@@ -81,9 +83,34 @@ pub fn dns_page_snapshot(
         direct_nameserver: config.direct_nameserver.clone().unwrap_or_default(),
         cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
         fake_ip_pool: FakeIpMappingPool::default(),
-        latency: DnsLatencyStatus::Unsupported,
+        latency: DnsLatencyReport::default(),
+        self_heal: DnsSelfHealSnapshot::default(),
         hosts: hosts_entries(config),
     }
+}
+
+/// DUAL-14-10: publish the last real probe into the shared page snapshot.
+///
+/// The report carries the honest per-server outcomes; each server row also
+/// gets its measured round trip so the latency highlight renders the value the
+/// host actually measured (and stays `None` when nothing was measured).
+pub fn apply_latency_report(
+    snapshot: &mut infiltrator_contract::surface_snapshot::DnsPageSnapshot,
+    report: &DnsLatencyReport,
+) {
+    snapshot.latency = report.clone();
+    for server in &mut snapshot.servers {
+        server.latency_ms = report.latency_of(&server.address);
+    }
+}
+
+/// The honest last probe of this host (an empty typed refusal without one).
+pub fn latency_report(
+    application: Option<&crate::dns_latency_application::DnsLatencyApplication>,
+) -> DnsLatencyReport {
+    application
+        .map(crate::dns_latency_application::DnsLatencyApplication::last_report)
+        .unwrap_or_default()
 }
 
 /// DUAL-14-11: the configured `dns.hosts` map as flat shared rows.
@@ -355,5 +382,75 @@ mod tests {
         assert_eq!(entries[0].domain, "localhost");
         assert_eq!(entries[2].address, "8.8.8.8");
         assert!(hosts_entries(&config()).is_empty());
+    }
+
+    #[test]
+    fn the_latency_report_fills_only_measured_server_rows() {
+        use infiltrator_contract::dns_latency::{
+            DEFAULT_PROBE_QUESTION, DnsLatencyReport, DnsProbeOutcome, DnsProbeTransport,
+            DnsServerLatency,
+        };
+
+        let mut snapshot = dns_page_snapshot(&config(), "198.18.0.1/16".to_owned());
+        assert!(
+            snapshot
+                .servers
+                .iter()
+                .all(|server| server.latency_ms.is_none())
+        );
+        assert!(!snapshot.latency.status.is_ready());
+
+        let report = DnsLatencyReport::measured(
+            DEFAULT_PROBE_QUESTION,
+            vec![
+                DnsServerLatency {
+                    address: "https://doh.pub/dns-query".to_owned(),
+                    is_fallback: false,
+                    transport: DnsProbeTransport::Doh,
+                    outcome: DnsProbeOutcome::Measured { rtt_ms: 23 },
+                },
+                DnsServerLatency {
+                    address: "223.5.5.5".to_owned(),
+                    is_fallback: false,
+                    transport: DnsProbeTransport::Udp,
+                    outcome: DnsProbeOutcome::TimedOut,
+                },
+                DnsServerLatency {
+                    address: "tls://1.0.0.1:853".to_owned(),
+                    is_fallback: true,
+                    transport: DnsProbeTransport::Undrivable {
+                        reason: "DoT is not probed by this host".to_owned(),
+                    },
+                    outcome: DnsProbeOutcome::NotProbed {
+                        reason: "DoT is not probed by this host".to_owned(),
+                    },
+                },
+            ],
+        );
+        apply_latency_report(&mut snapshot, &report);
+
+        assert!(snapshot.latency.status.is_ready());
+        assert_eq!(snapshot.servers[0].latency_ms, Some(23));
+        assert_eq!(
+            snapshot.servers[1].latency_ms, None,
+            "a timeout stays empty"
+        );
+        assert_eq!(snapshot.servers[2].latency_ms, None);
+        assert_eq!(latency_report(None).measured_count(), 0);
+    }
+
+    #[test]
+    fn a_host_without_a_prober_keeps_the_typed_unsupported_status() {
+        let application = crate::dns_latency_application::DnsLatencyApplication::unconfigured();
+        let report = latency_report(Some(&application));
+        assert!(!report.status.is_ready());
+        assert_eq!(
+            report.status.reason(),
+            Some(crate::dns_latency_application::NO_PROBER_REASON)
+        );
+        let mut snapshot = dns_page_snapshot(&config(), String::new());
+        apply_latency_report(&mut snapshot, &report);
+        assert!(!snapshot.latency.is_probed());
+        assert!(snapshot.self_heal.checks.is_empty());
     }
 }

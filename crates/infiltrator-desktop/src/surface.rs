@@ -80,6 +80,9 @@ pub struct SurfaceEngines {
     pub speedtest: SpeedtestApplication,
     pub rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
     pub dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
+    /// DUAL-14-10/13: the shared per-nameserver prober whose last report
+    /// drives the latency row and the DNS self-heal snapshot.
+    pub dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
 }
 
 /// Assemble all currently available desktop application facades into one
@@ -160,6 +163,7 @@ pub async fn application_surface_reader(
             .with_speedtest(engines.speedtest)
             .with_rule_tracer(engines.rule_tracer)
             .with_dns_cache(engines.dns_cache)
+            .with_dns_latency(engines.dns_latency)
             .with_rule_provider_cache(rule_provider_cache)
             .with_port_conflicts(port_conflicts),
     )

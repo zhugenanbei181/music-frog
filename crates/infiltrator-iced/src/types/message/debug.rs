@@ -908,6 +908,8 @@ impl std::fmt::Debug for Message {
 
             // Wave 2: DNS Leak, Custom Node, Aggregator, Grouping, Snapshot Diff, Hotkeys
             Message::RunDnsLeakProbe => write!(f, "RunDnsLeakProbe"),
+            Message::RunDnsLatencyProbe => write!(f, "RunDnsLatencyProbe"),
+            Message::DnsLatencyProbed(_) => write!(f, "DnsLatencyProbed"),
             Message::DnsLeakProbeFinished(r) => {
                 write!(f, "DnsLeakProbeFinished({:?})", r.public_ip)
             }

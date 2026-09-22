@@ -394,8 +394,12 @@ pub struct ConfigEditorState {
     pub dns_fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool,
     /// DUAL-14-06: the local search box filter (view-local, not a fact).
     pub dns_fake_ip_query: String,
-    /// DUAL-14-10: the shared latency-probe availability fact.
-    pub dns_latency: infiltrator_contract::dns::DnsLatencyStatus,
+    /// DUAL-14-10: the shared latency probe report (real per-server results).
+    pub dns_latency: infiltrator_contract::dns_latency::DnsLatencyReport,
+    /// DUAL-14-13: the shared DNS self-heal observation.
+    pub dns_self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot,
+    /// DUAL-14-10: a probe started from this surface is in flight.
+    pub is_probing_dns_latency: bool,
     /// DUAL-14-11: the shared `dns.hosts` draft (one row per address).
     pub dns_hosts: Vec<infiltrator_contract::dns::DnsHostEntry>,
     pub dns_hosts_address: String,
@@ -812,8 +816,14 @@ impl AppState {
             }
             // DUAL-14-06: the observed Fake-IP bindings are a shared fact.
             self.editor.dns_fake_ip_pool = dns.fake_ip_pool.clone();
-            // DUAL-14-10: the latency-probe availability is a shared fact.
-            self.editor.dns_latency = dns.latency;
+            // DUAL-14-10: the last real probe is a shared fact; a probe in
+            // flight keeps the local optimistic view until the reader
+            // publishes the same report.
+            if !self.editor.is_probing_dns_latency || dns.latency.is_probed() {
+                self.editor.dns_latency = dns.latency.clone();
+            }
+            // DUAL-14-13: the self-heal observation is a shared fact.
+            self.editor.dns_self_heal = dns.self_heal.clone();
             // DUAL-14-11: re-seed the hosts draft while it has no pending edit.
             if !self.editor.dns_hosts_dirty && !self.editor.is_saving_dns_hosts {
                 self.editor.dns_hosts = dns.hosts.clone();

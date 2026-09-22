@@ -174,6 +174,77 @@ impl AppState {
     /// messages fall through to the next domain in the `update_core` chain.
     pub(super) fn update_core_dns_config(&mut self, message: Message) -> Task<Message> {
         match message {
+            // DUAL-14-10: probe every configured nameserver through the host
+            // port. The shared application stores the report, so the next
+            // surface refresh publishes the same facts to both surfaces; the
+            // local store keeps the result visible if the poll lags.
+            Message::RunDnsLatencyProbe => {
+                let Some(runtime) = self.runtime.runtime.clone() else {
+                    return Task::none();
+                };
+                let Some(port) = runtime.dns_latency_probe_port() else {
+                    return Task::done(Message::DnsLatencyProbed(Err(
+                        infiltrator_contract::error::Failure::unsupported(
+                            infiltrator_application::dns_latency_application::NO_PROBER_REASON,
+                        ),
+                    )));
+                };
+                let targets: Vec<infiltrator_contract::dns_latency::DnsProbeTarget> =
+                    infiltrator_contract::dns::parse_server_list(&self.editor.dns_form.nameserver)
+                        .into_iter()
+                        .map(|address| {
+                            infiltrator_contract::dns_latency::DnsProbeTarget::new(&address, false)
+                        })
+                        .chain(
+                            infiltrator_contract::dns::parse_server_list(
+                                &self.editor.dns_form.fallback,
+                            )
+                            .into_iter()
+                            .map(|address| {
+                                infiltrator_contract::dns_latency::DnsProbeTarget::new(
+                                    &address, true,
+                                )
+                            }),
+                        )
+                        .collect();
+                if targets.is_empty() {
+                    return Task::done(Message::DnsLatencyProbed(Err(
+                        infiltrator_contract::error::Failure::new(
+                            infiltrator_contract::error::ErrorCode::InvalidInput,
+                            "the form configures no DNS nameserver to probe",
+                            false,
+                        ),
+                    )));
+                }
+                self.editor.is_probing_dns_latency = true;
+                let request =
+                    infiltrator_contract::dns_latency::DnsLatencyProbeRequest::new(targets);
+                Task::perform(
+                    async move {
+                        port.probe(request).await.map_err(|error| {
+                            infiltrator_contract::error::Failure::new(
+                                error.error_code(),
+                                error.to_string(),
+                                false,
+                            )
+                        })
+                    },
+                    Message::DnsLatencyProbed,
+                )
+            }
+            Message::DnsLatencyProbed(result) => {
+                self.editor.is_probing_dns_latency = false;
+                match result {
+                    Ok(report) => {
+                        self.editor.dns_latency = report;
+                        Task::none()
+                    }
+                    Err(failure) => {
+                        self.set_error(&failure.message);
+                        Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
+                    }
+                }
+            }
             Message::RefreshDnsOnly => Task::perform(
                 async {
                     let config = crate::configuration::application()

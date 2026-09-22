@@ -574,6 +574,16 @@ pub enum Message {
     // DNS Leak & Privacy Probe (Category 1)
     RunDnsLeakProbe,
     DnsLeakProbeFinished(super::dns::DnsLeakReport),
+    /// DUAL-14-10: measure every configured nameserver through the shared
+    /// host prober.
+    RunDnsLatencyProbe,
+    /// DUAL-14-10: the shared probe report, or the typed host refusal.
+    DnsLatencyProbed(
+        Result<
+            infiltrator_contract::dns_latency::DnsLatencyReport,
+            infiltrator_contract::error::Failure,
+        >,
+    ),
     // Custom Node Modal & Universal URI Codec (Category 2, DUAL-05)
     OpenCustomNodeModal,
     CloseCustomNodeModal,

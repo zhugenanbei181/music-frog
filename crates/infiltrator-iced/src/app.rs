@@ -345,6 +345,8 @@ impl AppState {
                 dns_fake_ip_pool: Default::default(),
                 dns_fake_ip_query: String::new(),
                 dns_latency: Default::default(),
+                dns_self_heal: Default::default(),
+                is_probing_dns_latency: false,
                 dns_hosts: Vec::new(),
                 dns_hosts_address: String::new(),
                 dns_hosts_domain: String::new(),

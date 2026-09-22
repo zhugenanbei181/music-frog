@@ -544,17 +544,6 @@ impl FakeIpMappingPool {
     }
 }
 
-/// DUAL-14-10: honest per-nameserver latency probe availability.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DnsLatencyStatus {
-    /// The host exposes a real per-nameserver latency fact.
-    Ready,
-    /// No host fact source reports a per-nameserver latency; the workbench
-    /// must not invent one.
-    #[default]
-    Unsupported,
-}
-
 /// DUAL-14-11: one `dns.hosts` mapping row.
 ///
 /// The address token follows the host's own `hosts` value grammar: an IP
@@ -855,7 +844,6 @@ mod tests {
                 reason: "no running core connection feed on this host".to_owned()
             }
         );
-        assert_eq!(DnsLatencyStatus::default(), DnsLatencyStatus::Unsupported);
     }
 
     #[test]

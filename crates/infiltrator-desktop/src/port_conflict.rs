@@ -55,12 +55,18 @@ impl DesktopPortConflict {
                 })
             })?;
 
-        let mut bindings = Vec::with_capacity(2);
+        let mut bindings = Vec::with_capacity(3);
         if let Some(port) = proxy_port.filter(|port| *port != 0) {
             bindings.push((PortBinding::MixedProxy, port));
         }
         if controller_port != 0 {
             bindings.push((PortBinding::Controller, controller_port));
+        }
+        // DUAL-14-13: mihomo's own DNS listener. It is a string address
+        // (`dns.listen: 0.0.0.0:1053`), so only a parsable `host:port` is
+        // observed; an absent or unparsable value publishes no fact at all.
+        if let Some(port) = dns_listen_port(&document) {
+            bindings.push((PortBinding::DnsListen, port));
         }
         Ok(bindings)
     }
@@ -110,8 +116,20 @@ impl PortConflictPort for DesktopPortConflict {
             .ensure_external_controller()
             .await
             .map_err(config_error)?;
+        // DUAL-14-13: the same repair relocates a taken DNS listener port.
+        config
+            .ensure_dns_listen_port()
+            .await
+            .map_err(config_error)?;
         self.snapshot().await
     }
+}
+
+/// The `dns.listen` port of a profile document, when it is a parsable address.
+fn dns_listen_port(document: &yaml_rust2::Yaml) -> Option<u16> {
+    mihomo_config::port::split_listen_addr(document["dns"]["listen"].as_str()?)
+        .map(|(_, port)| port)
+        .filter(|port| *port != 0)
 }
 
 struct PortOwner {
@@ -232,5 +250,103 @@ mod tests {
         assert!(conflict.available);
         assert!(conflict.owner_pid.is_none());
         assert!(!conflict.can_release);
+    }
+
+    #[test]
+    fn the_dns_listen_address_is_decoded_from_the_profile_document() {
+        let yaml = "dns:\n  listen: 127.0.0.1:1053\n";
+        let document = yaml_rust2::YamlLoader::load_from_str(yaml)
+            .expect("yaml")
+            .into_iter()
+            .next()
+            .expect("document");
+        assert_eq!(dns_listen_port(&document), Some(1053));
+
+        let empty_listen = yaml_rust2::YamlLoader::load_from_str("dns:\n  listen: ''\n")
+            .expect("yaml")
+            .into_iter()
+            .next()
+            .expect("document");
+        assert_eq!(dns_listen_port(&empty_listen), None);
+
+        let no_dns = yaml_rust2::YamlLoader::load_from_str("port: 7890\n")
+            .expect("yaml")
+            .into_iter()
+            .next()
+            .expect("document");
+        assert_eq!(dns_listen_port(&no_dns), None);
+
+        let portless = yaml_rust2::YamlLoader::load_from_str("dns:\n  listen: '1053'\n")
+            .expect("yaml")
+            .into_iter()
+            .next()
+            .expect("document");
+        assert_eq!(dns_listen_port(&portless), None);
+    }
+
+    #[tokio::test]
+    async fn a_bound_dns_listen_port_is_observed_and_relocated() {
+        let home = tempfile::tempdir().expect("temp home");
+        let manager = infiltrator_core::settings_io::app_config_manager_in(home.path())
+            .await
+            .expect("config manager");
+        manager
+            .ensure_default_config()
+            .await
+            .expect("default config");
+        let profile = manager.get_current().await.expect("profile");
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("reserve port");
+        let port = listener.local_addr().expect("addr").port();
+        manager
+            .save(
+                &profile,
+                &format!("port: 7890\ndns:\n  listen: 127.0.0.1:{port}\n"),
+            )
+            .await
+            .expect("save profile");
+
+        let adapter = DesktopPortConflict::new(home.path().to_path_buf());
+        let snapshot = adapter.snapshot().await.expect("snapshot");
+        let dns = snapshot
+            .conflicts
+            .iter()
+            .find(|conflict| conflict.binding == PortBinding::DnsListen)
+            .expect("the dns.listen port is observed");
+        assert_eq!(dns.port, port);
+        assert!(
+            !dns.available,
+            "the reserved port must be reported as taken"
+        );
+        assert_ne!(
+            dns.owner_name.as_deref(),
+            Some("mihomo"),
+            "the listener this test holds is never reported as the kernel"
+        );
+        assert!(
+            !dns.can_release,
+            "a UI action never terminates the host process holding the port"
+        );
+
+        // The port is still held, so the repair must relocate the listener.
+        let repaired = adapter.repair().await.expect("repair");
+        let dns = repaired
+            .conflicts
+            .iter()
+            .find(|conflict| conflict.binding == PortBinding::DnsListen)
+            .expect("the dns.listen port is observed after repair");
+        assert!(
+            dns.available,
+            "repair must relocate the taken dns.listen port"
+        );
+        assert_ne!(dns.port, port);
+
+        let content = manager.load(&profile).await.expect("reload profile");
+        assert!(
+            content.contains(&format!("127.0.0.1:{}", dns.port)),
+            "the relocated listener must be persisted: {content}"
+        );
+        assert!(content.contains("dns:"), "the dns block must survive");
+        drop(listener);
     }
 }

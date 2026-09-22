@@ -127,7 +127,8 @@ def main() -> int:
         "pub cache_flush: crate::dns::DnsCacheFlushReport",
         "pub default_nameserver: Vec<String>",
         "pub fake_ip_pool: crate::dns::FakeIpMappingPool",
-        "pub latency: crate::dns::DnsLatencyStatus",
+        "pub latency: crate::dns_latency::DnsLatencyReport",
+        "pub self_heal: crate::dns_self_heal::DnsSelfHealSnapshot",
         "pub hosts: Vec<crate::dns::DnsHostEntry>",
     )
     require(
@@ -152,7 +153,6 @@ def main() -> int:
         "pub struct FakeIpMappingPool",
         "pub struct FakeIpMappingEntry",
         "pub enum FakeIpMappingSource",
-        "pub enum DnsLatencyStatus",
         "pub struct DnsHostEntry",
         "pub fn parse_hosts_editor",
         "pub fn hosts_editor_text",
@@ -485,6 +485,241 @@ def main() -> int:
         "crates/infiltrator-domain/src/dns_hosts.rs",
         "scalar_and_list_values_round_trip_losslessly",
         "non_string_shapes_are_skipped_not_fabricated",
+    )
+
+    # DUAL-14-10/13: the latency prober and the self-heal observation.
+    #
+    # The prober is a real host port (UDP + wire-format DoH), the application
+    # publishes the measured report into the shared snapshot, and the
+    # self-heal snapshot folds the `dns.listen` port observation, the upstream
+    # reachability report and the static topology audit. These markers keep
+    # the placeholder shape (`latency: DnsLatencyStatus::Unsupported`) and the
+    # fabricated per-server numbers from coming back.
+    require(
+        violations,
+        "crates/infiltrator-contract/src/dns_latency.rs",
+        "pub enum DnsLatencyStatus",
+        "pub enum DnsProbeTransport",
+        "pub enum DnsProbeOutcome",
+        "pub struct DnsServerLatency",
+        "pub struct DnsLatencyReport",
+        "pub struct DnsLatencyProbeRequest",
+        "pub fn is_upstream_unreachable",
+        "pub fn summary",
+        "DEFAULT_PROBE_QUESTION",
+        "a_default_report_never_claims_a_latency",
+        "a_fully_unreachable_upstream_list_is_the_self_heal_trigger",
+        "a_not_probed_address_is_not_reported_as_unreachable",
+        "probe_requests_keep_the_shared_question_and_a_usable_deadline",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/dns_self_heal.rs",
+        "pub enum DnsSelfHealKind",
+        "pub enum DnsSelfHealState",
+        "pub enum DnsSelfHealFix",
+        "pub struct DnsSelfHealCheck",
+        "pub struct DnsSelfHealSnapshot",
+        "pub fn overall_state",
+        "an_empty_snapshot_is_unknown_not_healthy",
+        "the_overall_state_is_the_worst_observed_check",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/port_conflict.rs",
+        "DnsListen",
+        "dns.listen",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/dns_latency.rs",
+        "pub trait DnsLatencyProbePort",
+        "async fn probe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn dns_latency_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_latency_application.rs",
+        "pub struct DnsLatencyApplication",
+        "pub async fn probe",
+        "NO_PROBER_REASON",
+        "impl DnsLatencyProbePort for DnsLatencyApplication",
+        "a_host_without_a_prober_reports_typed_unsupported_and_probes_nothing",
+        "a_real_probe_publishes_the_measured_results_to_both_readers",
+        "an_unreachable_upstream_list_is_published_not_hidden",
+        "probing_without_a_configured_nameserver_is_a_typed_input_error",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_self_heal_application.rs",
+        "pub fn dns_self_heal_snapshot",
+        "pub fn dns_listen_conflict",
+        "DnsSelfHealFix::RepairDnsListenPort",
+        "DnsSelfHealFix::RecheckUpstreams",
+        "validate_dns_topology",
+        "an_unobserved_fact_is_unknown_and_never_healthy",
+        "a_taken_listen_port_is_critical_and_suggests_the_real_repair",
+        "an_unreachable_upstream_list_is_a_critical_self_heal_finding",
+        "the_static_topology_audit_drives_its_own_fix",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "fn apply_latency_report",
+        "fn latency_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "with_dns_latency",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "fn test_dns_latency",
+        "CommandIntent::TestDnsLatency => self.test_dns_latency().await",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_wire.rs",
+        "pub fn encode_query",
+        "pub fn validate_response",
+        "pub fn encode_answer",
+        "a_wrong_id_is_rejected_before_anything_is_timed",
+        "a_query_a_truncated_datagram_and_a_mismatched_question_are_rejected",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_latency_io.rs",
+        "pub struct HttpDnsLatencyProber",
+        "fn plan_for",
+        "impl DnsLatencyProbePort for HttpDnsLatencyProber",
+        "UdpSocket",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_latency_io_test.rs",
+        "a_real_udp_nameserver_on_loopback_is_measured",
+        "a_wrong_response_id_is_rejected_instead_of_timed",
+        "a_silent_nameserver_times_out_without_a_number",
+        "an_unreachable_port_is_not_measured_but_is_still_reported",
+        "a_doh_endpoint_answers_the_wire_format_query",
+        "undrivable_transports_are_reported_instead_of_probed",
+        "plan_decoding_covers_both_surface_editor_shapes",
+    )
+    require(
+        violations,
+        "crates/mihomo-config/src/port.rs",
+        "pub fn split_listen_addr",
+        "test_split_listen_addr",
+    )
+    require(
+        violations,
+        "crates/mihomo-config/src/manager/defaults.rs",
+        "pub async fn ensure_dns_listen_port",
+        "update_nested_field",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/port_conflict.rs",
+        "fn dns_listen_port",
+        "PortBinding::DnsListen",
+        "ensure_dns_listen_port",
+        "a_bound_dns_listen_port_is_observed_and_relocated",
+        "the_dns_listen_address_is_decoded_from_the_profile_document",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "fn dns_latency_probe_port",
+        "HttpDnsLatencyProber",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/surface.rs",
+        "dns_latency",
+        "with_dns_latency",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns_hosts_panel.rs",
+        "pub(crate) fn self_heal_panel",
+        "pub(crate) fn latency_result_lines",
+        "dns_self_heal_title",
+        "dns_latency_run",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "RunDnsLatencyProbe",
+        "DnsLatencyProbed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/dns_config.rs",
+        "Message::RunDnsLatencyProbe",
+        "dns_latency_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "dns_latency_all_measured",
+        "dns_latency_none_reachable",
+        "dns_self_heal_critical",
+        "dns_self_heal_fix",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "dns_latency_all_measured",
+        "dns_latency_none_reachable",
+        "dns_self_heal_critical",
+        "dns_self_heal_fix",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_fakeip.rs",
+        "pub fn latency_result_listing",
+        "pub fn self_heal_listing",
+        "pub fn self_heal_state_label",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_self_heal.rs",
+        "pub fn dns_self_heal_card_scene",
+        "DnsLineKind::SelfHeal",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns.rs",
+        "DnsLineKind::SelfHeal",
+        "DnsLineKind::LatencyResults",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_b_tests.rs",
+        "test_dns_self_heal_card_renders_the_shared_observation",
+        "test_dns_test_latency_submits_command",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_dns_hosts_tests.rs",
+        "test_dns_self_heal_panel_renders_every_observed_check",
+    )
+    # The old latency placeholder must not come back on either surface.
+    forbid(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "latency: DnsLatencyStatus::Unsupported",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_fakeip.rs",
+        "宿主无该事实源，不填充假延迟",
     )
 
     # The guard itself is registered on both suites.

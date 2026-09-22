@@ -18,6 +18,8 @@ pub mod design_tokens;
 pub mod dialer_chain;
 pub mod dns;
 pub mod dns_form;
+pub mod dns_latency;
+pub mod dns_self_heal;
 pub mod doctor;
 pub mod editor_viewport;
 pub mod error;

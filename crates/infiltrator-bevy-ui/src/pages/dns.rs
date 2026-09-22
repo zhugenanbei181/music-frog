@@ -35,9 +35,11 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
     DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsHostEntry,
-    DnsLatencyStatus, DnsServerTag, DnsSettingsPatch, DnsSwitchField, FakeIpMappingPool,
+    DnsServerTag, DnsSettingsPatch, DnsSwitchField, FakeIpMappingPool,
 };
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::proxies::{format_latency, latency_color};
@@ -80,6 +82,10 @@ pub enum DnsLineKind {
     FakeIpMappingCount,
     /// DUAL-14-10: the honest per-nameserver latency policy line.
     LatencyPolicy,
+    /// DUAL-14-10: the per-nameserver result rows of the last real probe.
+    LatencyResults,
+    /// DUAL-14-13: the shared DNS self-heal observation.
+    SelfHeal,
     /// DUAL-14-11: the applied `dns.hosts` row count.
     HostsSummary,
 }
@@ -165,8 +171,10 @@ pub struct DnsProjection {
     pub cache_flush: DnsCacheFlushReport,
     /// DUAL-14-06: observed Fake-IP bindings from the shared read model.
     pub fake_ip_pool: FakeIpMappingPool,
-    /// DUAL-14-10: honest latency-probe availability.
-    pub latency: DnsLatencyStatus,
+    /// DUAL-14-10: the last real per-nameserver probe of this host.
+    pub latency: DnsLatencyReport,
+    /// DUAL-14-13: the shared DNS self-heal observation.
+    pub self_heal: DnsSelfHealSnapshot,
     /// DUAL-14-11: the configured `dns.hosts` rows.
     pub hosts: Vec<DnsHostEntry>,
 }
@@ -196,7 +204,8 @@ impl DnsProjection {
             form: DnsWorkbenchForm::from_snapshot(snapshot),
             cache_flush: snapshot.cache_flush.clone(),
             fake_ip_pool: snapshot.fake_ip_pool.clone(),
-            latency: snapshot.latency,
+            latency: snapshot.latency.clone(),
+            self_heal: snapshot.self_heal.clone(),
             hosts: snapshot.hosts.clone(),
         }
     }
@@ -304,7 +313,8 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
             ( { crate::pages::dns_edit::dns_edit_card_scene(projection, palette) } ),
             ( { crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) } ),
             ( { crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) } ),
-            ( { servers_card_scene(server_scenes, projection.latency, palette) } ),
+            ( { crate::pages::dns_self_heal::dns_self_heal_card_scene(projection, palette) } ),
+            ( { servers_card_scene(server_scenes, &projection.latency, palette) } ),
             ( { fake_ip_card_scene(&projection.fake_ip_range, palette) } ),
         ]
     }
@@ -398,10 +408,11 @@ fn header_card_scene(
 
 fn servers_card_scene(
     server_scenes: Vec<Box<dyn Scene>>,
-    latency: infiltrator_contract::dns::DnsLatencyStatus,
+    latency: &DnsLatencyReport,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let latency_label = crate::pages::dns_fakeip::latency_policy_label(latency);
+    let latency_results = crate::pages::dns_fakeip::latency_result_listing(latency);
 
     surface_scene(
         vec![
@@ -428,6 +439,21 @@ fn servers_card_scene(
                         Text(latency_label)
                         DnsLine(DnsLineKind::LatencyPolicy)
                         TextRole(Role::Caption)
+                    ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    min_height: px(32.0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    (
+                        Text(latency_results)
+                        DnsLine(DnsLineKind::LatencyResults)
+                        TextRole(Role::Mono)
                     ),
                 ]
             }),
@@ -704,10 +730,32 @@ pub(crate) fn apply_dns_projection(
                     crate::pages::dns_fakeip::fake_ip_mapping_count(&projection.fake_ip_pool, "");
             }
             DnsLineKind::LatencyPolicy => {
-                text.0 = crate::pages::dns_fakeip::latency_policy_label(projection.latency);
-                color.0 = match projection.latency {
-                    infiltrator_contract::dns::DnsLatencyStatus::Ready => palette.success,
-                    infiltrator_contract::dns::DnsLatencyStatus::Unsupported => palette.ink_dim,
+                text.0 = crate::pages::dns_fakeip::latency_policy_label(&projection.latency);
+                color.0 = match &projection.latency.status {
+                    infiltrator_contract::dns_latency::DnsLatencyStatus::Ready => palette.success,
+                    infiltrator_contract::dns_latency::DnsLatencyStatus::Unsupported { .. } => {
+                        palette.ink_dim
+                    }
+                };
+            }
+            DnsLineKind::LatencyResults => {
+                text.0 = crate::pages::dns_fakeip::latency_result_listing(&projection.latency);
+            }
+            DnsLineKind::SelfHeal => {
+                text.0 = crate::pages::dns_fakeip::self_heal_listing(&projection.self_heal);
+                color.0 = match projection.self_heal.overall_state() {
+                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Healthy => {
+                        palette.success
+                    }
+                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Warning => {
+                        palette.warning
+                    }
+                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Critical => {
+                        palette.danger
+                    }
+                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Unknown => {
+                        palette.ink_dim
+                    }
                 };
             }
             DnsLineKind::HostsSummary => {

@@ -13,6 +13,7 @@ pub mod core_reload;
 pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;
+pub mod dns_latency;
 pub mod doctor;
 pub mod endpoint;
 pub mod error;
