@@ -268,6 +268,7 @@ fn rules_page_in_place_update() {
         mrs_acceleration: Default::default(),
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        provider_cache: Default::default(),
     };
 
     app.world_mut()

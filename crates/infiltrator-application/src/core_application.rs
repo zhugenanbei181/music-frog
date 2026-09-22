@@ -810,6 +810,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ApplyTracerRuleOverride { .. } => "apply_tracer_rule_override",
         CommandIntent::ResetRuleHitCounters => "reset_rule_hit_counters",
         CommandIntent::UnpackRuleProvider { .. } => "unpack_rule_provider",
+        CommandIntent::PurgeRuleProviderCache => "purge_rule_provider_cache",
         CommandIntent::ToggleRuleEnabled { .. } => "toggle_rule_enabled",
         CommandIntent::MoveRule { .. } => "move_rule",
         CommandIntent::AddCustomRule { .. } => "add_custom_rule",

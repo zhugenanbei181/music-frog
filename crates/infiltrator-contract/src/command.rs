@@ -274,6 +274,9 @@ pub enum CommandIntent {
     UnpackRuleProvider {
         provider_name: String,
     },
+    /// DUAL-11-07: delete the kernel's cached rule-provider files and report
+    /// the real file count / freed bytes through the refreshed read model.
+    PurgeRuleProviderCache,
     /// DUAL-11-09: invert one rule's enabled flag in the active profile. The
     /// disabled form is persisted as a `#`-prefixed entry via the shared
     /// `format_rule_entry`.
@@ -486,7 +489,8 @@ impl CommandIntent {
             | Self::ImportCustomNodeUri { .. }
             | Self::SaveCustomNodeDraft { .. }
             | Self::RefreshRuleProviders
-            | Self::UnpackRuleProvider { .. } => CommandKind::Profile,
+            | Self::UnpackRuleProvider { .. }
+            | Self::PurgeRuleProviderCache => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }
             | Self::MoveRule { .. }
             | Self::AddCustomRule { .. }

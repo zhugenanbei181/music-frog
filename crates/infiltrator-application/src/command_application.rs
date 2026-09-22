@@ -83,6 +83,7 @@ pub struct CommandApplication {
     rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
     configuration: Option<crate::configuration_application::ConfigurationApplication>,
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
+    rule_provider: Option<crate::rule_provider_application::RuleProviderApplication>,
 }
 
 impl CommandApplication {
@@ -241,6 +242,19 @@ impl CommandApplication {
         dns_cache: crate::dns_cache_application::DnsCacheApplication,
     ) -> Self {
         self.dns_cache = Some(dns_cache);
+        self
+    }
+
+    /// DUAL-11-06/07: install the host's rule-provider cache access. Without
+    /// it the unpack can still serve inline payloads and the controller
+    /// payload, while a purge answers a typed unsupported instead of claiming
+    /// a cleanup.
+    pub fn with_rule_provider_cache(
+        mut self,
+        cache: Arc<dyn infiltrator_ports::rule_provider_cache::RuleProviderCachePort>,
+    ) -> Self {
+        self.rule_provider =
+            Some(crate::rule_provider_application::RuleProviderApplication::new(Some(cache)));
         self
     }
 
@@ -903,6 +917,13 @@ impl CommandApplication {
                 self.edit_rules(move |rules| edit::inject_game_presets(rules, &target) > 0)
                     .await
             }
+            // DUAL-11-06: import a provider's real rules through the same
+            // read/modify/write seam the other rule edits use.
+            CommandIntent::UnpackRuleProvider { provider_name } => {
+                self.unpack_rule_provider(&provider_name).await
+            }
+            // DUAL-11-07: delete only the kernel's cached provider files.
+            CommandIntent::PurgeRuleProviderCache => self.purge_rule_provider_cache().await,
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
                 .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
@@ -919,9 +940,69 @@ impl CommandApplication {
             | CommandIntent::TestDnsLatency
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
-            | CommandIntent::ResolveConflictTakeRemote
-            | CommandIntent::UnpackRuleProvider { .. } => Err(unsupported()),
+            | CommandIntent::ResolveConflictTakeRemote => Err(unsupported()),
         }
+    }
+
+    /// DUAL-11-06: read the active profile's declaration for `provider_name`,
+    /// resolve its real rules through the shared unpack service and prepend
+    /// them to the persisted rule list.
+    async fn unpack_rule_provider(&self, provider_name: &str) -> Result<(), Failure> {
+        let name = provider_name.trim();
+        if name.is_empty() {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "rule provider name is empty",
+                false,
+            ));
+        }
+        let providers = self.configuration()?.load_rule_providers().await?;
+        let declaration =
+            infiltrator_domain::rules::provider_store::parse_rule_provider_declarations(&providers)
+                .into_iter()
+                .find(|declaration| declaration.name == name)
+                .ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::Configuration,
+                        format!("the active profile declares no rule provider named {name}"),
+                        false,
+                    )
+                })?;
+        let plan = self
+            .rule_provider_service()
+            .deconstruct(
+                &declaration,
+                edit::DEFAULT_RULE_TARGET,
+                self.runtime.as_deref(),
+            )
+            .await?;
+        self.edit_rules(move |rules| edit::prepend_rules(rules, plan.entries) > 0)
+            .await
+    }
+
+    /// DUAL-11-07: purge the host's cached provider files. The port reports the
+    /// real file count and byte total; a host without a cache location fails
+    /// with a typed unsupported.
+    async fn purge_rule_provider_cache(&self) -> Result<(), Failure> {
+        self.rule_provider()?.purge().await.map(|_| ())
+    }
+
+    /// Unpacking without a host cache port is still meaningful: profile inline
+    /// payloads and the controller payload need no local file.
+    fn rule_provider_service(&self) -> crate::rule_provider_application::RuleProviderApplication {
+        self.rule_provider.clone().unwrap_or_default()
+    }
+
+    fn rule_provider(
+        &self,
+    ) -> Result<crate::rule_provider_application::RuleProviderApplication, Failure> {
+        self.rule_provider.clone().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::Unsupported,
+                "this host does not expose a rule-provider cache location",
+                false,
+            )
+        })
     }
 
     /// DUAL-11-09/10/11/12: apply a rule-list mutation to the active profile

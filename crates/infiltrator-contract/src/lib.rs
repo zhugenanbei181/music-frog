@@ -34,6 +34,7 @@ pub mod privileged_network;
 pub mod profile_document;
 pub mod profile_protection;
 pub mod protocol_fidelity;
+pub mod provider_cache;
 pub mod proxies;
 
 #[cfg(test)]

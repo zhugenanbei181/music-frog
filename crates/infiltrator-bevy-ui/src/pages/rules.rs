@@ -109,6 +109,8 @@ pub struct RulesProjection {
     pub truncated_rule_count: Option<usize>,
     /// DUAL-11-08: publish cap the reader applied to `rules` (0 = uncapped).
     pub rule_publish_limit: usize,
+    /// DUAL-11-07: the observed kernel rule-provider cache location.
+    pub provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
 }
 
 impl RulesProjection {
@@ -124,6 +126,11 @@ impl RulesProjection {
                 infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::demo_fixture(),
             truncated_rule_count: None,
             rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+            provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::ready(
+                "~/.config/mihomo-rs/configs/rules",
+                3,
+                1_048_576,
+            ),
             providers: vec![
                 RuleProviderItem {
                     name: "geosite-geolocation-!cn".to_owned(),
@@ -273,7 +280,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         Children [
             ( { header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) } ),
             ( { crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer) } ),
-            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, &projection.mrs_acceleration) } ),
+            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, &projection.mrs_acceleration, &projection.provider_cache) } ),
             ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
             ( { crate::pages::rules_subrules::rules_subrules_scene(
                 palette,
@@ -716,6 +723,8 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     // draft on every mount, so its state is re-seeded with the same default —
     // the mounted card and the draft never disagree after a route change.
     commands.insert_resource(crate::pages::rules_subrules::RulesSubRuleState::default());
+    // DUAL-11-06: the unpack target follows the shared MRS projection.
+    commands.insert_resource(crate::pages::rules_mrs::RulesMrsState::default());
     if !first_bind {
         return;
     }
@@ -728,6 +737,8 @@ fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
     commands.add_observer(crate::pages::rules_view::on_rules_paging_activated);
     commands.add_observer(crate::pages::rules_subrules::on_rules_subrules_activated);
     commands.add_observer(crate::pages::rules_mrs::apply_mrs_projection);
+    commands.add_observer(crate::pages::rules_mrs::apply_provider_cache_projection);
+    commands.add_observer(crate::pages::rules_mrs::on_rules_mrs_action_activated);
     commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
     commands.add_observer(crate::pages::rules_tracer::on_tracer_override_activated);

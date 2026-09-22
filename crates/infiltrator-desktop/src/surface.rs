@@ -95,6 +95,7 @@ pub async fn application_surface_reader(
     let profile_store = crate::storage::profile_store().await?;
     let configuration_store = Arc::clone(&profile_store);
     let snapshot_profile_store = Arc::clone(&profile_store);
+    let config_dir = profile_store.config_dir();
     let profile = ProfileApplication::new(profile_store);
     let configuration = ConfigurationApplication::new(configuration_store);
     let settings_store = crate::storage::settings_store().await?;
@@ -130,6 +131,11 @@ pub async fn application_surface_reader(
     let service_mode = ServiceModeApplication::new(Arc::new(
         crate::service_mode::DesktopServiceMode::new(binary_path),
     ));
+    // DUAL-11-07: the published cache fact comes from the same host directory
+    // the desktop command handler purges.
+    let rule_provider_cache = std::sync::Arc::new(
+        crate::rule_provider_cache::DesktopRuleProviderCache::new(config_dir.clone()),
+    );
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -154,6 +160,7 @@ pub async fn application_surface_reader(
             .with_speedtest(engines.speedtest)
             .with_rule_tracer(engines.rule_tracer)
             .with_dns_cache(engines.dns_cache)
+            .with_rule_provider_cache(rule_provider_cache)
             .with_port_conflicts(port_conflicts),
     )
 }

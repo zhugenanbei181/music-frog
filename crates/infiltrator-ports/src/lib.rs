@@ -28,6 +28,7 @@ pub mod privileged_network;
 pub mod profile_reset;
 pub mod profile_store;
 pub mod public_ip_probe;
+pub mod rule_provider_cache;
 pub mod rule_tracer;
 pub mod runtime_gateway;
 pub mod secure_store;

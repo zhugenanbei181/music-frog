@@ -12,6 +12,7 @@ chrono = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 ipnet = { workspace = true }
 flate2 = { workspace = true }
+md5 = { workspace = true }
 regex = { workspace = true }
 ring = "0.17"
 serde = { workspace = true }

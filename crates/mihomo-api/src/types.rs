@@ -216,6 +216,11 @@ pub struct RuleProvider {
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     pub rule_count: u32,
+    /// DUAL-11-06: mihomo publishes the rule payload only for `type: inline`
+    /// providers (`payload,omitempty`); every downloaded provider leaves this
+    /// empty and the client must not substitute anything for it.
+    #[serde(default)]
+    pub payload: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

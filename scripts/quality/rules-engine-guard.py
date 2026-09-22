@@ -4,9 +4,11 @@
 Group 11's closure standard is the same as groups 06/07/13: one shared
 reduction, both surfaces, dual headless tests, and an honest ledger. This guard
 asserts the per-item ledger rows exist, that the shared rules-view reductions
-and both surface wirings are present, and — critically — that the Bevy MRS card
-has not re-introduced its fabricated rule-set list (11-03 is now rendered from
-the shared `MrsAccelerationSnapshot`).
+and both surface wirings are present, and — critically — that no surface has
+re-introduced a fabricated provider payload: the Bevy MRS card renders the
+shared `MrsAccelerationSnapshot`, and 11-06/11-07 resolve real provider rules
+and real cache removals through the shared application/port seam instead of the
+old `apple.com`/`icloud.com` samples and the no-op purge toast.
 """
 
 from __future__ import annotations
@@ -581,7 +583,7 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/pages/rules.rs",
         "pub mrs_acceleration:",
-        "rules_mrs_scene(palette, &projection.mrs_acceleration)",
+        "rules_mrs_scene(palette, &projection.mrs_acceleration, &projection.provider_cache)",
         "pub(crate) fn provider_updated_label",
         "RuleSearchField",
         "RulesPagePrevButton",
@@ -602,6 +604,260 @@ def main() -> int:
         "crates/infiltrator-bevy-ui/src/pages/rules_mrs.rs",
         "14,200 条目",
         "28,500 条目",
+    )
+
+    # Batch D (DUAL-11-06/07): the real provider unpack and cache purge seam.
+    require(
+        violations,
+        LEDGER,
+        "matrix_11_06_provider_declaration_and_payload_deconstruct",
+        "matrix_11_07_provider_cache_purge_fact",
+        "test_rules_provider_unpack_and_cache_purge_submit_shared_intents",
+        "test_rules_provider_cache_line_reports_observed_facts",
+        "test_rules_page_renders_observed_provider_cache_fact",
+        "test_rules_rule_provider_unpack_reads_shared_application",
+        "unpack_rule_provider_imports_real_payload_and_rejects_unknown",
+        "purge_rule_provider_cache_requires_and_reports_the_host_location",
+        "unpack_without_any_source_is_unsupported",
+        "ProviderContentOrigin",
+        "ProviderCachePurge",
+        "RuleProviderCacheSnapshot",
+        "RuleProviderDeclaration",
+        "provider_cache_file_name",
+        "deconstruct_provider_payload",
+        "provider_source_candidates",
+        "RuleProviderCachePort",
+        "RuleProviderApplication",
+        "DesktopRuleProviderCache",
+        "rule_provider_payload",
+        "PurgeRuleProviderCacheButton",
+        "RulesMrsState",
+        "provider_cache_line",
+        "on_rules_mrs_action_activated",
+        "with_rule_provider_cache",
+        "KernelCacheFile",
+        "inline-payload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/provider_cache.rs",
+        "pub enum ProviderContentOrigin",
+        "pub struct ProviderCachePurge",
+        "pub struct RuleProviderCacheSnapshot",
+        "pub enum RuleProviderCacheState",
+        "pub fn is_noop",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/provider_store.rs",
+        "pub const PROVIDER_CACHE_DIR_NAME",
+        "pub enum ProviderBehavior",
+        "pub enum ProviderFormat",
+        "pub struct RuleProviderDeclaration",
+        "pub fn parse_rule_provider_declarations",
+        "pub fn provider_cache_file_name",
+        "pub fn provider_source_candidates",
+        "pub fn unpack_provider_rules_with_behavior",
+        "pub fn deconstruct_provider_payload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules.rs",
+        "pub mod provider_store;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/rule_provider_cache.rs",
+        "pub trait RuleProviderCachePort",
+        "async fn read_provider",
+        "async fn purge",
+        "async fn snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn rule_provider_cache_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/runtime_gateway.rs",
+        "async fn rule_provider_payload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/rule_provider_application.rs",
+        "pub struct RuleProviderApplication",
+        "pub struct ProviderUnpackPlan",
+        "pub async fn deconstruct",
+        "pub async fn purge",
+        "ProviderContentOrigin::InlinePayload",
+        "ProviderContentOrigin::ControllerPayload",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "async fn unpack_rule_provider",
+        "async fn purge_rule_provider_cache",
+        "parse_rule_provider_declarations",
+        "CommandIntent::PurgeRuleProviderCache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "fn with_rule_provider_cache",
+        "RuleProviderApplication",
+        "provider_cache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "unpack_rule_provider_imports_real_payload_and_rejects_unknown",
+        "purge_rule_provider_cache_requires_and_reports_the_host_location",
+        "unpack_without_any_source_is_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/tests/rules_matrix_test.rs",
+        "matrix_11_06_provider_declaration_and_payload_deconstruct",
+        "matrix_11_07_provider_cache_purge_fact",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/rule_provider_cache.rs",
+        "pub struct DesktopRuleProviderCache",
+        "async fn read_provider",
+        "async fn purge",
+        "async fn snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "fn rule_provider_cache_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/rules_provider.rs",
+        "pub(crate) fn update_rule_provider",
+        "RuleProviderApplication::new",
+        "parse_rule_provider_declarations",
+        "purge()",
+        "provider_cache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core.rs",
+        "mod rules_provider;",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "RuleProviderUnpacked",
+        "RuleProviderCachePurged",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/provider_unpack_card.rs",
+        "provider_btn_unpack_idle",
+        "rule_providers",
+        "provider_cache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "provider_btn_unpack_idle",
+        "provider_cache_ready",
+        "provider_unpack_total",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "provider_btn_unpack_idle",
+        "provider_cache_ready",
+        "provider_unpack_total",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "UnpackRuleProvider(String)",
+        "PurgeRuleProviderCache",
+        "CommandIntent::UnpackRuleProvider",
+        "CommandIntent::PurgeRuleProviderCache",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_mrs.rs",
+        "pub struct PurgeRuleProviderCacheButton",
+        "pub struct ProviderCacheText",
+        "pub struct RulesMrsState",
+        "pub(crate) fn provider_cache_line",
+        "pub fn apply_provider_cache_projection",
+        "pub(crate) fn on_rules_mrs_action_activated",
+        "UiCommand::UnpackRuleProvider",
+        "UiCommand::PurgeRuleProviderCache",
+        "宿主未声明缓存目录",
+        "内核规则集缓存",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "provider_cache: value.provider_cache.clone()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_provider_unpack_and_cache_purge_submit_shared_intents",
+        "test_rules_provider_cache_line_reports_observed_facts",
+        "test_rules_page_renders_observed_provider_cache_fact",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/rules_dns_tests.rs",
+        "test_rules_rule_provider_unpack_reads_shared_application",
+    )
+    # Reverse assertions: the fabricated samples and the no-op purge path must
+    # never come back on either surface.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/core/rules.rs",
+        "apple.com",
+        "icloud.com",
+        "sample_rules",
+        "DOMAIN-SUFFIX,google.com",
+        "DOMAIN-KEYWORD,google",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/ui_wave5.rs",
+        "apple.com",
+        "icloud.com",
+        "Provider cache purged successfully",
+        "Unpacked {count} rules to custom rules",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/core/rules_provider.rs",
+        "apple.com",
+        "icloud.com",
+        "google.com",
+        "Provider cache purged successfully",
+        "unpacked_rules_count += count",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/provider_unpack_card.rs",
+        "Apple-Provider",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "CommandIntent::UnpackRuleProvider { .. }",
+        "CommandIntent::PurgeRuleProviderCache => Err(unsupported())",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules_mrs.rs",
+        "解构 2 条",
+        "Unpacked",
     )
 
     # Dual headless evidence.

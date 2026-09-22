@@ -13,6 +13,7 @@ pub mod analyzer;
 pub mod edit;
 pub mod logical;
 pub mod matrix;
+pub mod provider_store;
 pub mod tracer;
 pub mod types;
 pub mod view;
@@ -87,35 +88,6 @@ pub fn diff_rule_provider_contents(
         removed_rules,
         unchanged_count,
     }
-}
-
-pub fn unpack_provider_rules_to_custom(rules: &[String], target: &str) -> Vec<RuleEntry> {
-    rules
-        .iter()
-        .map(|r| r.trim())
-        .filter(|r| !r.is_empty() && !r.starts_with('#'))
-        .map(|r| {
-            if r.contains(',') {
-                let parts: Vec<&str> = r.split(',').collect();
-                if parts.len() == 2 {
-                    RuleEntry {
-                        rule: format!("{},{},{}", parts[0], parts[1], target),
-                        enabled: true,
-                    }
-                } else {
-                    RuleEntry {
-                        rule: r.to_string(),
-                        enabled: true,
-                    }
-                }
-            } else {
-                RuleEntry {
-                    rule: format!("DOMAIN-SUFFIX,{},{}", r, target),
-                    enabled: true,
-                }
-            }
-        })
-        .collect()
 }
 
 pub fn game_routing_presets(target: &str) -> Vec<RuleEntry> {

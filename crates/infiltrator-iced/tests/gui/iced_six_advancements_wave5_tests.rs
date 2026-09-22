@@ -44,6 +44,7 @@ fn rules_page_with_hit_audit(audit: RuleHitAuditSnapshot) -> SurfaceSnapshot {
             mrs_acceleration: Default::default(),
             total_hits: 0,
             rule_publish_limit: 0,
+            provider_cache: Default::default(),
         });
     snapshot
 }
@@ -337,31 +338,64 @@ fn test_system_proxy_recovery_updates_the_iced_projection() {
     ));
 }
 
+/// DUAL-11-06/07: an undeclared or hostless provider action never fabricates
+/// rules, and every honest outcome is reported verbatim.
 #[test]
 fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
     let (mut state, _) = AppState::new();
 
     let initial_count = state.editor.rules.len();
 
-    // Unpack provider
+    // No declaration loaded -> no fabricated samples, an honest status line.
     let _ = state.update(Message::UnpackRuleProviderToCustom(
         "Apple-Provider".to_string(),
     ));
-    assert_eq!(state.editor.rules.len(), initial_count + 2);
-    assert_eq!(
-        state.editor.rules[initial_count].rule,
-        "DOMAIN-SUFFIX,apple.com,DIRECT"
+    assert_eq!(state.editor.rules.len(), initial_count);
+    assert!(!state.editor.rules_dirty);
+    let status = state
+        .editor
+        .provider_unpack
+        .status_message
+        .clone()
+        .expect("honest status");
+    assert!(status.contains("Apple-Provider"), "{status}");
+    assert!(status.contains("not declared"), "{status}");
+    assert!(
+        state
+            .editor
+            .rules
+            .iter()
+            .all(|entry| !entry.rule.contains("apple.com") && !entry.rule.contains("icloud.com"))
     );
-    assert_eq!(
-        state.editor.rules[initial_count + 1].rule,
-        "DOMAIN-SUFFIX,icloud.com,DIRECT"
-    );
-    assert_eq!(state.editor.provider_unpack.unpacked_rules_count, 2);
-    assert!(state.editor.rules_dirty);
 
-    // Purge cache
+    // DUAL-11-07: a host without a cache location must say so.
     let _ = state.update(Message::PurgeRuleProviderCache);
     assert!(!state.editor.provider_unpack.is_purging_cache);
+    assert!(
+        state
+            .editor
+            .provider_unpack
+            .status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("cache location"))
+    );
+
+    // The shared application reports the real purge counts it observed.
+    let _ = state.update(Message::RuleProviderCachePurged(Ok(
+        infiltrator_contract::provider_cache::ProviderCachePurge {
+            directory: Some("/kernel/rules".to_owned()),
+            files_removed: 5,
+            bytes_freed: 4096,
+        },
+    )));
+    let status = state
+        .editor
+        .provider_unpack
+        .status_message
+        .clone()
+        .expect("purge status");
+    assert!(status.contains('5'), "{status}");
+    assert!(status.contains("4096"), "{status}");
 }
 
 #[test]

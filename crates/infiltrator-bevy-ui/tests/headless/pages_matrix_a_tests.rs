@@ -1378,6 +1378,7 @@ fn test_rules_empty_and_edge_case_projection() {
         mrs_acceleration: Default::default(),
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        provider_cache: Default::default(),
     };
     app.world_mut()
         .commands()
@@ -2166,6 +2167,7 @@ fn test_rules_type_matrix_renders_every_shared_label() {
             mrs_acceleration: Default::default(),
             total_hits: 0,
             rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+            provider_cache: Default::default(),
         },
     );
 
@@ -4070,4 +4072,127 @@ fn test_profiles_editor_formats_with_the_shared_engine_and_saves_through_the_gua
         }
         other => panic!("expected a SaveProfileDocument command, got {other:?}"),
     }
+}
+
+/// DUAL-11-06/07: the MRS card's unpack and purge buttons submit the shared
+/// command intents and never a UI-local fabricated payload.
+#[test]
+fn test_rules_provider_unpack_and_cache_purge_submit_shared_intents() {
+    use infiltrator_bevy_ui::pages::rules_mrs::{
+        PurgeRuleProviderCacheButton, RulesMrsState, UnpackRuleProviderButton,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Rules);
+
+    let unpack = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<UnpackRuleProviderButton>>()
+        .single(app.world())
+        .expect("unpack button");
+    let purge = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<PurgeRuleProviderCacheButton>>()
+        .single(app.world())
+        .expect("purge button");
+
+    // The unpack target is the provider the shared MRS read model reports.
+    let state = app.world().resource::<RulesMrsState>();
+    let provider = state.provider_name.clone().expect("projected provider");
+    assert_eq!(
+        provider, "geoip-cn.mrs",
+        "the first shared MRS item names the unpack target"
+    );
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: unpack });
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: purge });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![
+            UiCommand::UnpackRuleProvider(provider),
+            UiCommand::PurgeRuleProviderCache,
+        ]
+    );
+}
+
+/// DUAL-11-07: the cache fact line reports the observed directory/count/size
+/// and says so when the host has no cache location.
+#[test]
+fn test_rules_provider_cache_line_reports_observed_facts() {
+    use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    let mut projection = RulesProjection::demo();
+    projection.provider_cache = RuleProviderCacheSnapshot::ready("/kernel/configs/rules", 4, 8192);
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection.clone()));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "内核规则集缓存 · /kernel/configs/rules · 4 个文件 · 8192 字节"
+    ));
+
+    projection.provider_cache = RuleProviderCacheSnapshot::ready("/kernel/configs/rules", 0, 0);
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection.clone()));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "内核规则集缓存 · /kernel/configs/rules · 0 个文件 · 0 字节"
+    ));
+
+    projection.provider_cache = RuleProviderCacheSnapshot::unsupported("no kernel home");
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection.clone()));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "规则集缓存：宿主未声明缓存目录（no kernel home）"
+    ));
+
+    projection.provider_cache = RuleProviderCacheSnapshot::failed("permission denied");
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "规则集缓存不可读：permission denied"
+    ));
+}
+
+/// DUAL-11-06/07: the rendered Rules page carries the observed cache line.
+#[test]
+fn test_rules_page_renders_observed_provider_cache_fact() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    navigate_to(&mut app, Route::Rules);
+    let root = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<RulesPageRoot>>()
+        .single(app.world())
+        .expect("rules page root");
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "内核规则集缓存 · ~/.config/mihomo-rs/configs/rules · 3 个文件 · 1048576 字节"
+    ));
 }

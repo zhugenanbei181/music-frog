@@ -758,6 +758,18 @@ impl HostRuntime for MihomoRuntime {
         ))
     }
 
+    fn rule_provider_cache_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::rule_provider_cache::RuleProviderCachePort>> {
+        // The core is spawned with `-d <config dir>`, so mihomo's home is the
+        // directory holding `config_path`; its `rules/` subdirectory is the
+        // only location the DUAL-11-06/07 unpack and purge touch.
+        let home = self.config_path.parent()?.to_path_buf();
+        Some(Arc::new(
+            crate::rule_provider_cache::DesktopRuleProviderCache::new(home),
+        ))
+    }
+
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort> {
         self.application.clone()
     }

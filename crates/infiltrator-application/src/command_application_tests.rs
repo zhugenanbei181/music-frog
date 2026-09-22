@@ -6,6 +6,7 @@
 //! result, without a real profile directory.
 
 use super::*;
+use crate::configuration_application::ConfigurationApplication;
 use async_trait::async_trait;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
@@ -428,4 +429,138 @@ async fn snapshot_history_intents_require_the_shared_application() {
         .await
         .expect_err("a host without the snapshot port must say so");
     assert!(error.message.contains("snapshot application"), "{error:?}");
+}
+
+/// DUAL-11-06: the unpack command reads a provider's real declared payload and
+/// prepends the mapped rules; nothing is fabricated and an unknown provider is
+/// a typed failure that leaves the profile untouched.
+#[tokio::test]
+async fn unpack_rule_provider_imports_real_payload_and_rejects_unknown() {
+    let profile = "rule-providers:\n  ads:\n    type: inline\n    behavior: domain\n    payload:\n      - ads.com\n      - tracker.net\nrules:\n  - MATCH,DIRECT\n";
+    let store = Arc::new(FakeStore::with_profile(profile));
+    let application = application(&store).with_configuration(ConfigurationApplication::new(
+        Arc::clone(&store) as Arc<dyn ProfileStore>,
+    ));
+
+    application
+        .execute(CommandIntent::UnpackRuleProvider {
+            provider_name: "ads".to_owned(),
+        })
+        .await
+        .expect("unpack");
+
+    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    assert_eq!(rules.len(), 3);
+    assert_eq!(rules[0].rule, "DOMAIN-SUFFIX,ads.com,PROXY");
+    assert_eq!(rules[1].rule, "DOMAIN-SUFFIX,tracker.net,PROXY");
+    assert_eq!(rules[2].rule, "MATCH,DIRECT");
+
+    let failure = application
+        .execute(CommandIntent::UnpackRuleProvider {
+            provider_name: "absent".to_owned(),
+        })
+        .await
+        .expect_err("unknown provider");
+    assert!(
+        failure.message.contains("absent"),
+        "the failure names the provider: {failure:?}"
+    );
+    let failure = application
+        .execute(CommandIntent::UnpackRuleProvider {
+            provider_name: "  ".to_owned(),
+        })
+        .await
+        .expect_err("empty provider name");
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+}
+
+/// DUAL-11-07: the purge command only reports what the injected host port
+/// really removed, and a host without a cache location is a typed unsupported.
+#[tokio::test]
+async fn purge_rule_provider_cache_requires_and_reports_the_host_location() {
+    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
+    let hostless = application(&store);
+    let failure = hostless
+        .execute(CommandIntent::PurgeRuleProviderCache)
+        .await
+        .expect_err("no cache location");
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+
+    let cache = Arc::new(RecordingProviderCache::default());
+    let application = application(&store).with_rule_provider_cache(cache.clone());
+    application
+        .execute(CommandIntent::PurgeRuleProviderCache)
+        .await
+        .expect("purge");
+    assert_eq!(cache.purges(), 1);
+}
+
+/// A provider whose declaration has no local file and no inline payload is an
+/// honest unsupported failure naming the sources that were tried.
+#[tokio::test]
+async fn unpack_without_any_source_is_unsupported() {
+    let profile = "rule-providers:\n  cn:\n    type: http\n    behavior: domain\n    format: text\n    url: https://example.com/cn.txt\nrules:\n  - MATCH,DIRECT\n";
+    let store = Arc::new(FakeStore::with_profile(profile));
+    let application = application(&store)
+        .with_configuration(ConfigurationApplication::new(
+            Arc::clone(&store) as Arc<dyn ProfileStore>
+        ))
+        .with_rule_provider_cache(Arc::new(RecordingProviderCache::default()));
+
+    let failure = application
+        .execute(CommandIntent::UnpackRuleProvider {
+            provider_name: "cn".to_owned(),
+        })
+        .await
+        .expect_err("no readable source");
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+    assert!(
+        failure.message.contains("controller payload"),
+        "{failure:?}"
+    );
+    assert_eq!(store.content(), profile, "nothing was persisted");
+}
+
+#[derive(Default)]
+struct RecordingProviderCache {
+    purges: Mutex<usize>,
+}
+
+impl RecordingProviderCache {
+    fn purges(&self) -> usize {
+        *self.purges.lock().expect("purge lock")
+    }
+}
+
+#[async_trait]
+impl infiltrator_ports::rule_provider_cache::RuleProviderCachePort for RecordingProviderCache {
+    async fn read_provider(
+        &self,
+        _declaration: &infiltrator_domain::rules::provider_store::RuleProviderDeclaration,
+    ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderCacheEntry>, PortError> {
+        Ok(None)
+    }
+
+    async fn purge(
+        &self,
+    ) -> Result<infiltrator_contract::provider_cache::ProviderCachePurge, PortError> {
+        *self.purges.lock().expect("purge lock") += 1;
+        Ok(infiltrator_contract::provider_cache::ProviderCachePurge {
+            directory: Some("/fake/configs/rules".to_owned()),
+            files_removed: 2,
+            bytes_freed: 64,
+        })
+    }
+
+    async fn snapshot(
+        &self,
+    ) -> Result<infiltrator_contract::provider_cache::RuleProviderCacheSnapshot, PortError> {
+        Ok(
+            infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::ready(
+                "/fake/configs/rules",
+                0,
+                0,
+            ),
+        )
+    }
 }

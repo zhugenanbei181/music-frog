@@ -50,6 +50,18 @@ pub trait RuntimeGateway: Send + Sync {
     async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError>;
     async fn update_proxy_provider(&self, name: &str) -> Result<(), PortError>;
     async fn update_rule_provider(&self, name: &str) -> Result<(), PortError>;
+    /// DUAL-11-06: the provider payload the controller publishes for `name`
+    /// (`GET /providers/rules` → `payload`). mihomo serialises `payload` only
+    /// for `type: inline` providers (`omitempty`), so `Ok(None)` is the honest
+    /// answer for every downloaded provider and the client must not invent a
+    /// rule list for it.
+    async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, PortError> {
+        let _ = name;
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "this gateway does not publish rule-provider payloads",
+        ))
+    }
     async fn flush_fakeip_cache(&self) -> Result<(), PortError>;
     /// Ask the running core to refresh its GeoIP/GeoSite rule databases
     /// (`POST /upgrade/geo`). Gateways without the trigger surface a typed

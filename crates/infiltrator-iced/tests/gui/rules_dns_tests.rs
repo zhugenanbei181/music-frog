@@ -608,6 +608,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         mrs_acceleration: Default::default(),
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        provider_cache: Default::default(),
     });
     assert!(state.apply_shared_surface_snapshot(snapshot));
 
@@ -644,6 +645,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         mrs_acceleration: Default::default(),
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        provider_cache: Default::default(),
     });
     assert!(state.apply_shared_surface_snapshot(complete));
     assert_eq!(state.editor.rule_publish_omitted, None);
@@ -704,10 +706,24 @@ fn test_rule_provider_diff_and_unpack_flow() {
     let _ = state.update(Message::InspectRuleProviderDiff(None));
     assert!(state.editor.inspecting_rule_provider_diff.is_none());
 
+    // DUAL-11-06: without a declaration in the loaded profile nothing is
+    // unpacked and no sample rule is invented.
     let prev_len = state.editor.rules.len();
     let _ = state.update(Message::UnpackRuleProvider("GoogleRules".into()));
-    assert!(state.editor.rules.len() > prev_len);
-    assert!(state.editor.rules_dirty);
+    assert_eq!(state.editor.rules.len(), prev_len);
+    assert!(!state.editor.rules_dirty);
+    assert!(
+        state
+            .editor
+            .provider_unpack
+            .status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("not declared")),
+        "undeclared providers must be reported honestly"
+    );
+    // A diff for an undeclared provider is refused for the same reason.
+    let _ = state.update(Message::InspectRuleProviderDiff(Some("GoogleRules".into())));
+    assert!(state.editor.inspecting_rule_provider_diff.is_none());
 
     // Verify rule provider row formatting (Domain, IPCIDR, Classical), badges, format chips, and rendering
     let lang = infiltrator_shared::locales::Lang("en");
@@ -890,4 +906,91 @@ rules:
     assert!(twice.contains("mode: direct"));
     assert!(twice.contains("# 头注释"));
     assert!(twice.contains("# 规则块"));
+}
+
+/// DUAL-11-06: the surface never invents a provider payload. The shared
+/// application reads the declaration's inline payload and the accepted plan
+/// lands in the local draft through the same edit seam as the other rule
+/// edits; an unreadable source stays a typed failure.
+#[tokio::test]
+async fn test_rules_rule_provider_unpack_reads_shared_application() {
+    use infiltrator_application::rule_provider_application::RuleProviderApplication;
+    use infiltrator_domain::rules::RuleProviders;
+    use infiltrator_domain::rules::provider_store::parse_rule_provider_declarations;
+
+    let (mut state, _) = AppState::new();
+    state.editor.rules = vec![RuleEntry {
+        rule: "MATCH,DIRECT".into(),
+        enabled: true,
+    }];
+    state.editor.rule_providers_json_cache =
+        r#"{"ads":{"type":"inline","behavior":"domain","payload":["ads.com","tracker.net"]}}"#
+            .to_owned();
+
+    let providers: RuleProviders =
+        serde_json::from_str(&state.editor.rule_providers_json_cache).expect("declarations");
+    let declaration = parse_rule_provider_declarations(&providers)
+        .into_iter()
+        .next()
+        .expect("declaration");
+    let plan = RuleProviderApplication::default()
+        .deconstruct(&declaration, "PROXY", None)
+        .await
+        .expect("inline plan");
+    assert_eq!(
+        plan.origin,
+        infiltrator_contract::provider_cache::ProviderContentOrigin::InlinePayload
+    );
+    assert_eq!(plan.imported(), 2);
+
+    let _ = state.update(Message::RuleProviderUnpacked(Ok(plan)));
+    assert_eq!(state.editor.rules.len(), 3);
+    // Same shared reduction as the application path: unpacked rules prepend.
+    assert_eq!(state.editor.rules[0].rule, "DOMAIN-SUFFIX,ads.com,PROXY");
+    assert_eq!(
+        state.editor.rules[1].rule,
+        "DOMAIN-SUFFIX,tracker.net,PROXY"
+    );
+    assert_eq!(state.editor.rules[2].rule, "MATCH,DIRECT");
+    assert!(state.editor.rules_dirty);
+    assert_eq!(state.editor.provider_unpack.unpacked_rules_count, 2);
+    let status = state
+        .editor
+        .provider_unpack
+        .status_message
+        .clone()
+        .expect("status");
+    assert!(status.contains("inline-payload"), "{status}");
+    assert!(!state.editor.provider_unpack.is_unpacking);
+
+    // A host without a readable source reports the typed failure verbatim and
+    // leaves the draft untouched.
+    let failure = RuleProviderApplication::default()
+        .deconstruct(
+            &infiltrator_domain::rules::provider_store::RuleProviderDeclaration::from_value(
+                "cn",
+                &serde_json::json!({
+                    "type": "http",
+                    "behavior": "domain",
+                    "format": "text",
+                    "url": "https://example.com/cn.txt"
+                }),
+            ),
+            "PROXY",
+            None,
+        )
+        .await
+        .expect_err("no source");
+    let _ = state.update(Message::RuleProviderUnpacked(Err(
+        infiltrator_contract::error::InfiltratorError::Config(failure.message.clone()),
+    )));
+    assert_eq!(state.editor.rules.len(), 3);
+    assert!(
+        state
+            .editor
+            .provider_unpack
+            .status_message
+            .as_deref()
+            .is_some_and(|status| status.contains("no readable rule list"))
+    );
 }

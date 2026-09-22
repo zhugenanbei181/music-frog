@@ -312,35 +312,10 @@ impl AppState {
                     MtuProbeState::Unknown | MtuProbeState::Probing => Task::none(),
                 }
             }
-            Message::UnpackRuleProviderToCustom(provider_name) => {
-                let unpacked = vec![
-                    infiltrator_domain::rules::RuleEntry {
-                        rule: "DOMAIN-SUFFIX,apple.com,DIRECT".into(),
-                        enabled: true,
-                    },
-                    infiltrator_domain::rules::RuleEntry {
-                        rule: "DOMAIN-SUFFIX,icloud.com,DIRECT".into(),
-                        enabled: true,
-                    },
-                ];
-                let count = unpacked.len();
-                self.editor.rules.extend(unpacked);
-                self.editor.rules_dirty = true;
-                self.editor.provider_unpack.unpacked_rules_count += count;
-                self.editor.provider_unpack.status_message =
-                    Some(format!("Unpacked {count} rules from {provider_name}"));
-                Task::done(Message::ShowToast(
-                    format!("Unpacked {count} rules to custom rules"),
-                    ToastStatus::Success,
-                ))
-            }
-            Message::PurgeRuleProviderCache => {
-                self.editor.provider_unpack.is_purging_cache = false;
-                Task::done(Message::ShowToast(
-                    "Provider cache purged successfully".into(),
-                    ToastStatus::Success,
-                ))
-            }
+            Message::UnpackRuleProviderToCustom(_)
+            | Message::PurgeRuleProviderCache
+            | Message::RuleProviderUnpacked(_)
+            | Message::RuleProviderCachePurged(_) => self.update_rule_provider(message),
             Message::TriggerAtomicConfigApply => {
                 self.runtime.apply_guard.stage =
                     crate::types::runtime::ApplyTransactionStage::Preflight;

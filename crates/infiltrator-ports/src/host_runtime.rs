@@ -92,5 +92,13 @@ pub trait HostRuntime: ManagedRuntime {
     fn mini_hud_window_port(&self) -> Option<Arc<dyn crate::mini_hud_window::MiniHudWindowPort>> {
         None
     }
+    /// DUAL-11-06/07: the kernel's local rule-provider files. Hosts without a
+    /// resolvable kernel home directory omit it instead of reporting a purge
+    /// that never happened.
+    fn rule_provider_cache_port(
+        &self,
+    ) -> Option<Arc<dyn crate::rule_provider_cache::RuleProviderCachePort>> {
+        None
+    }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;
 }

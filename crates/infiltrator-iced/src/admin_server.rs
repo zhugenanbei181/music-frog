@@ -830,6 +830,13 @@ impl AppState {
                 ),
             );
         }
+        if runtime_changed {
+            // DUAL-11-06/07: keep the kernel's local rule-provider files
+            // reachable for exactly as long as the runtime that owns them.
+            self.runtime.rule_provider_cache_port = runtime
+                .as_ref()
+                .and_then(|runtime| runtime.rule_provider_cache_port());
+        }
         self.runtime.runtime = runtime;
         self.shell
             .admin_shared

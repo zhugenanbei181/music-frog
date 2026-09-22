@@ -386,8 +386,15 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "provider_unpack_desc" => {
             "将远程 Rule-Provider 规则条目一键解构导入为本地可编辑规则".into()
         }
-        "provider_btn_unpack" => "一键解构成自定义规则".into(),
+        "provider_btn_unpack" => "解构 {provider} 为自定义规则".into(),
+        "provider_btn_unpack_idle" => "无可解构的规则集".into(),
         "provider_btn_purge_cache" => "清理规则集本地缓存".into(),
+        "provider_unpack_total" => "已解构 {count} 条规则".into(),
+        "provider_unpack_active" => "规则集生效中".into(),
+        "provider_cache_ready" => "{dir} · {count} 个缓存文件 · {bytes} 字节".into(),
+        "provider_cache_unsupported" => "宿主未声明规则集缓存目录".into(),
+        "provider_cache_failed" => "规则集缓存不可读".into(),
+        "provider_cache_unknown" => "规则集缓存状态未知".into(),
         "provider_cache_purged" => "规则集本地磁盘缓存已清理完毕".into(),
 
         // Wave 5 Category 5: Config Apply Multi-Stage Transaction Guard
