@@ -427,6 +427,10 @@ impl AppState {
                     infiltrator_domain::connection_view::ConnectionGroupingMode::Flat,
                 connection_activity:
                     infiltrator_domain::connection_activity::ConnectionActivityTracker::new(),
+                connection_rates:
+                    infiltrator_application::connection_rate_application::ConnectionRateApplication::new(),
+                connection_rate_book: Default::default(),
+                connection_pulse_phase: 0.0,
                 connection_idle_timeout_secs:
                     infiltrator_domain::connection_activity::DEFAULT_IDLE_TIMEOUT_SECS,
                 last_idle_sweep: None,

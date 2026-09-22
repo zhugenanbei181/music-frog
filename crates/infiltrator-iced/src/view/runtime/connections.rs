@@ -1,7 +1,8 @@
 //! Runtime page connections section: header with traffic totals, sort
 //! segmented control, live search filter, close-all button, sub-tabs
 //! (Active / Closed), and windowed connection card rows with process names,
-//! protocol chips, outbound target badges, and kill buttons.
+//! protocol chips, outbound target badges, instantaneous rates and the
+//! high-throughput pulse, plus kill buttons.
 
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
@@ -16,7 +17,8 @@ use crate::view::components::{
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Color, Element, Length, Theme};
+use iced::{Alignment, Border, Color, Element, Length, Theme};
+use infiltrator_domain::connection_rate::{self, ConnectionRates};
 use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionSortKey};
 use infiltrator_domain::runtime::Connection;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -66,35 +68,68 @@ pub fn filter_connection(conn: &Connection, query: &str) -> bool {
     connection_view::matches_search(conn, query)
 }
 
-/// Sort connection list according to user-selected sort key.
-pub fn sort_connections(conns: &mut [Connection], sort_key: &str) {
-    connection_view::sort_connections(conns, ConnectionSortKey::from_identifier(sort_key));
+/// DUAL-13-12: order the live rows through the one shared sort reduction with
+/// the derived instantaneous rates attached, so the rate keys rank on real
+/// bytes-per-second and the cumulative keys keep their previous behavior.
+pub fn sort_rated_connections<'a>(
+    conns: &'a [Connection],
+    rates: &ConnectionRates,
+    sort_key: &str,
+) -> Vec<connection_view::RatedConnection<'a, Connection>> {
+    let mut rows: Vec<connection_view::RatedConnection<'_, Connection>> = conns
+        .iter()
+        .map(|conn| connection_view::RatedConnection::new(conn, rates.get(&conn.id)))
+        .collect();
+    connection_view::sort_connections(&mut rows, ConnectionSortKey::from_identifier(sort_key));
+    rows
+}
+
+/// DUAL-13-10: the breathing glow of one row at the shared pulse phase; zero
+/// until the connection really crosses the shared high-throughput threshold.
+pub fn connection_pulse_intensity(conn: &Connection, rates: &ConnectionRates, phase: f32) -> f32 {
+    let rate = rates.get(&conn.id);
+    connection_rate::pulse_intensity(rate.upload_bps, rate.download_bps, phase)
+}
+
+/// Bytes-per-second display; the value is a real derived rate, never a guess.
+pub fn format_rate(bps: f64) -> String {
+    format!("{}/s", format_bytes(bps.max(0.0) as u64))
 }
 
 pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<'a, Message> {
     let _is_zh = state.shell.lang.starts_with("zh");
 
-    // 1. Sort segmented control: download / upload / latest / host
+    // 1. Sort segmented control: cumulative download / cumulative upload /
+    // instantaneous download / instantaneous upload / latest / host. The
+    // instantaneous entries are DUAL-13-12; every index maps to a shared
+    // `ConnectionSortKey`, and the wire value is its identifier.
     let sort_labels: Vec<String> = vec![
         lang.tr("runtime_conn_sort_download_desc").to_string(),
         lang.tr("runtime_conn_sort_upload_desc").to_string(),
+        lang.tr("runtime_conn_sort_download_rate").to_string(),
+        lang.tr("runtime_conn_sort_upload_rate").to_string(),
         lang.tr("runtime_conn_sort_latest_desc").to_string(),
         lang.tr("runtime_conn_sort_host_asc").to_string(),
     ];
-    let sort_index = match state.runtime.runtime_connection_sort.as_str() {
-        "upload_desc" => 1,
-        "latest_desc" => 2,
-        "host_asc" => 3,
-        _ => 0,
-    };
+    let sort_index =
+        match ConnectionSortKey::from_identifier(&state.runtime.runtime_connection_sort) {
+            ConnectionSortKey::DownloadDesc => 0,
+            ConnectionSortKey::UploadDesc => 1,
+            ConnectionSortKey::DownloadRateDesc => 2,
+            ConnectionSortKey::UploadRateDesc => 3,
+            ConnectionSortKey::LatestDesc => 4,
+            ConnectionSortKey::HostAsc => 5,
+        };
     let conn_sort_control = segmented_control(&sort_labels, sort_index, |index| {
         let key = match index {
-            1 => "upload_desc",
-            2 => "latest_desc",
-            3 => "host_asc",
-            _ => "download_desc",
+            1 => ConnectionSortKey::UploadDesc,
+            2 => ConnectionSortKey::DownloadRateDesc,
+            3 => ConnectionSortKey::UploadRateDesc,
+            4 => ConnectionSortKey::LatestDesc,
+            5 => ConnectionSortKey::HostAsc,
+            _ => ConnectionSortKey::DownloadDesc,
         };
-        Message::UpdateRuntimeConnectionSort(key.to_string())
+        Message::UpdateRuntimeConnectionSort(key.as_str().to_string())
     });
 
     // 2. Traffic totals and stream status
@@ -329,13 +364,19 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             lang.tr("conn_no_closed_desc").as_ref(),
         ));
     } else if let Some(c) = &state.diag.connections {
-        let mut sorted_conns = c.connections.clone();
+        let mut filtered_conns = c.connections.clone();
         if !user_filter.is_empty() {
-            sorted_conns.retain(|conn| filter_connection(conn, user_filter));
+            filtered_conns.retain(|conn| filter_connection(conn, user_filter));
         }
-        sort_connections(&mut sorted_conns, &state.runtime.runtime_connection_sort);
+        // DUAL-13-12: the shared sort runs with the derived instantaneous
+        // rates attached, so the rate keys rank on real bytes-per-second.
+        let rated_rows = sort_rated_connections(
+            &filtered_conns,
+            &state.diag.connection_rate_book,
+            &state.runtime.runtime_connection_sort,
+        );
 
-        if sorted_conns.is_empty() {
+        if rated_rows.is_empty() {
             connections_section = connections_section.push(empty_state(
                 Icon::Plug,
                 lang.tr("runtime_no_matching_connections").as_ref(),
@@ -345,7 +386,7 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             // DUAL-13-02: both grouped dimensions reduce through the shared
             // domain aggregation; Iced owns no aggregation logic of its own.
             let mode = state.diag.connection_grouping_mode;
-            let aggregates = connection_view::aggregate_connections(&sorted_conns, mode);
+            let aggregates = connection_view::aggregate_connections(&filtered_conns, mode);
             if aggregates.is_empty() {
                 connections_section = connections_section.push(empty_state(
                     Icon::Plug,
@@ -398,11 +439,18 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             }
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
-            let total = sorted_conns.len();
+            let total = rated_rows.len();
             let (page, start, end) = state.connections_window(total);
             let mut conn_list = column![].spacing(theme::SP_SM);
 
-            for conn in &sorted_conns[start..end] {
+            for rated in &rated_rows[start..end] {
+                let conn = rated.row;
+                let rate = rated.rate;
+                let pulse = connection_pulse_intensity(
+                    conn,
+                    &state.diag.connection_rate_book,
+                    state.diag.connection_pulse_phase,
+                );
                 let process_name = extract_process_name(&conn.metadata.process_path);
                 let host = if conn.metadata.host.is_empty() {
                     conn.metadata.destination_ip.clone()
@@ -443,6 +491,15 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 headline_items.push(chip(network));
                 headline_items.push(Space::new().width(theme::SP_SM).into());
                 headline_items.push(badge(target_node, target_badge_kind));
+                if pulse > 0.0 {
+                    // DUAL-13-10: only a connection that really crossed the
+                    // shared threshold renders the breathing glow.
+                    headline_items.push(Space::new().width(theme::SP_SM).into());
+                    headline_items.push(high_throughput_pulse(
+                        lang.tr("conn_pulse_high_throughput").to_string(),
+                        pulse,
+                    ));
+                }
                 headline_items.push(Space::new().width(theme::SP_MD).into());
                 headline_items.push(
                     text(format!(
@@ -519,6 +576,26 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     }
                 }
 
+                // DUAL-13-10/12: the shared derivation publishes real
+                // instantaneous rates; the row shows them only once a window
+                // exists (a fresh connection honestly shows nothing).
+                if rate.peak_bps() > 0.0 {
+                    subline_items.push(Space::new().width(theme::SP_MD).into());
+                    subline_items.push(
+                        text(format!(
+                            "⚡ ↑ {} ↓ {}",
+                            format_rate(rate.upload_bps),
+                            format_rate(rate.download_bps)
+                        ))
+                        .size(11)
+                        .font(MONO)
+                        .style(|t: &Theme| text::Style {
+                            color: Some(tokens(t).success),
+                        })
+                        .into(),
+                    );
+                }
+
                 subline_items.push(Space::new().width(Length::Fill).into());
                 subline_items.push(
                     text(source_str)
@@ -539,7 +616,21 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     container(row_content)
                         .padding(SP_MD)
                         .width(Length::Fill)
-                        .style(row_card_surface),
+                        .style(move |t: &Theme| {
+                            // DUAL-13-10: the breathing glow is the shared
+                            // intensity tinted into the card background.
+                            let mut card = row_card_surface(t);
+                            if pulse > 0.0 {
+                                card.background = Some(
+                                    Color {
+                                        a: pulse * 0.35,
+                                        ..tokens(t).accent
+                                    }
+                                    .into(),
+                                );
+                            }
+                            card
+                        }),
                 );
             }
 
@@ -580,6 +671,60 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     }
 
     connections_section.into()
+}
+
+/// DUAL-13-10: the pulsing chip of a connection above the shared
+/// high-throughput threshold. The glow intensity is the shared breathing
+/// function, so this surface and Bevy pulse identically.
+fn high_throughput_pulse<'a>(label: String, intensity: f32) -> Element<'a, Message> {
+    container(
+        row![
+            container(Space::new().width(8).height(8)).style(move |t: &Theme| {
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: intensity,
+                            ..tokens(t).accent
+                        }
+                        .into(),
+                    ),
+                    border: Border {
+                        radius: 4.0.into(),
+                        width: theme::HAIRLINE,
+                        color: Color {
+                            a: intensity,
+                            ..tokens(t).accent
+                        },
+                    },
+                    ..Default::default()
+                }
+            }),
+            Space::new().width(theme::SP_XS),
+            text(label).size(11).font(FONT_MEDIUM),
+        ]
+        .align_y(Alignment::Center),
+    )
+    .padding([2, 8])
+    .style(move |t: &Theme| container::Style {
+        background: Some(
+            Color {
+                a: intensity * 0.22,
+                ..tokens(t).accent
+            }
+            .into(),
+        ),
+        border: Border {
+            radius: 999.0.into(),
+            width: theme::HAIRLINE,
+            color: Color {
+                a: intensity,
+                ..tokens(t).accent
+            },
+        },
+        text_color: Some(tokens(t).accent),
+        ..Default::default()
+    })
+    .into()
 }
 
 fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {

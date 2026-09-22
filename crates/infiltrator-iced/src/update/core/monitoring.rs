@@ -148,50 +148,7 @@ impl AppState {
                 Task::none()
             }
             Message::ConnectionsReceived(data) => {
-                let upload_total = data.upload_total;
-                let download_total = data.download_total;
-
-                // The WebSocket traffic stream is authoritative. If a core
-                // does not expose it, retain a safe polling fallback based on
-                // the actual elapsed time rather than assuming every refresh
-                // happened exactly two seconds apart.
-                let now = std::time::Instant::now();
-                if !matches!(
-                    self.diag.traffic_stream_state,
-                    RuntimeStreamState::Connected
-                ) && let (Some(prev_up), Some(prev_down), Some(previous_at)) = (
-                    self.runtime.runtime_prev_upload_total,
-                    self.runtime.runtime_prev_download_total,
-                    self.runtime.runtime_prev_snapshot_at,
-                ) {
-                    let elapsed = now.duration_since(previous_at).as_secs_f64();
-                    if elapsed > 0.0 {
-                        let up_rate =
-                            (upload_total.saturating_sub(prev_up) as f64 / elapsed) as u64;
-                        let down_rate =
-                            (download_total.saturating_sub(prev_down) as f64 / elapsed) as u64;
-                        self.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
-                            up: up_rate,
-                            down: down_rate,
-                        });
-                        self.diag.traffic_history.push_back((up_rate, down_rate));
-                        if self.diag.traffic_history.len() > 60 {
-                            self.diag.traffic_history.pop_front();
-                        }
-                    }
-                }
-
-                self.runtime.runtime_prev_upload_total = Some(upload_total);
-                self.runtime.runtime_prev_download_total = Some(download_total);
-                self.runtime.runtime_prev_snapshot_at = Some(now);
-                // DUAL-13-11: record byte-change times for idle detection.
-                let observed_at = crate::types::runtime::current_unix_secs();
-                self.diag
-                    .connection_activity
-                    .observe(&data.connections, observed_at);
-                self.diag.connections = Some(data);
-                self.clamp_connections_page();
-                Task::none()
+                self.apply_connections_snapshot(data, std::time::Instant::now())
             }
             Message::ConnectionsPrevPage => {
                 self.diag.connections_page = self.diag.connections_page.saturating_sub(1);
@@ -402,6 +359,70 @@ impl AppState {
             }
             other => self.update_core_doctor(other),
         }
+    }
+
+    /// Apply one live connections snapshot at `now`: the polling traffic
+    /// fallback, the idle-activity bookkeeping and the shared
+    /// DUAL-13-10/12 instantaneous-rate derivation all diff against the
+    /// previous observation, so the clock is injected instead of read here.
+    /// This is the seam the deterministic tests drive.
+    pub(crate) fn apply_connections_snapshot(
+        &mut self,
+        data: infiltrator_domain::runtime::ConnectionSnapshot,
+        now: std::time::Instant,
+    ) -> Task<Message> {
+        use infiltrator_domain::runtime::TrafficData;
+
+        let upload_total = data.upload_total;
+        let download_total = data.download_total;
+
+        // The WebSocket traffic stream is authoritative. If a core does not
+        // expose it, retain a safe polling fallback based on the actual
+        // elapsed time rather than assuming every refresh happened exactly
+        // two seconds apart.
+        if !matches!(
+            self.diag.traffic_stream_state,
+            RuntimeStreamState::Connected
+        ) && let (Some(prev_up), Some(prev_down), Some(previous_at)) = (
+            self.runtime.runtime_prev_upload_total,
+            self.runtime.runtime_prev_download_total,
+            self.runtime.runtime_prev_snapshot_at,
+        ) {
+            let elapsed = now.duration_since(previous_at).as_secs_f64();
+            if elapsed > 0.0 {
+                let up_rate = (upload_total.saturating_sub(prev_up) as f64 / elapsed) as u64;
+                let down_rate = (download_total.saturating_sub(prev_down) as f64 / elapsed) as u64;
+                self.diag.traffic = Some(TrafficData {
+                    up: up_rate,
+                    down: down_rate,
+                });
+                self.diag.traffic_history.push_back((up_rate, down_rate));
+                if self.diag.traffic_history.len() > 60 {
+                    self.diag.traffic_history.pop_front();
+                }
+            }
+        }
+
+        self.runtime.runtime_prev_upload_total = Some(upload_total);
+        self.runtime.runtime_prev_download_total = Some(download_total);
+        self.runtime.runtime_prev_snapshot_at = Some(now);
+
+        // DUAL-13-10/12: the shared application rate window derives the
+        // instantaneous bytes-per-second of every connection in this
+        // snapshot; the row pulse and the rate sort read that book.
+        self.diag.connection_rate_book = self
+            .diag
+            .connection_rates
+            .observe_at(now, &data.connections);
+
+        // DUAL-13-11: record byte-change times for idle detection.
+        let observed_at = crate::types::runtime::current_unix_secs();
+        self.diag
+            .connection_activity
+            .observe(&data.connections, observed_at);
+        self.diag.connections = Some(data);
+        self.clamp_connections_page();
+        Task::none()
     }
 
     /// Keep the connections page inside the valid range for the current

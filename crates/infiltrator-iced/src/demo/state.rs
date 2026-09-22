@@ -92,7 +92,19 @@ impl AppState {
             in_use: 96_468_992,
             os_limit: 0,
         });
-        state.diag.connections = Some(demo_connections());
+        // DUAL-13-10/12: seed the demo rows through the real rate derivation —
+        // a previous observation of the same fixture two seconds earlier —
+        // so the demo shows the same instantaneous rates and pulse the live
+        // stream produces instead of a hand-written speed.
+        let connections = demo_connections();
+        let mut previous = connections.clone();
+        for conn in &mut previous.connections {
+            conn.upload /= 2;
+            conn.download /= 2;
+        }
+        let now = std::time::Instant::now();
+        let _ = state.apply_connections_snapshot(previous, now - std::time::Duration::from_secs(2));
+        let _ = state.apply_connections_snapshot(connections, now);
         state.diag.log_level = "info".to_string();
         state.diag.logs = demo_logs();
 

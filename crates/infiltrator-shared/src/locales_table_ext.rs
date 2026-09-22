@@ -220,6 +220,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "conn_idle_sweep_btn" => "清理空闲连接".into(),
         "conn_idle_last_sweep_none" => "上次清理: 尚未执行".into(),
         "conn_idle_last_sweep" => "上次清理: 清理 {count} 条空闲连接".into(),
+        "conn_pulse_high_throughput" => "高吞吐脉冲".into(),
+        "conn_drawer_rate_pending" => "瞬时速率: 等待第二次采样".into(),
 
         // Category 5: Config Snapshot Visual Diff & Rollback
         "snapshot_diff_title" => "配置历史快照差异比对与回滚".into(),

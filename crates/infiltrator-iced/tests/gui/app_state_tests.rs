@@ -630,6 +630,81 @@ fn connection_idle_timeout_and_activity_tracking() {
 }
 
 #[test]
+fn connection_instantaneous_rates_derive_from_successive_snapshots() {
+    use infiltrator_domain::connection_rate::HIGH_THROUGHPUT_THRESHOLD_BPS;
+    use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
+    use std::time::{Duration, Instant};
+
+    let (mut state, _) = AppState::new();
+    assert!(state.diag.connection_rate_book.is_empty());
+    assert!(!state.diag.connection_pulse_active());
+
+    let snapshot_with = |up: u64, down: u64| ConnectionSnapshot {
+        download_total: down,
+        upload_total: up,
+        connections: vec![Connection {
+            id: "c-rate".to_string(),
+            metadata: ConnectionMetadata::default(),
+            upload: up,
+            download: down,
+            ..Connection::default()
+        }],
+    };
+
+    // Deterministic timestamps: the derivation divides by the elapsed time we
+    // hand it, exactly like the live stream would.
+    let base = Instant::now();
+    let _ = state.apply_connections_snapshot(snapshot_with(1_000, 2_000), base);
+    assert_eq!(
+        state.diag.connection_rate_book.get("c-rate"),
+        Default::default(),
+        "a first observation has no honest rate"
+    );
+
+    let _ = state
+        .apply_connections_snapshot(snapshot_with(3_000, 10_000), base + Duration::from_secs(2));
+    let rate = state.diag.connection_rate_book.get("c-rate");
+    assert_eq!(rate.upload_bps, 1_000.0);
+    assert_eq!(rate.download_bps, 4_000.0);
+    assert!(!state.diag.connection_pulse_active());
+
+    // Crossing the shared 5 MB/s threshold arms the pulse for the next frame.
+    let _ = state.apply_connections_snapshot(
+        snapshot_with(3_000, 10_000 + (HIGH_THROUGHPUT_THRESHOLD_BPS * 2.0) as u64),
+        base + Duration::from_secs(4),
+    );
+    let rate = state.diag.connection_rate_book.get("c-rate");
+    assert!(rate.is_high_throughput());
+    assert!(state.diag.connection_pulse_active());
+
+    // A later frame advances the breathing phase while a high-throughput
+    // connection stays present, and the shared intensity follows it.
+    let _ = state.update(Message::TickFrame(base + Duration::from_millis(1_500)));
+    assert!(state.diag.connection_pulse_phase > 0.0);
+    assert!(
+        infiltrator_domain::connection_rate::pulse_intensity(
+            rate.upload_bps,
+            rate.download_bps,
+            state.diag.connection_pulse_phase
+        ) > 0.0
+    );
+
+    // Once the connection disappears the book and the pulse go quiet.
+    let _ = state.apply_connections_snapshot(
+        ConnectionSnapshot {
+            download_total: 0,
+            upload_total: 0,
+            connections: Vec::new(),
+        },
+        base + Duration::from_secs(6),
+    );
+    assert!(state.diag.connection_rate_book.is_empty());
+    assert!(!state.diag.connection_pulse_active());
+    let _ = state.update(Message::TickFrame(base + Duration::from_secs(7)));
+    assert_eq!(state.diag.connection_pulse_phase, 0.0);
+}
+
+#[test]
 fn process_exit_uses_the_host_cleanup_callback_before_shutdown_task() {
     let (mut state, _) = AppState::new();
     let calls = Arc::new(AtomicUsize::new(0));

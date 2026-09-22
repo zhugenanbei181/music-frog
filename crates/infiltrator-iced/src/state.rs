@@ -502,10 +502,25 @@ pub struct DiagnosticsState {
     pub connection_grouping_mode: infiltrator_domain::connection_view::ConnectionGroupingMode,
     /// DUAL-13-11: byte-change tracking that backs idle detection.
     pub connection_activity: infiltrator_domain::connection_activity::ConnectionActivityTracker,
+    /// DUAL-13-10/12: the shared rate window fed by successive live snapshots.
+    pub connection_rates:
+        infiltrator_application::connection_rate_application::ConnectionRateApplication,
+    /// DUAL-13-10/12: the instantaneous rates derived from the last snapshot.
+    pub connection_rate_book: infiltrator_domain::connection_rate::ConnectionRates,
+    /// DUAL-13-10: breathing phase of the high-throughput pulse (0.0..1.0).
+    pub connection_pulse_phase: f32,
     /// Configured idle timeout in seconds (one of the shared choices).
     pub connection_idle_timeout_secs: u64,
     /// Idle connections identified by the last sweep, if one has run.
     pub last_idle_sweep: Option<usize>,
+}
+
+impl DiagnosticsState {
+    /// Whether the last observed snapshot contains a connection above the
+    /// shared high-throughput threshold, i.e. whether the pulse needs frames.
+    pub fn connection_pulse_active(&self) -> bool {
+        self.connection_rate_book.has_high_throughput()
+    }
 }
 
 /// 外壳域:导航路由、语言/主题、全局错误与 Toast、托盘、Admin 管理端、

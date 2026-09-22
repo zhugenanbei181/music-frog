@@ -325,6 +325,8 @@ impl Plugin for PagesPlugin {
         app.init_resource::<crate::pages::connections_idle::ConnectionsIdleState>();
         app.init_resource::<crate::pages::connections_drawer::ConnectionsDrawerState>();
         app.init_resource::<crate::pages::connections_drawer::ConnectionsRuleDraft>();
+        // DUAL-13-10: the shared breathing phase of the high-throughput pulse.
+        app.init_resource::<crate::pages::connections_pulse::ConnectionsPulseState>();
         // The trend chart's sample ring: written by the live pump's drain
         // (when one is mounted), read by the page's refresh observer and
         // mount scene. The demo fixture ignores it (its trend is the
@@ -385,6 +387,7 @@ impl Plugin for PagesPlugin {
                 crate::pages::rules_json::restamp_rules_json,
                 crate::pages::rules_json::rules_json_keyboard_input,
                 crate::pages::connections_drawer::sync_connections_drawer,
+                crate::pages::connections_pulse::animate_connection_pulses,
                 crate::pages::dns_edit::sync_dns_edit_dirty,
                 crate::pages::dns_fakeip::sync_dns_fake_ip_filter,
             ),

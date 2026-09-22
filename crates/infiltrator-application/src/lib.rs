@@ -10,6 +10,7 @@ pub mod certificate_authority_application;
 pub mod command_application;
 pub mod configuration_application;
 pub mod connection_application;
+pub mod connection_rate_application;
 pub mod core_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_application;

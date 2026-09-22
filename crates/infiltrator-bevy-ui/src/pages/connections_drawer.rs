@@ -29,6 +29,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::rules::RuleEntry;
 
+use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections::{ConnInspectButton, LastConnectionsProjection};
 
 /// Maximum route-chain hops rendered in the drawer.
@@ -46,6 +47,11 @@ pub struct ConnectionDrawerLayer;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DrawerAddRuleButton;
 
+/// DUAL-13-14: the drawer's "disconnect this connection" action, the same
+/// teardown the Iced drawer exposes.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DrawerCloseConnectionButton;
+
 /// Mutable drawer text fields restamped when a connection is inspected.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConnDrawerField(pub ConnDrawerFieldKind);
@@ -57,7 +63,15 @@ pub enum ConnDrawerFieldKind {
     Host,
     Process,
     Rule,
+    /// DUAL-13-14: the matched rule payload, rendered by Iced as well.
+    RulePayload,
+    /// DUAL-13-14: local `ip:port → remote ip:port` endpoints.
+    Endpoints,
+    /// DUAL-13-14: transport/network label (`TCP`/`UDP`).
+    Network,
     Traffic,
+    /// DUAL-13-10/12: the derived instantaneous rates of the connection.
+    Rate,
 }
 
 /// Marker on one route-chain hop text slot in the drawer (DUAL-13-06).
@@ -164,6 +178,9 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Host) TextRole(Role::BodyStrong) ),
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Process) TextRole(Role::Caption) ),
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rule) TextRole(Role::Caption) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::RulePayload) TextRole(Role::Caption) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Endpoints) TextRole(Role::Mono) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Network) TextRole(Role::Caption) ),
             (
                 Node {
                     width: percent(100),
@@ -177,12 +194,14 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 ]
             ),
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(Role::Mono) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(Role::Mono) ),
             ( Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption) ),
             (
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::FlexStart,
+                    column_gap: Val::Px(space::S8),
                 }
                 Children [
                     (
@@ -198,6 +217,21 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                         DrawerAddRuleButton
                         Children [
                             ( Text({ "一键添加为规则".to_owned() }) TextRole(Role::BodyStrong) ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.danger })
+                        Button
+                        DrawerCloseConnectionButton
+                        Children [
+                            ( Text({ "断开此连接".to_owned() }) TextRole(Role::BodyStrong) ),
                         ]
                     ),
                 ]
@@ -225,10 +259,12 @@ pub(crate) fn on_connections_drawer_activated(
     activate: On<Activate>,
     inspect_buttons: Query<&ConnInspectButton>,
     add_rule_buttons: Query<(), With<DrawerAddRuleButton>>,
+    close_connection_buttons: Query<(), With<DrawerCloseConnectionButton>>,
     close_buttons: Query<(), With<DrawerCloseButton>>,
     last: Option<Res<LastConnectionsProjection>>,
     mut drawer: Option<ResMut<ConnectionsDrawerState>>,
     mut draft: Option<ResMut<ConnectionsRuleDraft>>,
+    handle: Option<Res<CommandSinkHandle>>,
     mut fields: Query<
         (&mut Text, &ConnDrawerField),
         (Without<ConnDrawerHopText>, Without<ConnDrawerRuleDraft>),
@@ -304,6 +340,31 @@ pub(crate) fn on_connections_drawer_activated(
                 text.0 = format!("规则草稿: {}", entry.rule);
             }
         }
+        return;
+    }
+
+    if close_connection_buttons.contains(activate.entity) {
+        // DUAL-13-14: the drawer tears down the same connection id the Iced
+        // drawer closes, then hides itself.
+        let Some(handle) = handle else {
+            return;
+        };
+        let Some(index) = drawer.as_ref().and_then(|state| state.selected) else {
+            return;
+        };
+        let Some(item) = last
+            .as_ref()
+            .and_then(|last| last.0.as_ref())
+            .and_then(|projection| projection.connections.get(index))
+        else {
+            return;
+        };
+        handle.submit(UiCommand::CloseConnection {
+            id: item.id.clone(),
+        });
+        if let Some(state) = drawer.as_deref_mut() {
+            state.open = false;
+        }
     }
 }
 
@@ -334,11 +395,36 @@ fn restamp_drawer<F, H, S>(
                 }
             }
             ConnDrawerFieldKind::Rule => item.rule.clone(),
+            ConnDrawerFieldKind::RulePayload => {
+                if item.rule_payload.is_empty() {
+                    "—".to_owned()
+                } else {
+                    item.rule_payload.clone()
+                }
+            }
+            ConnDrawerFieldKind::Endpoints => format!(
+                "{}:{} → {}:{}",
+                item.source_ip, item.source_port, item.destination_ip, item.destination_port
+            ),
+            ConnDrawerFieldKind::Network => item.network.to_uppercase(),
             ConnDrawerFieldKind::Traffic => format!(
                 "↑ {}  ↓ {}",
                 crate::pages::overview::format_byte_count(item.upload_total),
                 crate::pages::overview::format_byte_count(item.download_total)
             ),
+            // DUAL-13-10/12: the drawer shows the derived instantaneous rates
+            // only once a real window exists; a fresh connection stays honest.
+            ConnDrawerFieldKind::Rate => {
+                if item.upload_bps > 0.0 || item.download_bps > 0.0 {
+                    format!(
+                        "瞬时 ↑ {}/s  ↓ {}/s",
+                        crate::pages::overview::format_byte_count(item.upload_bps.max(0.0) as u64),
+                        crate::pages::overview::format_byte_count(item.download_bps.max(0.0) as u64)
+                    )
+                } else {
+                    "瞬时速率: 等待第二次采样".to_owned()
+                }
+            }
         };
     }
     for (mut text, marker) in hops.iter_mut() {

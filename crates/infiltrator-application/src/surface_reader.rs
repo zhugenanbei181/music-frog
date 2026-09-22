@@ -7,6 +7,7 @@
 
 use crate::active_exit_application::ActiveExitApplication;
 use crate::configuration_application::ConfigurationApplication;
+use crate::connection_rate_application::ConnectionRateApplication;
 use crate::core_application::CoreApplication;
 use crate::doctor_application::DoctorApplication;
 use crate::mtu_application::MtuApplication;
@@ -82,6 +83,9 @@ pub struct ApplicationSurfaceReader {
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
     rule_provider: crate::rule_provider_application::RuleProviderApplication,
+    /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
+    /// Kept across reads (and cloned readers) so successive snapshots diff.
+    connection_rates: ConnectionRateApplication,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -120,6 +124,7 @@ impl ApplicationSurfaceReader {
             speedtest: None,
             dns_cache: None,
             rule_provider: crate::rule_provider_application::RuleProviderApplication::default(),
+            connection_rates: ConnectionRateApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -545,37 +550,15 @@ impl SurfaceReader for ApplicationSurfaceReader {
 
         pages.connections = page_from_result(
             runtime_connections,
-            |connections| surface_snapshot::ConnectionsPageSnapshot {
-                total_connections: connections.connections.len(),
-                total_upload_bytes: connections.upload_total,
-                total_download_bytes: connections.download_total,
-                connections: connections
-                    .connections
-                    .into_iter()
-                    .map(|connection| surface_snapshot::ConnectionSnapshot {
-                        id: connection.id,
-                        host: if connection.metadata.destination_port.is_empty() {
-                            connection.metadata.host
-                        } else {
-                            format!(
-                                "{}:{}",
-                                connection.metadata.host, connection.metadata.destination_port
-                            )
-                        },
-                        process: if connection.metadata.process_path.is_empty() {
-                            "unknown".to_owned()
-                        } else {
-                            connection.metadata.process_path
-                        },
-                        rule: connection.rule,
-                        chain: connection.chains.join(" -> "),
-                        chains: connection.chains,
-                        upload_bps: 0.0,
-                        download_bps: 0.0,
-                        upload_total: connection.upload,
-                        download_total: connection.download,
-                    })
-                    .collect(),
+            |connections| {
+                // DUAL-13-10/12: the runtime DTO carries cumulative totals
+                // only; the shared rate window derives the instantaneous
+                // bytes-per-second from this observation and the previous one
+                // and the shared mapper publishes them into the read model.
+                let rates = self
+                    .connection_rates
+                    .observe_at(Instant::now(), &connections.connections);
+                crate::connection_rate_application::connections_page_snapshot(&connections, &rates)
             },
             "Mihomo connections gateway",
         );
