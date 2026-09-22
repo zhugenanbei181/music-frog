@@ -684,7 +684,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             viewport: Default::default(),
             subscription_quota,
             yaml_ast_diff: crate::snapshot_application::last_snapshot_diff(),
-            script_sandbox: None,
+            script_sandbox: crate::script_application::last_script_sandbox(),
             speedtest: self
                 .speedtest
                 .as_ref()

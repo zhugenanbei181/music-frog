@@ -11,11 +11,11 @@
 //!   `SubscriptionFilterDraft` fields and committed through
 //!   `ProfileOptionsApplication::save_filter` (the shared pipeline runner).
 //!
-//! Honest boundary, stated in the UI: the Iced QuickJS script console stays a
-//! single-surface feature. `ScriptApplication` has no surface-published read
-//! model (the surface snapshot's `script_sandbox` is never published and Iced
-//! runs the domain engine inline), so mirroring it would copy one surface's
-//! bypass instead of a shared use-case. The pane row says so.
+//! DUAL-10-05/14: the script console is now mirrored through the shared read
+//! model: Iced runs `ScriptApplication` and publishes
+//! `SurfaceSnapshot.script_sandbox`, and the Profiles page's script console
+//! card renders the exact same projection. The pane row states the honest
+//! engine fact (a directive DSL, not a JavaScript engine).
 
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -310,7 +310,7 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
         Children [
             { buttons },
             (
-                Text({ "脚本沙盒未镜像：Iced QuickJS 控制台在 update 内直跑引擎，共享 ScriptApplication 无 surface 读模型".to_owned() })
+                Text({ "脚本控制台由共享读模型驱动：Iced 经 ScriptApplication 运行并发布 SurfaceSnapshot.script_sandbox，Bevy 控制台渲染同一投影（指令 DSL，非 JavaScript 引擎）".to_owned() })
                 TextRole(Role::Caption)
                 bevy::text::TextColor({ note_color })
             ),

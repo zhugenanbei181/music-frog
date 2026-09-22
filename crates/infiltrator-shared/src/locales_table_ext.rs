@@ -615,6 +615,26 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "chrome_minimize" => "最小化".into(),
         "chrome_maximize" => "最大化 / 还原".into(),
         "chrome_close" => "关闭".into(),
+
+        // Category: DUAL-10 scripting sandbox shared read model
+        "script_sandbox_presets" => "预设:".into(),
+        "script_sandbox_engine" => "执行引擎:".into(),
+        "script_sandbox_hook_stage" => "生命周期阶段:".into(),
+        "script_sandbox_breaker" => "熔断状态:".into(),
+        "script_sandbox_limits" => "资源限额:".into(),
+        "script_sandbox_matched" => "已执行指令".into(),
+        "script_sandbox_no_match" => "无指令匹配（未执行任何变换）".into(),
+        "script_sandbox_input_preview" => "输入 YAML（变换前）".into(),
+        "script_sandbox_error_title" => "执行失败".into(),
+        "script_sandbox_success_title" => "变换完成".into(),
+        "script_sandbox_degraded" => "安全降级：原配置保持不变，内核继续运行".into(),
+        "script_sandbox_directive_row" => "{id} · {label}（影响 {affected} 项）".into(),
+        "script_sandbox_breaker_state" => {
+            "{state} · 连续失败 {fails}/{threshold} · 冷却 {cooldown}ms / 剩余 {remaining}ms".into()
+        }
+        "script_sandbox_limits_value" => {
+            "内存上限 {memory_mb}MB · 超时上限 {timeout}ms · 实测 {elapsed}ms / {bytes} 字节".into()
+        }
         _ => key.to_string().into(),
     }
 }

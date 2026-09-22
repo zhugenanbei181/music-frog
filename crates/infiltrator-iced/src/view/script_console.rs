@@ -1,4 +1,8 @@
-//! QuickJS Script Sandbox Console view for testing Clash community JS extension scripts.
+//! Directive-DSL script sandbox console view.
+//!
+//! It renders the shared [`infiltrator_contract::script_sandbox::ScriptSandboxSnapshot`]
+//! the application produced — the same read model the Bevy console renders.
+//! There is no bundled JavaScript engine; the panel says so.
 
 use crate::state::AppState;
 use crate::types::message::Message;
@@ -10,13 +14,10 @@ use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 
-fn preset_chip<'a>(
-    label: String,
-    preset_id: &'static str,
-    is_active: bool,
-) -> Element<'a, Message> {
+fn preset_chip<'a>(label: String, preset_id: String, is_active: bool) -> Element<'a, Message> {
     button(text(label).size(12).font(FONT_MEDIUM))
         .padding([4, 10])
         .style(move |t: &Theme, status| {
@@ -47,59 +48,311 @@ fn preset_chip<'a>(
                 ..Default::default()
             }
         })
-        .on_press(Message::SelectScriptPreset(preset_id.to_string()))
+        .on_press(Message::SelectScriptPreset(preset_id))
+        .into()
+}
+
+fn meta_line<'a>(label: String, value: String) -> Element<'a, Message> {
+    row![
+        text(label)
+            .size(11)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
+        Space::new().width(theme::SP_SM),
+        text(value)
+            .size(11)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary)
+            }),
+    ]
+    .align_y(Alignment::Center)
+    .into()
+}
+
+fn preview_box<'a>(title: String, body: String) -> Element<'a, Message> {
+    column![
+        text(title)
+            .size(12)
+            .font(FONT_SEMIBOLD)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_primary)
+            }),
+        Space::new().height(theme::SP_XS),
+        container(
+            modern_scrollable(
+                text(body)
+                    .size(11)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }),
+            )
+            .height(Length::Fixed(160.0)),
+        )
+        .padding(10)
+        .width(Length::Fill)
+        .style(|t: &Theme| {
+            let tk = tokens(t);
+            container::Style {
+                background: Some(tk.control_bg.into()),
+                border: Border {
+                    radius: border::Radius::from(theme::R_CONTROL),
+                    width: theme::HAIRLINE,
+                    color: tk.card_border,
+                },
+                ..Default::default()
+            }
+        }),
+    ]
+    .width(Length::FillPortion(1))
+    .into()
+}
+
+fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Element<'a, Message> {
+    let has_error = snapshot.has_error();
+    let tone = if has_error { "danger" } else { "success" };
+    let title = if has_error {
+        lang.tr("script_sandbox_error_title").to_string()
+    } else {
+        lang.tr("script_sandbox_success_title").to_string()
+    };
+    let kind = if has_error {
+        BadgeKind::Danger
+    } else {
+        BadgeKind::Success
+    };
+
+    let mut directives_col = column![].spacing(4);
+    if snapshot.matched_directives.is_empty() {
+        directives_col = directives_col.push(
+            text(lang.tr("script_sandbox_no_match").to_string())
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_tertiary),
+                }),
+        );
+    } else {
+        for directive in &snapshot.matched_directives {
+            let line = lang
+                .tr("script_sandbox_directive_row")
+                .replace("{id}", &directive.id)
+                .replace("{label}", &directive.label)
+                .replace("{affected}", &directive.affected.to_string());
+            directives_col =
+                directives_col.push(text(line).size(11).font(MONO).style(|t: &Theme| {
+                    text::Style {
+                        color: Some(tokens(t).text_primary),
+                    }
+                }));
+        }
+    }
+
+    let mut logs_col = column![].spacing(4);
+    for entry in &snapshot.console_logs {
+        logs_col = logs_col.push(
+            text(format!("[{}ms] {}", entry.timestamp_ms, entry.message))
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_secondary),
+                }),
+        );
+    }
+
+    let breaker = lang
+        .tr("script_sandbox_breaker_state")
+        .replace("{state}", snapshot.circuit_breaker.label_zh())
+        .replace(
+            "{fails}",
+            &snapshot.circuit_breaker.consecutive_failures.to_string(),
+        )
+        .replace(
+            "{threshold}",
+            &snapshot.circuit_breaker.failure_threshold.to_string(),
+        )
+        .replace(
+            "{cooldown}",
+            &snapshot.circuit_breaker.cooldown_ms.to_string(),
+        )
+        .replace(
+            "{remaining}",
+            &snapshot.circuit_breaker.remaining_cooldown_ms.to_string(),
+        );
+    let limits = lang
+        .tr("script_sandbox_limits_value")
+        .replace(
+            "{memory_mb}",
+            &format!(
+                "{:.0}",
+                snapshot.max_memory_limit_bytes as f64 / (1024.0 * 1024.0)
+            ),
+        )
+        .replace("{timeout}", &snapshot.timeout_limit_ms.to_string())
+        .replace("{elapsed}", &snapshot.execution_time_ms.to_string())
+        .replace("{bytes}", &snapshot.memory_used_bytes.to_string());
+
+    let mut body = column![
+        row![
+            svg_icons::icon_themed(
+                if has_error {
+                    Icon::Shield
+                } else {
+                    Icon::Activity
+                },
+                16.0,
+                {
+                    move |t: &Theme| {
+                        if tone == "danger" {
+                            tokens(t).danger
+                        } else {
+                            tokens(t).success
+                        }
+                    }
+                }
+            ),
+            Space::new().width(theme::SP_SM),
+            badge(title, kind),
+            Space::new().width(theme::SP_SM),
+            kbd_badge(format!("{}ms", snapshot.execution_time_ms)),
+        ]
+        .align_y(Alignment::Center),
+        Space::new().height(theme::SP_XS),
+        meta_line(
+            lang.tr("script_sandbox_engine").to_string(),
+            snapshot.engine_label_zh().to_string(),
+        ),
+        meta_line(
+            lang.tr("script_sandbox_hook_stage").to_string(),
+            format!("{} ({})", snapshot.hook_stage_label, snapshot.hook_stage),
+        ),
+        meta_line(lang.tr("script_sandbox_breaker").to_string(), breaker),
+        meta_line(lang.tr("script_sandbox_limits").to_string(), limits),
+    ]
+    .spacing(theme::SP_XS);
+
+    if let Some(error) = snapshot.error_detail.as_deref() {
+        body = body
+            .push(Space::new().height(theme::SP_SM))
+            .push(
+                text(error.to_string())
+                    .size(12)
+                    .font(MONO)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).danger),
+                    }),
+            )
+            .push(
+                text(lang.tr("script_sandbox_degraded").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+            );
+    }
+
+    body = body
+        .push(Space::new().height(theme::SP_SM))
+        .push(
+            text(lang.tr("script_sandbox_matched").to_string())
+                .size(12)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+        )
+        .push(modern_scrollable(directives_col).height(Length::Fixed(72.0)))
+        .push(Space::new().height(theme::SP_SM))
+        .push(
+            text(lang.tr("script_sandbox_logs").to_string())
+                .size(12)
+                .font(FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).text_primary),
+                }),
+        )
+        .push(modern_scrollable(logs_col).height(Length::Fixed(96.0)))
+        .push(Space::new().height(theme::SP_SM))
+        .push(
+            row![
+                preview_box(
+                    lang.tr("script_sandbox_input_preview").to_string(),
+                    snapshot.input_yaml.clone(),
+                ),
+                Space::new().width(theme::SP_MD),
+                preview_box(
+                    lang.tr("script_sandbox_output").to_string(),
+                    snapshot.transformed_yaml.clone().unwrap_or_default(),
+                ),
+            ]
+            .width(Length::Fill),
+        );
+
+    container(body)
+        .padding([14, 18])
+        .width(Length::Fill)
+        .style(move |t: &Theme| {
+            let tk = tokens(t);
+            let tone = if has_error { tk.danger } else { tk.success };
+            container::Style {
+                background: Some(Color { a: 0.08, ..tone }.into()),
+                border: Border {
+                    radius: border::Radius::from(theme::R_CARD),
+                    width: theme::HAIRLINE,
+                    color: Color { a: 0.35, ..tone },
+                },
+                ..Default::default()
+            }
+        })
         .into()
 }
 
 pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-
+    let snapshot = state.editor.script_sandbox.snapshot.as_ref();
     let active_preset = state.editor.script_sandbox.selected_preset.as_deref();
 
-    let preset_row = row![
-        text("Presets:")
+    let preset_definitions =
+        infiltrator_application::script_application::ScriptApplication::new().builtin_presets();
+    let mut preset_row = row![
+        text(lang.tr("script_sandbox_presets").to_string())
             .size(12)
             .font(FONT_SEMIBOLD)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)
             }),
         Space::new().width(theme::SP_SM),
-        preset_chip(
-            lang.tr("script_sandbox_preset_country").to_string(),
-            "country",
-            active_preset == Some("country")
-        ),
-        Space::new().width(theme::SP_SM),
-        preset_chip(
-            lang.tr("script_sandbox_preset_streaming").to_string(),
-            "streaming",
-            active_preset == Some("streaming")
-        ),
-        Space::new().width(theme::SP_SM),
-        preset_chip(
-            lang.tr("script_sandbox_preset_direct").to_string(),
-            "direct",
-            active_preset == Some("direct")
-        ),
-        Space::new().width(Length::Fill),
-        icon_button(Icon::Trash2, 14.0, Message::ClearScriptSandbox),
-        Space::new().width(theme::SP_SM),
-        button(
-            row![
-                svg_icons::icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
-                Space::new().width(theme::SP_SM),
-                text(lang.tr("script_sandbox_run").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-                kbd_badge("Ctrl+↵")
-            ]
-            .align_y(Alignment::Center)
-        )
-        .padding([6, 14])
-        .style(style_accent)
-        .on_press(Message::RunScriptSandboxTest),
     ]
     .align_y(Alignment::Center);
+    for definition in preset_definitions {
+        let is_active = active_preset == Some(definition.id.as_str());
+        preset_row = preset_row
+            .push(preset_chip(definition.name, definition.id, is_active))
+            .push(Space::new().width(theme::SP_SM));
+    }
+    let preset_row = preset_row
+        .push(Space::new().width(Length::Fill))
+        .push(icon_button(Icon::Trash2, 14.0, Message::ClearScriptSandbox))
+        .push(Space::new().width(theme::SP_SM))
+        .push(
+            button(
+                row![
+                    svg_icons::icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
+                    Space::new().width(theme::SP_SM),
+                    text(lang.tr("script_sandbox_run").to_string())
+                        .size(12)
+                        .font(FONT_MEDIUM),
+                    kbd_badge("Ctrl+↵")
+                ]
+                .align_y(Alignment::Center),
+            )
+            .padding([6, 14])
+            .style(style_accent)
+            .on_press(Message::RunScriptSandboxTest),
+        );
 
     let script_input = column![
         text("function main(config, profile) { ... }")
@@ -129,7 +382,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     };
 
     let yaml_input = column![
-        text("Input Configuration (YAML):")
+        text(lang.tr("script_sandbox_input_preview").to_string())
             .size(12)
             .font(FONT_SEMIBOLD)
             .style(|t: &Theme| text::Style {
@@ -148,174 +401,36 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let editors_row = row![script_input, Space::new().width(theme::SP_MD), yaml_input];
 
-    let output_section: Element<'_, Message> =
-        if let Some(err) = &state.editor.script_sandbox.execution_error {
-            container(
-                column![
-                    row![
-                        svg_icons::icon_themed(Icon::Shield, 16.0, |t: &Theme| tokens(t).danger),
-                        Space::new().width(theme::SP_SM),
-                        badge("Execution Error".to_string(), BadgeKind::Danger),
-                    ]
-                    .align_y(Alignment::Center),
-                    Space::new().height(theme::SP_SM),
-                    text(err.clone())
-                        .size(12)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).danger)
-                        }),
-                ]
-                .spacing(theme::SP_XS),
-            )
-            .padding([12, 16])
-            .width(Length::Fill)
-            .style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style {
-                    background: Some(
-                        Color {
-                            a: 0.08,
-                            ..tk.danger
-                        }
-                        .into(),
-                    ),
-                    border: Border {
-                        radius: border::Radius::from(theme::R_CONTROL),
-                        width: theme::HAIRLINE,
-                        color: Color {
-                            a: 0.30,
-                            ..tk.danger
-                        },
-                    },
-                    ..Default::default()
-                }
-            })
-            .into()
-        } else if let Some(res) = &state.editor.script_sandbox.execution_result {
-            let logs_count = res.console_logs.len();
-            let logs_title = format!("{}: {} logs", lang.tr("script_sandbox_logs"), logs_count);
-
-            let mut logs_col = column![].spacing(4);
-            for (idx, log_line) in res.console_logs.iter().enumerate() {
-                logs_col = logs_col.push(
-                    text(format!("[{idx}] {log_line}"))
-                        .size(11)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_secondary),
-                        }),
-                );
-            }
-
-            container(
-                column![
-                    row![
-                        svg_icons::icon_themed(Icon::Activity, 16.0, |t: &Theme| tokens(t).success),
-                        Space::new().width(theme::SP_SM),
-                        badge("Transform Succeeded".to_string(), BadgeKind::Success),
-                        Space::new().width(theme::SP_SM),
-                        kbd_badge(format!("{}ms", res.execution_time_ms)),
-                    ]
-                    .align_y(Alignment::Center),
-                    Space::new().height(theme::SP_SM),
-                    text(logs_title)
-                        .size(12)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_primary)
-                        }),
-                    Space::new().height(theme::SP_XS),
-                    modern_scrollable(logs_col).height(Length::Fixed(80.0)),
-                    Space::new().height(theme::SP_SM),
-                    text(lang.tr("script_sandbox_output").to_string())
-                        .size(12)
-                        .font(FONT_SEMIBOLD)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_primary)
-                        }),
-                    Space::new().height(theme::SP_XS),
-                    container(
-                        modern_scrollable(
-                            text(res.transformed_yaml.clone())
-                                .size(11)
-                                .font(MONO)
-                                .style(|t: &Theme| text::Style {
-                                    color: Some(tokens(t).text_primary),
-                                }),
-                        )
-                        .height(Length::Fixed(180.0)),
-                    )
-                    .padding(10)
-                    .width(Length::Fill)
-                    .style(|t: &Theme| {
-                        let tk = tokens(t);
-                        container::Style {
-                            background: Some(tk.control_bg.into()),
-                            border: Border {
-                                radius: border::Radius::from(theme::R_CONTROL),
-                                width: theme::HAIRLINE,
-                                color: tk.card_border,
-                            },
-                            ..Default::default()
-                        }
+    let output_section: Element<'_, Message> = match snapshot {
+        Some(snapshot) => console_body(&lang, snapshot),
+        None => container(
+            row![
+                svg_icons::icon_themed(Icon::Zap, 16.0, |t: &Theme| tokens(t).text_tertiary),
+                Space::new().width(theme::SP_SM),
+                text(lang.tr("script_sandbox_subtitle").to_string())
+                    .size(12)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_tertiary)
                     }),
-                ]
-                .spacing(theme::SP_XS),
-            )
-            .padding([14, 18])
-            .width(Length::Fill)
-            .style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style {
-                    background: Some(
-                        Color {
-                            a: 0.08,
-                            ..tk.success
-                        }
-                        .into(),
-                    ),
-                    border: Border {
-                        radius: border::Radius::from(theme::R_CARD),
-                        width: theme::HAIRLINE,
-                        color: Color {
-                            a: 0.35,
-                            ..tk.success
-                        },
-                    },
-                    ..Default::default()
-                }
-            })
-            .into()
-        } else {
-            container(
-                row![
-                    svg_icons::icon_themed(Icon::Zap, 16.0, |t: &Theme| tokens(t).text_tertiary),
-                    Space::new().width(theme::SP_SM),
-                    text(lang.tr("script_sandbox_subtitle").to_string())
-                        .size(12)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_tertiary)
-                        }),
-                ]
-                .align_y(Alignment::Center),
-            )
-            .padding([12, 16])
-            .width(Length::Fill)
-            .style(|t: &Theme| {
-                let tk = tokens(t);
-                container::Style {
-                    background: Some(tk.control_bg.into()),
-                    border: Border {
-                        radius: border::Radius::from(theme::R_CARD),
-                        width: theme::HAIRLINE,
-                        color: tk.card_border,
-                    },
-                    ..Default::default()
-                }
-            })
-            .into()
-        };
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding([12, 16])
+        .width(Length::Fill)
+        .style(|t: &Theme| {
+            let tk = tokens(t);
+            container::Style {
+                background: Some(tk.control_bg.into()),
+                border: Border {
+                    radius: border::Radius::from(theme::R_CARD),
+                    width: theme::HAIRLINE,
+                    color: tk.card_border,
+                },
+                ..Default::default()
+            }
+        })
+        .into(),
+    };
 
     let main_card = card(
         Some(lang.tr("script_sandbox_title").to_string()),

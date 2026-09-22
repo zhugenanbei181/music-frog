@@ -1001,7 +1001,7 @@ def main() -> int:
         "MixinEditorSaveButton",
         "EditorFilterSaveButton",
         "EditorFilterDedupButton",
-        "脚本沙盒未镜像",
+        "脚本控制台由共享读模型驱动",
     )
     require(
         violations,

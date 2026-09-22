@@ -674,7 +674,8 @@ pub struct SurfaceSnapshot {
     /// AST configuration diff and snapshot comparison readback.
     #[serde(default)]
     pub yaml_ast_diff: Option<crate::yaml_ast_diff::YamlAstDiffSnapshot>,
-    /// Active QuickJS sandbox console and execution telemetry.
+    /// DUAL-10-05/14: the shared directive-DSL sandbox console read model published
+    /// by `ScriptApplication` (no JavaScript engine is bundled).
     #[serde(default)]
     pub script_sandbox: Option<crate::script_sandbox::ScriptSandboxSnapshot>,
     /// Shared concurrent speedtest, jitter, and packet loss telemetry.

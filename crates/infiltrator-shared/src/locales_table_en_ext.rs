@@ -604,6 +604,22 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "chrome_minimize" => "Minimize".into(),
         "chrome_maximize" => "Maximize / Restore".into(),
         "chrome_close" => "Close".into(),
+
+        // Category: DUAL-10 scripting sandbox shared read model
+        "script_sandbox_presets" => "Presets:".into(),
+        "script_sandbox_engine" => "Engine:".into(),
+        "script_sandbox_hook_stage" => "Lifecycle stage:".into(),
+        "script_sandbox_breaker" => "Circuit breaker:".into(),
+        "script_sandbox_limits" => "Resource limits:".into(),
+        "script_sandbox_matched" => "Executed directives".into(),
+        "script_sandbox_no_match" => "No directive matched (nothing executed)".into(),
+        "script_sandbox_input_preview" => "Input YAML (before)".into(),
+        "script_sandbox_error_title" => "Execution failed".into(),
+        "script_sandbox_success_title" => "Transform complete".into(),
+        "script_sandbox_degraded" => "Safe degradation: original config preserved, core keeps running".into(),
+        "script_sandbox_directive_row" => "{id} · {label} ({affected} items)".into(),
+        "script_sandbox_breaker_state" => "{state} · failures {fails}/{threshold} · cooldown {cooldown}ms / remaining {remaining}ms".into(),
+        "script_sandbox_limits_value" => "Memory cap {memory_mb}MB · timeout {timeout}ms · measured {elapsed}ms / {bytes} bytes".into(),
         _ => key.to_string().into(),
     }
 }

@@ -282,11 +282,13 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
     let _ = state.update(Message::SetEditorPane(EditorPane::Script));
     assert_eq!(state.editor.editor_pane, EditorPane::Script);
 
-    // Load country groups preset
-    let _ = state.update(Message::SelectScriptPreset("country".to_string()));
+    // Load a shared preset catalogue entry
+    let _ = state.update(Message::SelectScriptPreset(
+        "auto-country-groups".to_string(),
+    ));
     assert_eq!(
         state.editor.script_sandbox.selected_preset.as_deref(),
-        Some("country")
+        Some("auto-country-groups")
     );
     assert!(
         state
@@ -300,23 +302,39 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
     let test_yaml = "proxies:\n  - name: HK-01\n    type: ss\n    server: hk.example.com\n    port: 8388\n  - name: US-01\n    type: ss\n    server: us.example.com\n    port: 8388\n  - name: JP-01\n    type: ss\n    server: jp.example.com\n    port: 8388\n";
     let _ = state.update(Message::UpdateScriptSandboxInputYaml(test_yaml.to_string()));
 
-    // Run the sandbox test
+    // Run the sandbox test through the shared application projection
     let _ = state.update(Message::RunScriptSandboxTest);
 
     // Invariants assertion
-    assert!(state.editor.script_sandbox.execution_error.is_none());
-    let res = state
+    let snapshot = state
         .editor
         .script_sandbox
-        .execution_result
+        .snapshot
         .as_ref()
-        .expect("Execution result expected");
-    assert!(res.success);
-    assert!(res.execution_time_ms < 500); // Strict latency SLA
-    assert!(res.transformed_yaml.contains("proxy-groups"));
+        .expect("Shared projection expected");
+    assert!(snapshot.is_success());
+    assert!(snapshot.execution_time_ms < 500); // Strict latency SLA
+    assert!(
+        snapshot
+            .transformed_yaml
+            .as_deref()
+            .unwrap_or("")
+            .contains("proxy-groups")
+    );
+    // The read model names only the directive that really matched.
+    assert_eq!(snapshot.matched_directive_count(), 1);
+    assert_eq!(snapshot.matched_directives[0].id, "auto_country_groups");
+    assert_eq!(snapshot.hook_stage, "pre_merge");
+    assert!(!snapshot.engine_kind.is_real_javascript());
+    assert!(snapshot.is_success());
+    // The same projection is published for the Bevy surface.
+    assert_eq!(
+        infiltrator_application::script_application::last_script_sandbox().as_ref(),
+        Some(snapshot)
+    );
 
     // Clear sandbox
     let _ = state.update(Message::ClearScriptSandbox);
-    assert!(state.editor.script_sandbox.execution_result.is_none());
-    assert!(state.editor.script_sandbox.execution_error.is_none());
+    assert!(state.editor.script_sandbox.snapshot.is_none());
+    assert!(infiltrator_application::script_application::last_script_sandbox().is_none());
 }
