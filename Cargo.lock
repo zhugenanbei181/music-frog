@@ -5147,6 +5147,7 @@ dependencies = [
  "flate2",
  "infiltrator-contract",
  "ipnet",
+ "md5",
  "regex",
  "ring",
  "serde",

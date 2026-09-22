@@ -197,6 +197,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             // facts, so the page can render the truncation honestly.
             truncated_rule_count: value.is_truncated().then(|| value.omitted_rule_count()),
             rule_publish_limit: value.rule_publish_limit,
+            provider_cache: value.provider_cache.clone(),
             providers: value
                 .providers
                 .iter()

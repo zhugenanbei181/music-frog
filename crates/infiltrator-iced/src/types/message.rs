@@ -738,6 +738,17 @@ pub enum Message {
     // Wave 5 Category 4: Rule-Provider Lifecycle & Rule Unpacker
     UnpackRuleProviderToCustom(String),
     PurgeRuleProviderCache,
+    /// DUAL-11-06: the real provider rules a host read produced.
+    RuleProviderUnpacked(
+        Result<
+            infiltrator_application::rule_provider_application::ProviderUnpackPlan,
+            InfiltratorError,
+        >,
+    ),
+    /// DUAL-11-07: the real files/bytes a host purge removed.
+    RuleProviderCachePurged(
+        Result<infiltrator_contract::provider_cache::ProviderCachePurge, InfiltratorError>,
+    ),
     // Wave 5 Category 5: Config Apply Multi-Stage Transaction Guard
     TriggerAtomicConfigApply,
     ApplyTransactionStageChanged(super::runtime::ApplyTransactionStage),

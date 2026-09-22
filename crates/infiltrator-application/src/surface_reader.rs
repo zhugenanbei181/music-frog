@@ -81,6 +81,7 @@ pub struct ApplicationSurfaceReader {
     subscription_quota: SubscriptionQuotaApplication,
     speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
+    rule_provider: crate::rule_provider_application::RuleProviderApplication,
     version_cache: Arc<Mutex<Option<(Instant, CoreVersionSnapshot)>>>,
     capabilities: CapabilitySnapshot,
     surface: SurfaceKind,
@@ -118,6 +119,7 @@ impl ApplicationSurfaceReader {
             subscription_quota: SubscriptionQuotaApplication,
             speedtest: None,
             dns_cache: None,
+            rule_provider: crate::rule_provider_application::RuleProviderApplication::default(),
             version_cache: Arc::new(Mutex::new(None)),
             capabilities: CapabilitySnapshot::new(host, 0, Vec::new()),
             surface,
@@ -262,6 +264,29 @@ impl ApplicationSurfaceReader {
     /// The shared tracer engine handed to inbound UI ports.
     pub fn rule_tracer(&self) -> crate::rule_tracer_application::RuleTracerApplication {
         self.rule_tracer.clone()
+    }
+
+    /// DUAL-11-06/07: the shared unpack + cache-maintenance service. The
+    /// adapter result is published as the observed cache fact.
+    pub fn with_rule_provider_cache(
+        mut self,
+        cache: Arc<dyn infiltrator_ports::rule_provider_cache::RuleProviderCachePort>,
+    ) -> Self {
+        self.rule_provider =
+            crate::rule_provider_application::RuleProviderApplication::new(Some(cache));
+        self
+    }
+
+    /// The shared unpack service handed to inbound UI ports.
+    pub fn rule_provider(&self) -> crate::rule_provider_application::RuleProviderApplication {
+        self.rule_provider.clone()
+    }
+
+    /// Observed cache location read for the rules page (never a guess).
+    pub(super) async fn provider_cache(
+        &self,
+    ) -> infiltrator_contract::provider_cache::RuleProviderCacheSnapshot {
+        self.rule_provider.snapshot().await
     }
 
     pub fn core(&self) -> &Arc<CoreApplication> {
@@ -561,6 +586,10 @@ impl SurfaceReader for ApplicationSurfaceReader {
             )
         };
 
+        // DUAL-11-07: the observed provider-cache fact is read once per
+        // revision so both surfaces render the same count/size.
+        let provider_cache_snapshot = self.provider_cache().await;
+
         // Resolve the tracer inputs once so the shared engine replays the same
         // rule list the rules page renders. Without runtime proxy facts the
         // outbound stage stays honestly unknown (no fabricated node data).
@@ -574,6 +603,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
                 proxies: runtime_proxy_map.as_ref(),
             },
             mrs_acceleration_snapshot,
+            provider_cache_snapshot,
         )
         .await;
 
@@ -761,6 +791,7 @@ async fn build_rules_page(
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
     tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
+    provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
     let Some(configuration) = configuration else {
         return surface_snapshot::PageData::unavailable(missing("configuration application"));
@@ -856,6 +887,7 @@ async fn build_rules_page(
         mrs_acceleration,
         total_hits,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        provider_cache,
     };
     if total_rules == 0 {
         surface_snapshot::PageData::empty(data)

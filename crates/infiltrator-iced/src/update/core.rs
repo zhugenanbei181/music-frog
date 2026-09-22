@@ -19,6 +19,7 @@ pub(crate) mod profile_apply;
 mod proxies;
 mod rebuild;
 mod rules;
+mod rules_provider;
 mod runtime_config;
 mod settings;
 mod tun_config;

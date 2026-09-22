@@ -75,5 +75,9 @@ pub struct RuleHitAuditState {
 pub struct ProviderUnpackState {
     pub unpacked_rules_count: usize,
     pub is_purging_cache: bool,
+    /// DUAL-11-06: a provider read is in flight.
+    pub is_unpacking: bool,
+    /// Last honest outcome ("provider · N rules · origin …" or the typed
+    /// failure reason). Never a fabricated success string.
     pub status_message: Option<String>,
 }

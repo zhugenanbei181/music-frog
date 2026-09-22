@@ -370,8 +370,15 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         // Wave 5 Category 4: Rule-Provider Lifecycle & Rule Unpacker
         "provider_unpack_title" => "Rule-Provider Unpacker & Local Extraction".into(),
         "provider_unpack_desc" => "Unpack and extract remote Rule-Provider items into local editable rules.".into(),
-        "provider_btn_unpack" => "Unpack to Custom Rules".into(),
+        "provider_btn_unpack" => "Unpack {provider} to Custom Rules".into(),
+        "provider_btn_unpack_idle" => "No rule provider to unpack".into(),
         "provider_btn_purge_cache" => "Purge Provider Cache".into(),
+        "provider_unpack_total" => "{count} rules unpacked".into(),
+        "provider_unpack_active" => "Providers active".into(),
+        "provider_cache_ready" => "{dir} · {count} cached files · {bytes} bytes".into(),
+        "provider_cache_unsupported" => "This host exposes no rule-provider cache directory".into(),
+        "provider_cache_failed" => "The rule-provider cache could not be read".into(),
+        "provider_cache_unknown" => "Rule-provider cache state unknown".into(),
         "provider_cache_purged" => "Provider local cache purged successfully".into(),
 
         // Wave 5 Category 5: Config Apply Multi-Stage Transaction Guard

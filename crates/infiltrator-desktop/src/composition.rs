@@ -70,6 +70,11 @@ pub fn core_application(
         Some(std::sync::Arc::new(client.clone())),
     );
     let configuration_store = std::sync::Arc::clone(&profile_store);
+    // DUAL-11-06/07: the kernel's provider cache lives next to the profiles
+    // (`-d <config dir>`), so the command handler purges exactly that folder.
+    let rule_provider_cache = std::sync::Arc::new(
+        crate::rule_provider_cache::DesktopRuleProviderCache::new(profile_store.config_dir()),
+    );
     application.install_command_handler(std::sync::Arc::new(
         CommandApplication::new()
             .with_runtime(std::sync::Arc::new(client.clone()))
@@ -99,7 +104,8 @@ pub fn core_application(
             .with_port_conflicts(port_conflicts)
             .with_speedtest(speedtest)
             .with_rule_tracer(rule_tracer)
-            .with_dns_cache(dns_cache),
+            .with_dns_cache(dns_cache)
+            .with_rule_provider_cache(rule_provider_cache),
     ));
     Ok(application)
 }

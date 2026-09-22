@@ -68,6 +68,11 @@ pub struct RuntimeState {
     pub system_toggles: SystemToggleSnapshot,
     pub privileged_network: PrivilegedNetworkSnapshot,
     pub privileged_network_port: Option<Arc<dyn PrivilegedNetworkPort>>,
+    /// DUAL-11-06/07: the kernel's local rule-provider files, mirrored from
+    /// the host runtime so the unpack/purge handlers never touch a path the
+    /// host did not hand them.
+    pub rule_provider_cache_port:
+        Option<Arc<dyn infiltrator_ports::rule_provider_cache::RuleProviderCachePort>>,
     pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
     pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
     pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
@@ -302,6 +307,8 @@ pub struct ConfigEditorState {
     /// editor list itself is loaded in full from the profile.
     pub rule_publish_limit: usize,
     pub rule_publish_omitted: Option<usize>,
+    /// DUAL-11-07: the observed kernel rule-provider cache location.
+    pub rule_provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
     /// DUAL-11-03: shared MRS binary acceleration read model, projected from
     /// the surface reader. The providers tab renders this, never a local
     /// fabricated rule-set list.
@@ -818,6 +825,9 @@ impl AppState {
             self.editor.rule_publish_omitted = rules_page
                 .is_truncated()
                 .then(|| rules_page.omitted_rule_count());
+            // DUAL-11-07: the observed kernel provider-cache fact is shared
+            // with Bevy; the card renders the same directory/count/size.
+            self.editor.rule_provider_cache = rules_page.provider_cache.clone();
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =

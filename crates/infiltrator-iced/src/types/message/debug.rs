@@ -1146,6 +1146,24 @@ impl std::fmt::Debug for Message {
             }
             Message::UnpackRuleProviderToCustom(p) => write!(f, "UnpackRuleProviderToCustom({p})"),
             Message::PurgeRuleProviderCache => write!(f, "PurgeRuleProviderCache"),
+            Message::RuleProviderUnpacked(Ok(plan)) => write!(
+                f,
+                "RuleProviderUnpacked({} imported {} rules from {})",
+                plan.provider_name,
+                plan.imported(),
+                plan.origin.as_str()
+            ),
+            Message::RuleProviderUnpacked(Err(error)) => {
+                write!(f, "RuleProviderUnpacked(Err({error}))")
+            }
+            Message::RuleProviderCachePurged(Ok(purge)) => write!(
+                f,
+                "RuleProviderCachePurged({} files, {} bytes)",
+                purge.files_removed, purge.bytes_freed
+            ),
+            Message::RuleProviderCachePurged(Err(error)) => {
+                write!(f, "RuleProviderCachePurged(Err({error}))")
+            }
             Message::TriggerAtomicConfigApply => write!(f, "TriggerAtomicConfigApply"),
             Message::ApplyTransactionStageChanged(st) => {
                 write!(f, "ApplyTransactionStageChanged({st:?})")

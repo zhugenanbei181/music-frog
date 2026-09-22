@@ -185,6 +185,26 @@ impl MihomoClient {
         Ok(list.providers)
     }
 
+    /// DUAL-11-06: the payload the kernel publishes for one rule provider.
+    ///
+    /// mihomo's `/providers/rules` handler serialises `payload` only for
+    /// `type: inline` providers (`Provider` structs built from a vehicle use
+    /// `payload,omitempty` and never fill it), and `/providers/rules/{name}`
+    /// is `PUT`-only. `Ok(None)` therefore means the kernel genuinely does not
+    /// publish this provider's rules; the caller must not invent them.
+    pub async fn get_rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>> {
+        let url = self.build_url("/providers/rules")?;
+        let req = self.client.get(url);
+        let req = self.add_auth(req);
+        let resp = req.send().await?;
+        let list: RuleProviderList = resp.json().await?;
+        Ok(list
+            .providers
+            .get(name)
+            .map(|provider| provider.payload.clone())
+            .filter(|payload| !payload.is_empty()))
+    }
+
     pub async fn update_proxy_provider(&self, name: &str) -> Result<()> {
         let url = self.build_url(&format!("/providers/proxies/{}", name))?;
         let req = self.client.put(url);

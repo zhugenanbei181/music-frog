@@ -146,6 +146,11 @@ pub enum UiCommand {
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
     ClearRuleHitCounters,
+    /// DUAL-11-06: unpack one declared rule provider's real rules into the
+    /// active profile's custom rule list.
+    UnpackRuleProvider(String),
+    /// DUAL-11-07: delete the kernel's cached rule-provider files.
+    PurgeRuleProviderCache,
     /// DUAL-11-09: invert the enabled flag of one rule in the active profile.
     ToggleRuleEnabled(usize),
     /// DUAL-11-10: move one rule a single step up in the active profile.
@@ -422,6 +427,10 @@ impl UiCommand {
             }
             Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
             Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
+            Self::UnpackRuleProvider(provider) => Some(CommandIntent::UnpackRuleProvider {
+                provider_name: provider.clone(),
+            }),
+            Self::PurgeRuleProviderCache => Some(CommandIntent::PurgeRuleProviderCache),
             Self::ToggleRuleEnabled(index) => {
                 Some(CommandIntent::ToggleRuleEnabled { index: *index })
             }

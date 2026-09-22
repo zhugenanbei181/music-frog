@@ -335,6 +335,9 @@ pub struct RulesPageSnapshot {
     /// DUAL-11-08: cap the publisher applied to `rules` (0 = uncapped).
     #[serde(default)]
     pub rule_publish_limit: usize,
+    /// DUAL-11-07: the observed kernel rule-provider cache location.
+    #[serde(default)]
+    pub provider_cache: crate::provider_cache::RuleProviderCacheSnapshot,
 }
 
 impl RulesPageSnapshot {

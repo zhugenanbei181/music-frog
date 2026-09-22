@@ -3,9 +3,9 @@
 //! One headless test per shared fact the two surfaces depend on. The surface
 //! suites (`infiltrator-bevy-ui` headless, `infiltrator-iced` GUI) ride on top
 //! of these reductions, so this matrix is the common denominator both must
-//! keep green. Items still honestly `planned` (11-06 unpack persistence,
-//! 11-07 cache purge) are intentionally absent: there is no shared backend to
-//! assert.
+//! keep green. 11-06/11-07 now assert the real provider-source resolution,
+//! payload deconstruction and purge arithmetic; no fabricated sample source
+//! is reachable from this matrix.
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::rule_edit::{LogicalDraft, RuleDraft, RuleMoveDirection};
@@ -15,9 +15,14 @@ use infiltrator_domain::mrs::{
 use infiltrator_domain::rules::edit;
 use infiltrator_domain::rules::logical;
 use infiltrator_domain::rules::matrix::{RULE_TYPE_MATRIX, RuleTypeFamily, matrix_label};
+use infiltrator_domain::rules::provider_store::{
+    ProviderBehavior, ProviderFormat, ProviderSourceKind, RuleProviderDeclaration,
+    deconstruct_provider_payload, parse_rule_provider_declarations, provider_cache_file_name,
+    provider_source_candidates, unpack_provider_rules_with_behavior,
+};
 use infiltrator_domain::rules::types::parse_rule_str;
 use infiltrator_domain::rules::view;
-use infiltrator_domain::rules::{RuleEntry, game_routing_presets};
+use infiltrator_domain::rules::{RuleEntry, RuleProviders, game_routing_presets};
 use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
 
 fn entry(rule: &str) -> RuleEntry {
@@ -240,6 +245,7 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
         mrs_acceleration: Default::default(),
         total_hits: 0,
         rule_publish_limit: view::RULE_PUBLISH_LIMIT,
+        provider_cache: Default::default(),
     };
     assert_eq!(snapshot.omitted_rule_count(), 50_000);
     assert!(snapshot.is_truncated());
@@ -275,4 +281,157 @@ fn matrix_11_09_to_12_rule_edit_reductions() {
     let inserted = edit::inject_game_presets(&mut rules, "Game");
     assert_eq!(inserted, game_routing_presets("Game").len());
     assert!(rules[0].rule.contains("Game"));
+}
+
+/// DUAL-11-06: a provider's real rules are resolved from its declaration —
+/// inline payload, kernel cache path (`rules/<md5(url)>`) or declared file —
+/// and mapped to routing rules for the declaration's behavior. No sample rule
+/// is ever produced.
+#[test]
+fn matrix_11_06_provider_declaration_and_payload_deconstruct() {
+    let mut providers = RuleProviders::new();
+    providers.insert(
+        "cn".to_owned(),
+        serde_json::json!({
+            "type": "http",
+            "behavior": "domain",
+            "format": "text",
+            "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml"
+        }),
+    );
+    providers.insert(
+        "ads".to_owned(),
+        serde_json::json!({
+            "type": "file",
+            "behavior": "classical",
+            "format": "yaml",
+            "path": "assets/ads.yaml"
+        }),
+    );
+    let declarations = parse_rule_provider_declarations(&providers);
+    assert_eq!(declarations.len(), 2);
+    let cn = declarations
+        .iter()
+        .find(|declaration| declaration.name == "cn")
+        .expect("cn declaration");
+    assert_eq!(cn.behavior, ProviderBehavior::Domain);
+    assert_eq!(cn.format, ProviderFormat::Text);
+    assert!(cn.is_remote());
+
+    // mihomo's `GetPathByHash("rules", url)` naming is part of the shared fact.
+    let home = std::path::Path::new("/kernel");
+    let candidates = provider_source_candidates(cn, home);
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].kind, ProviderSourceKind::KernelCacheFile);
+    assert_eq!(
+        candidates[0].path,
+        home.join("rules").join(provider_cache_file_name(
+            "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml"
+        ))
+    );
+    assert_eq!(
+        provider_cache_file_name(
+            "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.yaml"
+        ),
+        "07225f3cebe3fe2955706742c6cbe5b0"
+    );
+
+    // The declared file wins, then the kernel cache; an inline provider has no
+    // file at all.
+    let ads = declarations
+        .iter()
+        .find(|declaration| declaration.name == "ads")
+        .expect("ads declaration");
+    let ads_candidates = provider_source_candidates(ads, home);
+    assert_eq!(ads_candidates.len(), 1);
+    assert_eq!(ads_candidates[0].kind, ProviderSourceKind::DeclaredFile);
+    assert_eq!(ads_candidates[0].path, home.join("assets/ads.yaml"));
+
+    // Real payload -> real rules, with the rejected line counted honestly.
+    let payload = b"# comment\nexample.cn\nhupu.com\n";
+    let deconstructed = deconstruct_provider_payload(payload, cn, "PROXY").expect("deconstruct");
+    assert_eq!(deconstructed.considered, 2);
+    assert_eq!(deconstructed.skipped, 0);
+    assert_eq!(
+        deconstructed.entries[0].rule,
+        "DOMAIN-SUFFIX,example.cn,PROXY"
+    );
+    assert_eq!(
+        deconstructed.entries[1].rule,
+        "DOMAIN-SUFFIX,hupu.com,PROXY"
+    );
+
+    // ipcidr payloads become IP-CIDR/IP-CIDR6, never DOMAIN-SUFFIX guesses.
+    let (entries, _) = unpack_provider_rules_with_behavior(
+        &["10.0.0.0/8".to_owned(), "2001:db8::/32".to_owned()],
+        ProviderBehavior::IpCidr,
+        "DIRECT",
+    );
+    assert_eq!(entries[0].rule, "IP-CIDR,10.0.0.0/8,DIRECT");
+    assert_eq!(entries[1].rule, "IP-CIDR6,2001:db8::/32,DIRECT");
+
+    // A missing/empty source is an error, never an invented rule list.
+    assert!(deconstruct_provider_payload(b"", cn, "PROXY").is_err());
+    assert!(deconstruct_provider_payload(b"# only\n", cn, "PROXY").is_err());
+
+    // The MRS binary path stays wired to the shared deconstructor.
+    let bytes = build_mrs_bytes(
+        Behavior::IpCidr,
+        1,
+        1,
+        "cn",
+        b"10.0.0.0/8\n",
+        Some(infiltrator_domain::mrs::MAGIC_STANDARD_MRS),
+    );
+    let mut mrs = RuleProviderDeclaration::from_value(
+        "cn-mrs",
+        &serde_json::json!({ "type": "file", "behavior": "ipcidr", "format": "mrs", "path": "cn.mrs" }),
+    );
+    mrs.name = "cn-mrs".to_owned();
+    let deconstructed = deconstruct_provider_payload(&bytes, &mrs, "DIRECT").expect("mrs");
+    assert_eq!(deconstructed.entries[0].rule, "IP-CIDR,10.0.0.0/8,DIRECT");
+}
+
+/// DUAL-11-07: the purge fact is expressed over the kernel's own cache
+/// directory name, and the application/port contract carries observed counts.
+#[test]
+fn matrix_11_07_provider_cache_purge_fact() {
+    use infiltrator_contract::command::CommandIntent;
+    use infiltrator_contract::provider_cache::{
+        ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
+        RuleProviderCacheState,
+    };
+
+    assert_eq!(
+        infiltrator_domain::rules::provider_store::PROVIDER_CACHE_DIR_NAME,
+        "rules"
+    );
+
+    let empty = RuleProviderCacheSnapshot::ready("/kernel/rules", 0, 0);
+    assert_eq!(empty.state, RuleProviderCacheState::Empty);
+    let ready = RuleProviderCacheSnapshot::ready("/kernel/rules", 2, 4096);
+    assert_eq!(ready.state, RuleProviderCacheState::Ready);
+    assert_eq!(ready.file_count, 2);
+    let unsupported = RuleProviderCacheSnapshot::unsupported("no kernel home");
+    assert!(!unsupported.is_available());
+
+    let purge = ProviderCachePurge {
+        directory: Some("/kernel/rules".to_owned()),
+        files_removed: 2,
+        bytes_freed: 4096,
+    };
+    assert!(!purge.is_noop());
+    assert!(ProviderCachePurge::default().is_noop());
+    assert_eq!(
+        ProviderContentOrigin::KernelCacheFile.as_str(),
+        "kernel-cache-file"
+    );
+
+    // Both surfaces submit the same intent; the kind classifies as a profile
+    // command because the purge belongs to the profile's provider cache.
+    let intent = CommandIntent::PurgeRuleProviderCache;
+    assert_eq!(
+        intent.kind(),
+        infiltrator_contract::command::CommandKind::Profile
+    );
 }

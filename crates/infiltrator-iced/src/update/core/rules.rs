@@ -711,77 +711,13 @@ impl AppState {
                     Task::none()
                 }
             }
-            Message::InspectRuleProviderDiff(None) => {
-                self.editor.inspecting_rule_provider_diff = None;
-                Task::none()
-            }
-            Message::InspectRuleProviderDiff(Some(name)) => {
-                self.editor.is_loading_rule_provider_diff = true;
-                let provider_name = name.clone();
-                Task::perform(
-                    async move {
-                        let home = crate::host::storage::home_dir()
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
-                        let cache_path = home.join(format!("rules/{}.yaml", provider_name));
-                        let local_rules: Vec<String> = if cache_path.exists() {
-                            tokio::fs::read_to_string(&cache_path)
-                                .await
-                                .unwrap_or_default()
-                                .lines()
-                                .map(str::to_string)
-                                .collect()
-                        } else {
-                            vec![
-                                "DOMAIN-SUFFIX,google.com".to_string(),
-                                "DOMAIN-SUFFIX,youtube.com".to_string(),
-                                "DOMAIN-KEYWORD,google".to_string(),
-                            ]
-                        };
-                        let remote_rules = vec![
-                            "DOMAIN-SUFFIX,google.com".to_string(),
-                            "DOMAIN-SUFFIX,youtube.com".to_string(),
-                            "DOMAIN-SUFFIX,googlevideo.com".to_string(),
-                            "DOMAIN-KEYWORD,google".to_string(),
-                            "DOMAIN-KEYWORD,youtube".to_string(),
-                        ];
-                        let diff = rules::diff_rule_provider_contents(
-                            &provider_name,
-                            &local_rules,
-                            &remote_rules,
-                        );
-                        Ok(diff)
-                    },
-                    Message::RuleProviderDiffLoaded,
-                )
-            }
-            Message::RuleProviderDiffLoaded(result) => {
-                self.editor.is_loading_rule_provider_diff = false;
-                match result {
-                    Ok(diff) => {
-                        self.editor.inspecting_rule_provider_diff = Some(diff);
-                    }
-                    Err(e) => {
-                        self.set_error(&e);
-                    }
-                }
-                Task::none()
-            }
-            Message::UnpackRuleProvider(name) => {
-                let sample_rules = vec![
-                    format!("DOMAIN-SUFFIX,{}", name.to_lowercase()),
-                    format!("DOMAIN-KEYWORD,{}", name.to_lowercase()),
-                ];
-                let unpacked = rules::unpack_provider_rules_to_custom(&sample_rules, "PROXY");
-                let count = unpacked.len();
-                self.editor.rules.extend(unpacked);
-                self.editor.rules_dirty = true;
-                self.rebuild_rules_render_cache();
-                self.apply_rules_filter();
-                Task::done(Message::ShowToast(
-                    format!("Unpacked {count} rules from {name} into custom rules"),
-                    ToastStatus::Success,
-                ))
-            }
+            Message::InspectRuleProviderDiff(_)
+            | Message::RuleProviderDiffLoaded(_)
+            | Message::RuleProviderUnpacked(_)
+            | Message::RuleProviderCachePurged(_)
+            | Message::UnpackRuleProvider(_)
+            | Message::UnpackRuleProviderToCustom(_)
+            | Message::PurgeRuleProviderCache => self.update_rule_provider(message),
             other => self.update_core_json_editors(other),
         }
     }

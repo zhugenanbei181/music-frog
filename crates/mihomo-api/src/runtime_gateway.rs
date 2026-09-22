@@ -90,6 +90,12 @@ impl RuntimeGateway for MihomoClient {
             .map_err(network_error)
     }
 
+    async fn rule_provider_payload(&self, name: &str) -> Result<Option<Vec<String>>, PortError> {
+        MihomoClient::get_rule_provider_payload(self, name)
+            .await
+            .map_err(network_error)
+    }
+
     async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
         MihomoClient::flush_fakeip_cache(self)
             .await
