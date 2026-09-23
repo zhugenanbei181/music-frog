@@ -348,6 +348,12 @@ pub struct RulesPageSnapshot {
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     #[serde(default)]
     pub provider_cache: crate::provider_cache::RuleProviderCacheSnapshot,
+    /// DUAL-11-05: the kernel's real `etag-support` capability declared by the
+    /// active profile (a top-level key; mihomo defaults it to `true`). The
+    /// client publishes the declaration, never the per-request `304` outcome,
+    /// which stays inside the kernel.
+    #[serde(default)]
+    pub etag_support: crate::provider_cache::KernelEtagSupportSnapshot,
     /// DUAL-11-14: the rules-workspace JSON documents, serialised from the same
     /// active profile the Iced JSON editors load through their ports. Empty on
     /// hosts without a configuration application.

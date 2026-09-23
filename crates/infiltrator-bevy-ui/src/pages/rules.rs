@@ -116,6 +116,10 @@ pub struct RulesProjection {
     pub rule_publish_limit: usize,
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     pub provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    /// DUAL-11-05: the kernel's real `etag-support` capability declared by the
+    /// active profile (a top-level key; mihomo defaults it to `true`). The
+    /// provider card renders the declaration, never a `304` outcome.
+    pub etag_support: infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
     /// DUAL-11-14: the rules-workspace JSON documents published by the shared
     /// reader (the same text the Iced JSON editors load).
     pub json_documents: Vec<infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot>,
@@ -139,6 +143,10 @@ impl RulesProjection {
                 3,
                 1_048_576,
             ),
+            etag_support:
+                infiltrator_contract::provider_cache::KernelEtagSupportSnapshot::from_declared(Some(
+                    true,
+                )),
             json_documents: vec![
                 infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
                     section: infiltrator_contract::rules_workspace::RulesJsonSection::RuleProviders,
@@ -327,7 +335,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
             (
                 { crate::pages::rules_tabs::tab_body_scene(
                     infiltrator_contract::rules_workspace::RulesTab::Providers,
-                    Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache)),
+                    Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
                 ) }
             ),
             (
@@ -380,6 +388,7 @@ fn providers_partition(
     palette: &UiPalette,
     mrs: &infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
     provider_cache: &infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    etag_support: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
 ) -> impl Scene + use<> {
     bsn! {
         Node {
@@ -389,7 +398,7 @@ fn providers_partition(
         }
         Children [
             ( { crate::pages::rules_mrs::rules_mrs_scene(palette, mrs, provider_cache) } ),
-            ( { providers_card_scene(provider_scenes, palette) } ),
+            ( { providers_card_scene(provider_scenes, etag_support, palette) } ),
         ]
     }
 }
@@ -481,8 +490,10 @@ fn header_card_scene(
 
 fn providers_card_scene(
     provider_scenes: Vec<Box<dyn Scene>>,
+    etag_support: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let etag_line = etag_support_label(etag_support);
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -495,6 +506,15 @@ fn providers_card_scene(
                 Children [
                     ( Text({ "外部规则集 (Rule Providers)".to_owned() }) TextRole(Role::BodyStrong) ),
                     ( Text({ "MRS / GeoSite 二进制加速".to_owned() }) TextRole(Role::Caption) ),
+                ]
+            }),
+            Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    padding: UiRect::bottom(Val::Px(space::S8)),
+                }
+                Children [
+                    ( Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption) ),
                 ]
             }),
             Box::new(bsn! {
@@ -675,6 +695,22 @@ pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
     } else {
         format!("{} 次命中", rule.hit_count)
     }
+}
+
+/// DUAL-11-05: the kernel's real `etag-support` capability as declared by the
+/// active profile. mihomo reads a top-level `etag-support` boolean (default
+/// `true`) to gate its `ETag`/`If-None-Match` cache; the card renders the
+/// declaration and never the per-request `304` outcome, which it cannot see.
+pub(crate) fn etag_support_label(
+    snapshot: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
+) -> String {
+    use infiltrator_contract::provider_cache::KernelEtagSupportState;
+    let state = match snapshot.state {
+        KernelEtagSupportState::Enabled => "内核已启用",
+        KernelEtagSupportState::Disabled => "内核未启用",
+        KernelEtagSupportState::NotDeclared => "未声明",
+    };
+    format!("ETag 缓存: {state}")
 }
 
 /// DUAL-11-04/11-05: one provider's lifecycle line: update time, the declared

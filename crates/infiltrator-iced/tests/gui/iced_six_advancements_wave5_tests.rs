@@ -45,6 +45,7 @@ fn rules_page_with_hit_audit(audit: RuleHitAuditSnapshot) -> SurfaceSnapshot {
             total_hits: 0,
             rule_publish_limit: 0,
             provider_cache: Default::default(),
+            etag_support: Default::default(),
             json_documents: Vec::new(),
         });
     snapshot

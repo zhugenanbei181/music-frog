@@ -787,6 +787,10 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        etag_support:
+            infiltrator_contract::provider_cache::KernelEtagSupportSnapshot::from_declared(Some(
+                true,
+            )),
         json_documents: Vec::new(),
     });
     assert!(state.apply_shared_surface_snapshot(snapshot));
@@ -809,6 +813,13 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         observed.previous.as_ref().map(|fact| fact.size_bytes),
         Some(2_048)
     );
+    // DUAL-11-05: the kernel's real `etag-support` declaration is projected from
+    // the same shared read model; the state and the raw declared value survive.
+    assert_eq!(
+        state.editor.rule_etag_support.state,
+        infiltrator_contract::provider_cache::KernelEtagSupportState::Enabled
+    );
+    assert_eq!(state.editor.rule_etag_support.declared, Some(true));
     // DUAL-11-08: the publish cap and the omitted count are honest facts.
     assert_eq!(
         state.editor.rule_publish_limit,
@@ -838,6 +849,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
         total_hits: 0,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        etag_support: Default::default(),
         json_documents: Vec::new(),
     });
     assert!(state.apply_shared_surface_snapshot(complete));

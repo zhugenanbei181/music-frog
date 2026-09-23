@@ -1284,6 +1284,120 @@ def main() -> int:
         "304 未修改",
     )
 
+    # DUAL-11-05 (2026-09-23, ETag capability): the kernel's REAL top-level
+    # `etag-support` declaration (mihomo `General.ETagSupport`, default true) is
+    # read from the active profile and surfaced on both surfaces. This is a
+    # declaration fact: the per-request 304 outcome stays inside the kernel and
+    # is never invented.
+    require(
+        violations,
+        LEDGER,
+        "KernelEtagSupportSnapshot",
+        "KernelEtagSupportState",
+        "etag-support",
+        "load_etag_support",
+        "etag_support_line",
+        "etag_support_label",
+        "rules_etag_support_label",
+        "内核已启用",
+        "内核未启用",
+        "test_etag_support_line_reports_the_declared_kernel_capability",
+        "test_rules_provider_etag_support_renders_declared_kernel_capability",
+        "load_etag_support_reads_the_top_level_declaration_honestly",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/provider_cache.rs",
+        "pub enum KernelEtagSupportState",
+        "pub struct KernelEtagSupportSnapshot",
+        "pub fn from_declared",
+        'Self::NotDeclared => "not-declared"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub etag_support: crate::provider_cache::KernelEtagSupportSnapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/configuration_application.rs",
+        "pub async fn load_etag_support",
+        "etag-support",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "load_etag_support",
+        "etag_support",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application_tests.rs",
+        "load_etag_support_reads_the_top_level_declaration_honestly",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "rule_etag_support",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "pub fn etag_support_line",
+        "rules_etag_support_label",
+        "rules_etag_support_enabled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "rules_etag_support_label",
+        "rules_etag_support_enabled",
+        "rules_etag_support_disabled",
+        "rules_etag_support_not_declared",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "rules_etag_support_label",
+        "rules_etag_support_enabled",
+        "rules_etag_support_disabled",
+        "rules_etag_support_not_declared",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "pub etag_support:",
+        "pub(crate) fn etag_support_label",
+        "ETag 缓存",
+        "内核已启用",
+        "内核未启用",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "etag_support: value.etag_support",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs",
+        "test_rules_provider_etag_support_renders_declared_kernel_capability",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_rules_tests.rs",
+        "test_etag_support_line_reports_the_declared_kernel_capability",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/tests/rules_matrix_test.rs",
+        "KernelEtagSupportSnapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_tests.rs",
+        "rules_etag_support_not_declared",
+    )
+
     # The guard itself is registered on both suites.
     require(
         violations,

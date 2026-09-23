@@ -399,6 +399,23 @@ pub fn provider_fingerprint_line(
     )
 }
 
+/// DUAL-11-05: the kernel's real `etag-support` capability as declared by the
+/// active profile. mihomo reads a top-level `etag-support` boolean (default
+/// `true`) to gate its `ETag`/`If-None-Match` cache; the client renders the
+/// declaration and never the per-request `304` outcome, which it cannot see.
+pub fn etag_support_line(
+    snapshot: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
+    lang: &Lang<'_>,
+) -> String {
+    use infiltrator_contract::provider_cache::KernelEtagSupportState;
+    let state = match snapshot.state {
+        KernelEtagSupportState::Enabled => lang.tr("rules_etag_support_enabled"),
+        KernelEtagSupportState::Disabled => lang.tr("rules_etag_support_disabled"),
+        KernelEtagSupportState::NotDeclared => lang.tr("rules_etag_support_not_declared"),
+    };
+    format!("{}: {state}", lang.tr("rules_etag_support_label"))
+}
+
 pub fn rule_provider_row<'a>(
     provider: &RuleProvider,
     source_url: Option<&str>,
@@ -1015,6 +1032,18 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
         ),
     )]
     .spacing(theme::SP_MD);
+
+    // DUAL-11-05: the kernel's real `etag-support` capability, declared at the
+    // top of the active profile. It gates the kernel's ETag/304 cache for
+    // provider downloads; the per-request 304 outcome stays inside the kernel.
+    content = content.push(
+        text(etag_support_line(&state.editor.rule_etag_support, lang).to_string())
+            .size(11)
+            .font(MONO)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary),
+            }),
+    );
 
     content = content.push(crate::view::provider_unpack_card::provider_unpack_card(
         state, lang,

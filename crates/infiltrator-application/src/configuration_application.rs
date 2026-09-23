@@ -126,6 +126,25 @@ impl ConfigurationApplication {
         rules::extract_rule_providers_from_doc(&parse_yaml(&content)?).map_err(config_failure)
     }
 
+    /// DUAL-11-05: the active profile's top-level `etag-support` declaration.
+    ///
+    /// mihomo reads `etag-support` at the config root (its `General.ETagSupport`,
+    /// default `true`) to gate its `ETag`/`If-None-Match` conditional cache for
+    /// downloaded resources. The client publishes that declaration; the
+    /// per-request `304` outcome is not exposed by the controller, so it is
+    /// never inferred here.
+    pub async fn load_etag_support(
+        &self,
+    ) -> Result<infiltrator_contract::provider_cache::KernelEtagSupportSnapshot, Failure> {
+        let (_, content) = self.current().await?;
+        let doc = parse_yaml(&content)?;
+        Ok(
+            infiltrator_contract::provider_cache::KernelEtagSupportSnapshot::from_declared(
+                doc.get("etag-support").and_then(Value::as_bool),
+            ),
+        )
+    }
+
     pub async fn save_rule_providers(
         &self,
         providers: rules::RuleProviders,

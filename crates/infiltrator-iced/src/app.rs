@@ -270,6 +270,7 @@ impl AppState {
                 rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
                 rule_publish_omitted: None,
                 rule_provider_cache: Default::default(),
+                rule_etag_support: Default::default(),
                 mrs_acceleration: Default::default(),
                 rule_providers_json_content: iced::widget::text_editor::Content::new(),
                 proxy_providers_json_content: iced::widget::text_editor::Content::new(),

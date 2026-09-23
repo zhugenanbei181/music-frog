@@ -19,8 +19,8 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family};
 
 use super::rules::{
-    LastRulesProjection, RulesProjectionUpdated, hit_audit_label, provider_updated_label,
-    rule_hit_label,
+    LastRulesProjection, RulesProjectionUpdated, etag_support_label, hit_audit_label,
+    provider_updated_label, rule_hit_label,
 };
 
 /// Once-per-world guard preventing duplicate observer registration.
@@ -43,6 +43,8 @@ pub enum RulesLineKind {
     HitAudit,
     /// DUAL-11-08: honest publish-cap note for the rendered rule list.
     Truncation,
+    /// DUAL-11-05: the kernel's declared top-level `etag-support` capability.
+    EtagSupport,
 }
 
 /// Marker for a rule item hit count text.
@@ -254,6 +256,7 @@ pub(crate) fn apply_rules_projection(
                 projection.truncated_rule_count,
                 projection.rule_publish_limit,
             ),
+            RulesLineKind::EtagSupport => etag_support_label(&projection.etag_support),
         };
         if text.0 != want {
             text.0 = want;
