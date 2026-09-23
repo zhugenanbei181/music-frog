@@ -1081,6 +1081,239 @@ def main() -> int:
         "HttpDnsLeakEchoProbe::new(), )), Vec::new(),",
     )
 
+    # DUAL-14-09 (re-scoped): the real STUN UDP-egress probe.
+    #
+    # The host sends a real Binding Request over UDP and parses
+    # XOR-MAPPED-ADDRESS. The re-scope is load-bearing: the observation is
+    # *this host/process's* UDP egress mapping as seen by a STUN server, not a
+    # browser WebRTC result, and both surfaces must say so. A mismatch against
+    # the expected proxied egress is a fact, never a leak verdict.
+    require(
+        violations,
+        LEDGER,
+        "StunProbePort",
+        "StunEgressProbePort",
+        "StunProbeApplication",
+        "StunEgressComparison",
+        "UdpStunProbe",
+        "stun.l.google.com:19302",
+        "test_dns_stun_submits_command",
+        "test_dns_stun_card_renders_the_shared_egress_report",
+        "test_stun_panel_renders_the_shared_report_honestly",
+        "DUAL-14-09",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/stun_probe.rs",
+        "pub struct StunProbeReport",
+        "pub enum StunProbeStatus",
+        "pub enum StunEgressComparison",
+        "pub struct StunMappedAddress",
+        "pub struct StunProbeObservation",
+        "pub enum StunProbeTransport",
+        "pub fn comparison",
+        "a_default_report_is_unknown_and_never_a_verdict",
+        "differing_ips_are_divergent_facts_not_a_leak_verdict",
+        "an_observed_mapping_without_an_expected_egress_is_unknown",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub stun: crate::stun_probe::StunProbeReport",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "RunStunProbe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/stun_probe.rs",
+        "pub trait StunProbePort",
+        "pub trait StunEgressProbePort",
+        "async fn observe",
+        "async fn probe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn stun_egress_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/stun_wire.rs",
+        "pub fn encode_binding_request",
+        "pub fn encode_binding_success",
+        "pub fn parse_binding_response",
+        "pub const ATTR_XOR_MAPPED_ADDRESS",
+        "fn decode_xor_mapped_address",
+        "a_crafted_success_response_decodes_the_xor_mapped_address",
+        "an_answer_for_another_transaction_is_rejected",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/stun_io.rs",
+        "pub struct UdpStunProbe",
+        "impl StunProbePort for UdpStunProbe",
+        "UdpSocket",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/stun_io_test.rs",
+        "a_real_udp_loopback_responder_reports_the_mapping_it_crafted",
+        "a_silent_stun_server_times_out_without_a_mapping",
+        "a_server_error_response_is_a_typed_failure_not_a_mapping",
+        "live_public_stun_server_observes_this_hosts_udp_mapping",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/stun_probe_application.rs",
+        "pub struct StunProbeApplication",
+        "impl StunEgressProbePort for StunProbeApplication",
+        "NO_STUN_PORT_REASON",
+        "pub fn with_expected_egress",
+        "a_host_without_a_stun_prober_reports_typed_unsupported_and_probes_nothing",
+        "a_differing_mapping_is_a_divergent_fact_not_a_leak_verdict",
+        "a_host_without_an_expected_egress_publishes_an_unknown_comparison",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "fn stun_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "with_stun_probe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "fn run_stun_probe",
+        "CommandIntent::RunStunProbe => self.run_stun_probe().await",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/stun.rs",
+        "Message::RunStunProbe",
+        "Message::StunProbed",
+        "stun_egress_probe_port",
+        "apply_stun_snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/stun_probe_panel.rs",
+        "pub(crate) fn stun_panel",
+        "pub(crate) fn stun_status_copy",
+        "pub(crate) fn stun_comparison_copy",
+        "dns_stun_not_webrtc",
+        "dns_stun_divergent",
+        "dns_stun_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns.rs",
+        "stun_probe_panel",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "dns_stun_probe_title",
+        "dns_stun_divergent",
+        "dns_stun_unsupported",
+        "dns_stun_not_webrtc",
+        "本机/本进程的 UDP 出网映射",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "dns_stun_probe_title",
+        "dns_stun_divergent",
+        "dns_stun_unsupported",
+        "dns_stun_not_webrtc",
+        "host/process's UDP egress mapping",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "fn stun_egress_probe_port",
+        "UdpStunProbe",
+        "DEFAULT_STUN_SERVER",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/boot.rs",
+        "UdpStunProbe",
+        "DEFAULT_STUN_SERVER",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/surface.rs",
+        "stun_probe",
+        "with_stun_probe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_stun.rs",
+        "pub fn stun_conclusion_label",
+        "pub fn stun_mapping_listing",
+        "pub fn dns_stun_card_scene",
+        "DnsLineKind::Stun",
+        "不是浏览器 WebRTC",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns.rs",
+        "TestStunProbeButton",
+        "UiCommand::RunStunProbe",
+        "DnsLineKind::Stun",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "RunStunProbe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_b_tests.rs",
+        "test_dns_stun_submits_command",
+        "test_dns_stun_card_renders_the_shared_egress_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_stun_probe_tests.rs",
+        "test_stun_panel_renders_the_shared_report_honestly",
+        "test_stun_panel_names_the_non_webrtc_boundary",
+    )
+    # The re-scope must hold: an application-side STUN mapping must never be
+    # presented as a browser WebRTC leak verdict on either surface.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/stun_probe_panel.rs",
+        "WebRTC 泄漏",
+        "WebRTC leak",
+        "is_leak_detected",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_stun.rs",
+        "WebRTC 泄漏",
+        "WebRTC leak",
+        "is_leak_detected",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "WebRTC 泄漏",
+        "dns_stun_webrtc_leak",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "WebRTC leak",
+        "dns_stun_webrtc_leak",
+    )
+
     if violations:
         for violation in violations:
             print(f"dns-studio-guard: {violation}", file=sys.stderr)

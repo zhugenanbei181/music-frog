@@ -307,7 +307,7 @@ fn strip_tag(value: &str) -> &str {
 }
 
 /// Split `host:port` / `host` / `[v6]:port` / `[v6]`, defaulting the port.
-fn split_host_port(value: &str, default_port: u16) -> Option<(String, u16)> {
+pub(crate) fn split_host_port(value: &str, default_port: u16) -> Option<(String, u16)> {
     let value = strip_tag(value);
     if value.is_empty() {
         return None;

@@ -491,6 +491,14 @@ impl BootEngine for ProductionEngine<'_> {
                     )),
                     infiltrator_application::dns_leak_application::default_echo_sources(),
                 ),
+                // DUAL-14-09 (re-scoped): mirror of runtime.rs: the boot path
+                // injects the same real UDP STUN adapter and public default
+                // server, so a surface started from the retry ladder probes
+                // this host's UDP egress instead of reporting a placeholder.
+                infiltrator_application::stun_probe_application::StunProbeApplication::new(
+                    Some(Arc::new(infiltrator_core::stun_io::UdpStunProbe::new())),
+                    infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER,
+                ),
                 cm.clone(),
                 Arc::new(crate::storage::subscription_source()),
             )

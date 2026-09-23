@@ -22,6 +22,8 @@ pub mod settings_io;
 pub mod settings_store;
 pub mod smoke_e2e;
 pub mod snapshot_io;
+pub mod stun_io;
+pub mod stun_wire;
 pub mod subscription_io;
 pub mod sync_port;
 pub mod version_port;

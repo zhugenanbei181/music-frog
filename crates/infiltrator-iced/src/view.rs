@@ -41,6 +41,7 @@ pub mod script_export;
 pub mod settings;
 pub mod sidebar;
 pub mod speedtest_modal;
+pub mod stun_probe_panel;
 pub mod sub_quota_card;
 pub mod subrules_builder;
 pub mod subscription_quota;

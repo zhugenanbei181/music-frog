@@ -85,6 +85,7 @@ pub fn dns_page_snapshot(
         fake_ip_pool: FakeIpMappingPool::default(),
         latency: DnsLatencyReport::default(),
         leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
+        stun: infiltrator_contract::stun_probe::StunProbeReport::default(),
         self_heal: DnsSelfHealSnapshot::default(),
         hosts: hosts_entries(config),
     }
@@ -121,6 +122,17 @@ pub fn leak_report(
 ) -> infiltrator_contract::dns_leak::DnsLeakReport {
     application
         .map(crate::dns_leak_application::DnsLeakApplication::last_report)
+        .unwrap_or_default()
+}
+
+/// DUAL-14-09 (re-scoped): the honest last STUN UDP-egress probe of this host
+/// (an empty typed refusal without a prober). The report is the host's own UDP
+/// mapping, never a browser WebRTC result.
+pub fn stun_report(
+    application: Option<&crate::stun_probe_application::StunProbeApplication>,
+) -> infiltrator_contract::stun_probe::StunProbeReport {
+    application
+        .map(crate::stun_probe_application::StunProbeApplication::last_report)
         .unwrap_or_default()
 }
 

@@ -86,6 +86,9 @@ pub struct SurfaceEngines {
     /// DUAL-14-08: the shared cross-source leak prober whose last report the
     /// DNS page publishes.
     pub dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
+    /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober whose last
+    /// report the DNS privacy area publishes.
+    pub stun_probe: infiltrator_application::stun_probe_application::StunProbeApplication,
 }
 
 /// Assemble all currently available desktop application facades into one
@@ -168,6 +171,7 @@ pub async fn application_surface_reader(
             .with_dns_cache(engines.dns_cache)
             .with_dns_latency(engines.dns_latency)
             .with_dns_leak(engines.dns_leak)
+            .with_stun_probe(engines.stun_probe)
             .with_rule_provider_cache(rule_provider_cache)
             .with_port_conflicts(port_conflicts),
     )

@@ -33,6 +33,7 @@ pub(crate) mod dns_form;
 pub mod dns_hosts;
 pub mod dns_leak;
 pub mod dns_self_heal;
+pub mod dns_stun;
 pub mod doctor;
 pub mod logs;
 pub mod overview;

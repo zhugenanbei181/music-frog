@@ -586,6 +586,17 @@ pub enum Message {
     DnsLeakProbed(
         Result<infiltrator_contract::dns_leak::DnsLeakReport, infiltrator_contract::error::Failure>,
     ),
+    /// DUAL-14-09 (re-scoped): probe this host/process's UDP egress mapping
+    /// through the configured STUN server. Not a browser WebRTC measurement.
+    RunStunProbe,
+    /// DUAL-14-09 (re-scoped): the shared STUN egress report, or the typed host
+    /// refusal.
+    StunProbed(
+        Result<
+            infiltrator_contract::stun_probe::StunProbeReport,
+            infiltrator_contract::error::Failure,
+        >,
+    ),
     /// DUAL-14-10: measure every configured nameserver through the shared
     /// host prober.
     RunDnsLatencyProbe,

@@ -64,6 +64,7 @@ pub mod shortcut_application;
 pub mod snapshot_application;
 pub mod speedtest_application;
 pub mod speedtest_matrix_application;
+pub mod stun_probe_application;
 pub mod subscription_import_application;
 pub mod subscription_quota_application;
 pub mod subscription_refresh_application;

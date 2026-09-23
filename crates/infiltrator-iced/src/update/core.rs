@@ -7,7 +7,7 @@
 //! next domain in the chain:
 //! lifecycle → settings → monitoring → doctor → proxies → runtime_config →
 //! rules → json_editors → mrs → advanced → dns_config → dns_leak →
-//! tun_config → rebuild → kernels (fallback).
+//! stun → tun_config → rebuild → kernels (fallback).
 mod advanced;
 mod dns_config;
 mod dns_leak;
@@ -24,6 +24,7 @@ mod rules;
 mod rules_provider;
 mod runtime_config;
 mod settings;
+mod stun;
 mod tun_config;
 
 use crate::state::AppState;

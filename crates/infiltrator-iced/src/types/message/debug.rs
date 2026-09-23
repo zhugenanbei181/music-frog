@@ -927,6 +927,14 @@ impl std::fmt::Debug for Message {
                     report.as_ref().map(|r| r.conclusion())
                 )
             }
+            Message::RunStunProbe => write!(f, "RunStunProbe"),
+            Message::StunProbed(report) => {
+                write!(
+                    f,
+                    "StunProbed({:?})",
+                    report.as_ref().map(|r| r.status.clone())
+                )
+            }
             Message::OpenCustomNodeModal => write!(f, "OpenCustomNodeModal"),
             Message::CloseCustomNodeModal => write!(f, "CloseCustomNodeModal"),
             Message::UpdateCustomNodeUriInput(u) => {

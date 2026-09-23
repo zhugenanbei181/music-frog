@@ -68,7 +68,7 @@ impl AppState {
                     }
                 }
             }
-            other => self.update_core_tun_config(other),
+            other => self.update_core_stun(other),
         }
     }
 }
