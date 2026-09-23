@@ -88,13 +88,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetLanSharing",
         ".set_lan_sharing(enabled, mixed_port, &bind_address)",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "lan_bind_address",
         "value.bind_address.clone()",
     )

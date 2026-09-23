@@ -71,13 +71,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetSpeedtestConcurrency",
         "speedtest.set_concurrency",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         '"set_speedtest_concurrency"',
     )
     # Port + desktop adapter.

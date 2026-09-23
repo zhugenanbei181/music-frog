@@ -531,7 +531,13 @@ def main() -> int:
     )
     require(
         violations,
-        ROUTER,
+        "crates/infiltrator-application/src/command_application.rs",
+        "with_certificate_authority",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::ImportCustomNodeUri",
         "CommandIntent::SaveCustomNodeDraft",
         "CommandIntent::ScanDialerChains",
@@ -541,7 +547,6 @@ def main() -> int:
         "ProtocolCodecApplication::upsert_draft_into_profile",
         "ProtocolCodecApplication::publish_dialer_report",
         "ProtocolCodecApplication::publish_ca_trust",
-        "with_certificate_authority",
     )
 
     # 5. Iced: shared-draft projection + lossless save + no fabricated export.

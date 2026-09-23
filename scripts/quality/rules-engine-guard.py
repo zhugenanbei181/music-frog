@@ -210,7 +210,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "refresh_interval_secs",
         "published_rule_count",
         "RULE_PUBLISH_LIMIT",
@@ -400,6 +400,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "async fn edit_rules",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "edit::toggle_rule_enabled",
         "edit::move_rule",
         "edit::build_custom_rule",
@@ -518,9 +523,14 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/surface_reader.rs",
+        "MrsAccelerationApplication::new()",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "load_rule_providers",
         "source_url",
-        "MrsAccelerationApplication::new()",
     )
 
     # Iced consumes the shared reductions and renders the shared MRS model.
@@ -713,6 +723,11 @@ def main() -> int:
         "async fn unpack_rule_provider",
         "async fn purge_rule_provider_cache",
         "parse_rule_provider_declarations",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::PurgeRuleProviderCache",
     )
     require(
@@ -1050,7 +1065,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "fn rules_json_documents(",
     )
     require(
@@ -1226,7 +1241,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "observe_fingerprint",
         "cache_fingerprint",
     )
@@ -1338,7 +1353,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "load_etag_support",
         "etag_support",
     )

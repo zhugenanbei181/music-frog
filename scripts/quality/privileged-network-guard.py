@@ -124,7 +124,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "RunPrivilegedNetworkRegression",
         "privileged_network()",
         "PrivilegedNetworkRequest::standard",

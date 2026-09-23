@@ -1461,7 +1461,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "mini_hud: settings.mini_hud",
     )
 

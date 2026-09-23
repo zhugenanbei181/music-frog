@@ -219,14 +219,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::LoadSnapshotDiff { snapshot_id }",
         "diff_newest(&profile).await",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
-        "CommandIntent::LoadSnapshotDiff { .. } => \"load_snapshot_diff\"",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
+        'CommandIntent::LoadSnapshotDiff { .. } => "load_snapshot_diff"',
     )
 
     # 5. Iced renders the shared diff and gates protected direct edits.
@@ -488,7 +488,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::LoadSnapshotHistory",
         "CommandIntent::PruneSnapshots { keep }",
         "SnapshotPruneSource::Manual",
@@ -906,14 +906,19 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
+        "fn profile_options(&self)",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::LoadProfileOptions { profile }",
         "CommandIntent::SaveMixinOverlay {",
         ".save_filter(self.managed_runtime.clone(), &profile_id, &filter)",
-        "fn profile_options(&self)",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         'CommandIntent::LoadProfileOptions { .. } => "load_profile_options"',
         'CommandIntent::SaveMixinOverlay { .. } => "save_mixin_overlay"',
     )

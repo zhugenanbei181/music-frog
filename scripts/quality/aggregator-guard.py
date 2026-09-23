@@ -232,7 +232,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::PreviewProfileAggregation { draft }",
         "CommandIntent::CreateAggregatedProfile { draft }",
         "CommandIntent::SaveAggregationTemplate { name, draft }",

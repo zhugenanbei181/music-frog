@@ -96,6 +96,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_vpn",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::StartVpn",
         "CommandIntent::StopVpn",
         "self.vpn()?.request_start()",

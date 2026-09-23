@@ -70,7 +70,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetTunStack",
         "set_tun_stack(stack)",
     )
