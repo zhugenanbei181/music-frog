@@ -59,11 +59,15 @@ async fn spawn_udp_authority(
 }
 
 fn probe(resolver: &str, question: &str) -> DnsLeakEchoProbe {
-    DnsLeakEchoProbe {
-        resolver: resolver.to_owned(),
-        authority: "echo.example.org".to_owned(),
-        question: question.to_owned(),
-    }
+    probe_with_record(resolver, question, DnsLeakEchoRecord::FirstAddress)
+}
+
+fn probe_with_record(
+    resolver: &str,
+    question: &str,
+    record: DnsLeakEchoRecord,
+) -> DnsLeakEchoProbe {
+    DnsLeakEchoProbe::new(resolver, "echo.example.org", question, record)
 }
 
 fn request(probes: Vec<DnsLeakEchoProbe>, timeout_ms: u32) -> DnsLeakEchoRequest {
@@ -289,6 +293,266 @@ async fn the_echo_port_probes_every_source_and_refuses_an_empty_list() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn a_real_udp_txt_authority_reports_the_keyed_resolver_value() {
+    let address = spawn_udp_authority(|question, _| {
+        assert_eq!(question.qtype, dns_wire::TYPE_TXT);
+        Some(dns_wire::encode_txt_answer(
+            question,
+            &[
+                "ns",
+                "104.22.50.134",
+                "ip",
+                "203.0.113.9",
+                "ecs",
+                "203.0.113.0/24",
+            ],
+            1,
+        ))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "whoami.ds.akahelp.net",
+        DnsLeakEchoRecord::TxtKeyedValue {
+            key: "ip".to_owned(),
+        },
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    assert_eq!(observation.transport, DnsLeakProbeTransport::Udp);
+    assert_eq!(
+        observation.outcome,
+        DnsLeakObservationOutcome::Observed {
+            identity: "203.0.113.9".to_owned()
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_real_udp_txt_authority_reports_the_first_value() {
+    let address = spawn_udp_authority(|question, _| {
+        assert_eq!(question.qtype, dns_wire::TYPE_TXT);
+        Some(dns_wire::encode_txt_answer(question, &["198.51.100.7"], 30))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "o-o.myaddr.l.google.com",
+        DnsLeakEchoRecord::TxtFirstValue,
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    assert_eq!(
+        observation.outcome,
+        DnsLeakObservationOutcome::Observed {
+            identity: "198.51.100.7".to_owned()
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_real_udp_txt_authority_reports_the_first_ip_value() {
+    // The Google shape: the address is one TXT value and the EDNS client-subnet
+    // string is another; only the address is a resolver identity.
+    let address = spawn_udp_authority(|question, _| {
+        Some(dns_wire::encode_txt_answer(
+            question,
+            &["edns0-client-subnet 69.63.216.0/24", "198.51.100.7"],
+            30,
+        ))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "o-o.myaddr.l.google.com",
+        DnsLeakEchoRecord::TxtFirstIpAddress,
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    assert_eq!(
+        observation.outcome,
+        DnsLeakObservationOutcome::Observed {
+            identity: "198.51.100.7".to_owned()
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_txt_answer_with_no_ip_value_is_not_an_identity() {
+    let address = spawn_udp_authority(|question, _| {
+        Some(dns_wire::encode_txt_answer(
+            question,
+            &["edns0-client-subnet 69.63.216.0/24"],
+            30,
+        ))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "o-o.myaddr.l.google.com",
+        DnsLeakEchoRecord::TxtFirstIpAddress,
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    match &observation.outcome {
+        DnsLeakObservationOutcome::InvalidResponse { reason } => {
+            assert!(reason.contains("no IP address"), "{reason}");
+        }
+        other => panic!("a TXT answer without an IP must not become an identity: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_txt_answer_without_the_declared_key_is_not_an_identity() {
+    let address = spawn_udp_authority(|question, _| {
+        Some(dns_wire::encode_txt_answer(
+            question,
+            &["ns", "104.22.50.134"],
+            1,
+        ))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "whoami.ds.akahelp.net",
+        DnsLeakEchoRecord::TxtKeyedValue {
+            key: "ip".to_owned(),
+        },
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    match &observation.outcome {
+        DnsLeakObservationOutcome::InvalidResponse { reason } => {
+            assert!(reason.contains("no \"ip\" entry"), "{reason}");
+        }
+        other => panic!("a missing keyed value must not become an identity: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn an_ambiguous_txt_key_is_not_an_identity() {
+    let address = spawn_udp_authority(|question, _| {
+        // Two `ip` values: the resolver is ambiguous, so the probe must refuse
+        // instead of picking one.
+        Some(dns_wire::encode_txt_answer(
+            question,
+            &["ip", "203.0.113.9", "ip", "198.51.100.7"],
+            1,
+        ))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "whoami.ds.akahelp.net",
+        DnsLeakEchoRecord::TxtKeyedValue {
+            key: "ip".to_owned(),
+        },
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    match &observation.outcome {
+        DnsLeakObservationOutcome::InvalidResponse { reason } => {
+            assert!(reason.contains("ambiguous"), "{reason}");
+        }
+        other => panic!("an ambiguous keyed value must not become an identity: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_txt_value_that_is_not_an_ip_is_not_an_identity() {
+    let address = spawn_udp_authority(|question, _| {
+        Some(dns_wire::encode_txt_answer(question, &["not-an-ip"], 30))
+    })
+    .await;
+
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probe = probe_with_record(
+        &address.to_string(),
+        "o-o.myaddr.l.google.com",
+        DnsLeakEchoRecord::TxtFirstValue,
+    );
+    let observation = prober.observe_probe(&probe, &request(vec![], 1_500)).await;
+
+    match &observation.outcome {
+        DnsLeakObservationOutcome::InvalidResponse { reason } => {
+            assert!(reason.contains("not a resolver IP address"), "{reason}");
+        }
+        other => panic!("a non-IP TXT value must not become an identity: {other:?}"),
+    }
+}
+
+#[test]
+fn resolv_conf_nameserver_lines_are_parsed_without_guessing() {
+    let parsed = parse_resolv_conf(
+        "# a comment\n\
+         nameserver 127.0.0.53\n\
+         nameserver   9.9.9.9   # trailing comment\n\
+         nameserver not-an-ip\n\
+         nameserver fe80::1%eth0\n\
+         nameserver 127.0.0.53\n\
+         options edns0 trust-ad\n",
+    );
+    assert_eq!(
+        parsed,
+        vec![
+            std::net::IpAddr::from([127, 0, 0, 53]),
+            std::net::IpAddr::from([9, 9, 9, 9]),
+            "fe80::1".parse::<std::net::IpAddr>().expect("v6"),
+        ],
+        "only real addresses, de-duplicated, in file order"
+    );
+    assert!(parse_resolv_conf("").is_empty());
+    assert!(parse_resolv_conf("search example.org\n").is_empty());
+}
+
+/// Live network check (ignored by default and gated behind the opt-in
+/// `network-tests` feature, so the default suite stays fully offline). The two
+/// real public TXT echo authorities are observed through the platform resolver.
+/// Run with
+/// `cargo test -p infiltrator-core --features network-tests --lib -- --ignored live_public_txt`.
+#[cfg(feature = "network-tests")]
+#[tokio::test]
+#[ignore = "reaches the public internet through the platform resolver"]
+async fn live_public_txt_echo_authorities_are_observed() {
+    let prober = HttpDnsLeakEchoProbe::new();
+    let probes = vec![
+        probe_with_record(
+            "system",
+            "whoami.ds.akahelp.net",
+            DnsLeakEchoRecord::TxtKeyedValue {
+                key: "ip".to_owned(),
+            },
+        ),
+        probe_with_record(
+            "system",
+            "o-o.myaddr.l.google.com",
+            DnsLeakEchoRecord::TxtFirstIpAddress,
+        ),
+    ];
+    let report = DnsLeakEchoPort::observe(&prober, request(probes, 5_000))
+        .await
+        .expect("observe");
+    for observation in &report.observations {
+        assert!(
+            observation.outcome.identity().is_some(),
+            "a real public authority must be observed: {observation:?}"
+        );
+    }
 }
 
 #[test]

@@ -11,7 +11,9 @@ the Bevy DNS page does not regress to its old fabricated switch command
 DUAL-14-08 additionally pins the honest DNS leak cross-source seam: the host
 echo port, the real UDP/DoH/system adapter, the shared cross-source
 application and the dual panels must stay, while the old Iced panel's
-hardcoded country/ISP/leak-flag values are forbidden from returning.
+hardcoded country/ISP/leak-flag values are forbidden from returning. The
+default echo sources are real third-party public TXT authorities read with
+explicit extraction rules, so the empty-source regression is forbidden too.
 """
 
 from __future__ import annotations
@@ -48,6 +50,15 @@ def forbid(violations: list[str], path: str, *markers: str) -> None:
     text = read(path)
     for marker in markers:
         if marker in text:
+            violations.append(f"{path} still contains forbidden marker {marker!r}")
+
+
+def forbid_compact(violations: list[str], path: str, *markers: str) -> None:
+    """Forbid a marker regardless of how rustfmt wrapped the source line."""
+    compact_text = " ".join(read(path).split())
+    for marker in markers:
+        compact_marker = " ".join(marker.split())
+        if compact_marker in compact_text:
             violations.append(f"{path} still contains forbidden marker {marker!r}")
 
 
@@ -754,7 +765,13 @@ def main() -> int:
         "DnsLeakProbePort",
         "DnsLeakApplication",
         "DnsLeakConclusion",
+        "DnsLeakEchoRecord",
         "HttpDnsLeakEchoProbe",
+        "default_echo_sources",
+        "whoami.ds.akahelp.net",
+        "o-o.myaddr.l.google.com",
+        "TxtFirstIpAddress",
+        "TxtKeyedValue",
         "test_dns_leak_card_renders_the_shared_cross_source_report",
         "test_dns_test_leak_submits_command",
         "test_dns_leak_panel_renders_the_shared_cross_source_report",
@@ -774,11 +791,14 @@ def main() -> int:
         "pub struct DnsLeakEchoProbe",
         "pub struct DnsLeakEchoRequest",
         "pub struct DnsLeakEchoReport",
+        "pub enum DnsLeakEchoRecord",
+        "pub enum DnsLeakProbeName",
         "pub fn observed_facts",
         "pub fn conclusion",
         "a_single_observation_is_unknown_not_consistent",
         "disagreeing_authorities_are_divergent_and_list_every_fact",
         "an_all_failed_probe_is_failed_not_unknown",
+        "echo_record_rules_are_declared_and_round_trip",
     )
     require(
         violations,
@@ -808,8 +828,13 @@ def main() -> int:
         "crates/infiltrator-core/src/dns_wire.rs",
         "pub fn response_rcode",
         "pub fn extract_a_record",
+        "pub const TYPE_TXT",
+        "pub fn extract_txt_records",
+        "pub fn encode_txt_answer",
         "the_echo_observation_is_read_from_the_real_answer_record",
         "an_answer_without_an_a_record_yields_nothing_instead_of_a_guess",
+        "txt_character_strings_are_read_in_record_order",
+        "a_txt_answer_with_no_txt_record_is_none_not_a_guess",
     )
     require(
         violations,
@@ -817,6 +842,11 @@ def main() -> int:
         "pub struct HttpDnsLeakEchoProbe",
         "impl DnsLeakEchoPort for HttpDnsLeakEchoProbe",
         "fn read_observation",
+        "fn extract_identity",
+        "fn first_ip_txt_value",
+        "fn keyed_txt_value",
+        "fn system_nameservers",
+        "fn parse_resolv_conf",
         "UdpSocket",
     )
     require(
@@ -829,6 +859,11 @@ def main() -> int:
         "a_doh_echo_endpoint_answers_the_wire_format_query",
         "undrivable_resolvers_are_reported_instead_of_probed",
         "the_platform_resolver_path_reports_its_real_outcome",
+        "a_real_udp_txt_authority_reports_the_keyed_resolver_value",
+        "a_real_udp_txt_authority_reports_the_first_ip_value",
+        "an_ambiguous_txt_key_is_not_an_identity",
+        "resolv_conf_nameserver_lines_are_parsed_without_guessing",
+        "live_public_txt_echo_authorities_are_observed",
     )
     require(
         violations,
@@ -836,6 +871,10 @@ def main() -> int:
         "pub struct DnsLeakApplication",
         "impl DnsLeakProbePort for DnsLeakApplication",
         "pub fn random_probe_question",
+        "pub fn probe_question",
+        "pub fn default_echo_sources",
+        "whoami.ds.akahelp.net",
+        "o-o.myaddr.l.google.com",
         "NO_ECHO_PORT_REASON",
         "NO_ECHO_SOURCE_REASON",
         "a_host_without_an_echo_prober_reports_typed_unsupported_and_probes_nothing",
@@ -843,6 +882,8 @@ def main() -> int:
         "one_probe_generates_fresh_subdomains_and_publishes_divergent_facts",
         "agreeing_authorities_are_consistent_and_a_silent_one_is_still_listed",
         "a_prober_that_omits_an_observation_makes_that_source_fail_honestly",
+        "an_exact_authority_source_asks_the_fixed_name_and_carries_its_record",
+        "default_echo_sources_are_two_real_public_txt_authorities",
     )
     require(
         violations,
@@ -907,6 +948,13 @@ def main() -> int:
         "crates/infiltrator-desktop/src/runtime.rs",
         "fn dns_leak_probe_port",
         "HttpDnsLeakEchoProbe",
+        "default_echo_sources",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/boot.rs",
+        "HttpDnsLeakEchoProbe",
+        "default_echo_sources",
     )
     require(
         violations,
@@ -943,9 +991,15 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_leak.rs",
+        "the_card_renders_the_configured_txt_sources",
+    )
+    require(
+        violations,
         "crates/infiltrator-iced/tests/gui/view_dns_leak_tests.rs",
         "test_dns_leak_panel_renders_the_shared_cross_source_report",
         "test_dns_leak_observation_outcome_copy_stays_typed",
+        "test_dns_leak_panel_renders_the_configured_txt_sources",
     )
     require(
         violations,
@@ -1013,6 +1067,18 @@ def main() -> int:
         "dns_leak_location",
         "dns_leak_isp",
         "dns_leak_tested_servers",
+    )
+    # The empty-source regression must not come back: the desktop host ships
+    # real default TXT echo authorities, not `Vec::new()`.
+    forbid_compact(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "HttpDnsLeakEchoProbe::new(), )), Vec::new(),",
+    )
+    forbid_compact(
+        violations,
+        "crates/infiltrator-desktop/src/boot.rs",
+        "HttpDnsLeakEchoProbe::new(), )), Vec::new(),",
     )
 
     if violations:

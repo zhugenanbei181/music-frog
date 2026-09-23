@@ -10,8 +10,9 @@
 //! observed facts and never guesses which one is a leak.
 
 use infiltrator_contract::dns_leak::{
-    DnsLeakEchoProbe, DnsLeakEchoRequest, DnsLeakObservation, DnsLeakObservationOutcome,
-    DnsLeakProbeSource, DnsLeakProbeTransport, DnsLeakReport, DnsLeakStatus, MAX_PROBE_NAME_LEN,
+    DnsLeakEchoProbe, DnsLeakEchoRecord, DnsLeakEchoRequest, DnsLeakObservation,
+    DnsLeakObservationOutcome, DnsLeakProbeName, DnsLeakProbeSource, DnsLeakProbeTransport,
+    DnsLeakReport, DnsLeakStatus, MAX_PROBE_NAME_LEN,
 };
 use infiltrator_ports::dns_leak::{DnsLeakEchoPort, DnsLeakProbePort};
 use infiltrator_ports::error::PortError;
@@ -32,6 +33,33 @@ const INVALID_AUTHORITY_REASON: &str = "the configured echo authority is not a v
 /// The typed reason a host prober answered fewer observations than asked.
 const MISSING_OBSERVATION_REASON: &str =
     "the host echo prober returned no observation for this source";
+
+/// DUAL-14-08: the real default echo authorities this host cross-checks.
+///
+/// Two independent third-party public TXT echo services are asked through the
+/// platform resolver (`system`): `whoami.ds.akahelp.net` declares the
+/// `"ip" "<resolver-ip>"` pair rule, and `o-o.myaddr.l.google.com` declares
+/// the first-IP TXT rule (it also answers an EDNS client-subnet string). A
+/// leak conclusion is real cross-source corroboration only when both
+/// observations agree; the application still compares them and never
+/// hardcodes a verdict. If either service is unreachable the report is a
+/// typed failure, never a guess.
+pub fn default_echo_sources() -> Vec<DnsLeakProbeSource> {
+    vec![
+        DnsLeakProbeSource::exact(
+            "system",
+            "whoami.ds.akahelp.net",
+            DnsLeakEchoRecord::TxtKeyedValue {
+                key: "ip".to_owned(),
+            },
+        ),
+        DnsLeakProbeSource::exact(
+            "system",
+            "o-o.myaddr.l.google.com",
+            DnsLeakEchoRecord::TxtFirstIpAddress,
+        ),
+    ]
+}
 
 #[derive(Clone)]
 pub struct DnsLeakApplication {
@@ -100,7 +128,7 @@ impl DnsLeakApplication {
         let mut observations: Vec<Option<DnsLeakObservation>> =
             (0..self.sources.len()).map(|_| None).collect();
         for (index, source) in self.sources.iter().enumerate() {
-            let question = random_probe_question(&source.authority);
+            let question = probe_question(source);
             if !is_valid_probe_name(&question) {
                 observations[index] = Some(DnsLeakObservation {
                     resolver: source.resolver.clone(),
@@ -117,11 +145,12 @@ impl DnsLeakApplication {
             }
             pending.push((
                 index,
-                DnsLeakEchoProbe {
-                    resolver: source.resolver.clone(),
-                    authority: source.authority.clone(),
-                    question,
-                },
+                DnsLeakEchoProbe::new(
+                    &source.resolver,
+                    &source.authority,
+                    &question,
+                    source.record.clone(),
+                ),
             ));
         }
 
@@ -196,6 +225,18 @@ pub fn random_probe_question(authority: &str) -> String {
     format!("{}.{authority}", random_probe_label())
 }
 
+/// The exact question one source is asked. A wildcard authority gets a fresh
+/// cache-busting subdomain; a fixed-name public echo service is asked exactly,
+/// because a generated label under it is only ever NXDOMAIN.
+pub fn probe_question(source: &DnsLeakProbeSource) -> String {
+    match source.probe_name {
+        DnsLeakProbeName::FreshSubdomain => random_probe_question(&source.authority),
+        DnsLeakProbeName::ExactAuthority => {
+            source.authority.trim().trim_end_matches('.').to_owned()
+        }
+    }
+}
+
 /// A cache-busting nonce for the probe label. It only has to be unique enough
 /// that a resolver cache cannot answer the previous probe; it is not a
 /// security token, so the workspace CSPRNG dependency is not pulled in.
@@ -235,7 +276,9 @@ pub fn is_valid_probe_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::dns_leak::{DnsLeakConclusion, DnsLeakEchoReport};
+    use infiltrator_contract::dns_leak::{
+        DnsLeakConclusion, DnsLeakEchoRecord, DnsLeakEchoReport, DnsLeakProbeName,
+    };
     use infiltrator_contract::error::ErrorCode;
     struct RecordingEcho {
         seen: Mutex<Vec<DnsLeakEchoRequest>>,
@@ -517,5 +560,74 @@ mod tests {
         assert!(!is_valid_probe_name("a..b"));
         assert!(!is_valid_probe_name(&"x".repeat(64)));
         assert!(!is_valid_probe_name(&format!("a.{}", "x".repeat(300))));
+    }
+
+    #[tokio::test]
+    async fn an_exact_authority_source_asks_the_fixed_name_and_carries_its_record() {
+        let echo = RecordingEcho::new(|_| observed("203.0.113.9"));
+        let application = DnsLeakApplication::new(
+            Some(echo.clone()),
+            vec![DnsLeakProbeSource::exact(
+                "system",
+                "whoami.ds.akahelp.net",
+                DnsLeakEchoRecord::TxtKeyedValue {
+                    key: "ip".to_owned(),
+                },
+            )],
+        );
+        assert!(application.status().is_ready());
+        let report = DnsLeakProbePort::probe(&application).await.expect("probe");
+        assert_eq!(report.observations.len(), 1);
+
+        let seen = echo.seen.lock().expect("echo request lock");
+        assert_eq!(
+            seen[0].probes[0].question, "whoami.ds.akahelp.net",
+            "a fixed-name authority is asked exactly, not under a random label"
+        );
+        assert_eq!(
+            seen[0].probes[0].record,
+            DnsLeakEchoRecord::TxtKeyedValue {
+                key: "ip".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn default_echo_sources_are_two_real_public_txt_authorities() {
+        let sources = default_echo_sources();
+        assert!(sources.len() >= 2, "cross-source corroboration needs two");
+        assert!(sources.iter().all(|source| source.resolver == "system"));
+        assert!(
+            sources
+                .iter()
+                .all(|source| source.probe_name == DnsLeakProbeName::ExactAuthority)
+        );
+        assert!(sources.iter().any(|source| {
+            matches!(&source.record, DnsLeakEchoRecord::TxtKeyedValue { key } if key == "ip")
+        }));
+        assert!(
+            sources
+                .iter()
+                .any(|source| source.record == DnsLeakEchoRecord::TxtFirstIpAddress)
+        );
+        assert!(
+            sources
+                .iter()
+                .any(|source| source.authority == "whoami.ds.akahelp.net")
+        );
+        assert!(
+            sources
+                .iter()
+                .any(|source| source.authority == "o-o.myaddr.l.google.com")
+        );
+
+        // The default is a configuration, not a verdict: no identity is
+        // pre-filled and nothing is observed until the prober runs.
+        let application = DnsLeakApplication::new(
+            Some(RecordingEcho::new(|_| observed("203.0.113.9"))),
+            sources,
+        );
+        assert!(application.status().is_ready());
+        assert!(application.last_report().observations.is_empty());
     }
 }

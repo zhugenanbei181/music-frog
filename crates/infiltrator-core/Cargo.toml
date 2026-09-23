@@ -3,6 +3,13 @@ name = "infiltrator-core"
 version = "0.1.2"
 edition = "2024"
 
+[features]
+# Opt-in live network probes. These tests are also `#[ignore]`, so the default
+# `scripts/test.sh` suite stays fully offline and reports no skipped tests.
+# Run them with:
+#   cargo test -p infiltrator-core --features network-tests --lib -- --ignored
+network-tests = []
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }

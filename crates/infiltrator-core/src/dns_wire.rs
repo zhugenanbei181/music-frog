@@ -11,6 +11,9 @@ pub const HEADER_LEN: usize = 12;
 /// `A` record type.
 pub const TYPE_A: u16 = 1;
 
+/// `TXT` record type (RFC 1035 §3.3.14).
+pub const TYPE_TXT: u16 = 16;
+
 /// `IN` class.
 pub const CLASS_IN: u16 = 1;
 
@@ -41,6 +44,15 @@ impl DnsQuestion {
             id,
             qname: qname.trim().trim_end_matches('.').to_owned(),
             qtype: TYPE_A,
+        }
+    }
+
+    /// A `TXT` question, used by the echo probe's TXT extraction rules.
+    pub fn txt(id: u16, qname: &str) -> Self {
+        Self {
+            id,
+            qname: qname.trim().trim_end_matches('.').to_owned(),
+            qtype: TYPE_TXT,
         }
     }
 }
@@ -190,6 +202,71 @@ pub fn extract_a_record(
     Ok(None)
 }
 
+/// Read every character-string of every `TXT` record from an answer, after the
+/// strict [`validate_response`] checks.
+///
+/// The outer `Vec` holds one entry per `TXT` record in answer order; each
+/// inner `Vec` holds that record's length-prefixed character-strings in wire
+/// order (RFC 1035 §3.3.14 — a `TXT` rdata is one or more such strings).
+/// Grouping by record keeps a `"key" "<value>"` pair attributable to the
+/// record that carried it. An answer with no `TXT` record yields `None`, never
+/// a fabricated value.
+pub fn extract_txt_records(
+    bytes: &[u8],
+    question: &DnsQuestion,
+) -> Result<Option<Vec<Vec<String>>>, DnsWireError> {
+    validate_response(bytes, question)?;
+    let qname = encode_qname(&question.qname)?;
+    let ancount = u16::from_be_bytes([bytes[6], bytes[7]]);
+    let mut offset = HEADER_LEN + qname.len() + 4;
+    let mut records: Vec<Vec<String>> = Vec::new();
+    for _ in 0..ancount {
+        offset = skip_name(bytes, offset)?;
+        let header = bytes
+            .get(offset..offset + 10)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+        let record_type = u16::from_be_bytes([header[0], header[1]]);
+        let record_class = u16::from_be_bytes([header[2], header[3]]);
+        let rdlength = u16::from_be_bytes([header[8], header[9]]) as usize;
+        offset += 10;
+        let rdata_end = offset
+            .checked_add(rdlength)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+        if rdata_end > bytes.len() {
+            return Err(DnsWireError::TooShort { len: bytes.len() });
+        }
+        if record_type == TYPE_TXT && record_class == CLASS_IN {
+            records.push(decode_txt_rdata(&bytes[offset..rdata_end])?);
+        }
+        offset = rdata_end;
+    }
+    if records.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(records))
+    }
+}
+
+/// Decode a `TXT` rdata into its length-prefixed character-strings. A length
+/// prefix that runs past the rdata is a malformed record, not an empty value.
+fn decode_txt_rdata(rdata: &[u8]) -> Result<Vec<String>, DnsWireError> {
+    let mut strings = Vec::new();
+    let mut offset = 0usize;
+    while offset < rdata.len() {
+        let length = rdata[offset] as usize;
+        offset += 1;
+        let end = offset
+            .checked_add(length)
+            .ok_or(DnsWireError::TooShort { len: rdata.len() })?;
+        let value = rdata
+            .get(offset..end)
+            .ok_or(DnsWireError::TooShort { len: rdata.len() })?;
+        strings.push(String::from_utf8_lossy(value).into_owned());
+        offset = end;
+    }
+    Ok(strings)
+}
+
 /// Skip one (possibly compressed) name in the answer section.
 fn skip_name(bytes: &[u8], mut offset: usize) -> Result<usize, DnsWireError> {
     loop {
@@ -265,6 +342,36 @@ pub fn encode_answer(question: &DnsQuestion, answer_ip: [u8; 4], ttl_seconds: u3
     answer.extend_from_slice(&ttl_seconds.to_be_bytes());
     answer.extend_from_slice(&4u16.to_be_bytes());
     answer.extend_from_slice(&answer_ip);
+    answer
+}
+
+/// Encode the `TXT` answer a real nameserver would return for `question`, with
+/// one record carrying `strings` in order. Used by the offline tests so the
+/// TXT extraction rules are exercised against real wire bytes.
+pub fn encode_txt_answer(question: &DnsQuestion, strings: &[&str], ttl_seconds: u32) -> Vec<u8> {
+    let qname = encode_qname(&question.qname).unwrap_or_default();
+    let mut rdata = Vec::new();
+    for value in strings {
+        rdata.push(value.len().min(255) as u8);
+        rdata.extend_from_slice(&value.as_bytes()[..value.len().min(255)]);
+    }
+    let mut answer = Vec::with_capacity(HEADER_LEN + qname.len() + 4 + 16 + rdata.len());
+    answer.extend_from_slice(&question.id.to_be_bytes());
+    answer.extend_from_slice(&(FLAG_RESPONSE | FLAG_RECURSION_DESIRED).to_be_bytes());
+    answer.extend_from_slice(&1u16.to_be_bytes());
+    answer.extend_from_slice(&1u16.to_be_bytes());
+    answer.extend_from_slice(&0u16.to_be_bytes());
+    answer.extend_from_slice(&0u16.to_be_bytes());
+    answer.extend_from_slice(&qname);
+    answer.extend_from_slice(&question.qtype.to_be_bytes());
+    answer.extend_from_slice(&CLASS_IN.to_be_bytes());
+    // The answer record points back at the question name.
+    answer.extend_from_slice(&[0xc0, 0x0c]);
+    answer.extend_from_slice(&TYPE_TXT.to_be_bytes());
+    answer.extend_from_slice(&CLASS_IN.to_be_bytes());
+    answer.extend_from_slice(&ttl_seconds.to_be_bytes());
+    answer.extend_from_slice(&(rdata.len() as u16).to_be_bytes());
+    answer.extend_from_slice(&rdata);
     answer
 }
 
@@ -407,5 +514,72 @@ mod tests {
         refused[2..4].copy_from_slice(&flags.to_be_bytes());
         assert_eq!(response_rcode(&refused), Some(3));
         assert_eq!(response_rcode(&[0u8; 4]), None);
+    }
+
+    #[test]
+    fn a_txt_question_asks_for_type_txt() {
+        let txt = DnsQuestion::txt(0x4d46, "whoami.ds.akahelp.net");
+        assert_eq!(txt.qtype, TYPE_TXT);
+        let query = encode_query(&txt).expect("txt query");
+        assert_eq!(
+            u16::from_be_bytes([query[query.len() - 4], query[query.len() - 3]]),
+            TYPE_TXT
+        );
+    }
+
+    #[test]
+    fn txt_character_strings_are_read_in_record_order() {
+        let question = DnsQuestion::txt(0x4d46, "whoami.ds.akahelp.net");
+        let answer = encode_txt_answer(&question, &["ip", "203.0.113.9"], 60);
+        assert_eq!(validate_response(&answer, &question), Ok(()));
+        assert_eq!(
+            extract_txt_records(&answer, &question),
+            Ok(Some(vec![vec!["ip".to_owned(), "203.0.113.9".to_owned()]]))
+        );
+    }
+
+    #[test]
+    fn a_single_string_txt_answer_is_read_verbatim() {
+        let question = DnsQuestion::txt(0x4d46, "o-o.myaddr.l.google.com");
+        let answer = encode_txt_answer(&question, &["198.51.100.7"], 30);
+        assert_eq!(
+            extract_txt_records(&answer, &question),
+            Ok(Some(vec![vec!["198.51.100.7".to_owned()]]))
+        );
+    }
+
+    #[test]
+    fn a_txt_answer_with_no_txt_record_is_none_not_a_guess() {
+        let question = DnsQuestion::txt(0x4d46, "echo.example.org");
+        // An A answer to a TXT question fails the strict question check; a
+        // record-less TXT answer is a clean `None`.
+        let mut empty = encode_txt_answer(&question, &["ip", "203.0.113.9"], 60);
+        let qname = encode_qname(&question.qname).expect("qname");
+        empty.truncate(HEADER_LEN + qname.len() + 4);
+        empty[6..8].copy_from_slice(&0u16.to_be_bytes());
+        assert_eq!(extract_txt_records(&empty, &question), Ok(None));
+
+        // A truncated character-string is rejected, never decoded as a value.
+        let mut malformed = encode_txt_answer(&question, &["ip", "203.0.113.9"], 60);
+        let length = malformed.len();
+        malformed.truncate(length - 3);
+        assert!(matches!(
+            extract_txt_records(&malformed, &question),
+            Err(DnsWireError::TooShort { .. })
+        ));
+    }
+
+    #[test]
+    fn a_txt_question_does_not_accept_an_a_answer() {
+        let txt = DnsQuestion::txt(0x4d46, "probe.example.com");
+        let a_answer = encode_answer(
+            &DnsQuestion::a_record(0x4d46, "probe.example.com"),
+            [1, 2, 3, 4],
+            60,
+        );
+        assert_eq!(
+            extract_txt_records(&a_answer, &txt),
+            Err(DnsWireError::QuestionMismatch)
+        );
     }
 }
