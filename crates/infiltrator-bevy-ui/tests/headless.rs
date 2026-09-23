@@ -58,6 +58,9 @@ mod cadence_tests;
 #[path = "headless/ime_tests.rs"]
 mod ime_tests;
 
+#[path = "headless/gesture_tests.rs"]
+mod gesture_tests;
+
 // DUAL-05: protocol-ecosystem studio (custom node URI codec) dual-surface tests.
 #[path = "headless/protocol_codec_tests.rs"]
 mod protocol_codec_tests;

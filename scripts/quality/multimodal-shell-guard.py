@@ -1048,6 +1048,50 @@ def check_capability_honesty(violations: list[str]) -> None:
                     )
 
 
+def check_touch_gesture_consumer(violations: list[str]) -> None:
+    """DUAL-15-07 must keep a real Bevy touch consumer.
+
+    The ledger used to record "no consumer" as the blocker; once the item is
+    `parity-ready` this gate re-derives the consumer from the shell source, so
+    deleting the `MessageReader<TouchInput>` wiring (or re-implementing the
+    recognizer in the shell) fails instead of silently re-opening the gap.
+    """
+    if ledger_statuses().get("DUAL-15-07") != "parity-ready":
+        return
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/gesture.rs",
+        "MessageReader<TouchInput>",
+        "GestureRecognizer",
+        "GestureSnapshot",
+        "ShellGesturePlugin",
+        "shell_gesture::",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/shell_gesture.rs",
+        "pub struct GestureSnapshot",
+        "pub enum GestureSemanticEvent",
+        "pub enum TouchGestureSupport",
+        "pub fn apply(&mut self, event: GestureSemanticEvent)",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/touch_gesture.rs",
+        "pub trait TouchGesturePort",
+        "pub struct TouchGestureHostReport",
+    )
+    # The recognizer stays the widget layer's single source of truth: its
+    # private thresholds must not be copied into the shell.
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/gesture.rs",
+        "threshold_pan_px",
+        "long_press_duration_ms",
+        "double_tap_duration_ms",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["report", "enforce"], default="enforce")
@@ -1079,10 +1123,17 @@ def main() -> int:
         "planned",
         "组 15 逐项账目",
         "2026-09-22 组 15 批次 A",
-        "组 15 多模态外壳与极客命令流 | 15 | `in progress (13/15)`",
+        "组 15 多模态外壳与极客命令流 | 15 | `in progress (14/15)`",
         # Batch G: the interaction palette and the a11y coverage inventory.
         "2026-09-23 组 15 批次 G",
         "SkinInteractionPalette",
+        # Batch H: the shared touch-gesture contract, host seam and Bevy consumer.
+        "2026-09-23 组 15 批次 H",
+        "GestureSemanticEvent",
+        "GestureSnapshot",
+        "TouchGesturePort",
+        "ShellGesturePlugin",
+        "MessageReader<TouchInput>",
         # 15-01 stays authoritatively tracked in the responsive ledger.
         "RESPONSIVE_PARITY_LEDGER.md",
     )
@@ -2351,6 +2402,100 @@ def main() -> int:
         "fn the_bevy_surface_reports_no_tray_host_instead_of_a_badge",
         "fn the_report_carries_the_shared_refresh_cadence",
     )
+
+    # ---- Batch H (DUAL-15-07): the shared touch-gesture semantic contract,
+    # the host touch seam, and the real Bevy-shell touch consumer. Iced keeps
+    # the typed-unsupported boundary (no touch host on the desktop surface).
+    require(
+        violations,
+        LEDGER,
+        "2026-09-23 组 15 批次 H",
+        "shell_gesture",
+        "GestureSemanticEvent",
+        "GestureSnapshot",
+        "TouchGestureSupport",
+        "SafeAreaInsets",
+        "TouchGesturePort",
+        "TouchGestureHostReport",
+        "ShellGesturePlugin",
+        "ShellGestureSnapshot",
+        "MessageReader<TouchInput>",
+        "a_pull_release_maps_to_a_bounded_semantic_event",
+        "a_host_that_does_not_declare_touch_reports_typed_unsupported",
+        "a_downward_drag_from_the_top_band_maps_to_pull_to_refresh",
+        "a_two_finger_sequence_publishes_a_pinch_event",
+        "a_desktop_surface_reports_no_touch_gesture_host",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/shell_gesture.rs",
+        "pub enum GestureTouchPhase",
+        "pub enum GestureSemanticEvent",
+        "pub struct GestureSnapshot",
+        "pub enum TouchGestureSupport",
+        "pub struct SafeAreaInsets",
+        "pub fn pull_to_refresh(",
+        "pub fn swipe_to_action(",
+        "pub fn pinch(",
+        "fn a_pull_release_maps_to_a_bounded_semantic_event",
+        "fn a_host_without_touch_reports_a_typed_reason",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/touch_gesture.rs",
+        "pub trait TouchGesturePort",
+        "pub struct TouchGestureHostReport",
+        "fn a_host_that_does_not_declare_touch_reports_typed_unsupported",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/gesture.rs",
+        "pub struct ShellGesturePlugin",
+        "pub struct ShellGestureSnapshot",
+        "pub struct GestureHostReport",
+        "pub const fn touch_support()",
+        "pub fn shared_phase(",
+        "pub fn shared_outcome(",
+        "MessageReader<TouchInput>",
+        "GestureRecognizer",
+        "GestureSemanticEvent::pull_to_refresh(",
+        "GestureSemanticEvent::swipe_to_action(",
+        "GestureSemanticEvent::pinch(",
+        "GestureSemanticEvent::SafeAreaInsets(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/app.rs",
+        "crate::gesture::ShellGesturePlugin",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/lib.rs",
+        "pub mod gesture",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/gesture.rs",
+        "pub const fn touch_support()",
+        "iced-desktop-surface-has-no-touch-gesture-host",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/gesture_tests.rs",
+        "fn a_tap_and_a_double_tap_map_through_the_widget_recognizer",
+        "fn a_downward_drag_from_the_top_band_maps_to_pull_to_refresh",
+        "fn a_two_finger_sequence_publishes_a_pinch_event",
+        "fn host_declared_insets_flow_into_the_shared_snapshot",
+        "fn the_mounted_shell_consumes_touch_through_the_shared_recognizer",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/gesture_tests.rs",
+        "fn a_desktop_surface_reports_no_touch_gesture_host",
+    )
+
+    # DUAL-15-07: the closed claim must keep a real Bevy touch consumer.
+    check_touch_gesture_consumer(violations)
 
     # DUAL-15-10 label coverage + the two honesty boundaries (no fake
     # AccessKit on Iced, no fake tray on Bevy).

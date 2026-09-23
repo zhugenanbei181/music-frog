@@ -49,6 +49,7 @@ pub mod surface;
 pub mod sync;
 pub mod system_dns_cache;
 pub mod system_proxy;
+pub mod touch_gesture;
 pub mod uwp_loopback;
 pub mod version;
 pub mod vpn_service;

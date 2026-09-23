@@ -70,6 +70,7 @@ pub mod script_sandbox;
 pub mod script_sandbox_matrix;
 pub mod service_mode;
 pub mod session;
+pub mod shell_gesture;
 pub mod shortcuts;
 pub mod snapshot;
 pub mod snapshot_history;

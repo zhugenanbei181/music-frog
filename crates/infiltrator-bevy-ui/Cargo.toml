@@ -45,6 +45,7 @@ bevy = { workspace = true, features = [
     "bevy_winit",
     "bevy_text",
     "ui_picking",
+    "touch",
     "accesskit_unix",
     "wayland",
     "system_font_discovery",
@@ -63,6 +64,7 @@ bevy = { workspace = true, features = [
     "bevy_winit",
     "bevy_text",
     "ui_picking",
+    "touch",
     "android-native-activity",
     "system_font_discovery",
 ] }
@@ -81,6 +83,7 @@ bevy = { workspace = true, features = [
     "bevy_winit",
     "bevy_text",
     "ui_picking",
+    "touch",
     "system_font_discovery",
 ] }
 
