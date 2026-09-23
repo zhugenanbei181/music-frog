@@ -700,12 +700,13 @@ def main() -> int:
         "AS36459",
         "GitHub, Inc.",
     )
-    # 13-05 is advanced, not planned: the row must carry its new evidence.
+    # 13-05 is closed at parity, never planned: the row must carry its evidence
+    # and its parity status.
     for line in read(LEDGER).splitlines():
         if "DUAL-13-05" in line:
             if "`planned`" in line:
                 violations.append("DUAL-13-05 is still marked planned")
-            for marker in ("destinationIPASN", "destinationGeoIP", "shared-ready"):
+            for marker in ("destinationIPASN", "destinationGeoIP", "parity-ready"):
                 if marker not in line:
                     violations.append(f"DUAL-13-05 row missing {marker!r}")
             break
