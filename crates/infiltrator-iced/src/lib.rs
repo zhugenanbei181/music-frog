@@ -14,6 +14,7 @@ pub mod configs_dir;
 pub mod configuration;
 pub mod demo;
 pub mod desktop_composition;
+pub mod gesture;
 pub mod host;
 pub mod ime;
 pub mod mini_hud_store;

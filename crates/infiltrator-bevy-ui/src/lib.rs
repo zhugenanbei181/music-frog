@@ -27,6 +27,7 @@ pub mod command_palette;
 pub mod command_palette_shell;
 pub mod controller;
 pub mod domain_state;
+pub mod gesture;
 pub mod history;
 pub mod ime;
 pub mod lifecycle;

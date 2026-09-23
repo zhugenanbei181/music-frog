@@ -524,6 +524,10 @@ impl Plugin for ShellPlugin {
         // DUAL-15-11: the OS IME path (enable + caret area + composition) is
         // part of the shell, so headless compositions see the same plan.
         app.add_plugins(crate::ime::ShellImePlugin);
+        // DUAL-15-07: the real touch-gesture consumer (Bevy `TouchInput` →
+        // widget recognizer → shared semantic snapshot) is part of the shell,
+        // so headless compositions exercise the same recognition path.
+        app.add_plugins(crate::gesture::ShellGesturePlugin);
         app.insert_resource(crate::appearance::ThemeMode(self.preference));
         app.init_resource::<crate::appearance::SystemAppearance>();
 

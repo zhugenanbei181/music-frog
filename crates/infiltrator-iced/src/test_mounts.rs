@@ -63,3 +63,6 @@ mod multimodal_shell_tests;
 
 #[path = "../tests/gui/ime_tests.rs"]
 mod ime_tests;
+
+#[path = "../tests/gui/gesture_tests.rs"]
+mod gesture_tests;
