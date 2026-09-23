@@ -179,15 +179,15 @@ impl MihomoRuntime {
             infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
                 Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
             ));
-        // DUAL-14-08: the real echo adapter is injected, but this host ships
-        // no controlled echo authority, so the source list stays empty and
-        // both surfaces publish the typed unsupported state rather than a
-        // guessed leak conclusion.
+        // DUAL-14-08: the real echo adapter plus the real default TXT echo
+        // authorities (two independent public services through the platform
+        // resolver). The application still compares both observations; an
+        // unreachable authority is a typed failure, never a guessed verdict.
         let dns_leak = infiltrator_application::dns_leak_application::DnsLeakApplication::new(
             Some(Arc::new(
                 infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe::new(),
             )),
-            Vec::new(),
+            infiltrator_application::dns_leak_application::default_echo_sources(),
         );
         let application = Arc::new(crate::composition::core_application(
             &service_manager,

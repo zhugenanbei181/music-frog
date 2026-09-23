@@ -173,7 +173,8 @@ pub fn sync_dns_leak_line(
 mod tests {
     use super::*;
     use infiltrator_contract::dns_leak::{
-        DnsLeakObservation, DnsLeakProbeSource, DnsLeakProbeTransport, DnsLeakReport,
+        DnsLeakEchoRecord, DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakProbeSource,
+        DnsLeakProbeTransport, DnsLeakReport,
     };
 
     fn report(identities: &[(&str, &str)]) -> DnsLeakReport {
@@ -194,6 +195,58 @@ mod tests {
             vec![DnsLeakProbeSource::new("1.1.1.1", "a.echo.example.org")],
             observations,
         )
+    }
+
+    #[test]
+    fn the_card_renders_the_configured_txt_sources() {
+        let report = DnsLeakReport::observed(
+            vec![
+                DnsLeakProbeSource::exact(
+                    "system",
+                    "whoami.ds.akahelp.net",
+                    DnsLeakEchoRecord::TxtKeyedValue {
+                        key: "ip".to_owned(),
+                    },
+                ),
+                DnsLeakProbeSource::exact(
+                    "system",
+                    "o-o.myaddr.l.google.com",
+                    DnsLeakEchoRecord::TxtFirstIpAddress,
+                ),
+            ],
+            vec![
+                DnsLeakObservation {
+                    resolver: "system".to_owned(),
+                    authority: "whoami.ds.akahelp.net".to_owned(),
+                    question: "whoami.ds.akahelp.net".to_owned(),
+                    transport: DnsLeakProbeTransport::System,
+                    outcome: DnsLeakObservationOutcome::Observed {
+                        identity: "203.0.113.9".to_owned(),
+                    },
+                },
+                DnsLeakObservation {
+                    resolver: "system".to_owned(),
+                    authority: "o-o.myaddr.l.google.com".to_owned(),
+                    question: "o-o.myaddr.l.google.com".to_owned(),
+                    transport: DnsLeakProbeTransport::System,
+                    outcome: DnsLeakObservationOutcome::Observed {
+                        identity: "203.0.113.9".to_owned(),
+                    },
+                },
+            ],
+        );
+        assert_eq!(report.sources.len(), 2);
+        let listing = leak_observation_listing(&report);
+        assert!(
+            listing.contains("system → whoami.ds.akahelp.net 观测身份 203.0.113.9"),
+            "{listing}"
+        );
+        assert!(
+            listing.contains("system → o-o.myaddr.l.google.com 观测身份 203.0.113.9"),
+            "{listing}"
+        );
+        assert_eq!(leak_source_count_label(&report), "已配置探测源 2 个");
+        assert!(leak_conclusion_label(&report).contains("2 个来源观测到同一解析器身份"));
     }
 
     #[test]

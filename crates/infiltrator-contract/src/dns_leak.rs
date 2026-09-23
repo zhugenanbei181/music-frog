@@ -69,8 +69,55 @@ impl DnsLeakStatus {
     }
 }
 
-/// One configured probe source: resolve a fresh subdomain under `authority`
-/// through `resolver` and report the identity the authority observed.
+/// How an echo authority's answer is read into a resolver identity.
+///
+/// The host *declares* the extraction rule; the adapter never guesses it from
+/// whatever the answer happens to contain. An answer that does not carry the
+/// declared record — or carries more than one distinct candidate — is a typed
+/// [`DnsLeakObservationOutcome::InvalidResponse`], never a fabricated identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DnsLeakEchoRecord {
+    /// The first `A` record's address. This is the original behaviour; a
+    /// fake-IP resolver can poison it, so the shipped defaults prefer the TXT
+    /// rules below.
+    FirstAddress,
+    /// The first character-string of the first `TXT` record, for authorities
+    /// that answer with the resolver address as a single TXT value.
+    TxtFirstValue,
+    /// The first `TXT` character-string that is a valid IP address, for
+    /// authorities that answer with the resolver address alongside unrelated
+    /// TXT metadata (for example an EDNS client-subnet string). Zero address
+    /// values, or more than one distinct address, is `InvalidResponse`.
+    TxtFirstIpAddress,
+    /// The character-string that follows the exact `key` string inside a
+    /// `TXT` record, for authorities that answer `"key" "<value>"` pairs.
+    TxtKeyedValue {
+        /// The exact preceding character-string to match.
+        key: String,
+    },
+}
+
+impl DnsLeakEchoRecord {
+    /// Whether the question for this rule is a `TXT` question.
+    pub fn is_txt(&self) -> bool {
+        !matches!(self, Self::FirstAddress)
+    }
+}
+
+/// How the question name of a source is built.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DnsLeakProbeName {
+    /// Prepend a fresh random label to the authority (defeats resolver
+    /// caches, but needs an authority that answers wildcard subdomains).
+    #[default]
+    FreshSubdomain,
+    /// Ask the authority name exactly. Fixed-name public echo services have no
+    /// wildcard, so a generated label would only ever be NXDOMAIN.
+    ExactAuthority,
+}
+
+/// One configured probe source: resolve `authority` through `resolver` and
+/// report the identity the authority observed.
 ///
 /// The intended configuration is one resolution path observed by two or more
 /// independent authorities, so agreement is real corroboration. The report
@@ -81,15 +128,37 @@ pub struct DnsLeakProbeSource {
     /// The resolver whose egress identity is observed (`ip:port`, a DoH URL
     /// or the platform resolver `system`).
     pub resolver: String,
-    /// The controlled echo authority zone the random subdomain lives under.
+    /// The controlled echo authority zone (or the exact fixed name, when
+    /// `probe_name` is [`DnsLeakProbeName::ExactAuthority`]).
     pub authority: String,
+    /// The declared rule that reads this authority's answer.
+    pub record: DnsLeakEchoRecord,
+    /// How the question name is built for this authority.
+    pub probe_name: DnsLeakProbeName,
 }
 
 impl DnsLeakProbeSource {
+    /// A source that asks a fresh subdomain and reads the first `A` record.
     pub fn new(resolver: &str, authority: &str) -> Self {
+        Self::with_record(resolver, authority, DnsLeakEchoRecord::FirstAddress)
+    }
+
+    /// A source that asks a fresh subdomain and reads the declared record.
+    pub fn with_record(resolver: &str, authority: &str, record: DnsLeakEchoRecord) -> Self {
         Self {
             resolver: resolver.trim().to_owned(),
             authority: authority.trim().trim_end_matches('.').to_owned(),
+            record,
+            probe_name: DnsLeakProbeName::FreshSubdomain,
+        }
+    }
+
+    /// A source that asks the authority name exactly (for fixed-name public
+    /// echo services) and reads the declared record.
+    pub fn exact(resolver: &str, authority: &str, record: DnsLeakEchoRecord) -> Self {
+        Self {
+            probe_name: DnsLeakProbeName::ExactAuthority,
+            ..Self::with_record(resolver, authority, record)
         }
     }
 }
@@ -333,13 +402,26 @@ impl DnsLeakReport {
     }
 }
 
-/// One source to echo-probe, carrying the already generated subdomain.
+/// One source to echo-probe, carrying the already generated question.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsLeakEchoProbe {
     pub resolver: String,
     pub authority: String,
-    /// The freshly generated subdomain under `authority`.
+    /// The exact question asked of the authority.
     pub question: String,
+    /// The declared extraction rule for the answer.
+    pub record: DnsLeakEchoRecord,
+}
+
+impl DnsLeakEchoProbe {
+    pub fn new(resolver: &str, authority: &str, question: &str, record: DnsLeakEchoRecord) -> Self {
+        Self {
+            resolver: resolver.to_owned(),
+            authority: authority.to_owned(),
+            question: question.to_owned(),
+            record,
+        }
+    }
 }
 
 /// The request handed to a host echo prober.
@@ -576,14 +658,16 @@ mod tests {
 
     #[test]
     fn echo_requests_keep_a_usable_deadline_and_the_exact_question() {
-        let probe = DnsLeakEchoProbe {
-            resolver: "1.1.1.1".to_owned(),
-            authority: "echo.example.org".to_owned(),
-            question: "l7f3.echo.example.org".to_owned(),
-        };
+        let probe = DnsLeakEchoProbe::new(
+            "1.1.1.1",
+            "echo.example.org",
+            "l7f3.echo.example.org",
+            DnsLeakEchoRecord::FirstAddress,
+        );
         let request = DnsLeakEchoRequest::new(vec![probe.clone()]);
         assert_eq!(request.timeout_ms, DEFAULT_ECHO_TIMEOUT_MS);
         assert_eq!(request.probes[0], probe);
+        assert!(!request.probes[0].record.is_txt());
         assert_eq!(
             DnsLeakEchoRequest::new(Vec::new())
                 .with_timeout_ms(0)
@@ -615,10 +699,45 @@ mod tests {
         let source = source("  1.1.1.1  ", " echo.example.org. ");
         assert_eq!(source.resolver, "1.1.1.1");
         assert_eq!(source.authority, "echo.example.org");
+        assert_eq!(source.record, DnsLeakEchoRecord::FirstAddress);
+        assert_eq!(source.probe_name, DnsLeakProbeName::FreshSubdomain);
         let encoded = serde_json::to_string(&source).expect("serialize");
         assert!(encoded.contains("echo.example.org"));
         let decoded: DnsLeakProbeSource = serde_json::from_str(&encoded).expect("deserialize");
         assert_eq!(decoded, source);
+    }
+
+    #[test]
+    fn echo_record_rules_are_declared_and_round_trip() {
+        let first = DnsLeakEchoRecord::TxtFirstValue;
+        let keyed = DnsLeakEchoRecord::TxtKeyedValue {
+            key: "ip".to_owned(),
+        };
+        assert!(!DnsLeakEchoRecord::FirstAddress.is_txt());
+        assert!(first.is_txt());
+        assert!(keyed.is_txt());
+
+        for record in [
+            DnsLeakEchoRecord::FirstAddress,
+            first.clone(),
+            DnsLeakEchoRecord::TxtFirstIpAddress,
+            keyed.clone(),
+        ] {
+            let encoded = serde_json::to_string(&record).expect("serialize record");
+            let decoded: DnsLeakEchoRecord =
+                serde_json::from_str(&encoded).expect("deserialize record");
+            assert_eq!(decoded, record);
+        }
+
+        let exact = DnsLeakProbeSource::exact("system", "whoami.ds.akahelp.net", keyed.clone());
+        assert_eq!(exact.probe_name, DnsLeakProbeName::ExactAuthority);
+        assert_eq!(exact.record, keyed);
+        assert_eq!(exact.resolver, "system");
+        assert_eq!(exact.authority, "whoami.ds.akahelp.net");
+
+        let fresh = DnsLeakProbeSource::with_record("system", "a.example.org", first.clone());
+        assert_eq!(fresh.probe_name, DnsLeakProbeName::FreshSubdomain);
+        assert_eq!(fresh.record, first);
     }
 
     #[test]
