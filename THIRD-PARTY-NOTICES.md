@@ -216,3 +216,20 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   `bevy_app`) and `nix` 0.31.3 (**MIT**, version bump via `ctrlc`).
 - Misc (via `derive_more-impl`): `convert_case` 0.10.0 (**MIT**),
   `unicode-xid` 0.2.6 (**MIT OR Apache-2.0**).
+
+## 11. Optional ECMAScript engine (`boa_engine`, DUAL-10-01 §5)
+
+- Source: [`boa-dev/boa`](https://github.com/boa-dev/boa), crate
+  `boa_engine` **0.22.0**, declared as an **optional** workspace dependency and
+  pulled in only by the non-default `script-engine-boa` feature. The default
+  `cargo build` / `cargo nextest` graph does **not** compile or link it. /
+  仅由非默认特性 `script-engine-boa` 引入，默认构建不编译、不链接。
+- License: **Unlicense OR MIT** (upstream `boa_engine` manifest); the MIT arm
+  is in the `license-guard.py` whitelist. Its pure-Rust transitive crates
+  (`boa_ast`, `boa_gc`, `boa_interner`, `boa_macros`, `boa_parser`,
+  `boa_string`, `icu_normalizer` and friends) keep their own upstream licenses
+  (MIT / Apache-2.0 / ICU and similar permissive terms) and are governed by
+  their own manifests, per §3 above.
+- Purpose: the opt-in real ECMAScript interpreter behind the shared
+  `ScriptEnginePort` seam. See `docs/SCRIPT_ENGINE_DECISION.md` §5.1/§7 for the
+  migration record and its honest limits (no heap quota, loop-budget timeout).

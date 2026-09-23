@@ -5889,8 +5889,16 @@ fn test_script_sandbox_matrix_passes_on_the_bevy_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
-    assert_eq!(report.covered_passed_count(), 14);
+    #[cfg(not(feature = "script-engine-boa"))]
+    {
+        assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+        assert_eq!(report.covered_passed_count(), 14);
+    }
+    #[cfg(feature = "script-engine-boa")]
+    {
+        assert!(report.not_covered_ids().is_empty());
+        assert_eq!(report.covered_passed_count(), 15);
+    }
 }
 
 /// DUAL-10-12: the Bevy console renders the *shared* export projection — the

@@ -53,6 +53,8 @@ pub mod rule_provider_application;
 pub mod rule_tracer_application;
 pub mod runtime_query_application;
 pub mod script_application;
+#[cfg(feature = "script-engine-boa")]
+pub mod script_engine_boa;
 pub mod script_engine_direct;
 pub mod script_export_application;
 pub mod script_sandbox_matrix_application;

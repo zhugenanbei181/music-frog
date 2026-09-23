@@ -21,16 +21,20 @@ per-item ledger. This guard asserts:
 * the export pipeline is real and honest: composed `.yaml`/`.js`/JSON
   artifacts, a host save-file port with a typed unsupported answer, the
   published `SurfaceSnapshot.script_export`, and both surfaces rendering it;
-* the honest gaps do not regress into a fabricated QuickJS claim: there is no
-  bundled QuickJS engine, the read model reports a directive DSL, the ledger
-  states that a desktop file dialog does not exist, and a real JS engine stays
-  a recorded product decision;
+* the honest gaps do not regress into a fabricated QuickJS claim: the default
+  build bundles no QuickJS engine, the read model reports a directive DSL, the
+  ledger states that a desktop file dialog does not exist, and the opt-in real
+  engine stays behind a non-default feature recorded in the decision record;
 * DUAL-10-01's seam is real: the pluggable `ScriptEnginePort`, its default
   directive-DSL adapter, the capability negotiation on the shared read model,
   and the same-as-default Drop-in slot quoted by both surfaces. The ledger row
   is `shared-ready` for exactly that seam and still states **无真实 QuickJS
-  引擎**; the decision record `docs/SCRIPT_ENGINE_DECISION.md` is present and
-  names the two candidates without adding either dependency.
+  引擎** on the default path; the decision record
+  `docs/SCRIPT_ENGINE_DECISION.md` is present. Section 5's migration is now
+  implemented behind the non-default `script-engine-boa` feature: the real
+  `BoaScriptEngine` adapter negotiates `supports_javascript_syntax = true` and
+  honestly `enforces_memory_limit = false`, and the shared matrix runs it (and
+  covers DUAL-10-01) only when that feature is enabled.
 """
 
 from __future__ import annotations
@@ -56,6 +60,8 @@ PORTS_SCRIPT_ENGINE = "crates/infiltrator-ports/src/script_engine.rs"
 PORTS_HOST_RUNTIME = "crates/infiltrator-ports/src/host_runtime.rs"
 APP_SCRIPT = "crates/infiltrator-application/src/script_application.rs"
 APP_DIRECTIVE_ENGINE = "crates/infiltrator-application/src/script_engine_direct.rs"
+APP_BOA_ENGINE = "crates/infiltrator-application/src/script_engine_boa.rs"
+APP_CARGO = "crates/infiltrator-application/Cargo.toml"
 APP_EXPORT = "crates/infiltrator-application/src/script_export_application.rs"
 APP_EXPORT_TEST = "crates/infiltrator-application/src/script_export_application_test.rs"
 APP_READER = "crates/infiltrator-application/src/surface_reader.rs"
@@ -144,6 +150,8 @@ def main() -> int:
         "| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready`",
         "ScriptEnginePort",
         "docs/SCRIPT_ENGINE_DECISION.md",
+        "BoaScriptEngine",
+        "script-engine-boa",
         # Honest facts the ledger must keep stating.
         "无真实 QuickJS 引擎",
         "指令 DSL",
@@ -303,6 +311,33 @@ def main() -> int:
         "ScriptEngineKind::DirectiveDsl",
         "ScriptEngineCapabilities::directive_dsl()",
     )
+    # DUAL-10-01 migration (§5): the real ECMAScript adapter is opt-in and
+    # never on the default path; it must stay honest about Boa's memory limit.
+    require(
+        violations,
+        APP_CARGO,
+        "default = []",
+        "script-engine-boa = [\"dep:boa_engine\"]",
+        "boa_engine = { workspace = true, optional = true }",
+    )
+    require(
+        violations,
+        APP_BOA_ENGINE,
+        "pub struct BoaScriptEngine",
+        "impl ScriptEnginePort for BoaScriptEngine",
+        "ScriptEngineKind::JavascriptEngine",
+        "supports_javascript_syntax: true",
+        "supports_directive_dsl: false",
+        "enforces_memory_limit: false",
+        "set_loop_iteration_limit",
+        "ScriptError::Timeout",
+    )
+    require(
+        violations,
+        APP_LIB,
+        "#[cfg(feature = \"script-engine-boa\")]",
+        "pub mod script_engine_boa;",
+    )
     require(
         violations,
         APP_EXPORT,
@@ -347,6 +382,8 @@ def main() -> int:
         "ScriptExportApplication",
         "snapshot.engine_capabilities",
         "engine_kind_matches_capabilities",
+        "fn dual_10_01_scenario",
+        "fn check_javascript_engine",
         "无真实 QuickJS 引擎",
     )
     # The application layer stays executor-neutral.
