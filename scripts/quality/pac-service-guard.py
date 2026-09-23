@@ -98,6 +98,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_pac",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::ApplyPac",
         ".apply(infiltrator_contract::pac::PacRequest",
     )

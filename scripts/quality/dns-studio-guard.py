@@ -225,8 +225,13 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/surface_reader.rs",
-        "fn build_dns_page",
         "with_dns_cache",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
+        "fn build_dns_page",
         "cache_flush_report",
     )
     require(
@@ -255,8 +260,13 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
-        "CommandIntent::ApplyDnsSettings { patch }",
         "with_dns_cache",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
+        "CommandIntent::ApplyDnsSettings { patch }",
     )
 
     # DUAL-14-07: the OS DNS cache refresh is a real host port with a typed
@@ -597,6 +607,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "fn test_dns_latency",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::TestDnsLatency => self.test_dns_latency().await",
     )
     require(
@@ -900,6 +915,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "fn test_dns_leak",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::TestDnsLeak => self.test_dns_leak().await",
     )
     require(
@@ -1190,6 +1210,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "fn run_stun_probe",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::RunStunProbe => self.run_stun_probe().await",
     )
     require(

@@ -82,13 +82,18 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/rules_page.rs",
         "hit_audit",
     )
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_rule_tracer",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "ResetRuleHitCounters",
     )
     require(

@@ -82,7 +82,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetCoreLogLevel",
         "set_core_log_level(level)",
     )

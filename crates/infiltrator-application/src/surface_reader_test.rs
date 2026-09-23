@@ -442,7 +442,7 @@ fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
         .expect("proxy providers");
     let sniffer = serde_json::json!({"enable": true});
 
-    let documents = super::rules_json_documents(
+    let documents = super::rules_page::rules_json_documents(
         Some(rule_providers.clone()),
         Some(proxy_providers.clone()),
         Some(sniffer.clone()),
@@ -473,7 +473,7 @@ fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
     }
 
     // A section the host cannot read is omitted, not fabricated.
-    let partial = super::rules_json_documents(None, None, Some(sniffer));
+    let partial = super::rules_page::rules_json_documents(None, None, Some(sniffer));
     assert_eq!(
         partial,
         vec![RulesJsonDocumentSnapshot {

@@ -91,6 +91,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_uwp_loopback",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::ScanUwpApps",
         "CommandIntent::SetUwpAppExemption",
         "CommandIntent::SetAllUwpExemptions",

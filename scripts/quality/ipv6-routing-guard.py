@@ -96,18 +96,18 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetIpv6Routing",
         ".set_ipv6_routing(enabled)",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         '"set_ipv6_routing"',
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "ipv6_routing: config.map_or_else",
         "value.ipv6",
     )

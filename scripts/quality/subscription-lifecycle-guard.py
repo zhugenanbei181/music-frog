@@ -125,7 +125,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "UpdateSubscriptionFetchSettings",
         "update_subscription_fetch_settings",
     )
@@ -273,8 +273,13 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
-        "UpdateAllSubscriptions",
         "BATCH_UPDATE_CONCURRENCY",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
+        "UpdateAllSubscriptions",
     )
     require(
         violations,
@@ -336,7 +341,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "RestoreSubscriptionBackup",
         "restore_backup",
     )
@@ -446,6 +451,11 @@ def main() -> int:
         "crates/infiltrator-application/src/command_application.rs",
         "with_application_runtime",
         "SubscriptionRefreshApplication",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "refresh_profile",
         "refresh_all",
     )
@@ -544,6 +554,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_import_source",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "ImportSubscription",
     )
     require(
@@ -717,7 +732,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "SaveSubscriptionFilter",
     )
     # DUAL-09-14: the draft is parsed once in the shared option-sidecar
@@ -857,13 +872,18 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-application/src/command_application.rs",
+        "Failure::unsupported(",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "SetSubscriptionAutoReload",
         "update_subscription_auto_reload",
-        "Failure::unsupported(",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         '"set_subscription_auto_reload"',
     )
     require(
@@ -969,13 +989,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "UpdateSubscriptionSchedule",
         "update_subscription_schedule",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         '"update_subscription_schedule"',
     )
     require(

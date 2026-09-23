@@ -73,7 +73,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetTunAutoRoute",
         "CommandIntent::SetTunStrictRoute",
         "CommandIntent::ToggleTun",
@@ -83,9 +83,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "tun_auto_route",
         "tun_strict_route",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "tun.auto_route",
         "tun.strict_route",
     )

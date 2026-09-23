@@ -98,6 +98,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_network_roaming",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::RefreshNetworkRoaming",
         "CommandIntent::RepairNetworkRoutes",
         "self.network_roaming()?.refresh()",

@@ -89,6 +89,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_port_conflicts",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::RepairPortConflicts",
         "self.port_conflicts()?.repair()",
     )

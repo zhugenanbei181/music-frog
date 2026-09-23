@@ -131,6 +131,11 @@ def main() -> int:
         violations,
         "crates/infiltrator-application/src/command_application.rs",
         "with_service_mode",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::PrepareServiceMode",
         "self.service_mode()?.prepare()",
     )

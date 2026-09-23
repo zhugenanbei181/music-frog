@@ -72,11 +72,16 @@ def main() -> int:
         "crates/infiltrator-application/src/surface_reader.rs",
         "with_system_proxy",
         "read_system_proxy",
+    )
+
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "system_proxy.is_enabled()",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetSystemProxy",
         "system_proxy()",
         "set_enabled(enabled, endpoint, None)",

@@ -114,14 +114,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "CommandIntent::SetLanSecurity",
         ".set_lan_security(",
         "credentials.as_ref()",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/surface_reader.rs",
+        "crates/infiltrator-application/src/surface_reader/page_builders.rs",
         "lan_security: config.map_or_else",
         "value.authentication_user_count",
     )

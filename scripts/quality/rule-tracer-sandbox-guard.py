@@ -80,13 +80,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-application/src/command_application.rs",
+        "crates/infiltrator-application/src/command_application/dispatch.rs",
         "SetRuleTracerContext",
         "set_context",
     )
     require(
         violations,
-        "crates/infiltrator-application/src/core_application.rs",
+        "crates/infiltrator-application/src/core_application/command_name.rs",
         "set_rule_tracer_context",
     )
     require(
