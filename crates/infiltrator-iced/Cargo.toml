@@ -13,11 +13,13 @@ name = "infiltrator_iced"
 path = "src/lib.rs"
 
 [features]
+# DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
+# is on by default, matching the application's default configuration, so the
+# Iced surface is built and tested against Boa unless defaults are disabled.
+default = ["script-engine-boa"]
 # Force the muda/tray-icon backend everywhere (including Linux, where ksni is
 # the default) so both tray backends stay compilable and checkable on this OS.
 native-tray-backend = []
-# DUAL-10-01 migration: forward the non-default real-ECMAScript opt-in to the
-# shared application so the Iced surface can be built/checked against Boa.
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]

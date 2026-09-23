@@ -1,13 +1,16 @@
-//! DUAL-10-01 migration (§5 of `docs/SCRIPT_ENGINE_DECISION.md`): the opt-in
-//! real ECMAScript adapter.
+//! DUAL-10-01 migration (§5 of `docs/SCRIPT_ENGINE_DECISION.md`): the real
+//! ECMAScript adapter, compiled by default.
 //!
-//! This module is compiled **only** when the non-default `script-engine-boa`
-//! feature is enabled. The default workspace build keeps the bundled directive
-//! DSL and links no JS engine; when the feature is on, [`BoaScriptEngine`] is
+//! This module is compiled when the `script-engine-boa` feature is enabled,
+//! which is part of the default feature set (`default = ["script-engine-boa"]`).
+//! The bundled directive DSL remains the default *selected* engine per host,
+//! but the workspace build/test now compiles and exercises [`BoaScriptEngine`]:
 //! a genuine ECMAScript interpreter ([`boa_engine`]) behind the same
 //! [`ScriptEnginePort`] seam, so the shared read model reports
 //! [`ScriptEngineKind::JavascriptEngine`] with `supports_javascript_syntax =
-//! true` and both surfaces render the JS label without a surface edit.
+//! true` and both surfaces render the JS label without a surface edit. The
+//! adapter is not QuickJS; see the honest limits below. An explicit
+//! `--no-default-features` build drops this module and links no JS engine.
 //!
 //! Honest limits of this adapter (recorded in the decision record):
 //!

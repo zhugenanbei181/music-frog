@@ -3,7 +3,7 @@
 use crate::script_sandbox_matrix_application::ScriptSandboxMatrixApplication;
 
 #[test]
-fn deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones() {
+fn deterministic_matrix_passes_every_covered_item_with_no_gaps() {
     let report = ScriptSandboxMatrixApplication::run_deterministic_matrix();
     assert_eq!(report.scenarios.len(), 15);
     assert!(
@@ -11,20 +11,21 @@ fn deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    // Default build: only the honest QuickJS gap stays uncovered. With the
-    // non-default `script-engine-boa` feature the real engine runs and the row
-    // is covered, so the same executor reports 15/15.
-    #[cfg(not(feature = "script-engine-boa"))]
-    {
-        assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
-        assert_eq!(report.covered_count(), 14);
-        assert_eq!(report.covered_passed_count(), 14);
-    }
+    // Default build: `script-engine-boa` is on, so the real Boa adapter runs
+    // and every row is covered by genuine execution (15/15, no honest gap).
     #[cfg(feature = "script-engine-boa")]
     {
         assert!(report.not_covered_ids().is_empty());
         assert_eq!(report.covered_count(), 15);
         assert_eq!(report.covered_passed_count(), 15);
+    }
+    // Only an explicit `--no-default-features` build drops the adapter and
+    // degrades the single engine row back to an honest `planned`.
+    #[cfg(not(feature = "script-engine-boa"))]
+    {
+        assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+        assert_eq!(report.covered_count(), 14);
+        assert_eq!(report.covered_passed_count(), 14);
     }
     for row in report.scenarios.iter().filter(|row| !row.covered) {
         assert!(!row.detail.trim().is_empty(), "{} lacks a reason", row.id);

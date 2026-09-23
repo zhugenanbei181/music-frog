@@ -6,11 +6,14 @@ publish = false
 description = "Runtime-neutral application services over MusicFrog ports."
 
 [features]
-default = []
-# DUAL-10-01 migration step 1: the real ECMAScript engine is a non-default,
-# explicit opt-in. Enabling it compiles the Boa adapter and lets the shared
-# scripting-sandbox matrix execute a real JS engine; `cargo build` stays on
-# the bundled directive DSL. See docs/SCRIPT_ENGINE_DECISION.md §5.
+# DUAL-10-01: the real ECMAScript engine is part of the default build. The
+# Boa adapter is compiled and the shared scripting-sandbox matrix executes a
+# real JS engine in the default `cargo build` / `bash scripts/test.sh`; the
+# bundled directive DSL stays the default *selected* engine per host. The
+# feature remains optional so `--no-default-features` can drop it, which
+# honestly degrades the matrix row back to `planned`. See
+# docs/SCRIPT_ENGINE_DECISION.md §5.
+default = ["script-engine-boa"]
 script-engine-boa = ["dep:boa_engine"]
 
 [dependencies]

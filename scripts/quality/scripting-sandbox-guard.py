@@ -21,20 +21,25 @@ per-item ledger. This guard asserts:
 * the export pipeline is real and honest: composed `.yaml`/`.js`/JSON
   artifacts, a host save-file port with a typed unsupported answer, the
   published `SurfaceSnapshot.script_export`, and both surfaces rendering it;
-* the honest gaps do not regress into a fabricated QuickJS claim: the default
-  build bundles no QuickJS engine, the read model reports a directive DSL, the
-  ledger states that a desktop file dialog does not exist, and the opt-in real
-  engine stays behind a non-default feature recorded in the decision record;
-* DUAL-10-01's seam is real: the pluggable `ScriptEnginePort`, its default
-  directive-DSL adapter, the capability negotiation on the shared read model,
-  and the same-as-default Drop-in slot quoted by both surfaces. The ledger row
-  is `shared-ready` for exactly that seam and still states **无真实 QuickJS
-  引擎** on the default path; the decision record
-  `docs/SCRIPT_ENGINE_DECISION.md` is present. Section 5's migration is now
-  implemented behind the non-default `script-engine-boa` feature: the real
-  `BoaScriptEngine` adapter negotiates `supports_javascript_syntax = true` and
-  honestly `enforces_memory_limit = false`, and the shared matrix runs it (and
-  covers DUAL-10-01) only when that feature is enabled.
+* the honest limits do not regress into a fabricated QuickJS claim: the engine
+  is `boa_engine` (not QuickJS), the ledger still states **无真实 QuickJS
+  引擎**, the read model reports the real engine honestly, the ledger states
+  that a desktop file dialog does not exist, and the decision record records
+  the real adapter and its limits;
+* DUAL-10-01's real engine is now the default: the pluggable
+  `ScriptEnginePort`, its default directive-DSL adapter (still the default
+  *selected* engine per host), the capability negotiation on the shared read
+  model, and the real `BoaScriptEngine` adapter are all compiled by default.
+  `script-engine-boa` is in every crate's default feature set, so the shared
+  matrix executes the real ECMAScript adapter in the default configuration and
+  covers DUAL-10-01 (15/15); the ledger row is `parity-ready` and still states
+  **无真实 QuickJS 引擎**; the decision record
+  `docs/SCRIPT_ENGINE_DECISION.md` is present. The adapter negotiates
+  `supports_javascript_syntax = true` and honestly
+  `enforces_memory_limit = false` (no heap quota) and maps Boa's loop-iteration
+  budget to `ScriptError::Timeout` (no preemptive wall-clock interrupt). An
+  explicit `--no-default-features` build drops the adapter and degrades the row
+  to `planned`.
 """
 
 from __future__ import annotations
@@ -75,12 +80,14 @@ ICED_EXPORT_VIEW = "crates/infiltrator-iced/src/view/script_export.rs"
 ICED_EXPORT_UPDATE = "crates/infiltrator-iced/src/update/script_export.rs"
 ICED_OPTIONS = "crates/infiltrator-iced/src/update/profile/options.rs"
 ICED_MESSAGE = "crates/infiltrator-iced/src/types/message.rs"
+ICED_CARGO = "crates/infiltrator-iced/Cargo.toml"
 ICED_MATRIX_TEST = "crates/infiltrator-iced/tests/headless/scripting_matrix_tests.rs"
 ICED_EXPORT_TEST = "crates/infiltrator-iced/tests/gui/business_flow/options_editors.rs"
 BEVY_STUDIO = "crates/infiltrator-bevy-ui/src/pages/profiles_editor_mixin_studio.rs"
 BEVY_SYNC = "crates/infiltrator-bevy-ui/src/pages/profiles_editor_panes_sync.rs"
 BEVY_SCRIPT = "crates/infiltrator-bevy-ui/src/pages/profiles_script.rs"
 BEVY_PROJECTION = "crates/infiltrator-bevy-ui/src/surface_projection.rs"
+BEVY_CARGO = "crates/infiltrator-bevy-ui/Cargo.toml"
 BEVY_MATRIX_TEST = "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tests.rs"
 DOMAIN_LIB = "crates/infiltrator-domain/src/lib.rs"
 CONTRACT_LIB = "crates/infiltrator-contract/src/lib.rs"
@@ -145,14 +152,16 @@ def main() -> int:
         "parity-ready",
         "shared-ready",
         "planned",
-        # DUAL-10-01 is shared-ready for the seam only; the JS engine is still
-        # not bundled, and the ledger row must say both.
-        "| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready`",
+        # DUAL-10-01 is parity-ready: the real boa_engine adapter is compiled
+        # and executed by default, and the row must say the engine is Boa, not
+        # QuickJS.
+        "| `DUAL-10-01` | ECMAScript 嵌入式轻量执行沙箱 | `parity-ready`",
         "ScriptEnginePort",
         "docs/SCRIPT_ENGINE_DECISION.md",
         "BoaScriptEngine",
         "script-engine-boa",
-        # Honest facts the ledger must keep stating.
+        # Honest facts the ledger must keep stating: still no QuickJS engine,
+        # and the directive DSL is still the default selected engine.
         "无真实 QuickJS 引擎",
         "指令 DSL",
         "桌面宿主没有原生保存对话框",
@@ -311,14 +320,27 @@ def main() -> int:
         "ScriptEngineKind::DirectiveDsl",
         "ScriptEngineCapabilities::directive_dsl()",
     )
-    # DUAL-10-01 migration (§5): the real ECMAScript adapter is opt-in and
-    # never on the default path; it must stay honest about Boa's memory limit.
+    # DUAL-10-01 migration (§5): the real ECMAScript adapter is compiled by
+    # default and must stay honest about Boa's memory limit. Both surfaces
+    # forward the same default so they are built against the real engine.
     require(
         violations,
         APP_CARGO,
-        "default = []",
+        "default = [\"script-engine-boa\"]",
         "script-engine-boa = [\"dep:boa_engine\"]",
         "boa_engine = { workspace = true, optional = true }",
+    )
+    require(
+        violations,
+        ICED_CARGO,
+        "default = [\"script-engine-boa\"]",
+        "script-engine-boa = [\"infiltrator-application/script-engine-boa\"]",
+    )
+    require(
+        violations,
+        BEVY_CARGO,
+        "default = [\"script-engine-boa\"]",
+        "script-engine-boa = [\"infiltrator-application/script-engine-boa\"]",
     )
     require(
         violations,
@@ -384,7 +406,7 @@ def main() -> int:
         "engine_kind_matches_capabilities",
         "fn dual_10_01_scenario",
         "fn check_javascript_engine",
-        "无真实 QuickJS 引擎",
+        "boa_engine, not QuickJS",
     )
     # The application layer stays executor-neutral.
     forbid(violations, APP_MATRIX, "tokio::", "reqwest::")
@@ -399,9 +421,9 @@ def main() -> int:
     require(
         violations,
         APP_MATRIX_TEST,
-        "deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones",
+        "deterministic_matrix_passes_every_covered_item_with_no_gaps",
         "matrix_is_deterministic_across_runs",
-        "assert_eq!(report.covered_count(), 14)",
+        "assert_eq!(report.covered_count(), 15)",
     )
 
     # 5. The desktop host writes a real file and never fabricates a path.
@@ -485,7 +507,7 @@ def main() -> int:
         "shared_console_projection_carries_every_wired_fact_for_both_surfaces",
         "three_column_editor_and_export_ride_the_shared_reduction",
         "iced_console_renders_the_reported_engine_and_its_capability_limits",
-        "assert_eq!(report.covered_passed_count(), 14)",
+        "assert_eq!(report.covered_passed_count(), 15)",
     )
     require(
         violations,

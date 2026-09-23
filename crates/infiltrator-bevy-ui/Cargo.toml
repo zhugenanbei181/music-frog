@@ -8,9 +8,10 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: the strategic u
 # The Bevy frontend is the strategic surface whose ceiling includes mobile
 # (iced has no Android story; bevy runs the same tree on aarch64-linux-android).
 [features]
-default = []
-# DUAL-10-01 migration: forward the non-default real-ECMAScript opt-in to the
-# shared application so the Bevy surface can be built/checked against Boa.
+# DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
+# is on by default, matching the application's default configuration, so the
+# Bevy surface is built and tested against Boa unless defaults are disabled.
+default = ["script-engine-boa"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]
