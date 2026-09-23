@@ -5,16 +5,18 @@ use std::borrow::Cow;
 
 pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
     match key {
-        // Category 1: DNS Leak & Privacy Probe
-        "dns_leak_probe_title" => "DNS Leak & IP Privacy Probe".into(),
-        "dns_leak_probe_desc" => "Concurrently test public outbound IP, geo location and ISP, detecting DNS leaks.".into(),
-        "dns_leak_btn_run" => "Run Privacy Probe".into(),
-        "dns_leak_status_secure" => "Secure: No DNS or IP leak detected".into(),
-        "dns_leak_status_leaked" => "Warning: Potential DNS leak detected".into(),
-        "dns_leak_public_ip" => "Public Outbound IP".into(),
-        "dns_leak_location" => "Geo Location".into(),
-        "dns_leak_isp" => "ISP / ASN".into(),
-        "dns_leak_tested_servers" => "Resolved DNS Servers".into(),
+        // Category 1: DNS leak cross-source probe (DUAL-14-08)
+        "dns_leak_probe_title" => "DNS Leak Cross-Source Probe".into(),
+        "dns_leak_probe_desc" => "Resolves a random subdomain under every configured echo authority and cross-checks the observed resolver identities; a mismatch lists the facts only".into(),
+        "dns_leak_btn_run" => "Run Cross-Source Probe".into(),
+        "dns_leak_probing" => "Cross-source probing...".into(),
+        "dns_leak_unknown" => "No cross-source conclusion yet: fewer than two real observations".into(),
+        "dns_leak_consistent" => "Cross-source consistent: {count} sources observed the same resolver identity {identity}".into(),
+        "dns_leak_divergent" => "Cross-source divergent: {count} distinct resolver identities observed (facts only)".into(),
+        "dns_leak_unsupported" => "This host publishes no DNS leak fact source ({reason})".into(),
+        "dns_leak_failed" => "Every probe source failed: {reason}".into(),
+        "dns_leak_observed" => "observed identity: {identity}".into(),
+        "dns_leak_sources" => "{count} configured probe sources".into(),
 
         // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
         "dns_form_issues" => "Form validation failed".into(),

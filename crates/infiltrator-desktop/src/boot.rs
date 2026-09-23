@@ -481,6 +481,15 @@ impl BootEngine for ProductionEngine<'_> {
                 infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
                     Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
                 )),
+                // DUAL-14-08: mirror of runtime.rs: the boot path injects the
+                // same real echo adapter and keeps the source list empty until
+                // this host has a controlled echo authority.
+                infiltrator_application::dns_leak_application::DnsLeakApplication::new(
+                    Some(Arc::new(
+                        infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe::new(),
+                    )),
+                    Vec::new(),
+                ),
                 cm.clone(),
                 Arc::new(crate::storage::subscription_source()),
             )

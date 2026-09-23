@@ -5,47 +5,72 @@
 //! exact string/integer values, and mathematical invariants.
 
 use crate::state::AppState;
-use crate::types::dns::DnsLeakReport;
 use crate::types::message::Message;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
 
+/// DUAL-14-08: the surface drives the shared cross-source probe through the
+/// host port and renders the shared report verbatim. No host runtime means no
+/// report — the surface never fabricates a country, an ISP or a verdict (the
+/// old hardcoded panel is gone).
 #[test]
-fn test_advancement_w2_1_dns_leak_privacy_probe_lifecycle() {
-    let (mut state, _) = AppState::new();
-
-    // Default state
-    assert!(!state.diag.is_probing_dns_leak);
-    assert!(state.diag.dns_leak_probe.is_none());
-
-    // Trigger probe
-    let _ = state.update(Message::RunDnsLeakProbe);
-    assert!(state.diag.is_probing_dns_leak);
-
-    // Mock probe response payload
-    let mock_report = DnsLeakReport {
-        public_ip: "198.51.100.42".to_string(),
-        country: "US".to_string(),
-        isp: "Cloudflare Warp".to_string(),
-        is_leak_detected: false,
-        tested_dns_servers: vec![
-            "1.1.1.1:53 (Cloudflare)".to_string(),
-            "8.8.8.8:53 (Google)".to_string(),
-        ],
-        probe_duration_ms: 128,
+fn test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle() {
+    use infiltrator_contract::dns_leak::{
+        DnsLeakConclusion, DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakProbeSource,
+        DnsLeakProbeTransport, DnsLeakReport,
     };
 
-    let _ = state.update(Message::DnsLeakProbeFinished(mock_report.clone()));
+    let (mut state, _) = AppState::new();
 
-    // Verify state transition and exact field parity
+    // Default state: no report, no readiness, no verdict.
     assert!(!state.diag.is_probing_dns_leak);
-    let probe = state.diag.dns_leak_probe.expect("Probe report must be set");
-    assert_eq!(probe.public_ip, "198.51.100.42");
-    assert_eq!(probe.country, "US");
-    assert_eq!(probe.isp, "Cloudflare Warp");
-    assert!(!probe.is_leak_detected);
-    assert_eq!(probe.tested_dns_servers.len(), 2);
-    assert_eq!(probe.probe_duration_ms, 128);
+    assert!(!state.editor.dns_leak.status.is_ready());
+    assert_eq!(
+        state.editor.dns_leak.conclusion(),
+        DnsLeakConclusion::Unknown
+    );
+
+    // Trigger without a host runtime: nothing is invented.
+    let _ = state.update(Message::RunDnsLeakProbe);
+    assert!(!state.diag.is_probing_dns_leak);
+    assert!(state.editor.dns_leak.observations.is_empty());
+
+    // A real shared report lands verbatim; a divergent result lists the facts.
+    let observation = |authority: &str, identity: &str| DnsLeakObservation {
+        resolver: "1.1.1.1".to_owned(),
+        authority: authority.to_owned(),
+        question: format!("l1.{authority}"),
+        transport: DnsLeakProbeTransport::Udp,
+        outcome: DnsLeakObservationOutcome::Observed {
+            identity: identity.to_owned(),
+        },
+    };
+    let report = DnsLeakReport::observed(
+        vec![
+            DnsLeakProbeSource::new("1.1.1.1", "a.echo.example.org"),
+            DnsLeakProbeSource::new("1.1.1.1", "b.echo.example.org"),
+        ],
+        vec![
+            observation("a.echo.example.org", "203.0.113.9"),
+            observation("b.echo.example.org", "198.51.100.7"),
+        ],
+    );
+    let _ = state.update(Message::DnsLeakProbed(Ok(report.clone())));
+    assert!(!state.diag.is_probing_dns_leak);
+    assert_eq!(state.editor.dns_leak, report);
+    let conclusion = state.editor.dns_leak.conclusion();
+    assert!(conclusion.is_divergent());
+    assert_eq!(conclusion.facts().len(), 2);
+    assert_eq!(conclusion.facts()[0].identity, "203.0.113.9");
+    assert_eq!(conclusion.facts()[1].identity, "198.51.100.7");
+    assert!(state.editor.dns_leak.failed_count() == 0);
+
+    // A typed refusal is surfaced as such, never dressed as a verdict.
+    let unsupported = DnsLeakReport::unsupported("no echo authority is configured");
+    let _ = state.update(Message::DnsLeakProbed(Ok(unsupported.clone())));
+    assert_eq!(state.editor.dns_leak, unsupported);
+    assert!(!state.editor.dns_leak.conclusion().is_consistent());
+    assert!(!state.editor.dns_leak.conclusion().is_divergent());
 }
 
 #[test]

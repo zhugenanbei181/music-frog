@@ -390,6 +390,7 @@ impl Plugin for PagesPlugin {
                 crate::pages::connections_pulse::animate_connection_pulses,
                 crate::pages::dns_edit::sync_dns_edit_dirty,
                 crate::pages::dns_fakeip::sync_dns_fake_ip_filter,
+                crate::pages::dns_leak::sync_dns_leak_line,
             ),
         );
     }

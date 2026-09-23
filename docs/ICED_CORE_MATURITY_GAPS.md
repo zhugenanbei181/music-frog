@@ -56,7 +56,7 @@
 
 | 序号 | 特性分类 | 核心业务价值与交互形态 | 落地模块 | 对应测试验证点 |
 | :--- | :--- | :--- | :--- | :--- |
-| **W2-01** | **DNS 泄漏多源交叉探测与公网 IP 隐私检测** | 多源并发检测出口公网 IP、地理位置与 ISP 运营商，结合伪随机子域检测 DNS 污染与出口泄露。 | `src/view/dns.rs`<br>`src/types/dns.rs` | `tests/gui/iced_six_advancements_wave2_tests.rs`<br>`::test_advancement_w2_1_dns_leak_privacy_probe_lifecycle` |
+| **W2-01** | **DNS 泄漏多源交叉探测 (honest seam)** | 向每个已配置回显权威区发起随机子域解析，交叉比对权威实际观测到的解析器身份：一致/不一致/未观测/宿主不支持均为 typed 结论，不一致时只列事实；无受控回显区时双端显示 unsupported，不编造国家/ISP。 | `src/view/dns.rs`<br>`src/view/dns_leak_panel.rs`<br>`src/update/core/dns_leak.rs` | `tests/gui/iced_six_advancements_wave2_tests.rs`<br>`::test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle`<br>`tests/gui/view_dns_leak_tests.rs`<br>`::test_dns_leak_panel_renders_the_shared_cross_source_report` |
 | **W2-02** | **自定义节点表单与通用 URI 编解码导入导出** | 表单化录入个人 VPS 节点（Vless Reality, SS, Hy2, Trojan），支持一键解析链接与导出标准节点分享 URI。 | `src/view_root/custom_node_modal.rs`<br>`src/update/ui.rs` | `tests/gui/iced_six_advancements_wave2_tests.rs`<br>`::test_advancement_w2_2_custom_node_modal_and_uri_codec` |
 | **W2-03** | **多订阅配置聚合器与策略组自动拓扑生成** | 勾选多个订阅配置，自动去重节点并按国家地区生成自动测速与分流策略组（香港/日本/美国等），合并为新 Profile。 | `src/view_root/aggregator_modal.rs`<br>`src/update/ui.rs` | `tests/gui/iced_six_advancements_wave2_tests.rs`<br>`::test_advancement_w2_3_multi_profile_aggregator_workflow` |
 | **W2-04** | **连接审计多维聚合与一键规则生成器** | 支持实时流 (Flat)、按进程 (ByProcess)、按域名 (ByHost) 聚合统计，并在详情抽屉支持一键将域名/IP 添加到分流规则。 | `src/view/runtime/connections.rs`<br>`src/view_root/connection_drawer.rs` | `tests/gui/iced_six_advancements_wave2_tests.rs`<br>`::test_advancement_w2_4_connection_grouping_and_quick_rule` |

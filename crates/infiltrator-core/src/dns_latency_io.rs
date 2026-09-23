@@ -32,6 +32,11 @@ use crate::dns_wire::{self, DnsQuestion, MAX_RESPONSE_BYTES};
 /// The mihomo `Content-Type`/`Accept` for a wire-format DoH exchange.
 const DOH_CONTENT_TYPE: &str = "application/dns-message";
 
+/// The latency prober cannot time the platform resolver keyword: there is no
+/// endpoint to address. The DNS leak echo prober drives the same `system`
+/// keyword through a real host name lookup (see `dns_leak_io`).
+const SYSTEM_RESOLVER_REASON: &str = "the system resolver is not an upstream this host can probe";
+
 pub struct HttpDnsLatencyProber {
     client: HttpClient,
 }
@@ -67,6 +72,18 @@ impl HttpDnsLatencyProber {
                 },
                 DnsProbeOutcome::NotProbed { reason },
             ),
+            // A latency number for "whatever the platform resolver does" is
+            // not a fact this host can attribute, so 14-10 keeps the typed
+            // refusal while the leak echo prober drives the same path.
+            ProbePlan::System => {
+                let reason = SYSTEM_RESOLVER_REASON.to_owned();
+                (
+                    DnsProbeTransport::Undrivable {
+                        reason: reason.clone(),
+                    },
+                    DnsProbeOutcome::NotProbed { reason },
+                )
+            }
             ProbePlan::Udp { host, port } => (
                 DnsProbeTransport::Udp,
                 self.probe_udp(&host, port, request).await,
@@ -226,13 +243,24 @@ impl DnsLatencyProbePort for HttpDnsLatencyProber {
 
 /// The transport this host can drive for one configured address.
 #[derive(Debug)]
-enum ProbePlan {
-    Udp { host: String, port: u16 },
-    Doh { url: String },
-    Undrivable { reason: String },
+pub(crate) enum ProbePlan {
+    Udp {
+        host: String,
+        port: u16,
+    },
+    Doh {
+        url: String,
+    },
+    /// The platform resolver keyword `system`. The latency prober cannot
+    /// time it (there is no endpoint); the echo prober drives it through a
+    /// host name lookup.
+    System,
+    Undrivable {
+        reason: String,
+    },
 }
 
-fn plan_for(address: &str) -> ProbePlan {
+pub(crate) fn plan_for(address: &str) -> ProbePlan {
     let raw = address.trim();
     if raw.is_empty() {
         return undrivable("the nameserver entry is empty");
@@ -242,9 +270,9 @@ fn plan_for(address: &str) -> ProbePlan {
         None => (String::new(), raw),
     };
     // `system` is mihomo's keyword for "use the platform resolver": there is
-    // no endpoint to send a query to.
+    // no endpoint to send a query to, but the resolver path itself exists.
     if scheme.is_empty() && raw.eq_ignore_ascii_case("system") {
-        return undrivable("the system resolver is not an upstream this host can probe");
+        return ProbePlan::System;
     }
     match scheme.as_str() {
         "" | "udp" => match split_host_port(rest, 53) {
@@ -310,7 +338,7 @@ fn split_host_port(value: &str, default_port: u16) -> Option<(String, u16)> {
     }
 }
 
-async fn resolve_target(host: &str, port: u16) -> Result<SocketAddr, String> {
+pub(crate) async fn resolve_target(host: &str, port: u16) -> Result<SocketAddr, String> {
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok(SocketAddr::new(ip, port));
     }
@@ -330,8 +358,9 @@ fn new_question(qname: &str) -> DnsQuestion {
 
 /// A distinct transaction id per probe: the process start time seeds a
 /// counter, so two probes in the same session never share an id and an
-/// unrelated answer cannot validate by accident.
-fn next_query_id() -> u16 {
+/// unrelated answer cannot validate by accident. Shared with the DUAL-14-08
+/// echo prober so neither adapter can collide with the other's ids.
+pub(crate) fn next_query_id() -> u16 {
     static NEXT: AtomicU16 = AtomicU16::new(0);
     let seed = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

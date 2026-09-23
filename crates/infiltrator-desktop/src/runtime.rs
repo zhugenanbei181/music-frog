@@ -51,6 +51,12 @@ pub struct MihomoRuntime {
     /// DUAL-14-10: one prober instance shared by the command handler, the host
     /// port and the surface reader.
     dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
+    /// DUAL-14-08: one cross-source leak application shared by the command
+    /// handler, the host port and the surface reader. The desktop injects the
+    /// real echo adapter; the configured sources stay empty until this host
+    /// has a controlled echo authority, so both surfaces publish the typed
+    /// unsupported state instead of a verdict.
+    dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -173,6 +179,16 @@ impl MihomoRuntime {
             infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
                 Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
             ));
+        // DUAL-14-08: the real echo adapter is injected, but this host ships
+        // no controlled echo authority, so the source list stays empty and
+        // both surfaces publish the typed unsupported state rather than a
+        // guessed leak conclusion.
+        let dns_leak = infiltrator_application::dns_leak_application::DnsLeakApplication::new(
+            Some(Arc::new(
+                infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe::new(),
+            )),
+            Vec::new(),
+        );
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
@@ -181,6 +197,7 @@ impl MihomoRuntime {
             rule_tracer.clone(),
             dns_cache.clone(),
             dns_latency.clone(),
+            dns_leak.clone(),
             cm.clone(),
             Arc::new(crate::storage::subscription_source()),
         )?);
@@ -231,6 +248,7 @@ impl MihomoRuntime {
             rule_tracer,
             dns_cache,
             dns_latency,
+            dns_leak,
             network_roaming_port,
         })
     }
@@ -335,6 +353,7 @@ impl MihomoRuntime {
                 rule_tracer: self.rule_tracer.clone(),
                 dns_cache: self.dns_cache.clone(),
                 dns_latency: self.dns_latency.clone(),
+                dns_leak: self.dns_leak.clone(),
             },
         )
         .await
@@ -777,6 +796,15 @@ impl HostRuntime for MihomoRuntime {
         &self,
     ) -> Option<Arc<dyn infiltrator_ports::dns_latency::DnsLatencyProbePort>> {
         Some(Arc::new(self.dns_latency.clone()))
+    }
+
+    /// DUAL-14-08: the shared cross-source leak application is the port
+    /// itself, so a probe started from either surface lands in the one report
+    /// the surface reader publishes.
+    fn dns_leak_probe_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::dns_leak::DnsLeakProbePort>> {
+        Some(Arc::new(self.dns_leak.clone()))
     }
 
     fn mini_hud_window_port(

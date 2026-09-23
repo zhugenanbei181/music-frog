@@ -5,6 +5,7 @@ pub mod bench_harness;
 pub mod bootstrap;
 pub mod diagnostics_adapter;
 pub mod dns_latency_io;
+pub mod dns_leak_io;
 pub mod dns_wire;
 pub mod doctor;
 pub mod doctor_port;

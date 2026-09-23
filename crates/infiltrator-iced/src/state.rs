@@ -396,6 +396,8 @@ pub struct ConfigEditorState {
     pub dns_fake_ip_query: String,
     /// DUAL-14-10: the shared latency probe report (real per-server results).
     pub dns_latency: infiltrator_contract::dns_latency::DnsLatencyReport,
+    /// DUAL-14-08: the shared cross-source DNS leak report.
+    pub dns_leak: infiltrator_contract::dns_leak::DnsLeakReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub dns_self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot,
     /// DUAL-14-10: a probe started from this surface is in flight.
@@ -484,7 +486,6 @@ pub struct DiagnosticsState {
     pub connections_stream_state: RuntimeStreamState,
     pub doctor: crate::types::doctor::DoctorPanelState,
     pub inspecting_connection_id: Option<String>,
-    pub dns_leak_probe: Option<crate::types::dns::DnsLeakReport>,
     pub is_probing_dns_leak: bool,
     /// Honest per-target report of the last Fake-IP / OS DNS cache flush,
     /// consumed from the shared DNS page read model (DUAL-14-07).
@@ -824,6 +825,8 @@ impl AppState {
             }
             // DUAL-14-13: the self-heal observation is a shared fact.
             self.editor.dns_self_heal = dns.self_heal.clone();
+            // DUAL-14-08: the cross-source leak report is a shared fact.
+            self.apply_dns_leak_snapshot(dns);
             // DUAL-14-11: re-seed the hosts draft while it has no pending edit.
             if !self.editor.dns_hosts_dirty && !self.editor.is_saving_dns_hosts {
                 self.editor.dns_hosts = dns.hosts.clone();

@@ -920,8 +920,12 @@ impl std::fmt::Debug for Message {
             Message::RunDnsLeakProbe => write!(f, "RunDnsLeakProbe"),
             Message::RunDnsLatencyProbe => write!(f, "RunDnsLatencyProbe"),
             Message::DnsLatencyProbed(_) => write!(f, "DnsLatencyProbed"),
-            Message::DnsLeakProbeFinished(r) => {
-                write!(f, "DnsLeakProbeFinished({:?})", r.public_ip)
+            Message::DnsLeakProbed(report) => {
+                write!(
+                    f,
+                    "DnsLeakProbed({:?})",
+                    report.as_ref().map(|r| r.conclusion())
+                )
             }
             Message::OpenCustomNodeModal => write!(f, "OpenCustomNodeModal"),
             Message::CloseCustomNodeModal => write!(f, "CloseCustomNodeModal"),

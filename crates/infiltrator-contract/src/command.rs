@@ -322,6 +322,9 @@ pub enum CommandIntent {
     },
     ClearDnsCache,
     TestDnsLatency,
+    /// DUAL-14-08: run the shared DNS leak cross-source probe (random
+    /// subdomains under every configured echo authority).
+    TestDnsLeak,
     /// Apply a shared DNS workbench patch (switches / mapping mode / filter mode).
     ApplyDnsSettings {
         patch: crate::dns::DnsSettingsPatch,
@@ -571,6 +574,7 @@ impl CommandIntent {
             Self::ClearLogs
             | Self::SetLogLevelFilter { .. }
             | Self::TestDnsLatency
+            | Self::TestDnsLeak
             | Self::ApplyDnsSettings { .. }
             | Self::RunDoctorDiagnostics
             | Self::RepairDoctorIssue { .. }

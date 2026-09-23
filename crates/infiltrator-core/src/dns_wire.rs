@@ -135,6 +135,86 @@ pub fn validate_response(bytes: &[u8], question: &DnsQuestion) -> Result<(), Dns
     Ok(())
 }
 
+/// The response code of a datagram (`0` = `NOERROR`), or `None` when it is
+/// shorter than a DNS header. Used by the echo probe to tell "the authority
+/// answered for this name" from a real observation.
+pub fn response_rcode(bytes: &[u8]) -> Option<u8> {
+    // A datagram shorter than a DNS header is not a response at all; reading
+    // the flag bits out of a stub would report a bogus NOERROR.
+    if bytes.len() < HEADER_LEN {
+        return None;
+    }
+    let flags = u16::from_be_bytes([bytes[2], bytes[3]]);
+    Some((flags & 0x000f) as u8)
+}
+
+/// Read the first `A` record from an answer, after the strict
+/// [`validate_response`] checks. The recorded address is the echo authority's
+/// observation of the resolver; anything else (an empty answer section, a
+/// non-`A` record) yields `None` rather than a guess.
+pub fn extract_a_record(
+    bytes: &[u8],
+    question: &DnsQuestion,
+) -> Result<Option<std::net::IpAddr>, DnsWireError> {
+    validate_response(bytes, question)?;
+    let qname = encode_qname(&question.qname)?;
+    // ANCOUNT lives at offset 6; offset 4 is QDCOUNT (the question section
+    // this probe already validated), so reading it here made a record-less
+    // answer walk one bogus record.
+    let ancount = u16::from_be_bytes([bytes[6], bytes[7]]);
+    let mut offset = HEADER_LEN + qname.len() + 4;
+    for _ in 0..ancount {
+        offset = skip_name(bytes, offset)?;
+        let header = bytes
+            .get(offset..offset + 10)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+        let record_type = u16::from_be_bytes([header[0], header[1]]);
+        let record_class = u16::from_be_bytes([header[2], header[3]]);
+        let rdlength = u16::from_be_bytes([header[8], header[9]]) as usize;
+        offset += 10;
+        if record_type == TYPE_A && record_class == CLASS_IN && rdlength == 4 {
+            let octets = bytes
+                .get(offset..offset + 4)
+                .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+            return Ok(Some(std::net::IpAddr::from([
+                octets[0], octets[1], octets[2], octets[3],
+            ])));
+        }
+        offset = offset
+            .checked_add(rdlength)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+        if offset > bytes.len() {
+            return Err(DnsWireError::TooShort { len: bytes.len() });
+        }
+    }
+    Ok(None)
+}
+
+/// Skip one (possibly compressed) name in the answer section.
+fn skip_name(bytes: &[u8], mut offset: usize) -> Result<usize, DnsWireError> {
+    loop {
+        let length = *bytes
+            .get(offset)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })? as usize;
+        if length & 0xc0 == 0xc0 {
+            return if bytes.get(offset + 1).is_some() {
+                Ok(offset + 2)
+            } else {
+                Err(DnsWireError::TooShort { len: bytes.len() })
+            };
+        }
+        if length == 0 {
+            return Ok(offset + 1);
+        }
+        offset = offset
+            .checked_add(1 + length)
+            .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
+        if offset > bytes.len() {
+            return Err(DnsWireError::TooShort { len: bytes.len() });
+        }
+    }
+}
+
 /// Encode the qname as length-prefixed labels ending with the root label.
 pub fn encode_qname(qname: &str) -> Result<Vec<u8>, DnsWireError> {
     let name = qname.trim().trim_end_matches('.');
@@ -291,5 +371,41 @@ mod tests {
             "Probe.Example.COM"
         );
         assert!(!DnsWireError::NotAResponse.to_string().is_empty());
+    }
+
+    #[test]
+    fn the_echo_observation_is_read_from_the_real_answer_record() {
+        let question = question();
+        let answer = encode_answer(&question, [203, 0, 113, 9], 60);
+        assert_eq!(response_rcode(&answer), Some(0));
+        assert_eq!(
+            extract_a_record(&answer, &question),
+            Ok(Some(std::net::IpAddr::from([203, 0, 113, 9])))
+        );
+    }
+
+    #[test]
+    fn an_answer_without_an_a_record_yields_nothing_instead_of_a_guess() {
+        let question = question();
+        let mut empty = encode_answer(&question, [203, 0, 113, 9], 60);
+        let qname = encode_qname(&question.qname).expect("qname");
+        empty.truncate(HEADER_LEN + qname.len() + 4);
+        empty[6..8].copy_from_slice(&0u16.to_be_bytes());
+        assert_eq!(extract_a_record(&empty, &question), Ok(None));
+
+        // A truncated answer is rejected, never read as an identity.
+        let truncated = encode_answer(&question, [203, 0, 113, 9], 60);
+        let cut = truncated.len() - 2;
+        assert!(matches!(
+            extract_a_record(&truncated[..cut], &question),
+            Err(DnsWireError::TooShort { .. })
+        ));
+
+        // A non-zero response code is visible to the probe.
+        let mut refused = encode_answer(&question, [203, 0, 113, 9], 60);
+        let flags = u16::from_be_bytes([refused[2], refused[3]]) | 0x0003;
+        refused[2..4].copy_from_slice(&flags.to_be_bytes());
+        assert_eq!(response_rcode(&refused), Some(3));
+        assert_eq!(response_rcode(&[0u8; 4]), None);
     }
 }

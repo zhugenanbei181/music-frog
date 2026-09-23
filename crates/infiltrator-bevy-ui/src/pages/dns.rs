@@ -39,6 +39,7 @@ use infiltrator_contract::dns::{
 };
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
@@ -84,6 +85,10 @@ pub enum DnsLineKind {
     LatencyPolicy,
     /// DUAL-14-10: the per-nameserver result rows of the last real probe.
     LatencyResults,
+    /// DUAL-14-08: the shared cross-source DNS leak conclusion headline.
+    LeakConclusion,
+    /// DUAL-14-08: the shared cross-source DNS leak observation listing.
+    Leak,
     /// DUAL-14-13: the shared DNS self-heal observation.
     SelfHeal,
     /// DUAL-14-11: the applied `dns.hosts` row count.
@@ -109,6 +114,10 @@ pub struct ClearDnsCacheButton;
 /// Marker for the "Test DNS Latency" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TestDnsLatencyButton;
+
+/// DUAL-14-08: marker for the cross-source DNS leak probe button.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TestDnsLeakButton;
 
 /// Marker component for the DNS 6-switch form card.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -173,6 +182,8 @@ pub struct DnsProjection {
     pub fake_ip_pool: FakeIpMappingPool,
     /// DUAL-14-10: the last real per-nameserver probe of this host.
     pub latency: DnsLatencyReport,
+    /// DUAL-14-08: the last real cross-source DNS leak probe of this host.
+    pub leak: DnsLeakReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub self_heal: DnsSelfHealSnapshot,
     /// DUAL-14-11: the configured `dns.hosts` rows.
@@ -205,6 +216,7 @@ impl DnsProjection {
             cache_flush: snapshot.cache_flush.clone(),
             fake_ip_pool: snapshot.fake_ip_pool.clone(),
             latency: snapshot.latency.clone(),
+            leak: snapshot.leak.clone(),
             self_heal: snapshot.self_heal.clone(),
             hosts: snapshot.hosts.clone(),
         }
@@ -313,6 +325,7 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
             ( { crate::pages::dns_edit::dns_edit_card_scene(projection, palette) } ),
             ( { crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) } ),
             ( { crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) } ),
+            ( { crate::pages::dns_leak::dns_leak_card_scene(projection, palette) } ),
             ( { crate::pages::dns_self_heal::dns_self_heal_card_scene(projection, palette) } ),
             ( { servers_card_scene(server_scenes, &projection.latency, palette) } ),
             ( { fake_ip_card_scene(&projection.fake_ip_range, palette) } ),
@@ -381,6 +394,21 @@ fn header_card_scene(
                             Button
                             Children [
                                 ( Text({ "测速".to_owned() }) TextRole(Role::BodyStrong) ),
+                            ]
+                        ),
+                        (
+                            Node {
+                                min_height: px(palette.control_height_px),
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            TestDnsLeakButton
+                            Button
+                            Children [
+                                ( Text({ "泄漏交叉探测".to_owned() }) TextRole(Role::Body) ),
                             ]
                         ),
                         (
@@ -570,6 +598,7 @@ pub(crate) fn on_dns_action_activated(
     activate: On<Activate>,
     clear_buttons: Query<(), With<ClearDnsCacheButton>>,
     test_buttons: Query<(), With<TestDnsLatencyButton>>,
+    leak_buttons: Query<(), With<TestDnsLeakButton>>,
     switch_buttons: Query<&DnsSwitchButton>,
     enhanced_pills: Query<&DnsEnhancedModePill>,
     filter_pills: Query<&DnsFilterModePill>,
@@ -585,6 +614,10 @@ pub(crate) fn on_dns_action_activated(
     }
     if test_buttons.contains(activate.entity) {
         handle.submit(UiCommand::TestDnsLatency);
+        return;
+    }
+    if leak_buttons.contains(activate.entity) {
+        handle.submit(UiCommand::TestDnsLeak);
         return;
     }
     if let Ok(btn) = switch_buttons.get(activate.entity) {
@@ -740,6 +773,13 @@ pub(crate) fn apply_dns_projection(
             }
             DnsLineKind::LatencyResults => {
                 text.0 = crate::pages::dns_fakeip::latency_result_listing(&projection.latency);
+            }
+            DnsLineKind::LeakConclusion => {
+                text.0 = crate::pages::dns_leak::leak_conclusion_label(&projection.leak);
+                color.0 = crate::pages::dns_leak::leak_conclusion_color(&projection.leak, &palette);
+            }
+            DnsLineKind::Leak => {
+                text.0 = crate::pages::dns_leak::leak_observation_listing(&projection.leak);
             }
             DnsLineKind::SelfHeal => {
                 text.0 = crate::pages::dns_fakeip::self_heal_listing(&projection.self_heal);

@@ -38,6 +38,7 @@ pub fn core_application(
     rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
     dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
     dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
+    dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
     profile_store: std::sync::Arc<dyn ProfileStore>,
     subscription_source: std::sync::Arc<dyn SubscriptionSource>,
 ) -> anyhow::Result<CoreApplication> {
@@ -110,6 +111,7 @@ pub fn core_application(
             .with_rule_tracer(rule_tracer)
             .with_dns_cache(dns_cache)
             .with_dns_latency(dns_latency)
+            .with_dns_leak(dns_leak)
             .with_rule_provider_cache(rule_provider_cache),
     ));
     Ok(application)

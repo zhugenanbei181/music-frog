@@ -103,6 +103,8 @@ impl AppState {
                 | Message::RefreshTunServiceStatus
                 | Message::FlushFakeIpCache
                 | Message::RunDnsLatencyProbe
+                | Message::RunDnsLeakProbe
+                | Message::DnsLeakProbed(_)
                 // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
                 | Message::RunDoctor
                 | Message::RunDoctorFix
@@ -237,8 +239,6 @@ impl AppState {
             | Message::ClearScriptSandbox
             | Message::ExportScriptDraft(_)
             | Message::ScriptExportFinished(_)
-            | Message::RunDnsLeakProbe
-            | Message::DnsLeakProbeFinished(_)
             | Message::OpenCustomNodeModal
             | Message::CloseCustomNodeModal
             | Message::UpdateCustomNodeUriInput(_)

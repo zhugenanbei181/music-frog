@@ -85,6 +85,9 @@ pub struct ApplicationSurfaceReader {
     /// DUAL-14-10/13: the shared latency prober whose last report drives both
     /// the latency row and the self-heal snapshot.
     dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
+    /// DUAL-14-08: the shared cross-source leak prober whose last report the
+    /// DNS page publishes to both surfaces.
+    dns_leak: Option<crate::dns_leak_application::DnsLeakApplication>,
     rule_provider: crate::rule_provider_application::RuleProviderApplication,
     /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
     /// Kept across reads (and cloned readers) so successive snapshots diff.
@@ -127,6 +130,7 @@ impl ApplicationSurfaceReader {
             speedtest: None,
             dns_cache: None,
             dns_latency: None,
+            dns_leak: None,
             rule_provider: crate::rule_provider_application::RuleProviderApplication::default(),
             connection_rates: ConnectionRateApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
@@ -278,6 +282,16 @@ impl ApplicationSurfaceReader {
         application: crate::dns_latency_application::DnsLatencyApplication,
     ) -> Self {
         self.dns_latency = Some(application);
+        self
+    }
+
+    /// DUAL-14-08: share the leak probe application so the published read model
+    /// carries the last real cross-source observation.
+    pub fn with_dns_leak(
+        mut self,
+        application: crate::dns_leak_application::DnsLeakApplication,
+    ) -> Self {
+        self.dns_leak = Some(application);
         self
     }
 
@@ -560,6 +574,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             runtime_config.as_ref(),
             self.dns_cache.as_ref(),
             self.dns_latency.as_ref(),
+            self.dns_leak.as_ref(),
             runtime_connections.as_ref(),
             &port_conflicts,
         )
@@ -988,6 +1003,7 @@ async fn build_dns_page(
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
     dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
     dns_latency: Option<&crate::dns_latency_application::DnsLatencyApplication>,
+    dns_leak: Option<&crate::dns_leak_application::DnsLeakApplication>,
     runtime_connections: Option<
         &Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError>,
     >,
@@ -995,6 +1011,7 @@ async fn build_dns_page(
 ) -> surface_snapshot::PageData<surface_snapshot::DnsPageSnapshot> {
     let cache_flush = crate::dns_workbench_application::cache_flush_report(dns_cache);
     let latency = crate::dns_workbench_application::latency_report(dns_latency);
+    let leak = crate::dns_workbench_application::leak_report(dns_leak);
     let connections = runtime_connections.and_then(|result| result.as_ref().ok());
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
@@ -1012,6 +1029,7 @@ async fn build_dns_page(
                 connections,
             );
             crate::dns_workbench_application::apply_latency_report(&mut snapshot, &latency);
+            snapshot.leak = leak.clone();
             snapshot.self_heal = crate::dns_self_heal_application::dns_self_heal_snapshot(
                 &dns,
                 crate::dns_self_heal_application::dns_listen_conflict(port_conflicts),
@@ -1032,6 +1050,7 @@ async fn build_dns_page(
                 ),
                 cache_flush,
                 latency: latency.clone(),
+                leak: leak.clone(),
                 // The runtime DnsSnapshot carries no fake-ip-range, so the
                 // pool stays honestly unsupported on this path.
                 ..surface_snapshot::DnsPageSnapshot::default()
@@ -1040,6 +1059,7 @@ async fn build_dns_page(
                 enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::Unmapped,
                 cache_flush,
                 latency,
+                leak,
                 ..surface_snapshot::DnsPageSnapshot::default()
             }),
         },

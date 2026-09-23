@@ -14,6 +14,7 @@ pub mod core_watchdog;
 pub mod data_dir;
 pub mod data_store;
 pub mod dns_latency;
+pub mod dns_leak;
 pub mod doctor;
 pub mod endpoint;
 pub mod error;

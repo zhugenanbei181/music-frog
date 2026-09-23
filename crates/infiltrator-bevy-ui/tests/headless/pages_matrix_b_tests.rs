@@ -731,6 +731,61 @@ fn test_dns_latency_policy_line_is_honest() {
 }
 
 #[test]
+fn test_dns_test_leak_submits_command() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Dns);
+
+    let btn_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<TestDnsLeakButton>>()
+        .single(app.world())
+        .expect("test dns leak button");
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: btn_entity });
+    app.update();
+
+    assert_eq!(sink.submitted(), vec![UiCommand::TestDnsLeak]);
+}
+
+/// DUAL-14-08: the demo fixture's divergent cross-source facts are rendered
+/// verbatim, and a host without a fact source renders the typed unsupported
+/// state instead of a verdict.
+#[test]
+fn test_dns_leak_card_renders_the_shared_cross_source_report() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_b_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Dns);
+
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "DNS 泄漏交叉探测: 观测到 2 个不同解析器身份 (仅列事实)"
+    ));
+    assert!(subtree_has_text(app.world(), root, "观测身份 203.0.113.9"));
+    assert!(subtree_has_text(app.world(), root, "观测身份 198.51.100.7"));
+    assert!(!subtree_has_text(app.world(), root, "未观测"));
+
+    let mut without_sources = DnsProjection::demo();
+    without_sources.leak = infiltrator_contract::dns_leak::DnsLeakReport::unsupported(
+        "no echo authority is configured",
+    );
+    app.world_mut()
+        .commands()
+        .trigger(DnsProjectionUpdated(without_sources));
+    app.update();
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "DNS 泄漏交叉探测: 宿主未提供事实源 (no echo authority is configured)"
+    ));
+    assert!(subtree_has_text(app.world(), root, "尚无泄漏探测观测结果"));
+    assert!(!subtree_has_text(app.world(), root, "观测身份"));
+}
+
+#[test]
 fn test_dns_self_heal_card_renders_the_shared_observation() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_b_app(sink);

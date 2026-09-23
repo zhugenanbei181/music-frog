@@ -199,6 +199,8 @@ pub enum UiCommand {
     ClearDnsCache,
     /// Test DNS server latency.
     TestDnsLatency,
+    /// DUAL-14-08: run the shared DNS leak cross-source probe.
+    TestDnsLeak,
     /// DUAL-14-01/02/03: apply the shared DNS workbench patch.
     ApplyDnsSettings {
         patch: infiltrator_contract::dns::DnsSettingsPatch,
@@ -518,6 +520,7 @@ impl UiCommand {
             }),
             Self::ClearDnsCache => Some(CommandIntent::ClearDnsCache),
             Self::TestDnsLatency => Some(CommandIntent::TestDnsLatency),
+            Self::TestDnsLeak => Some(CommandIntent::TestDnsLeak),
             Self::ApplyDnsSettings { patch } => Some(CommandIntent::ApplyDnsSettings {
                 patch: patch.clone(),
             }),
