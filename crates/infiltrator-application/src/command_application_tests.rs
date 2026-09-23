@@ -810,6 +810,46 @@ async fn unpack_without_any_source_is_unsupported() {
     assert_eq!(store.content(), profile, "nothing was persisted");
 }
 
+/// DUAL-11-05: the active profile's top-level `etag-support` declaration is
+/// read honestly: an explicit `true`/`false` classifies as enabled/disabled,
+/// and an absent key stays `NotDeclared` instead of inventing the kernel
+/// default. The per-request `304` outcome is never inferred.
+#[tokio::test]
+async fn load_etag_support_reads_the_top_level_declaration_honestly() {
+    use infiltrator_contract::provider_cache::KernelEtagSupportState;
+
+    let enabled_store = Arc::new(FakeStore::with_profile(
+        "etag-support: true\nrules:\n  - MATCH,DIRECT\n",
+    ));
+    let enabled =
+        ConfigurationApplication::new(Arc::clone(&enabled_store) as Arc<dyn ProfileStore>)
+            .load_etag_support()
+            .await
+            .expect("read enabled");
+    assert_eq!(enabled.state, KernelEtagSupportState::Enabled);
+    assert_eq!(enabled.declared, Some(true));
+
+    let disabled_store = Arc::new(FakeStore::with_profile("etag-support: false\n"));
+    let disabled =
+        ConfigurationApplication::new(Arc::clone(&disabled_store) as Arc<dyn ProfileStore>)
+            .load_etag_support()
+            .await
+            .expect("read disabled");
+    assert_eq!(disabled.state, KernelEtagSupportState::Disabled);
+    assert_eq!(disabled.declared, Some(false));
+
+    // No `etag-support` key at all: the state is NotDeclared and no raw value
+    // is invented from the kernel's own default.
+    let absent_store = Arc::new(FakeStore::with_profile("rules:\n  - MATCH,DIRECT\n"));
+    let absent = ConfigurationApplication::new(Arc::clone(&absent_store) as Arc<dyn ProfileStore>)
+        .load_etag_support()
+        .await
+        .expect("read absent");
+    assert_eq!(absent.state, KernelEtagSupportState::NotDeclared);
+    assert_eq!(absent.declared, None);
+    assert_eq!(absent.state.as_str(), "not-declared");
+}
+
 #[derive(Default)]
 struct RecordingProviderCache {
     purges: Mutex<usize>,

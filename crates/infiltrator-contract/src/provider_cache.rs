@@ -141,6 +141,64 @@ impl ProviderCacheFingerprint {
     }
 }
 
+/// DUAL-11-05: the kernel's real `etag-support` capability, as declared by the
+/// active profile.
+///
+/// mihomo reads a **top-level** `etag-support` boolean (its `General.ETagSupport`,
+/// whose `DefaultRawConfig` value is `true`) that gates its `ETag` /
+/// `If-None-Match` conditional-request cache for downloaded resources, rule and
+/// proxy providers included. The client can read the declaration; it cannot
+/// read the per-request `304` outcome, which stays inside the kernel's
+/// downloader and is never returned by the controller.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KernelEtagSupportState {
+    /// `etag-support: true` — the kernel performs conditional requests.
+    Enabled,
+    /// `etag-support: false` — conditional requests are turned off.
+    Disabled,
+    /// The active profile declares no `etag-support` key (mihomo's own default
+    /// then applies). Never rendered as an explicit on/off claim.
+    #[default]
+    NotDeclared,
+}
+
+impl KernelEtagSupportState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Enabled => "enabled",
+            Self::Disabled => "disabled",
+            Self::NotDeclared => "not-declared",
+        }
+    }
+}
+
+/// DUAL-11-05: the kernel's declared `etag-support` capability for one read.
+///
+/// This is a *declaration* fact read from the active profile, not an HTTP
+/// cache-validator result: `declared` is the raw boolean the profile carried,
+/// and `state` is the shared classification both surfaces render.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KernelEtagSupportSnapshot {
+    pub state: KernelEtagSupportState,
+    /// The raw boolean declared under the profile's top-level `etag-support`
+    /// key, when present. `None` means the key was absent (state is
+    /// `NotDeclared`), so no value is invented.
+    #[serde(default)]
+    pub declared: Option<bool>,
+}
+
+impl KernelEtagSupportSnapshot {
+    /// Classify the raw `etag-support` declaration read from the profile.
+    pub fn from_declared(declared: Option<bool>) -> Self {
+        let state = match declared {
+            Some(true) => KernelEtagSupportState::Enabled,
+            Some(false) => KernelEtagSupportState::Disabled,
+            None => KernelEtagSupportState::NotDeclared,
+        };
+        Self { state, declared }
+    }
+}
+
 /// Availability of the host's rule-provider cache location.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleProviderCacheState {
@@ -290,6 +348,37 @@ mod tests {
             "controller-payload"
         );
         assert_eq!(RuleProviderCacheState::Ready.as_str(), "ready");
+    }
+
+    #[test]
+    fn etag_support_classifies_the_raw_declaration_without_inventing_one() {
+        let enabled = KernelEtagSupportSnapshot::from_declared(Some(true));
+        assert_eq!(enabled.state, KernelEtagSupportState::Enabled);
+        assert_eq!(enabled.declared, Some(true));
+        assert_eq!(enabled.state.as_str(), "enabled");
+
+        let disabled = KernelEtagSupportSnapshot::from_declared(Some(false));
+        assert_eq!(disabled.state, KernelEtagSupportState::Disabled);
+        assert_eq!(disabled.declared, Some(false));
+        assert_eq!(disabled.state.as_str(), "disabled");
+
+        // No `etag-support` key: the state is NotDeclared and the raw value is
+        // absent. The kernel's own default is never published as a declaration.
+        let absent = KernelEtagSupportSnapshot::from_declared(None);
+        assert_eq!(absent.state, KernelEtagSupportState::NotDeclared);
+        assert_eq!(absent.declared, None);
+        assert_eq!(absent.state.as_str(), "not-declared");
+        assert_eq!(
+            KernelEtagSupportSnapshot::default().state,
+            KernelEtagSupportState::NotDeclared
+        );
+
+        let json = serde_json::to_value(absent).expect("serialise");
+        assert_eq!(json["state"], "NotDeclared");
+        assert!(json["declared"].is_null());
+        let restored: KernelEtagSupportSnapshot =
+            serde_json::from_value(json).expect("deserialise");
+        assert_eq!(restored, absent);
     }
 
     fn fingerprint(

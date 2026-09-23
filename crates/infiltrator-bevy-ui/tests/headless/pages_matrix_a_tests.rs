@@ -1694,6 +1694,7 @@ fn test_rules_empty_and_edge_case_projection() {
         truncated_rule_count: None,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        etag_support: Default::default(),
         json_documents: Vec::new(),
     };
     app.world_mut()
@@ -2226,6 +2227,43 @@ fn test_rules_provider_local_cache_fingerprint_renders_non_etag_label() {
         root,
         "sha256:fedcba987654… · 900 B · 较上次观测已变化"
     ));
+}
+
+#[test]
+fn test_rules_provider_etag_support_renders_declared_kernel_capability() {
+    use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    // DUAL-11-05: the kernel's real top-level `etag-support` declaration is
+    // rendered on the providers card for each of the three honest states.
+    let mut enabled = RulesProjection::demo();
+    enabled.etag_support = KernelEtagSupportSnapshot::from_declared(Some(true));
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(enabled));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "ETag 缓存: 内核已启用"));
+
+    let mut disabled = RulesProjection::demo();
+    disabled.etag_support = KernelEtagSupportSnapshot::from_declared(Some(false));
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(disabled));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "ETag 缓存: 内核未启用"));
+
+    let mut absent = RulesProjection::demo();
+    absent.etag_support = KernelEtagSupportSnapshot::from_declared(None);
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(absent));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "ETag 缓存: 未声明"));
+    // The declaration line never claims a per-request 304 outcome.
+    assert!(!subtree_has_text(app.world(), root, "ETag 缓存: 304"));
 }
 
 /// A projection with `total` generated rules, for window/paging tests.
@@ -3003,6 +3041,7 @@ fn test_rules_type_matrix_renders_every_shared_label() {
             total_hits: 0,
             rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
             provider_cache: Default::default(),
+            etag_support: Default::default(),
             json_documents: Vec::new(),
         },
     );

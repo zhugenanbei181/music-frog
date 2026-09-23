@@ -198,9 +198,10 @@ fn matrix_11_04_rule_provider_source_url_projection() {
 }
 
 /// DUAL-11-05: the refresh intent is real and the declared automatic-refresh
-/// interval is what the client can honestly publish. The `ETag` / `304`
-/// conditional cache lives inside the mihomo kernel: it is deliberately absent
-/// from this snapshot and must not be invented by a surface.
+/// interval is what the client can honestly publish. The kernel's real
+/// top-level `etag-support` declaration is now surfaced too; the per-request
+/// `ETag` / `304` outcome still lives inside the mihomo kernel and must not be
+/// invented by a surface.
 #[test]
 fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     let intent = CommandIntent::RefreshRuleProviders;
@@ -259,6 +260,21 @@ fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     assert_eq!(fingerprint.current.size_bytes, 4_096);
     // The observation never carries an HTTP validator verdict.
     assert!(!fingerprint.change_token().contains("304"));
+
+    // DUAL-11-05: the kernel's real `etag-support` capability is a declaration
+    // fact read from the active profile (top-level key, mihomo default true).
+    // Only the three honest states are published; the per-request 304 outcome
+    // is never inferred.
+    use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, KernelEtagSupportState};
+    let enabled = KernelEtagSupportSnapshot::from_declared(Some(true));
+    assert_eq!(enabled.state, KernelEtagSupportState::Enabled);
+    assert_eq!(enabled.declared, Some(true));
+    let disabled = KernelEtagSupportSnapshot::from_declared(Some(false));
+    assert_eq!(disabled.state, KernelEtagSupportState::Disabled);
+    let absent = KernelEtagSupportSnapshot::from_declared(None);
+    assert_eq!(absent.state, KernelEtagSupportState::NotDeclared);
+    assert_eq!(absent.declared, None);
+    assert!(!absent.state.as_str().contains("304"));
 }
 
 /// DUAL-11-08/13: keyword search + pagination are shared arithmetic, and the
@@ -289,6 +305,7 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
         total_hits: 0,
         rule_publish_limit: view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
+        etag_support: Default::default(),
         json_documents: Vec::new(),
     };
     assert_eq!(snapshot.omitted_rule_count(), 50_000);

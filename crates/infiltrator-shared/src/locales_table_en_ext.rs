@@ -688,6 +688,10 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "rules_provider_fingerprint_first_seen" => "first observation".into(),
         "rules_provider_fingerprint_unchanged" => "unchanged since last observation".into(),
         "rules_provider_fingerprint_changed" => "changed since last observation".into(),
+        "rules_etag_support_label" => "ETag cache".into(),
+        "rules_etag_support_enabled" => "kernel enabled".into(),
+        "rules_etag_support_disabled" => "kernel disabled".into(),
+        "rules_etag_support_not_declared" => "not declared".into(),
 
         // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
         "conn_drawer_kernel_asn" => "Target ASN attribution (/connections destinationIPASN)".into(),

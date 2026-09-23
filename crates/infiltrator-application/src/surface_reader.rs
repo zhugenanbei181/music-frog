@@ -868,6 +868,10 @@ async fn build_rules_page(
         .load_rule_providers()
         .await
         .unwrap_or_default();
+    // DUAL-11-05: the kernel's real `etag-support` capability declared by the
+    // active profile (a top-level key; mihomo defaults it to `true`). This is a
+    // declaration fact: the per-request `304` outcome stays inside the kernel.
+    let etag_support = configuration.load_etag_support().await.unwrap_or_default();
     // The tracer replays the exact rule list rendered below; the query comes
     // from the shared engine so both surfaces observe the same simulation.
     let tracer = tracer_replay.application.project(
@@ -970,6 +974,7 @@ async fn build_rules_page(
         total_hits,
         rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
         provider_cache,
+        etag_support,
         json_documents,
     };
     if total_rules == 0 {

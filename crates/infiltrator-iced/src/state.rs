@@ -322,6 +322,10 @@ pub struct ConfigEditorState {
     pub rule_publish_omitted: Option<usize>,
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     pub rule_provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    /// DUAL-11-05: the kernel's real `etag-support` capability declared by the
+    /// active profile (a top-level key; mihomo defaults it to `true`). The
+    /// provider view renders the declaration, never a `304` outcome.
+    pub rule_etag_support: infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
     /// DUAL-11-03: shared MRS binary acceleration read model, projected from
     /// the surface reader. The providers tab renders this, never a local
     /// fabricated rule-set list.
@@ -893,6 +897,9 @@ impl AppState {
             // DUAL-11-07: the observed kernel provider-cache fact is shared
             // with Bevy; the card renders the same directory/count/size.
             self.editor.rule_provider_cache = rules_page.provider_cache.clone();
+            // DUAL-11-05: the kernel's real `etag-support` capability declared
+            // by the active profile, projected from the same shared read model.
+            self.editor.rule_etag_support = rules_page.etag_support;
         }
         self.diag.overview_card_order = snapshot.overview_layout.order.clone();
         self.runtime.system_toggles =

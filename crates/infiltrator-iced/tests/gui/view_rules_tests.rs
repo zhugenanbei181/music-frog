@@ -213,3 +213,47 @@ fn test_provider_fingerprint_line_reports_local_file_facts() {
     };
     assert!(provider_fingerprint_line(&unchanged, &zh).ends_with("较上次观测未变化"));
 }
+
+#[test]
+fn test_etag_support_line_reports_the_declared_kernel_capability() {
+    use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
+
+    let zh = Lang("zh-CN");
+    let en = Lang("en");
+
+    // DUAL-11-05: the kernel's real top-level `etag-support` declaration is
+    // rendered as-is. `etag-support: true` / `false` are explicit; an absent key
+    // is honestly "not declared", never presented as an explicit on/off claim.
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(Some(true)), &zh),
+        "ETag 缓存: 内核已启用"
+    );
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(Some(false)), &zh),
+        "ETag 缓存: 内核未启用"
+    );
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(None), &zh),
+        "ETag 缓存: 未声明"
+    );
+
+    // The English table carries the same three states.
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(Some(true)), &en),
+        "ETag cache: kernel enabled"
+    );
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(Some(false)), &en),
+        "ETag cache: kernel disabled"
+    );
+    assert_eq!(
+        etag_support_line(&KernelEtagSupportSnapshot::from_declared(None), &en),
+        "ETag cache: not declared"
+    );
+
+    // The line is a declaration fact: it never renders a per-request 304
+    // outcome, which the kernel does not expose.
+    let declared = etag_support_line(&KernelEtagSupportSnapshot::from_declared(Some(true)), &zh);
+    assert!(!declared.contains("304"), "{declared}");
+    assert!(!declared.contains("If-None-Match"), "{declared}");
+}

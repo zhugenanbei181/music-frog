@@ -702,6 +702,10 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "rules_provider_fingerprint_first_seen" => "首次观测".into(),
         "rules_provider_fingerprint_unchanged" => "较上次观测未变化".into(),
         "rules_provider_fingerprint_changed" => "较上次观测已变化".into(),
+        "rules_etag_support_label" => "ETag 缓存".into(),
+        "rules_etag_support_enabled" => "内核已启用".into(),
+        "rules_etag_support_disabled" => "内核未启用".into(),
+        "rules_etag_support_not_declared" => "未声明".into(),
 
         // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
         "conn_drawer_kernel_asn" => "目标 ASN 归属（/connections destinationIPASN）".into(),

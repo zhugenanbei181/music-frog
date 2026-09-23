@@ -58,6 +58,10 @@ fn test_locales_table_key_parity() {
         "notify_rebuild_failed",
         "traffic_expires",
         "rules_title",
+        "rules_etag_support_label",
+        "rules_etag_support_enabled",
+        "rules_etag_support_disabled",
+        "rules_etag_support_not_declared",
     ];
     let zh = Lang("zh-CN");
     let en = Lang("en-US");

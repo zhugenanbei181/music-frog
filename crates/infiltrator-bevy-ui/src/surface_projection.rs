@@ -201,6 +201,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             truncated_rule_count: value.is_truncated().then(|| value.omitted_rule_count()),
             rule_publish_limit: value.rule_publish_limit,
             provider_cache: value.provider_cache.clone(),
+            etag_support: value.etag_support,
             json_documents: value.json_documents.clone(),
             providers: value
                 .providers
