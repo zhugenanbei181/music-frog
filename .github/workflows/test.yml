@@ -79,6 +79,11 @@ jobs:
       - name: Enforce source line budget
         run: python3 scripts/quality/line-guard.py --mode enforce
 
+      # Iced test layout: production `src/` carries only path-mounted test
+      # module declarations, the bodies live under `tests/`.
+      - name: Enforce iced test layout
+        run: python3 scripts/quality/test-layout-guard.py --mode enforce
+
       # i18n 质量守卫：100% 词条抽离与中英对等校验，UI 层零硬编码中文字面量。
       - name: Enforce i18n copy parity and zero raw literals
         run: python3 scripts/quality/i18n-guard.py --mode enforce

@@ -17,6 +17,9 @@ bash scripts/check-test-policy.sh
 # how an import-alias regression reached main. Run them here so local == CI.
 python3 scripts/quality/import-guard.py --mode enforce
 python3 scripts/quality/core-boundary-guard.py --mode enforce
+python3 scripts/quality/line-guard.py --mode enforce
+python3 scripts/quality/test-layout-guard.py --mode enforce
+python3 scripts/quality/verify-packaging.py
 
 python3 scripts/quality/parity-guard.py --mode enforce
 python3 scripts/quality/i18n-guard.py --mode enforce
