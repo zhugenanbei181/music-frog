@@ -4,7 +4,7 @@
 //! row reads the same canonical result the card does, and empty / failed states
 //! stay honest instead of showing fabricated metrics.
 
-use super::modals::{modal_backdrop, modal_card};
+use super::modals::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge};

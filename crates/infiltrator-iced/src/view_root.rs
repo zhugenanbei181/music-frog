@@ -290,19 +290,21 @@ impl AppState {
         }
 
         if let Some(proxy_name) = &self.runtime.inspecting_proxy {
-            layers.push(modals::inspect_proxy_modal(self, proxy_name));
+            layers.push(modals::proxy_inspect::inspect_proxy_modal(self, proxy_name));
         }
 
         if self.runtime.is_adding_custom_node {
-            layers.push(modals::custom_node_modal(self));
+            layers.push(modals::add_node::custom_node_modal(self));
         }
 
         if let Some(diff) = &self.editor.inspecting_rule_provider_diff {
-            layers.push(modals::rule_provider_diff_modal(self, diff));
+            layers.push(modals::rule_provider_diff::rule_provider_diff_modal(
+                self, diff,
+            ));
         }
 
         if let Some(action) = &self.shell.confirmation {
-            layers.push(modals::confirmation_modal(self, action));
+            layers.push(modals::confirmation::confirmation_modal(self, action));
         }
 
         if let Some(conn_id) = &self.diag.inspecting_connection_id {

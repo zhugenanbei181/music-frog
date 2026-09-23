@@ -107,8 +107,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/integration.rs",
         "CORE_LOG_LEVEL_OPTIONS",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
         "Message::SetCoreLogLevel",
     )
     require(

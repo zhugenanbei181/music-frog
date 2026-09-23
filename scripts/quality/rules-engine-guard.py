@@ -222,8 +222,16 @@ def main() -> int:
         "matrix::matrix_label",
         "RuleTypeFamily::Host",
         "RuleTypeFamily::Address",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "format_refresh_interval",
         "kernel-scheduled",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules/rules_list.rs",
         "pub fn publish_truncation_line",
         "rules_publish_truncated",
     )
@@ -414,7 +422,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/rules_list.rs",
         "CUSTOM_RULE_TYPE_CHOICES",
     )
     require(
@@ -533,7 +541,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "provider_lifecycle_line",
         "rule_provider_source_urls",
         "mrs_acceleration_card",
@@ -938,7 +946,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/rules_list.rs",
         "rules_window::visible_rule_items",
         "rules_window::rules_window_spacers",
         "RULES_LIST_SCROLL_ID",
@@ -1125,9 +1133,13 @@ def main() -> int:
         violations,
         "crates/infiltrator-iced/src/view/rules.rs",
         "RulesTab::ALL",
+        "RulesTab::from_index",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "RulesJsonSection::ALL",
         "RulesJsonSection::from_index",
-        "RulesTab::from_index",
     )
     require(
         violations,
@@ -1230,7 +1242,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "pub fn provider_fingerprint_line",
         "rules_provider_fingerprint_label",
         "rules_provider_fingerprint_changed",
@@ -1273,7 +1285,7 @@ def main() -> int:
     # The local fingerprint must never be rendered as an HTTP validator claim.
     forbid(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "ETag hit",
         "304 Not Modified",
     )
@@ -1342,7 +1354,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/rules.rs",
+        "crates/infiltrator-iced/src/view/rules/providers.rs",
         "pub fn etag_support_line",
         "rules_etag_support_label",
         "rules_etag_support_enabled",

@@ -115,10 +115,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "format_core_resources",
-        "Core resources",
         "limit=512 MiB",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
+        "Core resources",
     )
     require(
         violations,

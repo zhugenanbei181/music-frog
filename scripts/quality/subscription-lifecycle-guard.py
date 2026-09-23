@@ -186,7 +186,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/profiles.rs",
+        "crates/infiltrator-iced/src/view/profiles/subscription.rs",
         "UpdateSubscriptionInsecureSkipVerify",
         "profiles_insecure_skip_verify",
         "profiles_conditional_request",
@@ -291,7 +291,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/profiles.rs",
+        "crates/infiltrator-iced/src/view/profiles/imports.rs",
         "profiles_update_all",
         "Message::UpdateAllSubscriptionsNow",
     )
@@ -363,7 +363,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/profiles.rs",
+        "crates/infiltrator-iced/src/view/profiles/subscription.rs",
         "profiles_restore_backup",
         "Message::RestoreSubscriptionBackup",
     )
@@ -653,7 +653,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/profiles.rs",
+        "crates/infiltrator-iced/src/view/profiles/subscription.rs",
         "UpdateSubscriptionCron",
         "profiles_cron_placeholder",
     )
@@ -891,7 +891,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/profiles.rs",
+        "crates/infiltrator-iced/src/view/profiles/subscription.rs",
         "Message::UpdateSubscriptionAutoReload",
         "profiles_auto_reload_core",
     )

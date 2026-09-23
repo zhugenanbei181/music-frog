@@ -154,12 +154,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/types/message/debug.rs",
+        "crates/infiltrator-iced/src/types/message/debug/session.rs",
         "Message::SetIpv6Routing(enabled)",
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/tun.rs",
         "settings_ipv6_routing",
         "Message::SetIpv6Routing",
     )

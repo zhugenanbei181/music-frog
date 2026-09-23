@@ -98,9 +98,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "CoreChannelStatus",
         "format_core_versions",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
         "Online channels",
     )
     require(

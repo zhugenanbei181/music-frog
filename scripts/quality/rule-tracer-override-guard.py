@@ -130,7 +130,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/types/message/debug.rs",
+        "crates/infiltrator-iced/src/types/message/debug/config.rs",
         "ApplyTracerRuleOverride",
     )
     require(

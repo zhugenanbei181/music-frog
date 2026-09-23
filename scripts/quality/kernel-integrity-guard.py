@@ -100,10 +100,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "format_integrity",
-        "Artifact integrity",
         "CoreArtifactVerification::Verified",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
+        "Artifact integrity",
     )
     require(
         violations,
