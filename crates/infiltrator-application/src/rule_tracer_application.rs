@@ -11,9 +11,8 @@ use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rule_hit_counter::RuleHitCounter;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::analyzer::{ShadowReason, find_shadowed_rules};
-use infiltrator_domain::rules::tracer::{
-    RuleTraceMatch, TrafficContext, build_decision_chain, trace_rules,
-};
+use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
+use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_rules};
 use infiltrator_domain::rules::types::parse_rule_str;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

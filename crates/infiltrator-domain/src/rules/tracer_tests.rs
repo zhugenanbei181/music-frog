@@ -1,7 +1,9 @@
 #![allow(unused_imports)]
 use super::*;
 
+use super::decision_chain::build_decision_chain;
 use super::*;
+use infiltrator_contract::rule_tracer::{DecisionNodeStatus, DecisionStageKind};
 
 #[test]
 fn test_trace_domain_rules() {

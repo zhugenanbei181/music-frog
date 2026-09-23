@@ -28,8 +28,10 @@ fn keys_of(file: &str) -> BTreeSet<String> {
 fn all_locale_keys() -> BTreeSet<String> {
     [
         keys_of("locales_table.rs"),
+        keys_of("locales_table_legacy.rs"),
         keys_of("locales_table_ext.rs"),
         keys_of("locales_table_en.rs"),
+        keys_of("locales_table_en_legacy.rs"),
         keys_of("locales_table_en_ext.rs"),
     ]
     .into_iter()
@@ -73,12 +75,17 @@ fn collect_translation_refs(path: &Path, refs: &mut BTreeSet<String>) {
 
 #[test]
 fn zh_and_en_tables_have_exact_key_parity() {
-    let zh = [keys_of("locales_table.rs"), keys_of("locales_table_ext.rs")]
-        .into_iter()
-        .flatten()
-        .collect::<BTreeSet<_>>();
+    let zh = [
+        keys_of("locales_table.rs"),
+        keys_of("locales_table_legacy.rs"),
+        keys_of("locales_table_ext.rs"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<BTreeSet<_>>();
     let en = [
         keys_of("locales_table_en.rs"),
+        keys_of("locales_table_en_legacy.rs"),
         keys_of("locales_table_en_ext.rs"),
     ]
     .into_iter()

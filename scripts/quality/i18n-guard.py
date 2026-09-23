@@ -12,10 +12,12 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ZH_TABLES = [
     pathlib.Path("crates/infiltrator-shared/src/locales_table.rs"),
+    pathlib.Path("crates/infiltrator-shared/src/locales_table_legacy.rs"),
     pathlib.Path("crates/infiltrator-shared/src/locales_table_ext.rs"),
 ]
 EN_TABLES = [
     pathlib.Path("crates/infiltrator-shared/src/locales_table_en.rs"),
+    pathlib.Path("crates/infiltrator-shared/src/locales_table_en_legacy.rs"),
     pathlib.Path("crates/infiltrator-shared/src/locales_table_en_ext.rs"),
 ]
 VIEW_SCAN_DIRS = [
