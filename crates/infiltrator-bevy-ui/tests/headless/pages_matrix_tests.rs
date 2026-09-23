@@ -254,6 +254,7 @@ fn rules_page_in_place_update() {
             updated_at: "2026-09-02 12:00".to_owned(),
             source_url: None,
             refresh_interval_secs: Some(86_400),
+            cache_fingerprint: None,
         }],
         rules: vec![RuleItem {
             id: 1,
@@ -319,6 +320,8 @@ fn connections_page_in_place_update() {
             source_port: "51432".to_owned(),
             destination_ip: "203.0.113.10".to_owned(),
             destination_port: "443".to_owned(),
+            destination_geo_ip: None,
+            destination_ip_asn: String::new(),
             upload_bps: 1024.0,
             download_bps: 2048.0,
             upload_total: 100_000,

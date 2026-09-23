@@ -125,6 +125,8 @@ mod tests {
                 dns_mode: "normal".to_string(),
                 process_path: process.to_string(),
                 special_proxy: String::new(),
+                destination_geo_ip: None,
+                destination_ip_asn: String::new(),
             },
             upload: 1024,
             download: 2048,
@@ -153,6 +155,50 @@ mod tests {
         assert_eq!(conn.rule, "DIRECT");
         assert_eq!(conn.upload, 1024);
         assert_eq!(conn.download, 2048);
+    }
+
+    #[test]
+    fn dual_13_05_kernel_asn_and_geo_fields_parse_with_their_real_states() {
+        // Real `/connections` metadata shapes for the three kernel states:
+        // never queried (`null` / `""`), queried with no record (`[]` / `" "`),
+        // and a real result.
+        let parse = |geo: &str, asn: &str| -> ConnectionMetadata {
+            let raw = format!(
+                r#"{{"network":"tcp","destinationIP":"1.1.1.1","destinationGeoIP":{geo},"destinationIPASN":"{asn}"}}"#
+            );
+            serde_json::from_str(&raw).expect("metadata json")
+        };
+
+        let never = parse("null", "");
+        assert_eq!(never.destination_geo_ip, None);
+        assert_eq!(never.destination_ip_asn, "");
+
+        let no_record = parse("[]", " ");
+        assert_eq!(no_record.destination_geo_ip, Some(Vec::new()));
+        assert_eq!(no_record.destination_ip_asn, " ");
+
+        let reported = parse(r#"["us","cloudflare"]"#, "15169 Google LLC");
+        assert_eq!(
+            reported.destination_geo_ip,
+            Some(vec!["us".to_owned(), "cloudflare".to_owned()])
+        );
+        assert_eq!(reported.destination_ip_asn, "15169 Google LLC");
+
+        // The domain projection carries the kernel values through untouched.
+        let domain: infiltrator_domain::runtime::ConnectionMetadata = reported.into();
+        assert_eq!(
+            domain.destination_geo_ip,
+            Some(vec!["us".to_owned(), "cloudflare".to_owned()])
+        );
+        assert_eq!(domain.destination_ip_asn, "15169 Google LLC");
+
+        // A response from an older kernel without the fields is still accepted
+        // and stays honestly not-queried.
+        let legacy: ConnectionMetadata =
+            serde_json::from_str(r#"{"network":"tcp","destinationIP":"1.1.1.1"}"#)
+                .expect("legacy json");
+        assert_eq!(legacy.destination_geo_ip, None);
+        assert_eq!(legacy.destination_ip_asn, "");
     }
 
     #[tokio::test]

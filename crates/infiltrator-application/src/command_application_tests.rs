@@ -841,6 +841,13 @@ impl infiltrator_ports::rule_provider_cache::RuleProviderCachePort for Recording
         })
     }
 
+    async fn fingerprint(
+        &self,
+        _declaration: &infiltrator_domain::rules::provider_store::RuleProviderDeclaration,
+    ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderFileFact>, PortError> {
+        Ok(None)
+    }
+
     async fn snapshot(
         &self,
     ) -> Result<infiltrator_contract::provider_cache::RuleProviderCacheSnapshot, PortError> {

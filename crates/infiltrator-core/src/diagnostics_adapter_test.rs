@@ -15,6 +15,8 @@ fn test_privacy_leak_mihomo_conversion() {
             dns_mode: "fake-ip".to_string(),
             process_path: "/usr/bin/nslookup".to_string(),
             special_proxy: "".to_string(),
+            destination_geo_ip: None,
+            destination_ip_asn: String::new(),
         },
         upload: 100,
         download: 200,

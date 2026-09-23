@@ -212,6 +212,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                     updated_at: provider.updated_at.clone(),
                     source_url: provider.source_url.clone(),
                     refresh_interval_secs: provider.refresh_interval_secs,
+                    cache_fingerprint: provider.cache_fingerprint.clone(),
                 })
                 .collect(),
             rules: value
@@ -265,6 +266,8 @@ pub(super) fn connections_projection(
                     source_port: connection.source_port.clone(),
                     destination_ip: connection.destination_ip.clone(),
                     destination_port: connection.destination_port.clone(),
+                    destination_geo_ip: connection.destination_geo_ip.clone(),
+                    destination_ip_asn: connection.destination_ip_asn.clone(),
                     upload_bps: connection.upload_bps,
                     download_bps: connection.download_bps,
                     upload_total: connection.upload_total,

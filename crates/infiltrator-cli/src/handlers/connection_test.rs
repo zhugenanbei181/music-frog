@@ -16,6 +16,8 @@ fn connection(id: &str, host: &str, process_path: &str, rule: &str) -> Connectio
             dns_mode: "normal".to_string(),
             process_path: process_path.to_string(),
             special_proxy: String::new(),
+            destination_geo_ip: None,
+            destination_ip_asn: String::new(),
         },
         upload: 1,
         download: 2,

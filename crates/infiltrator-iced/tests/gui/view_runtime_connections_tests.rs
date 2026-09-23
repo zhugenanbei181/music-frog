@@ -16,6 +16,8 @@ fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Co
             dns_mode: "fake-ip".to_string(),
             process_path: process.to_string(),
             special_proxy: String::new(),
+            destination_geo_ip: None,
+            destination_ip_asn: String::new(),
         },
         upload: up,
         download: down,

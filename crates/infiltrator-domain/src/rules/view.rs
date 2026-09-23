@@ -244,6 +244,25 @@ pub fn format_refresh_interval(secs: u64) -> String {
     }
 }
 
+/// DUAL-11-05: neutral body of a provider's local cache-content fingerprint —
+/// the short digest, the real byte size and the file's last-modified time when
+/// the host could read one. This is a local file observation, never an HTTP
+/// validator; callers label it as such.
+pub fn format_content_fingerprint(
+    sha256: &str,
+    size_bytes: u64,
+    modified_unix_secs: Option<i64>,
+) -> String {
+    let digest: String = sha256.chars().take(12).collect();
+    let mut parts = vec![format!("sha256:{digest}…"), format!("{size_bytes} B")];
+    if let Some(secs) = modified_unix_secs
+        && let Some(utc) = chrono::DateTime::from_timestamp(secs, 0)
+    {
+        parts.push(format!("mtime {}", utc.format("%Y-%m-%d %H:%M:%S UTC")));
+    }
+    parts.join(" · ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,5 +404,19 @@ mod tests {
         assert_eq!(format_refresh_interval(3_600), "1h");
         assert_eq!(format_refresh_interval(86_400), "1d");
         assert_eq!(format_refresh_interval(90_000), "25h");
+    }
+
+    #[test]
+    fn content_fingerprint_formats_digest_size_and_mtime() {
+        assert_eq!(
+            format_content_fingerprint("abcdef0123456789deadbeef", 4_096, Some(0)),
+            "sha256:abcdef012345… · 4096 B · mtime 1970-01-01 00:00:00 UTC"
+        );
+        // A host without a readable timestamp publishes two real facts, not a
+        // placeholder date.
+        assert_eq!(
+            format_content_fingerprint("ab", 12, None),
+            "sha256:ab… · 12 B"
+        );
     }
 }

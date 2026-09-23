@@ -310,6 +310,11 @@ pub struct ConfigEditorState {
     /// DUAL-11-05: declared automatic-refresh intervals (seconds) keyed by
     /// provider name. The kernel owns the schedule and the conditional cache.
     pub rule_provider_intervals: HashMap<String, u64>,
+    /// DUAL-11-05: the client's local cache-file fingerprint observations keyed
+    /// by provider name. These are local file reads compared with the previous
+    /// observation, never HTTP `ETag`/`304` results.
+    pub rule_provider_fingerprints:
+        HashMap<String, infiltrator_contract::provider_cache::ProviderCacheFingerprint>,
     /// DUAL-11-08: publish cap of the shared rules read model (0 = uncapped)
     /// and the rules it dropped, when the published view is truncated. The
     /// editor list itself is loaded in full from the profile.
@@ -865,6 +870,18 @@ impl AppState {
                     provider
                         .refresh_interval_secs
                         .map(|secs| (provider.name.clone(), secs))
+                })
+                .collect();
+            // DUAL-11-05: the local cache fingerprints the shared reader
+            // observed; the provider row renders them verbatim.
+            self.editor.rule_provider_fingerprints = rules_page
+                .providers
+                .iter()
+                .filter_map(|provider| {
+                    provider
+                        .cache_fingerprint
+                        .as_ref()
+                        .map(|observation| (provider.name.clone(), observation.clone()))
                 })
                 .collect();
             // DUAL-11-08: the publish cap and the omitted count are shared

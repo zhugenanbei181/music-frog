@@ -1294,6 +1294,82 @@ fn test_connections_drawer_parity_exposes_shared_fields_and_close_action() {
     assert!(!app.world().resource::<ConnectionsDrawerState>().open);
 }
 
+#[test]
+fn test_connections_drawer_renders_kernel_asn_and_geo_without_guessing() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Connections);
+
+    // DUAL-13-05: the kernel's own rule-evaluation results. Row 0 has real
+    // values, row 1 was evaluated with no record, row 2 was never evaluated.
+    let mut projection = ConnectionsProjection::demo();
+    projection.connections[0].destination_ip_asn = "15169 Google LLC".to_owned();
+    projection.connections[0].destination_geo_ip = Some(vec!["us".to_owned()]);
+    projection.connections[1].destination_ip_asn = " ".to_owned();
+    projection.connections[1].destination_geo_ip = Some(Vec::new());
+    projection.connections[2].destination_ip_asn = String::new();
+    projection.connections[2].destination_geo_ip = None;
+    app.world_mut()
+        .commands()
+        .trigger(ConnectionsProjectionUpdated(projection));
+    app.update();
+
+    let open_drawer = |app: &mut App, row: usize| {
+        let inspect_entity = {
+            let mut query = app.world_mut().query::<(Entity, &ConnInspectButton)>();
+            query
+                .iter(app.world())
+                .find(|(_, button)| button.0 == row)
+                .map(|(entity, _)| entity)
+                .expect("row inspect button")
+        };
+        app.world_mut().commands().trigger(Activate {
+            entity: inspect_entity,
+        });
+        app.update();
+    };
+
+    // Row 0: the kernel value is rendered verbatim (no client-side `AS` prefix).
+    open_drawer(&mut app, 0);
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标 ASN 归属（/connections destinationIPASN）: 15169 Google LLC"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标地理归属（/connections destinationGeoIP）: us"
+    ));
+
+    // Row 1: the kernel evaluated and its database had no record.
+    open_drawer(&mut app, 1);
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标 ASN 归属（/connections destinationIPASN）: 内核已求值 · 无该 IP 的记录"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标地理归属（/connections destinationGeoIP）: 内核已求值 · 无该 IP 的记录"
+    ));
+
+    // Row 2: no such rule ran, so the drawer says the kernel did not evaluate
+    // instead of inventing a location or an ASN.
+    open_drawer(&mut app, 2);
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标 ASN 归属（/connections destinationIPASN）: 内核未对本次连接求值（需 IP-ASN 规则）"
+    ));
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "目标地理归属（/connections destinationGeoIP）: 内核未对本次连接求值（需 GEOIP 规则）"
+    ));
+}
+
 /// DUAL-13-12: the render order of the flat rows, read from the container's
 /// children in layout order. Each row mounts as a card wrapper around its
 /// marked node, so the wrapper's subtree is walked for the row marker.
@@ -2069,6 +2145,87 @@ fn test_rules_provider_lifecycle_renders_shared_source_url() {
         "自动刷新: 1d (内核调度)"
     ));
     assert!(subtree_has_text(app.world(), root, "自动刷新: 未声明"));
+}
+
+#[test]
+fn test_rules_provider_local_cache_fingerprint_renders_non_etag_label() {
+    use infiltrator_contract::provider_cache::{
+        ProviderCacheFingerprint, ProviderFileFingerprint, ProviderFingerprintChange,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Rules);
+
+    let mut projection = RulesProjection::demo();
+    projection.providers[0].cache_fingerprint = Some(ProviderCacheFingerprint {
+        provider: "geosite-geolocation-!cn".to_owned(),
+        path: "/home/u/.config/mihomo-rs/rules/8f14e45fceea167a5a36dedd4bea2543".to_owned(),
+        change: ProviderFingerprintChange::FirstSeen,
+        current: ProviderFileFingerprint {
+            size_bytes: 4_096,
+            sha256: "abcdef0123456789deadbeef".to_owned(),
+            modified_unix_secs: Some(1_700_000_000),
+        },
+        previous: None,
+    });
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+
+    // DUAL-11-05: the local file facts are rendered verbatim and the label
+    // says what they are (a local fingerprint, not an HTTP ETag).
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "本地缓存内容指纹（非 HTTP ETag）: sha256:abcdef012345… · 4096 B · mtime 2023-11-14 22:13:20 UTC · 首次观测"
+    ));
+
+    // The other two comparison tokens are rendered for their states too.
+    let mut projection = RulesProjection::demo();
+    projection.providers[0].cache_fingerprint = Some(ProviderCacheFingerprint {
+        provider: "geoip-cn".to_owned(),
+        path: "/home/u/.config/mihomo-rs/rules/deadbeef".to_owned(),
+        change: ProviderFingerprintChange::Unchanged,
+        current: ProviderFileFingerprint {
+            size_bytes: 850,
+            sha256: "0123456789abcdef".to_owned(),
+            modified_unix_secs: Some(1_700_000_100),
+        },
+        previous: Some(ProviderFileFingerprint {
+            size_bytes: 850,
+            sha256: "0123456789abcdef".to_owned(),
+            modified_unix_secs: Some(1_700_000_000),
+        }),
+    });
+    projection.providers[1].cache_fingerprint = Some(ProviderCacheFingerprint {
+        provider: "geoip-cn".to_owned(),
+        path: "/home/u/.config/mihomo-rs/rules/deadbeef".to_owned(),
+        change: ProviderFingerprintChange::Changed,
+        current: ProviderFileFingerprint {
+            size_bytes: 900,
+            sha256: "fedcba9876543210".to_owned(),
+            modified_unix_secs: None,
+        },
+        previous: Some(ProviderFileFingerprint {
+            size_bytes: 850,
+            sha256: "0123456789abcdef".to_owned(),
+            modified_unix_secs: Some(1_700_000_000),
+        }),
+    });
+    app.world_mut()
+        .commands()
+        .trigger(RulesProjectionUpdated(projection));
+    app.update();
+    assert!(subtree_has_text(app.world(), root, "较上次观测未变化"));
+    assert!(subtree_has_text(app.world(), root, "较上次观测已变化"));
+    // A host without a modification time publishes two real facts, no date.
+    assert!(subtree_has_text(
+        app.world(),
+        root,
+        "sha256:fedcba987654… · 900 B · 较上次观测已变化"
+    ));
 }
 
 /// A projection with `total` generated rules, for window/paging tests.

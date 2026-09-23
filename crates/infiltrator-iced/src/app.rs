@@ -266,6 +266,7 @@ impl AppState {
                 rules_heavy_ready: true,
                 rule_provider_source_urls: std::collections::HashMap::new(),
                 rule_provider_intervals: std::collections::HashMap::new(),
+                rule_provider_fingerprints: std::collections::HashMap::new(),
                 rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
                 rule_publish_omitted: None,
                 rule_provider_cache: Default::default(),

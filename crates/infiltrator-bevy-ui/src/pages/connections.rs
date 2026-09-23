@@ -133,6 +133,11 @@ pub struct ConnectionItem {
     pub source_port: String,
     pub destination_ip: String,
     pub destination_port: String,
+    /// DUAL-13-05: kernel `destinationGeoIP` rule-evaluation result.
+    /// `None` = never queried, `Some([])` = queried with no record.
+    pub destination_geo_ip: Option<Vec<String>>,
+    /// DUAL-13-05: raw kernel `destinationIPASN` value.
+    pub destination_ip_asn: String,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,

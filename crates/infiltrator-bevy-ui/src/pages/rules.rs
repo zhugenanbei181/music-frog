@@ -44,6 +44,7 @@ use crate::pages::rules_view::{
     RulesPagePrevButton, RulesViewState, RulesWindowRows,
 };
 use crate::route::{PageRoot, Route};
+use infiltrator_contract::provider_cache::ProviderFingerprintChange;
 
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -89,6 +90,10 @@ pub struct RuleProviderItem {
     /// (seconds). The kernel owns the schedule and the conditional cache, so an
     /// undeclared provider honestly reports `None`.
     pub refresh_interval_secs: Option<u64>,
+    /// DUAL-11-05: the client's local cache-file fingerprint observation
+    /// (size + SHA-256 + last-modified, compared with the previous observation).
+    /// `None` means no local file was observed; this is never an HTTP validator.
+    pub cache_fingerprint: Option<infiltrator_contract::provider_cache::ProviderCacheFingerprint>,
 }
 
 /// Snapshot of the Rules domain.
@@ -159,6 +164,7 @@ impl RulesProjection {
                             .to_owned(),
                     ),
                     refresh_interval_secs: Some(86_400),
+                    cache_fingerprint: None,
                 },
                 RuleProviderItem {
                     name: "geoip-cn".to_owned(),
@@ -170,6 +176,7 @@ impl RulesProjection {
                             .to_owned(),
                     ),
                     refresh_interval_secs: Some(86_400),
+                    cache_fingerprint: None,
                 },
                 RuleProviderItem {
                     name: "custom-reject-ads".to_owned(),
@@ -178,6 +185,7 @@ impl RulesProjection {
                     updated_at: "2026-08-30 18:30".to_owned(),
                     source_url: None,
                     refresh_interval_secs: None,
+                    cache_fingerprint: None,
                 },
             ],
             rules: vec![
@@ -670,9 +678,11 @@ pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
 }
 
 /// DUAL-11-04/11-05: one provider's lifecycle line: update time, the declared
-/// source URL, and the declared automatic-refresh schedule. The schedule is
+/// source URL, the declared automatic-refresh schedule and — when this client
+/// read a local cache file — the local content fingerprint. The schedule is
 /// executed by the kernel, which also owns the `ETag`/`304` conditional cache;
-/// an undeclared provider says so instead of inventing a cache state.
+/// the fingerprint is explicitly labelled as a local file fact so nothing here
+/// claims a kernel download was skipped.
 pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
     let source = match provider.source_url.as_deref() {
         Some(url) if !url.is_empty() => format!("来源: {url}"),
@@ -685,7 +695,26 @@ pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
         ),
         None => "自动刷新: 未声明".to_owned(),
     };
-    format!("更新: {} · {source} · {schedule}", provider.updated_at)
+    let fingerprint = match provider.cache_fingerprint.as_ref() {
+        Some(observation) => {
+            let change = match observation.change {
+                ProviderFingerprintChange::FirstSeen => "首次观测",
+                ProviderFingerprintChange::Unchanged => "较上次观测未变化",
+                ProviderFingerprintChange::Changed => "较上次观测已变化",
+            };
+            let body = infiltrator_domain::rules::view::format_content_fingerprint(
+                &observation.current.sha256,
+                observation.current.size_bytes,
+                observation.current.modified_unix_secs,
+            );
+            format!(" · 本地缓存内容指纹（非 HTTP ETag）: {body} · {change}")
+        }
+        None => String::new(),
+    };
+    format!(
+        "更新: {} · {source} · {schedule}{fingerprint}",
+        provider.updated_at
+    )
 }
 
 pub(crate) fn rule_row_scene(

@@ -542,6 +542,58 @@ pub fn append_draft_rule(
     Some(entry)
 }
 
+/// DUAL-13-05: what the kernel's `/connections` `destinationGeoIP` field
+/// really says about this connection's target IP.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DestinationGeoFact {
+    /// The kernel never evaluated a GEOIP rule for this connection (the field
+    /// was `null`).
+    NotEvaluated,
+    /// The kernel evaluated a GEOIP rule and had no record for the IP (the
+    /// field was `[]`).
+    NoResult,
+    /// The country codes the kernel resolved, in kernel order.
+    Codes(Vec<String>),
+}
+
+/// DUAL-13-05: what the kernel's `/connections` `destinationIPASN` field
+/// really says about this connection's target IP.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DestinationAsnFact {
+    /// No IP-ASN rule ran for this connection (the field was empty).
+    NotEvaluated,
+    /// An IP-ASN rule ran and the kernel's ASN database had no record for the
+    /// IP (the field was whitespace-only).
+    NoResult,
+    /// The kernel's raw value, e.g. `15169 Google LLC`. The client adds no
+    /// `AS` prefix and substitutes nothing.
+    Reported(String),
+}
+
+/// Classify the kernel's raw `destinationGeoIP` value. `None` is the kernel's
+/// `null`; `Some(vec![])` is its empty slice.
+pub fn destination_geo_fact(codes: Option<&[String]>) -> DestinationGeoFact {
+    match codes {
+        None => DestinationGeoFact::NotEvaluated,
+        Some([]) => DestinationGeoFact::NoResult,
+        Some(codes) => DestinationGeoFact::Codes(codes.to_vec()),
+    }
+}
+
+/// Classify the kernel's raw `destinationIPASN` value. mihomo writes `""` when
+/// no IP-ASN rule ran and `" "` (number plus space plus organization) when it
+/// looked up the IP without a record.
+pub fn destination_asn_fact(raw: &str) -> DestinationAsnFact {
+    let trimmed = raw.trim();
+    if raw.is_empty() {
+        DestinationAsnFact::NotEvaluated
+    } else if trimmed.is_empty() {
+        DestinationAsnFact::NoResult
+    } else {
+        DestinationAsnFact::Reported(trimmed.to_owned())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -561,6 +613,8 @@ mod tests {
                 dns_mode: "normal".to_string(),
                 process_path: process.to_string(),
                 special_proxy: String::new(),
+                destination_geo_ip: None,
+                destination_ip_asn: String::new(),
             },
             upload: up,
             download: down,
@@ -825,5 +879,39 @@ mod tests {
         );
         assert!(append_draft_rule(&mut rules, &empty).is_none());
         assert_eq!(rules.len(), 1);
+    }
+
+    #[test]
+    fn destination_geo_fact_keeps_the_kernels_three_states() {
+        // `null`: the kernel never ran a GEOIP rule for this connection.
+        assert_eq!(destination_geo_fact(None), DestinationGeoFact::NotEvaluated);
+        // `[]`: it ran and had no record.
+        assert_eq!(
+            destination_geo_fact(Some(&[])),
+            DestinationGeoFact::NoResult
+        );
+        // Real codes are carried verbatim, in kernel order.
+        let codes = vec!["us".to_owned(), "cloudflare".to_owned()];
+        assert_eq!(
+            destination_geo_fact(Some(&codes)),
+            DestinationGeoFact::Codes(codes.clone())
+        );
+    }
+
+    #[test]
+    fn destination_asn_fact_separates_not_evaluated_from_no_result() {
+        // `""`: no IP-ASN rule ran.
+        assert_eq!(destination_asn_fact(""), DestinationAsnFact::NotEvaluated);
+        // `" "`: mihomo evaluated and the ASN database had no record.
+        assert_eq!(destination_asn_fact(" "), DestinationAsnFact::NoResult);
+        // A real kernel value: raw, trimmed, no invented `AS` prefix.
+        assert_eq!(
+            destination_asn_fact("15169 Google LLC"),
+            DestinationAsnFact::Reported("15169 Google LLC".to_owned())
+        );
+        assert_eq!(
+            destination_asn_fact("15169 "),
+            DestinationAsnFact::Reported("15169".to_owned())
+        );
     }
 }

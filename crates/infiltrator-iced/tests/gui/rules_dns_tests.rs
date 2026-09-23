@@ -760,6 +760,26 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
             updated_at: "2026-09-01".to_owned(),
             source_url: Some("https://example.com/ads.mrs".to_owned()),
             refresh_interval_secs: Some(86_400),
+            cache_fingerprint: Some(
+                infiltrator_contract::provider_cache::ProviderCacheFingerprint {
+                    provider: "ads".to_owned(),
+                    path: "/home/u/.config/mihomo-rs/rules/1f0f1c3f0d0f0a0b".to_owned(),
+                    change:
+                        infiltrator_contract::provider_cache::ProviderFingerprintChange::Changed,
+                    current: infiltrator_contract::provider_cache::ProviderFileFingerprint {
+                        size_bytes: 4_096,
+                        sha256: "abcdef0123456789".to_owned(),
+                        modified_unix_secs: Some(1_700_000_000),
+                    },
+                    previous: Some(
+                        infiltrator_contract::provider_cache::ProviderFileFingerprint {
+                            size_bytes: 2_048,
+                            sha256: "0123456789abcdef".to_owned(),
+                            modified_unix_secs: Some(1_699_000_000),
+                        },
+                    ),
+                },
+            ),
         }],
         rules: vec![Default::default(); 5_000],
         tracer: Default::default(),
@@ -775,6 +795,19 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
     assert_eq!(
         state.editor.rule_provider_intervals.get("ads").copied(),
         Some(86_400)
+    );
+    // DUAL-11-05: the local cache fingerprint observation (a real file read,
+    // compared with the previous observation) reaches the surface too.
+    let observed = state
+        .editor
+        .rule_provider_fingerprints
+        .get("ads")
+        .expect("fingerprint observation");
+    assert_eq!(observed.change_token(), "changed");
+    assert_eq!(observed.current.size_bytes, 4_096);
+    assert_eq!(
+        observed.previous.as_ref().map(|fact| fact.size_bytes),
+        Some(2_048)
     );
     // DUAL-11-08: the publish cap and the omitted count are honest facts.
     assert_eq!(
@@ -952,10 +985,13 @@ fn test_rule_provider_diff_and_unpack_flow() {
         &domain_provider,
         Some("https://example.com/domain.mrs"),
         Some(86_400),
+        None,
         &lang,
     );
-    let _ipc_elem = crate::view::rules::rule_provider_row(&ipcidr_provider, None, None, &lang);
-    let _cls_elem = crate::view::rules::rule_provider_row(&classical_provider, None, None, &lang);
+    let _ipc_elem =
+        crate::view::rules::rule_provider_row(&ipcidr_provider, None, None, None, &lang);
+    let _cls_elem =
+        crate::view::rules::rule_provider_row(&classical_provider, None, None, None, &lang);
 
     state.editor.rule_providers = providers;
     let _providers_elem = crate::view::rules::providers_view(&state, &lang);

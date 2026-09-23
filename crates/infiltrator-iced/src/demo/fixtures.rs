@@ -226,6 +226,8 @@ pub(super) fn demo_connections() -> ConnectionSnapshot {
                         String::new()
                     },
                     special_proxy: String::new(),
+                    destination_geo_ip: None,
+                    destination_ip_asn: String::new(),
                 },
                 upload: *upload,
                 download: *download,

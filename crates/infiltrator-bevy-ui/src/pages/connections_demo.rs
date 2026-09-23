@@ -33,6 +33,8 @@ impl ConnectionsProjection {
                     download_bps: 180_000.0,
                     upload_total: 1_200_000,
                     download_total: 12_400_000,
+                    destination_geo_ip: None,
+                    destination_ip_asn: String::new(),
                 },
                 ConnectionItem {
                     id: "c-2".to_owned(),
@@ -51,6 +53,8 @@ impl ConnectionsProjection {
                     download_bps: 8_500_000.0,
                     upload_total: 450_000,
                     download_total: 68_000_000,
+                    destination_geo_ip: None,
+                    destination_ip_asn: String::new(),
                 },
                 ConnectionItem {
                     id: "c-3".to_owned(),
@@ -69,6 +73,8 @@ impl ConnectionsProjection {
                     download_bps: 3_400.0,
                     upload_total: 890_000,
                     download_total: 4_200_000,
+                    destination_geo_ip: None,
+                    destination_ip_asn: String::new(),
                 },
                 ConnectionItem {
                     id: "c-4".to_owned(),
@@ -87,6 +93,8 @@ impl ConnectionsProjection {
                     download_bps: 0.0,
                     upload_total: 12_000,
                     download_total: 34_000,
+                    destination_geo_ip: None,
+                    destination_ip_asn: String::new(),
                 },
             ],
         }

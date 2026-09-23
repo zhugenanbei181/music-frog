@@ -575,6 +575,141 @@ def main() -> int:
         "threshold_and_pulse_only_react_to_real_high_throughput",
     )
 
+    # DUAL-13-05: the target ASN / geolocation facts come from the kernel's own
+    # `/connections` metadata (`destinationIPASN` / `destinationGeoIP`), are
+    # reduced to their honest three states in the shared domain layer, and are
+    # rendered on both surfaces. The client never reads an MMDB itself.
+    require(
+        violations,
+        LEDGER,
+        "destinationIPASN",
+        "destinationGeoIP",
+        "destination_asn_fact",
+        "destination_geo_fact",
+        "ASN_LOOKUP_DECISION.md",
+        "test_connections_drawer_renders_kernel_asn_and_geo_without_guessing",
+    )
+    require(
+        violations,
+        "crates/mihomo-api/src/types.rs",
+        'rename = "destinationGeoIP"',
+        'rename = "destinationIPASN"',
+        "pub destination_geo_ip: Option<Vec<String>>",
+        "pub destination_ip_asn: String",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/runtime.rs",
+        "pub destination_geo_ip: Option<Vec<String>>",
+        "pub destination_ip_asn: String",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/connection_view.rs",
+        "pub enum DestinationGeoFact",
+        "pub enum DestinationAsnFact",
+        "pub fn destination_geo_fact",
+        "pub fn destination_asn_fact",
+        "destination_asn_fact_separates_not_evaluated_from_no_result",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub destination_geo_ip: Option<Vec<String>>",
+        "pub destination_ip_asn: String",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/connection_rate_application.rs",
+        "destination_geo_ip: connection.metadata.destination_geo_ip.clone()",
+        "destination_ip_asn: connection.metadata.destination_ip_asn.clone()",
+    )
+    require(
+        violations,
+        "crates/mihomo-api/src/connection/manager.rs",
+        "dual_13_05_kernel_asn_and_geo_fields_parse_with_their_real_states",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view_root/connection_drawer.rs",
+        "kernel_asn_label",
+        "kernel_geo_label",
+        "destination_asn_fact",
+        "destination_geo_fact",
+        "conn_drawer_kernel_asn",
+        "conn_drawer_kernel_geo",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_connection_drawer_tests.rs",
+        "test_kernel_asn_label_separates_not_evaluated_from_no_result",
+        "test_kernel_geo_label_keeps_the_kernels_three_states",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections_drawer.rs",
+        "KernelAsn",
+        "KernelGeo",
+        "destination_asn_fact",
+        "destination_geo_fact",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections.rs",
+        "pub destination_geo_ip: Option<Vec<String>>",
+        "pub destination_ip_asn: String",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "conn_drawer_kernel_asn",
+        "conn_drawer_kernel_geo",
+        "conn_drawer_kernel_not_evaluated",
+        "conn_drawer_kernel_no_result",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "conn_drawer_kernel_asn",
+        "conn_drawer_kernel_geo",
+        "conn_drawer_kernel_not_evaluated",
+        "conn_drawer_kernel_no_result",
+    )
+    require(
+        violations,
+        "docs/ASN_LOOKUP_DECISION.md",
+        "destinationIPASN",
+        "destinationGeoIP",
+        "Meta-geoip0",
+        "GeoLite2-ASN",
+        "maxminddb",
+        "ASN.mmdb",
+        "geoip.metadb",
+        "oschwald/maxminddb-golang",
+    )
+    # The old hardcoded sample must never return to a surface.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view_root/connection_drawer.rs",
+        "AS36459",
+        "GitHub, Inc.",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/connections_drawer.rs",
+        "AS36459",
+        "GitHub, Inc.",
+    )
+    # 13-05 is advanced, not planned: the row must carry its new evidence.
+    for line in read(LEDGER).splitlines():
+        if "DUAL-13-05" in line:
+            if "`planned`" in line:
+                violations.append("DUAL-13-05 is still marked planned")
+            for marker in ("destinationIPASN", "destinationGeoIP", "shared-ready"):
+                if marker not in line:
+                    violations.append(f"DUAL-13-05 row missing {marker!r}")
+            break
+
     # The guard itself is registered on both suites.
     require(
         violations,

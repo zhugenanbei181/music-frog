@@ -614,6 +614,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
         // outbound stage stays honestly unknown (no fabricated node data).
         pages.rules = build_rules_page(
             self.configuration.as_ref(),
+            &self.rule_provider,
             runtime_rule_providers,
             RulesTracerReplay {
                 application: &self.rule_tracer,
@@ -846,6 +847,7 @@ fn rules_json_documents(
 
 async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
+    rule_provider: &crate::rule_provider_application::RuleProviderApplication,
     runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
     tracer_replay: RulesTracerReplay<'_>,
     mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
@@ -875,9 +877,9 @@ async fn build_rules_page(
         tracer_replay.proxies,
     );
     let providers = match runtime_providers {
-        Some(Ok(providers)) => providers
-            .into_iter()
-            .map(|provider| {
+        Some(Ok(providers)) => {
+            let mut snapshots = Vec::with_capacity(providers.len());
+            for provider in providers {
                 let declaration = configured_providers.get(&provider.name);
                 let source_url = declaration
                     .and_then(|value| value.get("url"))
@@ -890,16 +892,28 @@ async fn build_rules_page(
                 let refresh_interval_secs = declaration
                     .and_then(|value| value.get("interval"))
                     .and_then(|interval| interval.as_u64());
-                surface_snapshot::RuleProviderSnapshot {
+                // DUAL-11-05: the client's own local-cache observation. This is
+                // the file on disk, compared with the previous local read — not
+                // an HTTP validator result, which the kernel never exposes.
+                let cache_fingerprint = match declaration {
+                    Some(value) => {
+                        let resolved = infiltrator_domain::rules::provider_store::RuleProviderDeclaration::from_value(&provider.name, value);
+                        rule_provider.observe_fingerprint(&resolved).await
+                    }
+                    None => None,
+                };
+                snapshots.push(surface_snapshot::RuleProviderSnapshot {
                     name: provider.name,
                     rule_count: provider.rule_count as usize,
                     behavior: provider.behavior,
                     updated_at: provider.updated_at,
                     source_url,
                     refresh_interval_secs,
-                }
-            })
-            .collect(),
+                    cache_fingerprint,
+                });
+            }
+            snapshots
+        }
         Some(Err(error)) => {
             return surface_snapshot::PageData::failed(Failure::new(
                 ErrorCode::Network,
