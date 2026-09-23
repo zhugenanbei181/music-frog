@@ -523,8 +523,8 @@ fn resolv_conf_nameserver_lines_are_parsed_without_guessing() {
 /// Live network check (ignored by default and gated behind the opt-in
 /// `network-tests` feature, so the default suite stays fully offline). The two
 /// real public TXT echo authorities are observed through the platform resolver.
-/// Run with
-/// `cargo test -p infiltrator-core --features network-tests --lib -- --ignored live_public_txt`.
+/// Run with `cargo nextest run -p infiltrator-core --features network-tests
+/// --run-ignored ignored-only live_public_txt`.
 #[cfg(feature = "network-tests")]
 #[tokio::test]
 #[ignore = "reaches the public internet through the platform resolver"]

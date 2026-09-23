@@ -42,7 +42,7 @@ if ! command -v appimagetool >/dev/null 2>&1; then
     TOOL_PATH="${TMPDIR:-/tmp}/appimagetool"
     curl --fail --silent --show-error --location --retry 3 \
         -o "$TOOL_PATH" \
-        "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
+        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
     chmod +x "$TOOL_PATH"
     APPIMAGETOOL="$TOOL_PATH"
 else
@@ -52,7 +52,7 @@ fi
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 echo "[build-appimage] Running appimagetool with zstd compression..."
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" \
-    --no-appstream -comp zstd "$APP_DIR" "$OUTPUT_PATH"
+    --no-appstream --comp zstd "$APP_DIR" "$OUTPUT_PATH"
 chmod +x "$OUTPUT_PATH"
 
 echo "[build-appimage] Successfully generated: $OUTPUT_PATH"

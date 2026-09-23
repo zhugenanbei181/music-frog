@@ -9,6 +9,15 @@ if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" ) ]]; then
   exit 2
 fi
 
+# The single supported test runner + guard-registration policy. Kept first so a
+# policy regression fails locally instead of only in CI.
+bash scripts/check-test-policy.sh
+
+# CI enforces these too, but they were missing from the local gate — which is
+# how an import-alias regression reached main. Run them here so local == CI.
+python3 scripts/quality/import-guard.py --mode enforce
+python3 scripts/quality/core-boundary-guard.py --mode enforce
+
 python3 scripts/quality/parity-guard.py --mode enforce
 python3 scripts/quality/i18n-guard.py --mode enforce
 python3 scripts/quality/session-guard.py --mode enforce

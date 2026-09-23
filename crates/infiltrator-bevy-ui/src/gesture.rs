@@ -30,13 +30,13 @@ use bevy::ecs::message::MessageReader;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Res, ResMut};
-use bevy::input::touch::{TouchInput, TouchPhase as BevyTouchPhase};
+use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
 use bevy::time::Time;
 
+use infiltrator_bevy_widgets::gesture;
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshState, SwipeToActionItem,
-    TouchPhase as WidgetTouchPhase,
 };
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, SafeAreaInsets,
@@ -164,12 +164,12 @@ impl Plugin for ShellGesturePlugin {
 }
 
 /// Map a raw Bevy touch phase onto the shared raw-phase vocabulary.
-pub fn shared_phase(phase: BevyTouchPhase) -> GestureTouchPhase {
+pub fn shared_phase(phase: TouchPhase) -> GestureTouchPhase {
     match phase {
-        BevyTouchPhase::Started => GestureTouchPhase::Started,
-        BevyTouchPhase::Moved => GestureTouchPhase::Moved,
-        BevyTouchPhase::Ended => GestureTouchPhase::Ended,
-        BevyTouchPhase::Canceled => GestureTouchPhase::Canceled,
+        TouchPhase::Started => GestureTouchPhase::Started,
+        TouchPhase::Moved => GestureTouchPhase::Moved,
+        TouchPhase::Ended => GestureTouchPhase::Ended,
+        TouchPhase::Canceled => GestureTouchPhase::Canceled,
     }
 }
 
@@ -241,7 +241,7 @@ fn consume_touch_input(
         snapshot.0.apply(phase.touch_event(position));
 
         match event.phase {
-            BevyTouchPhase::Started => {
+            TouchPhase::Started => {
                 if state.active.len() < MAX_TRACKED_TOUCHES {
                     state.active.insert(event.id, position);
                 }
@@ -253,7 +253,7 @@ fn consume_touch_input(
                     // stale touch.
                     state
                         .recognizer
-                        .handle_touch(WidgetTouchPhase::Cancel, now_ms);
+                        .handle_touch(gesture::TouchPhase::Cancel, now_ms);
                     GestureMode::Pinch
                 } else {
                     GestureMode::Undecided
@@ -261,12 +261,12 @@ fn consume_touch_input(
                 if state.mode == GestureMode::Undecided
                     && let Some(outcome) = state
                         .recognizer
-                        .handle_touch(WidgetTouchPhase::Start(vec2(position)), now_ms)
+                        .handle_touch(gesture::TouchPhase::Start(vec2(position)), now_ms)
                 {
                     snapshot.0.apply(shared_outcome(outcome));
                 }
             }
-            BevyTouchPhase::Moved => {
+            TouchPhase::Moved => {
                 if let Some(slot) = state.active.get_mut(&event.id) {
                     *slot = position;
                 }
@@ -311,7 +311,7 @@ fn consume_touch_input(
                     GestureMode::Recognizer => {
                         if let Some(outcome) = state
                             .recognizer
-                            .handle_touch(WidgetTouchPhase::Move(vec2(position)), now_ms)
+                            .handle_touch(gesture::TouchPhase::Move(vec2(position)), now_ms)
                         {
                             snapshot.0.apply(shared_outcome(outcome));
                         }
@@ -344,7 +344,7 @@ fn consume_touch_input(
                             GestureMode::Recognizer | GestureMode::Undecided => {
                                 if let Some(outcome) = state
                                     .recognizer
-                                    .handle_touch(WidgetTouchPhase::Move(vec2(position)), now_ms)
+                                    .handle_touch(gesture::TouchPhase::Move(vec2(position)), now_ms)
                                 {
                                     snapshot.0.apply(shared_outcome(outcome));
                                 }
@@ -354,7 +354,7 @@ fn consume_touch_input(
                     }
                 }
             }
-            BevyTouchPhase::Ended => {
+            TouchPhase::Ended => {
                 state.active.remove(&event.id);
                 match state.mode {
                     GestureMode::Pull => {
@@ -375,7 +375,7 @@ fn consume_touch_input(
                     GestureMode::Recognizer | GestureMode::Undecided => {
                         if let Some(outcome) = state
                             .recognizer
-                            .handle_touch(WidgetTouchPhase::End(vec2(position)), now_ms)
+                            .handle_touch(gesture::TouchPhase::End(vec2(position)), now_ms)
                         {
                             snapshot.0.apply(shared_outcome(outcome));
                         }
@@ -386,11 +386,11 @@ fn consume_touch_input(
                 state.start = None;
                 state.pinch_distance = None;
             }
-            BevyTouchPhase::Canceled => {
+            TouchPhase::Canceled => {
                 state.active.remove(&event.id);
                 state
                     .recognizer
-                    .handle_touch(WidgetTouchPhase::Cancel, now_ms);
+                    .handle_touch(gesture::TouchPhase::Cancel, now_ms);
                 state.mode = GestureMode::Undecided;
                 state.start = None;
                 state.pinch_distance = None;

@@ -6,8 +6,9 @@ edition = "2024"
 [features]
 # Opt-in live network probes. These tests are also `#[ignore]`, so the default
 # `scripts/test.sh` suite stays fully offline and reports no skipped tests.
-# Run them with:
-#   cargo test -p infiltrator-core --features network-tests --lib -- --ignored
+# Run them with (nextest is the repo's only supported runner):
+#   cargo nextest run -p infiltrator-core --features network-tests \
+#     --run-ignored ignored-only live_public
 network-tests = []
 
 [dependencies]

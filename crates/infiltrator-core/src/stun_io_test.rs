@@ -174,8 +174,8 @@ async fn an_unusable_server_address_fails_without_a_mapping() {
 }
 
 /// Requires live network access to a public STUN server; not part of the
-/// offline suite. Run with
-/// `cargo test -p infiltrator-core --features network-tests --lib -- --ignored live_public_stun`.
+/// offline suite. Run with `cargo nextest run -p infiltrator-core
+/// --features network-tests --run-ignored ignored-only live_public_stun`.
 #[cfg(feature = "network-tests")]
 #[tokio::test]
 #[ignore = "requires live network access to a public STUN server"]

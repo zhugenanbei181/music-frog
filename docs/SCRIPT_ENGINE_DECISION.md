@@ -289,7 +289,7 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
   反向禁止 JS 引擎依赖，并保留对 `BoaScriptEngine` 诚实边界的断言。
 - **验证命令**（默认配置即覆盖真实引擎）：
   ```console
-  $ CARGO_TARGET_DIR=… cargo test -p infiltrator-application
+  $ CARGO_TARGET_DIR=… cargo nextest run -p infiltrator-application
   $ CARGO_TARGET_DIR=… cargo clippy -p infiltrator-application --all-targets -- -D warnings
   $ CARGO_TARGET_DIR=… bash scripts/test.sh
   ```

@@ -18,9 +18,9 @@ use infiltrator_contract::dialer_chain::{
     DialerLoopFinding, DialerLoopKind, hop_type_label, loop_message,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_domain::proxy_nodes::dialer;
 use infiltrator_domain::proxy_nodes::dialer::{
-    DialerChainEnd as DomainChainEnd, DialerCycle, DialerCycleKind, DialerGraphFacts,
-    DialerTopology, ResolvedDialerChain,
+    DialerCycle, DialerCycleKind, DialerGraphFacts, DialerTopology, ResolvedDialerChain,
 };
 
 /// DUAL-05-09/10 shared analyzer.
@@ -74,10 +74,10 @@ fn chain_view(chain: ResolvedDialerChain) -> DialerChainView {
         })
         .collect();
     let end = match chain.end {
-        DomainChainEnd::Complete => DialerChainEnd::Complete,
-        DomainChainEnd::MissingTarget(name) => DialerChainEnd::MissingTarget { name },
-        DomainChainEnd::GroupBoundary(name) => DialerChainEnd::GroupBoundary { name },
-        DomainChainEnd::Cycle(path) => DialerChainEnd::Cycle { path },
+        dialer::DialerChainEnd::Complete => DialerChainEnd::Complete,
+        dialer::DialerChainEnd::MissingTarget(name) => DialerChainEnd::MissingTarget { name },
+        dialer::DialerChainEnd::GroupBoundary(name) => DialerChainEnd::GroupBoundary { name },
+        dialer::DialerChainEnd::Cycle(path) => DialerChainEnd::Cycle { path },
     };
     DialerChainView {
         root: chain.root,
