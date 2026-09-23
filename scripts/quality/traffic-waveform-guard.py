@@ -133,6 +133,10 @@ def main() -> int:
         "TrafficWaveformSnapshot",
         "smooth_dual_series",
         "raw_series",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/waveform_tests.rs",
         "shared_live_samples_are_the_input_to_the_same_bezier_projection",
     )
     require(

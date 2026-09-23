@@ -7,10 +7,11 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, banner_alert, chip, form_field_label, form_input_style, form_toggle_row,
-    icon_button, row_card_surface, segmented_control, style_ghost, text_btn,
+use crate::view::component_forms::{
+    banner_alert, form_field_label, form_input_style, form_toggle_row, row_card_surface,
+    style_ghost, text_btn,
 };
+use crate::view::components::{BadgeKind, chip, icon_button, segmented_control};
 use crate::view::dns::{
     append_item_to_list, dns_protocol_chip, parse_item_list, remove_item_from_list,
     server_tag_label,

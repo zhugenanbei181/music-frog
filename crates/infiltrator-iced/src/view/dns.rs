@@ -3,10 +3,13 @@ use crate::types::dns::{AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
+use crate::view::component_forms::{
+    banner_alert, editor_frame_surface, form_field_label, form_input_style, form_pick_style,
+    form_toggle_row, row_card_surface, style_accent, style_ghost, text_btn,
+};
 use crate::view::components::{
-    BadgeKind, badge, banner_alert, card, editor_frame_surface, empty_state, form_field_label,
-    form_input_style, form_pick_style, form_toggle_row, icon_button, modern_scrollable,
-    row_card_surface, section_header, segmented_control, style_accent, style_ghost, text_btn,
+    BadgeKind, badge, card, empty_state, icon_button, modern_scrollable, section_header,
+    segmented_control,
 };
 use crate::view::dns_form_panel::{
     dns_cache_flush_status, dns_form_field_widget, dynamic_token_section, form_issue_banner,

@@ -683,12 +683,14 @@ def check_interaction_token_mirrors(violations: list[str]) -> None:
     )
 
     # Named seams: the token must be the thing the surface paints.
-    iced_components = read("crates/infiltrator-iced/src/view/components.rs")
-    for marker in ("tk.hover", "tk.pressed", "tk.focus_ring"):
-        if marker not in iced_components:
+    for path, marker in (
+        ("crates/infiltrator-iced/src/view/components.rs", "tk.hover"),
+        ("crates/infiltrator-iced/src/view/components.rs", "tk.pressed"),
+        ("crates/infiltrator-iced/src/view/component_forms.rs", "tk.focus_ring"),
+    ):
+        if marker not in read(path):
             violations.append(
-                f"crates/infiltrator-iced/src/view/components.rs must paint "
-                f"{marker} (the shared interaction token)"
+                f"{path} must paint {marker} (the shared interaction token)"
             )
     for path in ICED_SCRIM_BACKDROPS:
         if ".scrim" not in read(path):
@@ -1761,13 +1763,13 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/mini_hud_window.rs",
+        "crates/infiltrator-iced/tests/gui/mini_hud_window_tests.rs",
         "fn a_handle_without_a_live_window_refuses_the_placement",
         "fn a_live_window_accepts_exactly_once_per_request",
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/mini_hud_store.rs",
+        "crates/infiltrator-iced/tests/gui/mini_hud_store_tests.rs",
         "fn a_persisted_placement_reaches_the_iced_window_handle",
     )
     require(
@@ -2211,10 +2213,14 @@ def main() -> int:
     require(
         violations,
         "crates/infiltrator-iced/src/view/components.rs",
-        "pub fn form_input_style",
-        "tk.focus_ring",
         "tk.hover",
         "tk.pressed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/component_forms.rs",
+        "pub fn form_input_style",
+        "tk.focus_ring",
     )
     require(
         violations,

@@ -157,7 +157,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/privileged_network_card.rs",
+        "crates/infiltrator-iced/tests/gui/privileged_network_card_tests.rs",
         "card_consumes_cleaned_readback_without_fabricating_active_state",
     )
     require(

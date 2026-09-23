@@ -2,9 +2,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, badge, card, form_input_style, style_ghost, text_btn, toggle_switch,
-};
+use crate::view::component_forms::{form_input_style, style_ghost, text_btn};
+use crate::view::components::{BadgeKind, badge, card, toggle_switch};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};

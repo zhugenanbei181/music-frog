@@ -111,6 +111,10 @@ def main() -> int:
         "overview_master_switches",
         "SystemToggleState",
         "on_press_maybe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/overview_master_switches_tests.rs",
         "unsupported_master_control_is_not_offered_as_an_action",
     )
     require(

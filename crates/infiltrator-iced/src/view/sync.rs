@@ -1,9 +1,11 @@
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::{
+    banner_alert, form_field_label, form_input_style, form_toggle_row, row_card_surface,
+    style_accent, style_ghost, text_btn,
+};
 use crate::view::components::{
-    BadgeKind, badge, banner_alert, card, form_field_label, form_input_style, form_toggle_row,
-    modern_scrollable, row_card_surface, section_header, status_dot, style_accent, style_ghost,
-    text_btn,
+    BadgeKind, badge, card, modern_scrollable, section_header, status_dot,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};

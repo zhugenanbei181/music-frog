@@ -2,6 +2,7 @@ pub mod active_exit;
 pub mod app_routing;
 pub mod apply_guard_card;
 pub mod chrome;
+pub mod component_forms;
 pub mod components;
 pub mod crash_watchdog_card;
 pub mod dns;

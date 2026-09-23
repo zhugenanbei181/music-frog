@@ -4,7 +4,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{form_input_style, segmented_control};
+use crate::view::component_forms::form_input_style;
+use crate::view::components::segmented_control;
 use crate::view::theme::{self, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};

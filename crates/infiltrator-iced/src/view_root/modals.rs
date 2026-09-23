@@ -415,7 +415,7 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
             |t: &Theme| crate::view::theme::tokens(t).text_secondary
         ))
         .padding(4)
-        .style(crate::view::components::style_ghost)
+        .style(crate::view::component_forms::style_ghost)
         .on_press(Message::InspectProxy(None)),
     ]
     .align_y(Alignment::Center);
@@ -427,7 +427,7 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
                 .font(crate::view::theme::FONT_MEDIUM)
         )
         .padding([7, 16])
-        .style(crate::view::components::style_ghost)
+        .style(crate::view::component_forms::style_ghost)
         .on_press(Message::InspectProxy(None)),
         Space::new().width(Length::Fill),
         button(
@@ -436,7 +436,7 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
                 .font(crate::view::theme::FONT_MEDIUM)
         )
         .padding([7, 16])
-        .style(crate::view::components::style_accent)
+        .style(crate::view::component_forms::style_accent)
         .on_press(Message::TestProxyDelay(proxy_name.to_string())),
     ]
     .align_y(Alignment::Center);
@@ -485,7 +485,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 |t: &Theme| crate::view::theme::tokens(t).text_secondary
             ))
             .padding(4)
-            .style(crate::view::components::style_ghost)
+            .style(crate::view::component_forms::style_ghost)
             .on_press(Message::OpenAddCustomNodeModal(false)),
         ]
         .align_y(Alignment::Center),
@@ -503,7 +503,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 Message::UpdateNewNodeType
             )
             .width(Length::Fill)
-            .style(crate::view::components::form_pick_style),
+            .style(crate::view::component_forms::form_pick_style),
         ]
         .spacing(2),
         column![
@@ -517,7 +517,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 .on_input(Message::UpdateNewNodeName)
                 .padding([7, 10])
                 .size(12)
-                .style(crate::view::components::form_input_style),
+                .style(crate::view::component_forms::form_input_style),
         ]
         .spacing(2),
         row![
@@ -535,7 +535,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 .on_input(Message::UpdateNewNodeServer)
                 .padding([7, 10])
                 .size(12)
-                .style(crate::view::components::form_input_style),
+                .style(crate::view::component_forms::form_input_style),
             ]
             .width(Length::FillPortion(3)),
             Space::new().width(crate::view::theme::SP_SM),
@@ -550,7 +550,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                     .on_input(Message::UpdateNewNodePort)
                     .padding([7, 10])
                     .size(12)
-                    .style(crate::view::components::form_input_style),
+                    .style(crate::view::component_forms::form_input_style),
             ]
             .width(Length::FillPortion(1)),
         ],
@@ -565,7 +565,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                 .on_input(Message::UpdateNewNodeCredential)
                 .padding([7, 10])
                 .size(12)
-                .style(crate::view::components::form_input_style),
+                .style(crate::view::component_forms::form_input_style),
         ]
         .spacing(2),
         row![
@@ -580,7 +580,7 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                     .on_input(Message::UpdateNewNodeCipher)
                     .padding([7, 10])
                     .size(12)
-                    .style(crate::view::components::form_input_style),
+                    .style(crate::view::component_forms::form_input_style),
             ]
             .width(Length::FillPortion(3)),
             Space::new().width(crate::view::theme::SP_SM),
@@ -600,12 +600,12 @@ pub fn custom_node_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
         row![
             button(text(lang.tr("btn_cancel")).size(12))
                 .padding([7, 14])
-                .style(crate::view::components::style_ghost)
+                .style(crate::view::component_forms::style_ghost)
                 .on_press(Message::OpenAddCustomNodeModal(false)),
             Space::new().width(Length::Fill),
             button(text(lang.tr("proxies_add_node_btn")).size(12))
                 .padding([7, 16])
-                .style(crate::view::components::style_accent)
+                .style(crate::view::component_forms::style_accent)
                 .on_press(Message::SubmitAddCustomNode),
         ]
         .align_y(Alignment::Center),
@@ -756,7 +756,7 @@ pub fn rule_provider_diff_modal<'a>(
             |t: &Theme| crate::view::theme::tokens(t).text_secondary
         ))
         .padding(4)
-        .style(crate::view::components::style_ghost)
+        .style(crate::view::component_forms::style_ghost)
         .on_press(Message::InspectRuleProviderDiff(None)),
     ]
     .align_y(Alignment::Center);
@@ -768,7 +768,7 @@ pub fn rule_provider_diff_modal<'a>(
                 .font(crate::view::theme::FONT_MEDIUM)
         )
         .padding([7, 14])
-        .style(crate::view::components::style_ghost)
+        .style(crate::view::component_forms::style_ghost)
         .on_press(Message::InspectRuleProviderDiff(None)),
         Space::new().width(Length::Fill),
         button(
@@ -777,7 +777,7 @@ pub fn rule_provider_diff_modal<'a>(
                 .font(crate::view::theme::FONT_MEDIUM)
         )
         .padding([7, 16])
-        .style(crate::view::components::style_accent)
+        .style(crate::view::component_forms::style_accent)
         .on_press(Message::UnpackRuleProvider(provider_name)),
     ]
     .align_y(Alignment::Center);
@@ -833,7 +833,7 @@ pub fn confirmation_modal<'a>(
                 |t: &Theme| crate::view::theme::tokens(t).text_secondary
             ))
             .padding(4)
-            .style(crate::view::components::style_ghost)
+            .style(crate::view::component_forms::style_ghost)
             .on_press(Message::CancelConfirmation),
         ]
         .align_y(Alignment::Center),
@@ -849,7 +849,7 @@ pub fn confirmation_modal<'a>(
                     .font(crate::view::theme::FONT_MEDIUM)
             )
             .padding([7, 14])
-            .style(crate::view::components::style_ghost)
+            .style(crate::view::component_forms::style_ghost)
             .on_press(Message::CancelConfirmation),
             Space::new().width(Length::Fill),
             button(
@@ -858,7 +858,7 @@ pub fn confirmation_modal<'a>(
                     .font(crate::view::theme::FONT_MEDIUM)
             )
             .padding([7, 16])
-            .style(crate::view::components::style_danger)
+            .style(crate::view::component_forms::style_danger)
             .on_press(Message::ConfirmAction),
         ]
         .align_y(Alignment::Center),

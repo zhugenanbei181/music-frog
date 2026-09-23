@@ -6,10 +6,13 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::view::component_forms::{
+    banner_alert, form_field_label, form_input_style, form_pick_style, form_toggle_row,
+    search_input, style_accent, style_danger, style_ghost, text_btn,
+};
 use crate::view::components::{
-    BadgeKind, badge, banner_alert, card, chip, empty_state, form_field_label, form_input_style,
-    form_pick_style, form_toggle_row, icon_button, kbd_badge, modern_scrollable, search_input,
-    section_header, segmented_control, style_accent, style_danger, style_ghost, text_btn,
+    BadgeKind, badge, card, chip, empty_state, icon_button, kbd_badge, modern_scrollable,
+    section_header, segmented_control,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, SP_MD, tokens};

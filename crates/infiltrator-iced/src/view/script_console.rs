@@ -6,10 +6,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, badge, card, form_input_style, icon_button, kbd_badge, modern_scrollable,
-    style_accent,
-};
+use crate::view::component_forms::{form_input_style, style_accent};
+use crate::view::components::{BadgeKind, badge, card, icon_button, kbd_badge, modern_scrollable};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text, text_input};

@@ -117,13 +117,5 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn overview_mode_segment_renders_cleanly() {
-        let state = AppState::empty();
-        let lang = Lang("zh-CN");
-        let _elem = overview_mode_segment(&state, &lang);
-    }
-}
+#[path = "../../tests/gui/overview_mode_segment_tests.rs"]
+mod overview_mode_segment_tests;

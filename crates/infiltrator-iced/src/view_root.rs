@@ -175,7 +175,7 @@ impl AppState {
                             Space::new().width(crate::view::theme::SP_MD),
                             button(text(dismiss).size(11).font(crate::view::theme::FONT_MEDIUM))
                                 .padding([4, 10])
-                                .style(crate::view::components::style_ghost)
+                                .style(crate::view::component_forms::style_ghost)
                                 .on_press(Message::ClearError),
                         ]
                         .align_y(Alignment::Center),

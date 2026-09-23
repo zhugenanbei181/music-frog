@@ -7,10 +7,10 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, badge, card, form_field_label, form_input_style, icon_button, row_card_surface,
-    style_accent, style_ghost, text_btn,
+use crate::view::component_forms::{
+    form_field_label, form_input_style, row_card_surface, style_accent, style_ghost, text_btn,
 };
+use crate::view::components::{BadgeKind, badge, card, icon_button};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, MONO, tokens};
 use iced::widget::{Space, column, container, row, text, text_input};

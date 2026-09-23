@@ -9,11 +9,13 @@ use crate::state::AppState;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::rules::RuleBadgeKind;
+use crate::view::component_forms::{
+    editor_frame_surface, form_field_label, form_input_style, form_pick_style, row_card_surface,
+    search_input, style_accent, style_ghost, text_btn,
+};
 use crate::view::components::{
-    BadgeKind, badge, card, chip, editor_frame_surface, empty_state, form_field_label,
-    form_input_style, form_pick_style, icon_button, kbd_badge, modern_scrollable, row_card_surface,
-    search_input, section_header, segmented_control, status_dot, style_accent, style_ghost,
-    text_btn, toggle_switch,
+    BadgeKind, badge, card, chip, empty_state, icon_button, kbd_badge, modern_scrollable,
+    section_header, segmented_control, status_dot, toggle_switch,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};

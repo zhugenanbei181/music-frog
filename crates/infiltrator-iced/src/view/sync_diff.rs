@@ -5,9 +5,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffKeyKind, SyncDiffState};
-use crate::view::components::{
-    BadgeKind, badge, card, segmented_control, style_accent, style_ghost,
-};
+use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::components::{BadgeKind, badge, card, segmented_control};
 use crate::view::theme::{self, MONO, tokens};
 use iced::widget::{Space, button, column, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};

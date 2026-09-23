@@ -9,8 +9,9 @@
 use crate::state::AppState;
 use crate::types::app::SnapshotDiffMode;
 use crate::types::message::Message;
+use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{
-    BadgeKind, badge, icon_button, modern_scrollable, segmented_control, style_accent, style_ghost,
+    BadgeKind, badge, icon_button, modern_scrollable, segmented_control,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};

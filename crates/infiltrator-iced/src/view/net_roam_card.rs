@@ -2,7 +2,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{BadgeKind, badge, card, style_accent};
+use crate::view::component_forms::style_accent;
+use crate::view::components::{BadgeKind, badge, card};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};

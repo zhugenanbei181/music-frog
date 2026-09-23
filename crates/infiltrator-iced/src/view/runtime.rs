@@ -10,10 +10,10 @@ mod traffic;
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
-use crate::view::components::{
-    card, empty_state, form_pick_style, icon_button, modern_scrollable, style_accent, style_danger,
-    style_ghost, text_btn, toggle_switch,
+use crate::view::component_forms::{
+    form_pick_style, style_accent, style_danger, style_ghost, text_btn,
 };
+use crate::view::components::{card, empty_state, icon_button, modern_scrollable, toggle_switch};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, row, text};

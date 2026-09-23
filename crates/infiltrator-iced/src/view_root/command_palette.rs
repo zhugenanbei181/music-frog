@@ -116,7 +116,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             }
         }),
         button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_tertiary))
-            .style(crate::view::components::style_ghost)
+            .style(crate::view::component_forms::style_ghost)
             .padding(4)
             .on_press(Message::CloseCommandPalette),
     ]

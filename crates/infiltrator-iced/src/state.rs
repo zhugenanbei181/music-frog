@@ -768,27 +768,6 @@ impl AppState {
         }
     }
 
-    /// Move an Overview card up/down using the shared layout operators, then
-    /// store the resulting order. Reusing `OverviewLayoutSnapshot` guarantees
-    /// the Iced surface applies the exact same swap semantics as Bevy.
-    pub fn move_overview_card(
-        &mut self,
-        kind: infiltrator_contract::overview_layout::OverviewCardKind,
-        up: bool,
-    ) {
-        let mut layout = infiltrator_contract::overview_layout::OverviewLayoutSnapshot::new(
-            self.diag.overview_card_order.clone(),
-        );
-        let changed = if up {
-            layout.move_up(kind)
-        } else {
-            layout.move_down(kind)
-        };
-        if changed {
-            self.diag.overview_card_order = layout.order;
-        }
-    }
-
     /// Apply the shared page read model as a monotonic render cache. The
     /// existing Elm fields remain toolkit-local projections; stale host
     /// events cannot overwrite a newer shared revision.
@@ -1023,17 +1002,6 @@ impl AppState {
     /// starts. The update loop only receives typed `Message` values afterward.
     pub fn attach_surface_bridge(&mut self, bridge: crate::surface::SurfaceBridge) {
         self.surface_bridge = Some(bridge);
-    }
-
-    pub fn attach_exit_cleanup(&mut self, cleanup: Arc<dyn Fn() + Send + Sync>) {
-        self.exit_cleanup = Some(cleanup);
-    }
-
-    /// Single choke point for `error_msg`: raw error chains can embed
-    /// subscription query tokens or the controller secret, so the text is
-    /// redacted here before any view can render it (CORE-001).
-    pub fn set_error(&mut self, source: impl std::fmt::Display) {
-        self.shell.error_msg = Some(crate::utils::sanitize_ui_text(&source.to_string()));
     }
 
     /// DUAL-09-12: the write classification of the profile open in the editor.

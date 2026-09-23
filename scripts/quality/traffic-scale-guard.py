@@ -140,6 +140,10 @@ def main() -> int:
         "resolved_scale",
         "compute_from_rates",
         "with_color(Color { a: 0.16",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/waveform_tests.rs",
         "canvas_uses_the_application_scale_instead_of_a_fixed_floor",
     )
     require(

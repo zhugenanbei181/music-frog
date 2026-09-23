@@ -2,7 +2,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{BadgeKind, badge, card, style_accent};
+use crate::view::component_forms::style_accent;
+use crate::view::components::{BadgeKind, badge, card};
 use crate::view::theme::{self, MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
@@ -76,19 +77,5 @@ fn format_details(snapshot: &PrivilegedNetworkSnapshot) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
-
-    #[test]
-    fn card_consumes_cleaned_readback_without_fabricating_active_state() {
-        let (mut state, _) = AppState::new();
-        let snapshot = PrivilegedNetworkSnapshot::cleaned(2, 3, false);
-        let _ = state.update(Message::PrivilegedNetworkRegressionUpdated(Ok(
-            snapshot.clone()
-        )));
-        assert_eq!(state.runtime.privileged_network, snapshot);
-        let lang = Lang(&state.shell.lang);
-        let _ = privileged_network_card(&state, &lang);
-    }
-}
+#[path = "../../tests/gui/privileged_network_card_tests.rs"]
+mod privileged_network_card_tests;

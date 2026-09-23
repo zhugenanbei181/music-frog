@@ -5,9 +5,11 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::{
+    form_input_style, row_card_surface, style_accent, style_ghost, text_btn,
+};
 use crate::view::components::{
-    chip, empty_state, form_input_style, icon_button, latency_badge, row_card_surface,
-    section_header, segmented_control, style_accent, style_ghost, text_btn,
+    chip, empty_state, icon_button, latency_badge, section_header, segmented_control,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};

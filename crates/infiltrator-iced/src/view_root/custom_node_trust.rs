@@ -43,9 +43,9 @@ pub(super) fn hop_and_trust_params<'a>(
         column![
             label_text(lang.tr("custom_node_dialer_scan").to_string()),
             Space::new().height(4.0),
-            crate::view::components::text_btn(
+            crate::view::component_forms::text_btn(
                 lang.tr("custom_node_dialer_scan").to_string(),
-                crate::view::components::style_ghost,
+                crate::view::component_forms::style_ghost,
                 Some(Message::ScanCustomNodeDialer),
             ),
         ]
@@ -149,9 +149,9 @@ pub(super) fn hop_and_trust_params<'a>(
         column![
             label_text(lang.tr("custom_node_ca_verify").to_string()),
             Space::new().height(4.0),
-            crate::view::components::text_btn(
+            crate::view::component_forms::text_btn(
                 lang.tr("custom_node_ca_verify").to_string(),
-                crate::view::components::style_ghost,
+                crate::view::component_forms::style_ghost,
                 Some(Message::VerifyCustomNodeCertificateAuthority),
             ),
         ]

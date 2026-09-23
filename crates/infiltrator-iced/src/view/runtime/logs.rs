@@ -11,10 +11,8 @@ use infiltrator_shared::locales::{Lang, Localizer};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
-use crate::view::components::{
-    BadgeKind, badge, chip, form_input_style, form_pick_style, icon_button, section_header,
-    style_accent,
-};
+use crate::view::component_forms::{form_input_style, form_pick_style, style_accent};
+use crate::view::components::{BadgeKind, badge, chip, icon_button, section_header};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, MONO, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
 

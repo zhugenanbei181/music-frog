@@ -2,10 +2,13 @@ use crate::state::AppState;
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::component_forms::{
+    banner_alert, form_field_label, form_input_style, form_pick_style, form_toggle_row,
+    row_card_surface, style_accent, style_danger, style_ghost, text_btn,
+};
 use crate::view::components::{
-    BadgeKind, badge, banner_alert, card, form_field_label, form_input_style, form_pick_style,
-    form_toggle_row, icon_button, kbd_badge, modern_scrollable, row_card_surface, section_header,
-    segmented_control, status_dot, style_accent, style_danger, style_ghost, text_btn,
+    BadgeKind, badge, card, icon_button, kbd_badge, modern_scrollable, section_header,
+    segmented_control, status_dot,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CONTROL, SP_MD, tokens};

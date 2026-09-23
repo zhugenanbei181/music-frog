@@ -9,9 +9,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{
-    BadgeKind, badge, card_surface, modern_scrollable, style_accent, style_ghost,
-};
+use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::components::{BadgeKind, badge, card_surface, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};

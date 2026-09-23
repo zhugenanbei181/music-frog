@@ -5,9 +5,8 @@ use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
-use crate::view::components::{
-    card_surface, chip, kbd_badge, segmented_control, style_accent, style_ghost,
-};
+use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::components::{card_surface, chip, kbd_badge, segmented_control};
 use crate::view::editor_viewport;
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};

@@ -129,6 +129,10 @@ def main() -> int:
         "subscription_quota_card",
         "usage_bar",
         "status_label",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/subscription_quota_tests.rs",
         "quota_status_label_has_no_fake_success_for_missing_metadata",
     )
     require(

@@ -126,6 +126,10 @@ def main() -> int:
         "status_text",
         "protocol",
         "delay",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/active_exit_tests.rs",
         "status_text_tracks_shared_liveness_without_guessing",
     )
     require(

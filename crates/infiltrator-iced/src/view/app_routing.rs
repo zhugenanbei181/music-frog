@@ -4,9 +4,9 @@ use crate::host::process_enumerator::ProcessCategory;
 use crate::state::AppState;
 use crate::types::app_routing::{AppRouteRule, AppRoutingMode};
 use crate::types::message::Message;
+use crate::view::component_forms::{row_card_surface, search_input, style_accent};
 use crate::view::components::{
-    BadgeKind, badge, empty_state, modern_scrollable, row_card_surface, search_input,
-    section_header, segmented_control, style_accent,
+    BadgeKind, badge, empty_state, modern_scrollable, section_header, segmented_control,
 };
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};

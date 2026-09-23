@@ -8,7 +8,8 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::components::{form_input_style, toggle_switch};
+use crate::view::component_forms::form_input_style;
+use crate::view::components::toggle_switch;
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};

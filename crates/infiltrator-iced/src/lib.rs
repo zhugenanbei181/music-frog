@@ -27,6 +27,7 @@ pub mod settings_store;
 pub mod shortcuts_store;
 pub mod snapshot_application;
 pub mod state;
+pub(crate) mod state_ops;
 pub mod subscription;
 pub mod surface;
 pub mod toast_state;

@@ -5,7 +5,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
-use crate::view::components::{BadgeKind, badge, card, chip, row_card_surface, style_ghost};
+use crate::view::component_forms::{row_card_surface, style_ghost};
+use crate::view::components::{BadgeKind, badge, card, chip};
 use crate::view::svg_icons::{Icon, icon_themed};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};

@@ -161,7 +161,7 @@ pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
         .width(Length::Fill),
         button(text(lang.tr("modal_close").to_string()).size(11))
             .padding([4, 10])
-            .style(crate::view::components::style_ghost)
+            .style(crate::view::component_forms::style_ghost)
             .on_press(Message::CloseSpeedtestDetail),
     ]
     .align_y(Alignment::Center);

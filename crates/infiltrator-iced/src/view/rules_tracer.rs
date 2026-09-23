@@ -3,9 +3,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::rules::RuleBadgeKind;
-use crate::view::components::{
-    BadgeKind, badge, card, form_input_style, icon_button, kbd_badge, style_accent,
-};
+use crate::view::component_forms::{form_input_style, style_accent};
+use crate::view::components::{BadgeKind, badge, card, icon_button, kbd_badge};
 use crate::view::rules::{display_rule_type, semantic_badge_kind};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};

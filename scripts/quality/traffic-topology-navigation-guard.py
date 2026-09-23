@@ -98,7 +98,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/tests/gui/overview_tests.rs",
         "topology_stage_routes_follow_the_shared_application_mapping",
     )
     require(

@@ -128,6 +128,10 @@ def main() -> int:
         "crates/infiltrator-iced/src/view/overview.rs",
         "state.runtime.traffic_topology",
         "topology_flow_canvas",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/overview_tests.rs",
         "topology_badge_reflects_the_shared_status_and_count",
     )
     require(
@@ -135,6 +139,10 @@ def main() -> int:
         "crates/infiltrator-iced/src/view/topology.rs",
         "TopologyFlowCanvas",
         "is_flowing",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/topology_tests.rs",
         "flow_strip_keeps_phase_bounded_and_uses_shared_snapshot",
     )
     require(
