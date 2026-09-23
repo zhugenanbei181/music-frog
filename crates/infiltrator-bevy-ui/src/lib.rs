@@ -163,10 +163,10 @@ fn run_with_command_sink_and_surface(
     app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
     app.add_plugins(cadence::CadencePlugin);
-    // DUAL-15-13 / DUAL-15-02: the real frameless chrome path and the honest
-    // tray capability report (this surface has no tray host).
-    app.add_plugins(chrome::WindowChromePlugin);
-    app.add_plugins(tray_status::TrayStatusPlugin);
+    // DUAL-15-13 / DUAL-15-02: the frameless chrome path and the honest tray
+    // capability report are installed by `ShellPlugin` (so headless
+    // compositions get the same facts as the windowed launcher). Adding them
+    // here as well duplicated the plugin and panicked the launcher.
     app.add_plugins(command::CommandPumpPlugin::new(sink));
     // The route + page bootstrap: without it the content slot stays empty in
     // the windowed run (headless tests add PagesPlugin explicitly). A host

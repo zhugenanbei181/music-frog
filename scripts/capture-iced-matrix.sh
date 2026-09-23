@@ -198,7 +198,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings) ;;
+  overview | proxies | runtime | rules | rules-providers | dns | profiles | sync | editor | mixin | filter | settings | app_routing | doctor) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -262,6 +262,8 @@ hotkey-overlay {
 }
 output "winit" {
     scale 1
+    // The niri winit backend hard-codes its window at 1280x800, so the rig
+    // hosts windows at most 800px tall.
 }
 layout {
     focus-ring {

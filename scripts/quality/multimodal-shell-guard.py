@@ -2141,8 +2141,23 @@ def main() -> int:
         violations,
         "crates/infiltrator-bevy-ui/src/lib.rs",
         "decorations: chrome::chrome_shape().os_decorations()",
-        "chrome::WindowChromePlugin",
-        "tray_status::TrayStatusPlugin",
+    )
+    # The chrome/tray plugins are installed by `ShellPlugin` so headless
+    # compositions get the same facts; the windowed launcher must NOT add them
+    # a second time (doing so panicked the app).
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/app.rs",
+        "crate::chrome::WindowChromePlugin",
+        "crate::tray_status::TrayStatusPlugin",
+    )
+    # Reverse assertion: the launcher must not add them again (that duplicate
+    # registration panicked the windowed app).
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/lib.rs",
+        "app.add_plugins(chrome::WindowChromePlugin)",
+        "app.add_plugins(tray_status::TrayStatusPlugin)",
     )
     require(
         violations,

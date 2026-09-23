@@ -23,14 +23,14 @@ kwin、niri、应用各自运行在独立进程组（`setsid`，pgid == pid 校�
 ## How to run / 运行方式
 
 ```bash
-bash scripts/capture-iced.sh                          # 全矩阵（18 场景）
+bash scripts/capture-iced.sh                          # 全矩阵（39 场景）
 bash scripts/capture-iced.sh proxies-dark             # 单个场景
 bash scripts/capture-iced.sh overview-dark,sync-light # 子集
 INFILTRATOR_CAPTURE_SCENARIOS=proxies-dark bash scripts/capture-iced.sh
 ```
 
 - 场景矩阵：`scripts/capture_iced_scenarios.tsv`
-  （`name	page	skin	window_size`），覆盖 9 个页面 × light/dark @1180x780。
+  （`name	page	skin	window_size`），覆盖 13 个页面 × light/dark/forest @1180x780。
 - 每个场景输出 `docs/screenshots/iced/<scenario>.png`，manifest 发布为
   `docs/screenshots/iced/manifest.tsv`
   （列：`scenario page skin requested_window app_pid window_id width height bytes sha256 status`）。

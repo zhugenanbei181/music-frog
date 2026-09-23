@@ -26,11 +26,10 @@
 #     plates (assets/icons/*.png) resolve through the host AssetServer;
 #     without it bevy_asset resolves assets under target/debug/assets/ and
 #     every icon degrades to an invisible square;
-#   * RENDERING FALLBACK: attempt 1 launches with bevy's default wgpu
-#     backends; if the render device cannot initialize in this software
-#     environment (no Vulkan ICD for the virtual host — observed as an app
-#     crash before any frame), attempt 2 relaunches with WGPU_BACKEND=gl
-#     (EGL/llvmpipe, which the nested niri itself also runs on).
+#   * RENDERING BACKEND: the virtual host exposes Vulkan (the bare default
+#     cannot select it under LIBGL_ALWAYS_SOFTWARE), so both attempts launch
+#     with WGPU_BACKEND=vulkan; the second is a clean relaunch that covers the
+#     transient nested-Wayland launch flake.
 #
 # Usage:
 #   bash scripts/capture-bevy-matrix.sh                  # full matrix
@@ -284,6 +283,11 @@ hotkey-overlay {
 }
 output "winit" {
     scale 1
+    // The niri winit backend hard-codes its window at 1280x800 (no
+    // configurable winit size in this version), so the capture rig can host
+    // windows at most 800px tall. The matrix keeps every scenario within that
+    // bound; the responsive tier is width-driven, so the mobile-portrait
+    // scenario stays at 390px width.
 }
 layout {
     focus-ring {
@@ -446,22 +450,25 @@ capture_one() {
   local window_id="" window_ready=0 marker_ready=0 action_status=failed
   local width=0 height=0 bytes=0 hash="-"
   local attempt=1
-  # Attempt 1 = bevy's default wgpu backends; attempt 2 = WGPU_BACKEND=gl
-  # (software-environment fallback, see the header comment).
-  local wgpu_backend="" attempt_note=""
+  # Attempt 1 = WGPU_BACKEND=vulkan (the render device this virtual host really
+  # exposes; the bare default cannot select it under LIBGL_ALWAYS_SOFTWARE);
+  # attempt 2 = the same Vulkan backend, retried for launch flakiness.
+  local wgpu_backend="vulkan" attempt_note=""
 
   mkdir -p "$scenario_dir"
 
-  # Two attempts per scenario: attempt 1 proves the default render device;
-  # if it cannot initialize in the virtual host (or the session shows the
-  # nested-Wayland launch flakiness), attempt 2 relaunches on the GL
-  # backend. Each attempt tears the previous app down and starts clean; the
-  # manifest row is written exactly once from the final attempt.
+  # Two attempts per scenario: both use the Vulkan backend this virtual host
+  # really exposes; the second is a clean relaunch that covers the transient
+  # nested-Wayland launch flake. Each attempt tears the previous app down and
+  # starts clean; the manifest row is written once from the final attempt.
   while [ "$attempt" -le 2 ]; do
     if [ "$attempt" -gt 1 ]; then
-      wgpu_backend="gl"
-      attempt_note="(retry, WGPU_BACKEND=gl)"
-      printf '  retry %-22s (attempt %d/2, WGPU_BACKEND=gl)\n' "$name" "$attempt"
+      # The GL backend cannot initialize in this virtual host, so a GL retry
+      # would fail for an unrelated reason. Retry the proven Vulkan backend to
+      # cover a transient nested-Wayland launch flake.
+      wgpu_backend="vulkan"
+      attempt_note="(retry)"
+      printf '  retry %-22s (attempt %d/2)\n' "$name" "$attempt"
     fi
     rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
     terminate_owned "$APP_PID" "$APP_PGID"
@@ -594,10 +601,9 @@ capture_one() {
     failed-dims*) break ;; # a wrong-size retry will not fix itself
     esac
     # Unlike the iced matrix, a dead app DOES get the second attempt: the
-    # first crash is exactly the signature of a failed wgpu device init in
-    # this software environment, and attempt 2 switches to WGPU_BACKEND=gl.
+    # first failure is typically the transient nested-Wayland launch flake.
     if [ "$attempt" -ge 2 ]; then
-      break # the GL fallback already had its chance
+      break # the second attempt already had its chance
     fi
     attempt=$((attempt + 1))
   done
