@@ -106,7 +106,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn mtu_probe_port",
         "DesktopMtuProbe::new",
     )

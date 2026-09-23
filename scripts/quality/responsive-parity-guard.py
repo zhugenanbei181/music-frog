@@ -34,7 +34,7 @@ ICED_SUB = "crates/infiltrator-iced/src/subscription.rs"
 ICED_UPDATE = "crates/infiltrator-iced/src/update.rs"
 ICED_SIDEBAR = "crates/infiltrator-iced/src/view/sidebar.rs"
 ICED_ROOT = "crates/infiltrator-iced/src/view_root.rs"
-ICED_OVERVIEW = "crates/infiltrator-iced/src/view/overview.rs"
+ICED_OVERVIEW_STATS = "crates/infiltrator-iced/src/view/overview_stats.rs"
 ICED_PROXIES = "crates/infiltrator-iced/src/view/proxies.rs"
 ICED_DRAWER = "crates/infiltrator-iced/src/view_root/connection_drawer.rs"
 BEVY_WIDGETS_LIB = "crates/infiltrator-bevy-widgets/src/lib.rs"
@@ -98,7 +98,7 @@ def main() -> int:
 
     # 3b. Both surfaces must derive grids from the shared tier operators, not
     # hardcoded column counts.
-    require(violations, ICED_OVERVIEW, "metrics_grid_columns")
+    require(violations, ICED_OVERVIEW_STATS, "metrics_grid_columns")
     require(violations, ICED_PROXIES, "proxy_grid_columns")
     require(violations, ICED_ROOT, "content_padding_px")
     require(violations, BEVY_OVERVIEW, "sync_overview_metrics_columns")

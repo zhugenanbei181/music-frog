@@ -34,6 +34,10 @@ def main() -> int:
         "pub async fn reload_config",
         '"force", "true"',
         ".error_for_status()",
+    )
+    require(
+        violations,
+        "crates/mihomo-api/src/client_tests.rs",
         "test_reload_config_uses_force_query_path_and_auth",
         "test_reload_config_surfaces_controller_rejection",
     )

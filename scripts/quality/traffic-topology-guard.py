@@ -125,7 +125,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_topology.rs",
         "state.runtime.traffic_topology",
         "topology_flow_canvas",
     )

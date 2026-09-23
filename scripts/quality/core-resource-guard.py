@@ -91,7 +91,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "get_cpu_percent",
         "cpu_usage",
         "trigger_gc",

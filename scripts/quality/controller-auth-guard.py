@@ -58,6 +58,10 @@ def main() -> int:
         "crates/mihomo-api/src/client.rs",
         "fn add_auth",
         "req.bearer_auth(secret)",
+    )
+    require(
+        violations,
+        "crates/mihomo-api/src/client/stream.rs",
         "controller secret cannot be encoded as an HTTP header",
     )
     require(

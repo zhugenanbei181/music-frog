@@ -91,7 +91,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_topology.rs",
         "TrafficTopologyNavigationApplication::page_for_stage",
         "Message::Navigate(route)",
         "topology_route_for_stage",

@@ -103,9 +103,13 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
+        "fn service_mode_port",
+    )
+    require(
+        violations,
         "crates/infiltrator-desktop/src/runtime.rs",
         "DesktopServiceMode",
-        "fn service_mode_port",
     )
     require(
         violations,
