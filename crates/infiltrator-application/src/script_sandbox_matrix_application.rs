@@ -37,6 +37,7 @@ fn closed(id: &str, item: &str, (passed, detail): Check) -> ScriptSandboxMatrixS
     }
 }
 
+#[cfg_attr(feature = "script-engine-boa", allow(dead_code))]
 fn planned(id: &str, item: &str, reason: &str) -> ScriptSandboxMatrixScenario {
     ScriptSandboxMatrixScenario {
         id: id.to_string(),
@@ -296,6 +297,61 @@ fn check_console_read_model() -> Check {
     )
 }
 
+/// DUAL-10-01 migration step 6: when the non-default `script-engine-boa`
+/// feature is on, the shared matrix runs the **real** Boa adapter and reports
+/// the row as covered; the default build keeps the honest `planned` gap.
+fn dual_10_01_scenario() -> ScriptSandboxMatrixScenario {
+    #[cfg(feature = "script-engine-boa")]
+    {
+        closed(
+            "DUAL-10-01",
+            "QuickJS/ECMAScript embedded engine",
+            check_javascript_engine(),
+        )
+    }
+    #[cfg(not(feature = "script-engine-boa"))]
+    {
+        planned(
+            "DUAL-10-01",
+            "QuickJS embedded engine",
+            "无真实 QuickJS 引擎：默认构建仅交付可插拔引擎接缝（ScriptEnginePort + 能力协商，shared-ready），识别已知指令的正则 DSL 仍是默认实现；真实 ECMAScript 适配器由非默认特性 `script-engine-boa` 显式 opt-in，默认矩阵不对 JS 引擎执行宣称覆盖",
+        )
+    }
+}
+
+#[cfg(feature = "script-engine-boa")]
+fn check_javascript_engine() -> Check {
+    use crate::script_engine_boa::BoaScriptEngine;
+    use infiltrator_contract::script_sandbox::ScriptEngineCapabilities;
+    use std::sync::Arc;
+
+    let engine = BoaScriptEngine::new(
+        ScriptEngineCapabilities::DEFAULT_TIMEOUT_MS,
+        ScriptEngineCapabilities::DEFAULT_MAX_MEMORY_BYTES,
+    );
+    let app = ScriptApplication::with_engine(Arc::new(engine));
+    let snapshot = app.run_sandbox(
+        "function main(config) { config.port = 8080; return config; }",
+        "port: 7890\nmode: rule\n",
+        None,
+    );
+    let transformed = snapshot.transformed_yaml.as_deref().unwrap_or_default();
+    (
+        snapshot.status == ScriptSandboxStatus::Success
+            && snapshot.engine_kind == ScriptEngineKind::JavascriptEngine
+            && snapshot.engine_kind.is_real_javascript()
+            && snapshot.engine_capabilities.supports_javascript_syntax
+            && snapshot.engine_kind_matches_capabilities()
+            && transformed.contains("port: 8080")
+            && transformed.contains("mode: rule"),
+        format!(
+            "engine={} transformed={}",
+            snapshot.engine_kind.label_en(),
+            transformed.lines().count()
+        ),
+    )
+}
+
 fn check_dual_surface_alignment() -> Check {
     let app = ScriptApplication::new();
     let snapshot = app.run_sandbox(COUNTRY_SCRIPT, SAMPLE_YAML, Some("auto-country-groups"));
@@ -451,11 +507,7 @@ impl ScriptSandboxMatrixApplication {
     pub fn run_deterministic_matrix() -> ScriptSandboxMatrixReport {
         ScriptSandboxMatrixReport {
             scenarios: vec![
-                planned(
-                    "DUAL-10-01",
-                    "QuickJS embedded engine",
-                    "无真实 QuickJS 引擎：本项仅交付可插拔引擎接缝（ScriptEnginePort + 能力协商，shared-ready），默认实现仍是识别已知指令的正则 DSL；矩阵不对 JS 引擎执行宣称覆盖",
-                ),
+                dual_10_01_scenario(),
                 closed(
                     "DUAL-10-02",
                     "Pre/Post-Process hook stages",

@@ -22,10 +22,20 @@ fn script_sandbox_matrix_passes_on_the_iced_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    // Only the honest QuickJS gap stays uncovered.
-    assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
-    assert_eq!(report.covered_passed_count(), 14);
-    assert!(report.summary_zh().contains("14/14"));
+    // Only the honest QuickJS gap stays uncovered in the default build; the
+    // non-default `script-engine-boa` feature runs the real engine and closes it.
+    #[cfg(not(feature = "script-engine-boa"))]
+    {
+        assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
+        assert_eq!(report.covered_passed_count(), 14);
+        assert!(report.summary_zh().contains("14/14"));
+    }
+    #[cfg(feature = "script-engine-boa")]
+    {
+        assert!(report.not_covered_ids().is_empty());
+        assert_eq!(report.covered_passed_count(), 15);
+        assert!(report.summary_zh().contains("15/15"));
+    }
 }
 
 /// DUAL-10-09/12 on the Iced surface: the three-column model is the shared

@@ -5,8 +5,17 @@ edition = "2024"
 publish = false
 description = "Runtime-neutral application services over MusicFrog ports."
 
+[features]
+default = []
+# DUAL-10-01 migration step 1: the real ECMAScript engine is a non-default,
+# explicit opt-in. Enabling it compiles the Boa adapter and lets the shared
+# scripting-sandbox matrix execute a real JS engine; `cargo build` stays on
+# the bundled directive DSL. See docs/SCRIPT_ENGINE_DECISION.md §5.
+script-engine-boa = ["dep:boa_engine"]
+
 [dependencies]
 async-trait = { workspace = true }
+boa_engine = { workspace = true, optional = true }
 chrono = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }

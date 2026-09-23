@@ -786,15 +786,17 @@
 组 10 闭环口径同其余组 = shared contract/application（或共享纯归约）+ Iced + Bevy + 双端无头测试 + 守卫。
 本轮关键事实：仓库内 **无真实 QuickJS 引擎**——`infiltrator-domain::script_engine` 是识别已知指令
 （`filter_nodes_by_regex`/`auto_country_groups`/…）并按字符串正则改写 YAML AST 的 *指令 DSL*，
-不执行任意 JavaScript；故 10-01 的 JS 引擎执行部分诚实保持 `planned`（矩阵行不宣称覆盖），
+不执行任意 JavaScript；故 10-01 的 JS 引擎执行部分在**默认构建**下诚实保持 `planned`（矩阵行不宣称覆盖），
 而**可插拔引擎接缝与能力协商**（批次 D）已收口为 `shared-ready`，绝不把指令识别冒充 JS 沙箱。
+批次 E 起，真实纯 Rust `boa_engine` 以非默认特性 `script-engine-boa` 可选落地：开启该特性时
+共享矩阵真实执行 Boa 并把 10-01 判为 `covered`；默认构建/CI 仍为 `planned`。
 本轮收口 10-08/10/11/15：新增共享纯归约 `infiltrator-domain::mixin_studio`（预检 / 预设开关 / 级联预览）、
 共享契约 + 应用 `script_sandbox_matrix`（真实跑 domain 引擎与 `ScriptApplication` 的回归矩阵），
 Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编解码。
 
 | 项 | 任务 | 状态 | 证据 |
 | :--- | :--- | :--- | :--- |
-| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready` | **仍无真实 QuickJS 引擎**：本项只交付「可插拔引擎接缝 + 能力协商」，它不是 JS 引擎。共享端口 `infiltrator-ports/src/script_engine.rs` 的 `ScriptEnginePort`（`kind()`/`capabilities()`/`execute()`）是唯一执行边界；默认适配器 `infiltrator-application/src/script_engine_direct.rs` 的 `DirectiveDslScriptEngine` 包真实 domain `ScriptEngine`（正则识别已知指令后改写 YAML AST），`ScriptApplication::with_engine` 让未来引擎 drop-in；共享读模型新增 `ScriptEngineKind::JavascriptEngine`（协商槽，当前**永不产出**）与 `ScriptEngineCapabilities`（默认 `supports_javascript_syntax = false`，附 64MB/500ms 限额），`ScriptSandboxSnapshot.engine_capabilities` 随投影下发；Iced `view/script_console.rs::engine_meta_rows` 与 Bevy `profiles_script.rs` 的「引擎能力」行如实渲染「不支持 JavaScript 语法（仅指令 DSL）」。测试：ports `a_second_engine_negotiates_its_kind_through_the_trait_object`、application 假第二引擎 `engine_seam_switches_the_reported_kind_and_capabilities`、Iced `iced_console_renders_the_reported_engine_and_its_capability_limits`、Bevy `test_profiles_script_console_renders_an_injected_javascript_engine`（同一表面代码渲染注入的 JS 引擎，证明切换无需改面）。**仍是产品/依赖决策**：`rquickjs`（C 源码静态编译）/`boa_engine`（纯 Rust）两候选的实测证据与迁移计划见 [SCRIPT_ENGINE_DECISION.md](SCRIPT_ENGINE_DECISION.md)；决策落地前不添加任何 JS 引擎依赖（守卫反向断言禁止 `rquickjs`/`boa_engine`/`quickjs::`）；矩阵 `DUAL-10-01` 行仍为 `planned`（无 JS 引擎执行，不宣称覆盖） |
+| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready` | **仍无真实 QuickJS 引擎**：本项只交付「可插拔引擎接缝 + 能力协商」，它不是 JS 引擎。共享端口 `infiltrator-ports/src/script_engine.rs` 的 `ScriptEnginePort`（`kind()`/`capabilities()`/`execute()`）是唯一执行边界；默认适配器 `infiltrator-application/src/script_engine_direct.rs` 的 `DirectiveDslScriptEngine` 包真实 domain `ScriptEngine`（正则识别已知指令后改写 YAML AST），`ScriptApplication::with_engine` 让未来引擎 drop-in；共享读模型新增 `ScriptEngineKind::JavascriptEngine`（协商槽，当前**永不产出**）与 `ScriptEngineCapabilities`（默认 `supports_javascript_syntax = false`，附 64MB/500ms 限额），`ScriptSandboxSnapshot.engine_capabilities` 随投影下发；Iced `view/script_console.rs::engine_meta_rows` 与 Bevy `profiles_script.rs` 的「引擎能力」行如实渲染「不支持 JavaScript 语法（仅指令 DSL）」。测试：ports `a_second_engine_negotiates_its_kind_through_the_trait_object`、application 假第二引擎 `engine_seam_switches_the_reported_kind_and_capabilities`、Iced `iced_console_renders_the_reported_engine_and_its_capability_limits`、Bevy `test_profiles_script_console_renders_an_injected_javascript_engine`（同一表面代码渲染注入的 JS 引擎，证明切换无需改面）。**2026-09-23 迁移落地（§5，`parity/boa-engine`）**：按 [SCRIPT_ENGINE_DECISION.md](SCRIPT_ENGINE_DECISION.md) §5.1，纯 Rust `boa_engine` 0.22.0 以**非默认特性 `script-engine-boa`**（`infiltrator-application` 可选依赖，Iced/Bevy 同名转发）引入；`crates/infiltrator-application/src/script_engine_boa.rs` 的 `BoaScriptEngine` 实现 `ScriptEnginePort`，`kind()`=`JavascriptEngine`、`supports_javascript_syntax=true`、`supports_directive_dsl=false`，并诚实协商 `enforces_memory_limit=false`（Boa 无堆配额；64MB 仅为产品上限）；超时用 `RuntimeLimits::set_loop_iteration_limit` 的循环迭代预算映射 `ScriptError::Timeout`（Boa 无抢占式中断）。共享矩阵新增 `dual_10_01_scenario()`/`check_javascript_engine()`：开启特性时真实执行 Boa，`DUAL-10-01` 升为 `covered`（15/15）；默认构建仍 `planned`（14/14）并保留「无真实 QuickJS 引擎」理由。默认路径仍不链接任何 JS 引擎，守卫反向断言不变并新增特性/适配器诚实边界断言；`boa_engine`（Unlicense OR MIT）登记于 `THIRD-PARTY-NOTICES.md` §11。**诚实限制**见 §7：默认 CI 不覆盖真实 JS 执行、内存配额未强制、超时为迭代预算而非墙钟、指令 DSL 库未移植到 JS、未实测体积/移动端；与 §4 首选 `rquickjs` 的偏差已记录（规避 C 交叉编译） |
 | `DUAL-10-02` | Pre/Post-Process 钩子 | `parity-ready` | domain `HookStage`（`script_engine.rs:26`，`pre_download/post_download/pre_merge/post_merge`）与 `execute_transform_detailed`（`script_engine_runtime.rs:60`）真实携带阶段；`ScriptApplication::run_sandbox` 从共享预设解析阶段（`script_application.rs` `stage_for_preset`），读模型 `ScriptSandboxSnapshot.hook_stage/hook_stage_label` 发布真实阶段；Iced `view/script_console.rs` 渲染「生命周期阶段」行、Bevy `profiles_script.rs` 渲染「生命周期阶段: Pre-Merge」；矩阵 `check_hook_stages` + application `run_sandbox_at_stage_reports_the_requested_hook`、Iced `shared_console_projection_carries_every_wired_fact_for_both_surfaces`、Bevy `test_profiles_script_console_renders_the_shared_projection` 双端断言 |
 | `DUAL-10-03` | 沙箱资源熔断安全防护（64MB/500ms） | `parity-ready` | domain 常量 `DEFAULT_SCRIPT_TIMEOUT_MS`/`DEFAULT_MAX_MEMORY_BYTES`（`script_engine.rs:20`）、内存门（`script_engine_runtime.rs:67`）；`ScriptApplication` 以 64MB/500ms 构造引擎（`script_application.rs:32`），读模型发布 `max_memory_limit_bytes`/`timeout_limit_ms` 与新增 `ScriptCircuitBreakerSnapshot`（连续失败/阈值/冷却/剩余冷却）；Iced 「资源限额/熔断状态」行、Bevy 「资源限额: 内存上限 64MB / 熔断状态」行；矩阵 `check_resource_limits`/`check_circuit_breaker` + 双端 `shared_console_projection...`/`test_profiles_script_console...` |
 | `DUAL-10-04` | 内置三大官方常用脚本模板 | `parity-ready` | 共享目录 `ScriptEngine::builtin_presets`（`script_engine_presets.rs:6`，四个真实模板）经 `ScriptApplication::builtin_presets`（`script_application.rs`）发布；Iced 预设芯片改为遍历共享目录（`view/script_console.rs`），`Message::SelectScriptPreset` 经 `ScriptEngine::find_preset` 载入共享脚本与阶段；Bevy `profiles_script.rs` 渲染「共享预设目录（4 项）」同一目录；矩阵 `check_presets` + Iced `test_advancement_6_quickjs_script_sandbox_console_lifecycle`（按共享 id 载入）、Bevy `test_profiles_script_console_renders_the_shared_projection` |
@@ -886,6 +888,32 @@ Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编
 > `cargo info boa_engine` = 0.22.0 Unlicense OR MIT MSRV 1.91，`quickjs-rs` 不存在），
 > 结论：**当前不添加 JS 引擎**，给出迁移计划与触发条件。守卫新增接缝标记与
 > `docs/SCRIPT_ENGINE_DECISION.md` 存在性断言，并继续反向禁止任何 JS 引擎依赖。
+
+> **2026-09-23 组 10 批次 E**：按 [SCRIPT_ENGINE_DECISION.md](SCRIPT_ENGINE_DECISION.md)
+> §5 迁移计划落地**可选真实 ECMAScript 引擎**，`DUAL-10-01` 的 JS 执行部分在
+> 显式 opt-in 下闭环。
+> 特性：`infiltrator-application` 新增非默认 `script-engine-boa`
+> （`default = []`，`boa_engine = { workspace = true, optional = true }`，
+> `default-features = false`），Iced/Bevy 同名转发特性；默认 `cargo build` /
+> `bash scripts/test.sh` 仍只跑指令 DSL、不链接 JS 引擎。
+> 适配器：`script_engine_boa.rs::BoaScriptEngine` 实现 `ScriptEnginePort`，
+> `kind()`=`JavascriptEngine`、`supports_javascript_syntax=true`、
+> `supports_directive_dsl=false`、`captures_console=true`、`enforces_timeout=true`、
+> 诚实 `enforces_memory_limit=false`；YAML→JSON→JS 对象执行
+> `main(config, profile)` 后回写 YAML，`console.*` 经宿主原生函数捕获，
+> `RuntimeLimitError::LoopIteration` 映射 `ScriptError::Timeout`。
+> 矩阵：新增 `dual_10_01_scenario()`/`check_javascript_engine()`，开启特性时
+> 真实执行 Boa 并把 `DUAL-10-01` 升为 `covered`（15/15）；默认构建仍
+> `planned`（14/14）且保留「无真实 QuickJS 引擎」理由。
+> 许可证：`boa_engine`（Unlicense OR MIT）登记于 `THIRD-PARTY-NOTICES.md` §11，
+> `license-guard.py --mode enforce` 通过。守卫新增非默认特性、`BoaScriptEngine`
+> 诚实边界（`enforces_memory_limit: false`、`set_loop_iteration_limit`）断言，
+> 默认路径的反向禁止保持不变。
+> **诚实限制**（详见决策记录 §7）：默认 CI 不覆盖真实 JS 执行（需
+> `--features script-engine-boa`）；Boa 无堆配额，内存熔断未真实强制；超时是
+> 循环迭代预算而非抢占式墙钟中断；指令 DSL 库未移植到 JS；未实测 release
+> 体积与 Android/iOS 目标；本次按 §5 允许的 Boa 路线落地，与 §4 首选
+> `rquickjs` 的偏差已记录。
 
 ### 组 11：分流规则引擎、MRS 二进制加速与逻辑子规则 (Rules & Rule-Providers)
 1. **28+ 规则类型全矩阵支持**：DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, IP-CIDR, SRC-IP-CIDR, GEOIP, GEOSITE, PROCESS-NAME, PROCESS-PATH, DSCP, UID 等。

@@ -16,6 +16,9 @@ path = "src/lib.rs"
 # Force the muda/tray-icon backend everywhere (including Linux, where ksni is
 # the default) so both tray backends stay compilable and checkable on this OS.
 native-tray-backend = []
+# DUAL-10-01 migration: forward the non-default real-ECMAScript opt-in to the
+# shared application so the Iced surface can be built/checked against Boa.
+script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]
 iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "x11", "wayland"] }
