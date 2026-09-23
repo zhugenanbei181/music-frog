@@ -5,18 +5,21 @@ use std::borrow::Cow;
 
 pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
     match key {
-        // Category 1: DNS Leak & Privacy Probe
-        "dns_leak_probe_title" => "DNS 泄漏与公网 IP 隐私检测".into(),
+        // Category 1: DNS leak cross-source probe (DUAL-14-08)
+        "dns_leak_probe_title" => "DNS 泄漏多源交叉探测".into(),
         "dns_leak_probe_desc" => {
-            "多源并发检测当前出口公网 IP、地理位置与运营商，排查 DNS 真实解析泄露".into()
+            "向每个已配置的回显权威区发起随机子域解析，交叉比对观测到的解析器身份；不一致时只列出事实，不下结论"
+                .into()
         }
-        "dns_leak_btn_run" => "发起隐私检测".into(),
-        "dns_leak_status_secure" => "DNS 与出站网络安全，未发现泄漏".into(),
-        "dns_leak_status_leaked" => "检测到潜在 DNS 泄漏风险".into(),
-        "dns_leak_public_ip" => "出口公网 IP".into(),
-        "dns_leak_location" => "IP 归属地".into(),
-        "dns_leak_isp" => "运营商 / ASN".into(),
-        "dns_leak_tested_servers" => "实际响应 DNS 节点".into(),
+        "dns_leak_btn_run" => "发起交叉探测".into(),
+        "dns_leak_probing" => "交叉探测中…".into(),
+        "dns_leak_unknown" => "尚无交叉结论：不足两个真实观测事实".into(),
+        "dns_leak_consistent" => "交叉一致：{count} 个来源观测到同一解析器身份 {identity}".into(),
+        "dns_leak_divergent" => "交叉不一致：观测到 {count} 个不同解析器身份（仅列事实）".into(),
+        "dns_leak_unsupported" => "宿主未提供泄漏探测事实源（{reason}）".into(),
+        "dns_leak_failed" => "探测源全部失败：{reason}".into(),
+        "dns_leak_observed" => "观测身份：{identity}".into(),
+        "dns_leak_sources" => "已配置探测源 {count} 个".into(),
 
         // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
         "dns_form_issues" => "表单校验未通过".into(),

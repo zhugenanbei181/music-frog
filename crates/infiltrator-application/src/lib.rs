@@ -15,6 +15,7 @@ pub mod core_application;
 pub mod dialer_chain_application;
 pub mod dns_cache_application;
 pub mod dns_latency_application;
+pub mod dns_leak_application;
 pub mod dns_self_heal_application;
 pub mod dns_workbench_application;
 pub mod doctor_application;

@@ -777,7 +777,7 @@ impl AppState {
                     Task::done(Message::ShowToast(message, ToastStatus::Error))
                 }
             },
-            other => self.update_core_tun_config(other),
+            other => self.update_core_dns_leak(other),
         }
     }
 }

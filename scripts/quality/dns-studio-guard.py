@@ -7,6 +7,11 @@ per-item ledger. This guard asserts the per-item ledger rows exist, that the
 shared DNS workbench contract and both surface wirings stay present, and that
 the Bevy DNS page does not regress to its old fabricated switch command
 (``UpdateSetting { key: "dns.*", value: "toggle" }``) or local ``DnsMode`` enum.
+
+DUAL-14-08 additionally pins the honest DNS leak cross-source seam: the host
+echo port, the real UDP/DoH/system adapter, the shared cross-source
+application and the dual panels must stay, while the old Iced panel's
+hardcoded country/ISP/leak-flag values are forbidden from returning.
 """
 
 from __future__ import annotations
@@ -732,6 +737,282 @@ def main() -> int:
         violations,
         "scripts/test-bevy.sh",
         'dns-studio-guard.py" --mode enforce',
+    )
+
+    # DUAL-14-08: the DNS leak cross-source probe.
+    #
+    # A leak conclusion needs a controlled echo authority. The seam is real
+    # (host echo port + real UDP/DoH/system adapter + shared cross-source
+    # application + one report on both surfaces); the old Iced panel's
+    # hardcoded country/ISP values are gone and must not return. The ledger
+    # row states the boundary: shared-ready, because no controlled echo zone
+    # is configured by default.
+    require(
+        violations,
+        LEDGER,
+        "DnsLeakEchoPort",
+        "DnsLeakProbePort",
+        "DnsLeakApplication",
+        "DnsLeakConclusion",
+        "HttpDnsLeakEchoProbe",
+        "test_dns_leak_card_renders_the_shared_cross_source_report",
+        "test_dns_test_leak_submits_command",
+        "test_dns_leak_panel_renders_the_shared_cross_source_report",
+        "DUAL-14-08",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/dns_leak.rs",
+        "pub enum DnsLeakStatus",
+        "pub struct DnsLeakProbeSource",
+        "pub enum DnsLeakProbeTransport",
+        "pub enum DnsLeakObservationOutcome",
+        "pub struct DnsLeakObservation",
+        "pub struct DnsLeakObservedFact",
+        "pub enum DnsLeakConclusion",
+        "pub struct DnsLeakReport",
+        "pub struct DnsLeakEchoProbe",
+        "pub struct DnsLeakEchoRequest",
+        "pub struct DnsLeakEchoReport",
+        "pub fn observed_facts",
+        "pub fn conclusion",
+        "a_single_observation_is_unknown_not_consistent",
+        "disagreeing_authorities_are_divergent_and_list_every_fact",
+        "an_all_failed_probe_is_failed_not_unknown",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub leak: crate::dns_leak::DnsLeakReport",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/command.rs",
+        "TestDnsLeak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/dns_leak.rs",
+        "pub trait DnsLeakEchoPort",
+        "async fn observe",
+        "pub trait DnsLeakProbePort",
+        "async fn probe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/host_runtime.rs",
+        "fn dns_leak_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_wire.rs",
+        "pub fn response_rcode",
+        "pub fn extract_a_record",
+        "the_echo_observation_is_read_from_the_real_answer_record",
+        "an_answer_without_an_a_record_yields_nothing_instead_of_a_guess",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_leak_io.rs",
+        "pub struct HttpDnsLeakEchoProbe",
+        "impl DnsLeakEchoPort for HttpDnsLeakEchoProbe",
+        "fn read_observation",
+        "UdpSocket",
+    )
+    require(
+        violations,
+        "crates/infiltrator-core/src/dns_leak_io_test.rs",
+        "a_real_udp_echo_authority_reports_the_resolver_it_observed",
+        "an_answer_without_an_a_record_is_not_an_identity",
+        "a_nonzero_rcode_is_reported_instead_of_read_as_an_identity",
+        "a_silent_echo_authority_times_out",
+        "a_doh_echo_endpoint_answers_the_wire_format_query",
+        "undrivable_resolvers_are_reported_instead_of_probed",
+        "the_platform_resolver_path_reports_its_real_outcome",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_leak_application.rs",
+        "pub struct DnsLeakApplication",
+        "impl DnsLeakProbePort for DnsLeakApplication",
+        "pub fn random_probe_question",
+        "NO_ECHO_PORT_REASON",
+        "NO_ECHO_SOURCE_REASON",
+        "a_host_without_an_echo_prober_reports_typed_unsupported_and_probes_nothing",
+        "a_host_without_a_configured_authority_never_claims_a_verdict",
+        "one_probe_generates_fresh_subdomains_and_publishes_divergent_facts",
+        "agreeing_authorities_are_consistent_and_a_silent_one_is_still_listed",
+        "a_prober_that_omits_an_observation_makes_that_source_fail_honestly",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/dns_workbench_application.rs",
+        "fn leak_report",
+        "a_host_without_a_leak_fact_source_keeps_the_typed_unsupported_state",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "with_dns_leak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/command_application.rs",
+        "fn test_dns_leak",
+        "CommandIntent::TestDnsLeak => self.test_dns_leak().await",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/update/core/dns_leak.rs",
+        "Message::RunDnsLeakProbe",
+        "Message::DnsLeakProbed",
+        "dns_leak_probe_port",
+        "apply_dns_leak_snapshot",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns_leak_panel.rs",
+        "pub(crate) fn leak_panel",
+        "pub(crate) fn leak_conclusion_copy",
+        "pub(crate) fn leak_observation_lines",
+        "dns_leak_divergent",
+        "dns_leak_unsupported",
+        "dns_leak_observed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/dns.rs",
+        "dns_leak_panel",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "dns_leak_consistent",
+        "dns_leak_divergent",
+        "dns_leak_unsupported",
+        "dns_leak_observed",
+        "dns_leak_sources",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "dns_leak_consistent",
+        "dns_leak_divergent",
+        "dns_leak_unsupported",
+        "dns_leak_observed",
+        "dns_leak_sources",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "fn dns_leak_probe_port",
+        "HttpDnsLeakEchoProbe",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/surface.rs",
+        "dns_leak",
+        "with_dns_leak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns_leak.rs",
+        "pub fn leak_conclusion_label",
+        "pub fn leak_observation_listing",
+        "pub fn dns_leak_card_scene",
+        "pub fn sync_dns_leak_line",
+        "DnsLineKind::Leak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/dns.rs",
+        "TestDnsLeakButton",
+        "UiCommand::TestDnsLeak",
+        "DnsLineKind::Leak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/command.rs",
+        "TestDnsLeak",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_b_tests.rs",
+        "test_dns_test_leak_submits_command",
+        "test_dns_leak_card_renders_the_shared_cross_source_report",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/view_dns_leak_tests.rs",
+        "test_dns_leak_panel_renders_the_shared_cross_source_report",
+        "test_dns_leak_observation_outcome_copy_stays_typed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/tests/gui/iced_six_advancements_wave2_tests.rs",
+        "test_advancement_w2_1_dns_leak_cross_source_probe_lifecycle",
+    )
+    # The hardcoded leak verdict must not come back on either surface: no
+    # invented country / ISP / leak flag, and no fabricated public IP.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/update/ui.rs",
+        '"US".to_string()',
+        "Cloudflare",
+        "104.28.19.42",
+        "is_leak_detected",
+        "tested_dns_servers",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/dns.rs",
+        "pub country: String",
+        "pub isp: String",
+        "pub is_leak_detected: bool",
+        "pub tested_dns_servers: Vec<String>",
+        "DnsLeakReport",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/dns.rs",
+        "rep.country",
+        "rep.isp",
+        "is_leak_detected",
+        "dns_leak_probe",
+        "DnsLeakProbeFinished",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/dns_leak_panel.rs",
+        ".country",
+        ".isp",
+        "dns_leak_status_leaked",
+        "dns_leak_status_secure",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/types/message.rs",
+        "DnsLeakProbeFinished",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "dns_leak_status_leaked",
+        "dns_leak_status_secure",
+        "dns_leak_public_ip",
+        "dns_leak_location",
+        "dns_leak_isp",
+        "dns_leak_tested_servers",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "dns_leak_status_leaked",
+        "dns_leak_status_secure",
+        "dns_leak_public_ip",
+        "dns_leak_location",
+        "dns_leak_isp",
+        "dns_leak_tested_servers",
     )
 
     if violations:

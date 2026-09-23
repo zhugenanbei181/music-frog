@@ -581,7 +581,11 @@ pub enum Message {
     ),
     // DNS Leak & Privacy Probe (Category 1)
     RunDnsLeakProbe,
-    DnsLeakProbeFinished(super::dns::DnsLeakReport),
+    /// DUAL-14-08: the shared cross-source leak report, or the typed host
+    /// refusal.
+    DnsLeakProbed(
+        Result<infiltrator_contract::dns_leak::DnsLeakReport, infiltrator_contract::error::Failure>,
+    ),
     /// DUAL-14-10: measure every configured nameserver through the shared
     /// host prober.
     RunDnsLatencyProbe,

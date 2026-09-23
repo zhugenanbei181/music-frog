@@ -104,6 +104,13 @@ pub trait HostRuntime: ManagedRuntime {
     fn dns_latency_probe_port(&self) -> Option<Arc<dyn crate::dns_latency::DnsLatencyProbePort>> {
         None
     }
+    /// DUAL-14-08: optional DNS leak cross-source probe. Hosts without a
+    /// controlled echo authority (and a configured source) inject nothing and
+    /// both surfaces publish the typed unsupported state instead of a leak
+    /// verdict.
+    fn dns_leak_probe_port(&self) -> Option<Arc<dyn crate::dns_leak::DnsLeakProbePort>> {
+        None
+    }
     /// DUAL-11-06/07: the kernel's local rule-provider files. Hosts without a
     /// resolvable kernel home directory omit it instead of reporting a purge
     /// that never happened.

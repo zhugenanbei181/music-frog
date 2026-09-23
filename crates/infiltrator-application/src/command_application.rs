@@ -89,6 +89,8 @@ pub struct CommandApplication {
     dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
     /// DUAL-14-10: the shared latency prober `TestDnsLatency` drives.
     dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
+    /// DUAL-14-08: the shared cross-source leak prober `TestDnsLeak` drives.
+    dns_leak: Option<crate::dns_leak_application::DnsLeakApplication>,
     rule_provider: Option<crate::rule_provider_application::RuleProviderApplication>,
 }
 
@@ -271,6 +273,16 @@ impl CommandApplication {
         dns_latency: crate::dns_latency_application::DnsLatencyApplication,
     ) -> Self {
         self.dns_latency = Some(dns_latency);
+        self
+    }
+
+    /// DUAL-14-08: share the cross-source leak application so `TestDnsLeak`
+    /// runs the real host probe and both surfaces publish the same report.
+    pub fn with_dns_leak(
+        mut self,
+        dns_leak: crate::dns_leak_application::DnsLeakApplication,
+    ) -> Self {
+        self.dns_leak = Some(dns_leak);
         self
     }
 
@@ -1025,6 +1037,7 @@ impl CommandApplication {
                 .await
                 .map(|_| ()),
             CommandIntent::TestDnsLatency => self.test_dns_latency().await,
+            CommandIntent::TestDnsLeak => self.test_dns_leak().await,
             CommandIntent::RefreshPublicIpProbe
             | CommandIntent::ReorderOverviewCards { .. }
             | CommandIntent::ResetOverviewCardOrder
@@ -1054,6 +1067,21 @@ impl CommandApplication {
         let config = self.configuration()?.load_dns_config().await?;
         let servers = crate::dns_workbench_application::dns_servers(&config);
         application.probe(&servers).await.map(|_| ())
+    }
+
+    /// DUAL-14-08: run the shared cross-source leak probe. The application
+    /// already owns the configured echo sources, so a host without one answers
+    /// a typed unsupported instead of inventing a verdict.
+    async fn test_dns_leak(&self) -> Result<(), Failure> {
+        let Some(application) = self.dns_leak.as_ref() else {
+            return Err(Failure::unsupported(
+                crate::dns_leak_application::NO_ECHO_PORT_REASON,
+            ));
+        };
+        infiltrator_ports::dns_leak::DnsLeakProbePort::probe(application)
+            .await
+            .map(|_| ())
+            .map_err(Failure::from)
     }
 
     /// DUAL-11-06: read the active profile's declaration for `provider_name`,

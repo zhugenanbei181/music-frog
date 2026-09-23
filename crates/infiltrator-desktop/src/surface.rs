@@ -83,6 +83,9 @@ pub struct SurfaceEngines {
     /// DUAL-14-10/13: the shared per-nameserver prober whose last report
     /// drives the latency row and the DNS self-heal snapshot.
     pub dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
+    /// DUAL-14-08: the shared cross-source leak prober whose last report the
+    /// DNS page publishes.
+    pub dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
 }
 
 /// Assemble all currently available desktop application facades into one
@@ -164,6 +167,7 @@ pub async fn application_surface_reader(
             .with_rule_tracer(engines.rule_tracer)
             .with_dns_cache(engines.dns_cache)
             .with_dns_latency(engines.dns_latency)
+            .with_dns_leak(engines.dns_leak)
             .with_rule_provider_cache(rule_provider_cache)
             .with_port_conflicts(port_conflicts),
     )

@@ -618,39 +618,6 @@ impl AppState {
                     }
                 }
             }
-            Message::RunDnsLeakProbe => {
-                self.diag.is_probing_dns_leak = true;
-                Task::perform(
-                    async {
-                        let probe_start = std::time::Instant::now();
-                        let mut ip = "104.28.19.42".to_string();
-                        let country = "US".to_string();
-                        let isp = "Cloudflare".to_string();
-                        if let Ok(snapshot) =
-                            crate::network::application().probe_public_ip(None).await
-                        {
-                            ip = snapshot.ip;
-                        }
-                        crate::types::dns::DnsLeakReport {
-                            public_ip: ip,
-                            country,
-                            isp,
-                            is_leak_detected: false,
-                            tested_dns_servers: vec![
-                                "1.1.1.1:53 (Cloudflare)".into(),
-                                "8.8.8.8:53 (Google)".into(),
-                            ],
-                            probe_duration_ms: probe_start.elapsed().as_millis() as u64,
-                        }
-                    },
-                    Message::DnsLeakProbeFinished,
-                )
-            }
-            Message::DnsLeakProbeFinished(report) => {
-                self.diag.is_probing_dns_leak = false;
-                self.diag.dns_leak_probe = Some(report);
-                Task::none()
-            }
             Message::OpenCustomNodeModal
             | Message::CloseCustomNodeModal
             | Message::UpdateCustomNodeUriInput(_)

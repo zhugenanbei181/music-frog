@@ -11,6 +11,10 @@ use infiltrator_contract::dns::{
 use infiltrator_contract::dns_latency::{
     DEFAULT_PROBE_QUESTION, DnsLatencyReport, DnsProbeOutcome, DnsProbeTransport, DnsServerLatency,
 };
+use infiltrator_contract::dns_leak::{
+    DnsLeakObservation, DnsLeakObservationOutcome, DnsLeakProbeSource, DnsLeakProbeTransport,
+    DnsLeakReport,
+};
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
@@ -78,6 +82,7 @@ impl DnsProjection {
                 ],
             },
             latency: demo_latency_report(),
+            leak: demo_leak_report(),
             self_heal: demo_self_heal_snapshot(),
             hosts: vec![
                 DnsHostEntry {
@@ -162,6 +167,38 @@ fn demo_latency_report() -> DnsLatencyReport {
     )
 }
 
+/// DUAL-14-08: the demo's pinned cross-source fixture. Two authorities report
+/// different resolver identities so the screenshot exercises the fact list;
+/// this is fixture content, not a runtime probe result.
+fn demo_leak_report() -> DnsLeakReport {
+    DnsLeakReport::observed(
+        vec![
+            DnsLeakProbeSource::new("223.5.5.5", "echo-a.example.org"),
+            DnsLeakProbeSource::new("223.5.5.5", "echo-b.example.org"),
+        ],
+        vec![
+            DnsLeakObservation {
+                resolver: "223.5.5.5".to_owned(),
+                authority: "echo-a.example.org".to_owned(),
+                question: "lf31.echo-a.example.org".to_owned(),
+                transport: DnsLeakProbeTransport::Udp,
+                outcome: DnsLeakObservationOutcome::Observed {
+                    identity: "203.0.113.9".to_owned(),
+                },
+            },
+            DnsLeakObservation {
+                resolver: "223.5.5.5".to_owned(),
+                authority: "echo-b.example.org".to_owned(),
+                question: "lf32.echo-b.example.org".to_owned(),
+                transport: DnsLeakProbeTransport::Udp,
+                outcome: DnsLeakObservationOutcome::Observed {
+                    identity: "198.51.100.7".to_owned(),
+                },
+            },
+        ],
+    )
+}
+
 fn demo_self_heal_snapshot() -> DnsSelfHealSnapshot {
     DnsSelfHealSnapshot::new(vec![
         DnsSelfHealCheck {
@@ -220,5 +257,10 @@ mod tests {
         assert_eq!(proj.self_heal.checks.len(), DnsSelfHealKind::ALL.len());
         assert_eq!(proj.self_heal.overall_state(), DnsSelfHealState::Warning);
         assert!(proj.self_heal.needs_repair());
+        // DUAL-14-08: the leak fixture is a pinned screenshot too; it never
+        // claims a runtime fact (only `DemoSurfaceSource` reads it).
+        assert!(proj.leak.is_probed());
+        assert!(proj.leak.conclusion().is_divergent());
+        assert_eq!(proj.leak.observed_facts().len(), 2);
     }
 }

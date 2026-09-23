@@ -31,6 +31,7 @@ pub mod dns_edit;
 pub mod dns_fakeip;
 pub(crate) mod dns_form;
 pub mod dns_hosts;
+pub mod dns_leak;
 pub mod dns_self_heal;
 pub mod doctor;
 pub mod logs;

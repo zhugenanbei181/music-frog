@@ -5,7 +5,7 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view::components::{
     BadgeKind, badge, banner_alert, card, editor_frame_surface, empty_state, form_field_label,
-    form_input_style, form_pick_style, form_toggle_row, icon_button, kbd_badge, modern_scrollable,
+    form_input_style, form_pick_style, form_toggle_row, icon_button, modern_scrollable,
     row_card_surface, section_header, segmented_control, style_accent, style_ghost, text_btn,
 };
 use crate::view::dns_form_panel::{
@@ -14,11 +14,9 @@ use crate::view::dns_form_panel::{
 use crate::view::dns_hosts_panel::{
     fake_ip_pool_panel, hosts_panel, latency_policy_line, self_heal_panel,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, tokens};
-use iced::widget::{
-    Space, button, column, container, pick_list, row, text, text_editor, text_input,
-};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_LG, tokens};
+use iced::widget::{Space, column, container, pick_list, row, text, text_editor, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::dns::DnsServerTag;
 use infiltrator_contract::dns_form::DnsFormField;
@@ -508,94 +506,7 @@ fn tun_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
 }
 
 fn dns_leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let probe_btn = button(
-        row![
-            svg_icons::icon_themed(Icon::Shield, 14.0, |t: &Theme| tokens(t).on_accent),
-            Space::new().width(theme::SP_SM),
-            text(lang.tr("dns_leak_btn_run").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([6, 14])
-    .style(style_accent)
-    .on_press_maybe((!state.diag.is_probing_dns_leak).then_some(Message::RunDnsLeakProbe));
-
-    let report_content: Element<'_, Message> = match &state.diag.dns_leak_probe {
-        Some(rep) => {
-            let status_badge = if rep.is_leak_detected {
-                badge(
-                    lang.tr("dns_leak_status_leaked").to_string(),
-                    BadgeKind::Danger,
-                )
-            } else {
-                badge(
-                    lang.tr("dns_leak_status_secure").to_string(),
-                    BadgeKind::Success,
-                )
-            };
-
-            column![
-                row![
-                    status_badge,
-                    Space::new().width(Length::Fill),
-                    kbd_badge(format!("{}ms", rep.probe_duration_ms)),
-                ]
-                .align_y(Alignment::Center),
-                Space::new().height(theme::SP_XS),
-                row![
-                    text(format!(
-                        "{}: {}",
-                        lang.tr("dns_leak_public_ip"),
-                        rep.public_ip
-                    ))
-                    .size(12)
-                    .font(MONO),
-                    Space::new().width(theme::SP_MD),
-                    text(format!("{}: {}", lang.tr("dns_leak_location"), rep.country)).size(12),
-                    Space::new().width(theme::SP_MD),
-                    text(format!("{}: {}", lang.tr("dns_leak_isp"), rep.isp)).size(12),
-                ]
-                .align_y(Alignment::Center),
-            ]
-            .spacing(theme::SP_XS)
-            .into()
-        }
-        None => {
-            if state.diag.is_probing_dns_leak {
-                text("Probing DNS servers & outbound network...")
-                    .size(12)
-                    .into()
-            } else {
-                text(lang.tr("dns_leak_probe_desc").to_string())
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary),
-                    })
-                    .into()
-            }
-        }
-    };
-
-    card(
-        Some(lang.tr("dns_leak_probe_title").to_string()),
-        column![
-            row![
-                text(lang.tr("dns_leak_probe_desc").to_string())
-                    .size(12)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    })
-                    .width(Length::Fill),
-                probe_btn,
-            ]
-            .align_y(Alignment::Center),
-            Space::new().height(theme::SP_XS),
-            report_content,
-        ]
-        .spacing(theme::SP_SM),
-    )
+    crate::view::dns_leak_panel::leak_panel(state, lang)
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {

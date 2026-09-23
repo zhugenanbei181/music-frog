@@ -84,6 +84,7 @@ pub fn dns_page_snapshot(
         cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
         fake_ip_pool: FakeIpMappingPool::default(),
         latency: DnsLatencyReport::default(),
+        leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
         self_heal: DnsSelfHealSnapshot::default(),
         hosts: hosts_entries(config),
     }
@@ -110,6 +111,16 @@ pub fn latency_report(
 ) -> DnsLatencyReport {
     application
         .map(crate::dns_latency_application::DnsLatencyApplication::last_report)
+        .unwrap_or_default()
+}
+
+/// DUAL-14-08: the honest last cross-source leak probe of this host (an empty
+/// typed refusal without a configured echo source).
+pub fn leak_report(
+    application: Option<&crate::dns_leak_application::DnsLeakApplication>,
+) -> infiltrator_contract::dns_leak::DnsLeakReport {
+    application
+        .map(crate::dns_leak_application::DnsLeakApplication::last_report)
         .unwrap_or_default()
 }
 
@@ -452,5 +463,40 @@ mod tests {
         apply_latency_report(&mut snapshot, &report);
         assert!(!snapshot.latency.is_probed());
         assert!(snapshot.self_heal.checks.is_empty());
+    }
+
+    #[test]
+    fn a_host_without_a_leak_fact_source_keeps_the_typed_unsupported_state() {
+        let application = crate::dns_leak_application::DnsLeakApplication::unconfigured();
+        let report = leak_report(Some(&application));
+        assert!(!report.status.is_ready());
+        assert_eq!(
+            report.status.reason(),
+            Some(crate::dns_leak_application::NO_ECHO_PORT_REASON)
+        );
+        assert_eq!(
+            report.conclusion(),
+            infiltrator_contract::dns_leak::DnsLeakConclusion::Unsupported {
+                reason: crate::dns_leak_application::NO_ECHO_PORT_REASON.to_owned()
+            }
+        );
+
+        // A host with a prober but no controlled echo authority is just as
+        // explicit, and the shared page snapshot never carries a verdict.
+        let configured_but_sourceless =
+            crate::dns_leak_application::DnsLeakApplication::new(None, Vec::new());
+        let report = leak_report(Some(&configured_but_sourceless));
+        assert!(!report.conclusion().is_consistent());
+        assert!(!report.conclusion().is_divergent());
+
+        let snapshot = dns_page_snapshot(&config(), String::new());
+        assert_eq!(
+            snapshot.leak,
+            infiltrator_contract::dns_leak::DnsLeakReport::default()
+        );
+        assert_eq!(
+            leak_report(None),
+            infiltrator_contract::dns_leak::DnsLeakReport::default()
+        );
     }
 }

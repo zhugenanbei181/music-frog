@@ -468,6 +468,9 @@ pub struct DnsPageSnapshot {
     /// DUAL-14-10: the last real per-nameserver latency probe of this host.
     #[serde(default)]
     pub latency: crate::dns_latency::DnsLatencyReport,
+    /// DUAL-14-08: the last real DNS leak cross-source probe of this host.
+    #[serde(default)]
+    pub leak: crate::dns_leak::DnsLeakReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     #[serde(default)]
     pub self_heal: crate::dns_self_heal::DnsSelfHealSnapshot,

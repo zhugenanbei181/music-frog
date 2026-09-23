@@ -7,6 +7,7 @@ pub mod crash_watchdog_card;
 pub mod dns;
 pub mod dns_form_panel;
 pub mod dns_hosts_panel;
+pub mod dns_leak_panel;
 pub mod doctor;
 pub mod editor;
 pub(crate) mod editor_history;
