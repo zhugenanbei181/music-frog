@@ -65,7 +65,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_hero.rs",
         "overview_speedtest_button",
         "Message::TestAllProxyDelays",
     )

@@ -128,10 +128,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
-        "pac_service_port",
-        "DesktopPacServicePort",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
+        "fn pac_service_port",
         "async fn get_rules",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
+        "DesktopPacServicePort",
     )
     require(
         violations,

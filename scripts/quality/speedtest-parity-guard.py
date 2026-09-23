@@ -80,7 +80,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_hero.rs",
         "speedtest_cancel",
         "Message::CancelSpeedtest",
         "snapshot.is_running()",

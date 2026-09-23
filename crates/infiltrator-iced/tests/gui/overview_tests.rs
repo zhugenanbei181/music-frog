@@ -1,5 +1,11 @@
 use super::*;
 
+use crate::view::overview_hero::overview_speedtest_button;
+use crate::view::overview_topology::{topology_badge, topology_route_for_stage};
+use infiltrator_contract::traffic_topology::{
+    TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
+};
+
 #[test]
 fn topology_badge_reflects_the_shared_status_and_count() {
     let mut snapshot = TrafficTopologySnapshot::demo_fixture();

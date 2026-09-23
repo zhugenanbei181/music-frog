@@ -70,7 +70,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_ip.rs",
         "current_ip_card",
         "overview_current_ip",
     )

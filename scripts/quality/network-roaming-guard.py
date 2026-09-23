@@ -149,9 +149,13 @@ def main() -> int:
     )
     require(
         violations,
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
+        "fn network_roaming_port",
+    )
+    require(
+        violations,
         "crates/infiltrator-desktop/src/runtime.rs",
         "network_roaming_port",
-        "fn network_roaming_port",
         "DesktopNetworkRoamingPort",
     )
     require(

@@ -113,7 +113,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "privileged_network_port",
         "destructive privilege probes",
     )

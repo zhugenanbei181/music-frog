@@ -127,7 +127,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/overview.rs",
+        "crates/infiltrator-iced/src/view/overview_traffic.rs",
         "state.runtime.traffic_waveform",
         "TrafficChart",
     )

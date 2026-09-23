@@ -121,7 +121,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn system_proxy_port",
         "DesktopSystemProxy::new",
     )

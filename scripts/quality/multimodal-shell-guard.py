@@ -1648,7 +1648,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn mini_hud_window_port",
         "DesktopMiniHudWindow::shared()",
     )

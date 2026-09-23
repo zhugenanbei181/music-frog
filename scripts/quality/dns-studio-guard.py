@@ -665,8 +665,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn dns_latency_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
         "HttpDnsLatencyProber",
     )
     require(
@@ -965,8 +969,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn dns_leak_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
         "HttpDnsLeakEchoProbe",
         "default_echo_sources",
     )
@@ -1260,8 +1268,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-desktop/src/runtime.rs",
+        "crates/infiltrator-desktop/src/runtime/ports.rs",
         "fn stun_egress_probe_port",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/runtime.rs",
         "UdpStunProbe",
         "DEFAULT_STUN_SERVER",
     )
