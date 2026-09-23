@@ -119,6 +119,7 @@ fn test_proxy_and_rule_provider_row_render() {
         &rule_p,
         Some("https://example.com/reject.mrs"),
         Some(86_400),
+        None,
         &lang,
     );
 
@@ -148,4 +149,67 @@ fn test_provider_lifecycle_line_reports_shared_source_url() {
         provider_lifecycle_line("", None, Some(3_600)),
         "Updated: — · Source: not declared · Auto: 1h (kernel-scheduled)"
     );
+}
+
+#[test]
+fn test_provider_fingerprint_line_reports_local_file_facts() {
+    use infiltrator_contract::provider_cache::{
+        ProviderCacheFingerprint, ProviderFileFingerprint, ProviderFingerprintChange,
+    };
+
+    let observation = ProviderCacheFingerprint {
+        provider: "ads".to_owned(),
+        path: "/home/u/.config/mihomo-rs/rules/8f14e45fceea167a5a36dedd4bea2543".to_owned(),
+        change: ProviderFingerprintChange::Changed,
+        current: ProviderFileFingerprint {
+            size_bytes: 4_096,
+            sha256: "abcdef0123456789deadbeef".to_owned(),
+            modified_unix_secs: Some(1_700_000_000),
+        },
+        previous: Some(ProviderFileFingerprint {
+            size_bytes: 2_048,
+            sha256: "0123456789abcdef".to_owned(),
+            modified_unix_secs: Some(1_699_000_000),
+        }),
+    };
+
+    let zh = Lang("zh-CN");
+    let line = provider_fingerprint_line(&observation, &zh);
+    assert!(
+        line.starts_with(
+            "本地缓存内容指纹（非 HTTP ETag）: sha256:abcdef012345… · 4096 B · mtime 2023-11-14 22:13:20 UTC"
+        ),
+        "{line}"
+    );
+    assert!(line.ends_with("较上次观测已变化"), "{line}");
+    // The line must never turn the local read into an HTTP validator claim.
+    assert!(!line.contains("304"), "{line}");
+    assert!(!line.contains("If-None-Match"), "{line}");
+
+    // The English table carries the same fact with the same layout.
+    let en = Lang("en");
+    let english = provider_fingerprint_line(&observation, &en);
+    assert!(
+        english.starts_with(
+            "Local cache content fingerprint (not an HTTP ETag): sha256:abcdef012345… · 4096 B · mtime 2023-11-14 22:13:20 UTC"
+        ),
+        "{english}"
+    );
+    assert!(
+        english.ends_with("changed since last observation"),
+        "{english}"
+    );
+
+    // A first observation says so instead of pretending a previous read.
+    let first = ProviderCacheFingerprint {
+        change: ProviderFingerprintChange::FirstSeen,
+        previous: None,
+        ..observation.clone()
+    };
+    assert!(provider_fingerprint_line(&first, &zh).ends_with("首次观测"));
+    let unchanged = ProviderCacheFingerprint {
+        change: ProviderFingerprintChange::Unchanged,
+        ..observation
+    };
+    assert!(provider_fingerprint_line(&unchanged, &zh).ends_with("较上次观测未变化"));
 }

@@ -318,6 +318,12 @@ pub struct RuleProviderSnapshot {
     /// publishes the declared schedule, never a fabricated cache hit/miss.
     #[serde(default)]
     pub refresh_interval_secs: Option<u64>,
+    /// DUAL-11-05: the client's own observation of this provider's local cache
+    /// file (size + SHA-256 + last-modified, compared against the previous
+    /// observation). `None` means this client has no local file to fingerprint;
+    /// it is never a claim about the kernel's HTTP validator.
+    #[serde(default)]
+    pub cache_fingerprint: Option<crate::provider_cache::ProviderCacheFingerprint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -391,6 +397,19 @@ pub struct ConnectionSnapshot {
     pub destination_ip: String,
     #[serde(default)]
     pub destination_port: String,
+    /// DUAL-13-05: the kernel's GEOIP rule-evaluation result for the
+    /// destination IP (`/connections` `metadata.destinationGeoIP`). `None` =
+    /// the kernel never queried; `Some(vec![])` = queried with no record;
+    /// `Some(codes)` = real kernel-resolved codes. The client reads no MMDB
+    /// itself and never substitutes a location.
+    #[serde(default)]
+    pub destination_geo_ip: Option<Vec<String>>,
+    /// DUAL-13-05: the kernel's raw `destinationIPASN` value (e.g.
+    /// `15169 Google LLC`). `""` = no IP-ASN rule ran; whitespace-only =
+    /// evaluated with no record; the surfaces classify it through the shared
+    /// `destination_asn_fact` reduction and never invent an ASN.
+    #[serde(default)]
+    pub destination_ip_asn: String,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,

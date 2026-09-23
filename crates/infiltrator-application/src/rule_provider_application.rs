@@ -6,7 +6,9 @@
 //! provider payload or claim a cleanup that never happened.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::provider_cache::{ProviderCachePurge, ProviderContentOrigin};
+use infiltrator_contract::provider_cache::{
+    ProviderCacheFingerprint, ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint,
+};
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::provider_store::{
     RuleProviderDeclaration, deconstruct_provider_payload,
@@ -14,7 +16,8 @@ use infiltrator_domain::rules::provider_store::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Real rules read out of one provider, plus the source they came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,11 +39,18 @@ impl ProviderUnpackPlan {
 #[derive(Clone, Default)]
 pub struct RuleProviderApplication {
     cache: Option<Arc<dyn RuleProviderCachePort>>,
+    /// DUAL-11-05: the last local cache fingerprint this client observed per
+    /// provider. The comparison happens here, between two local observations,
+    /// because the kernel's HTTP validator exchange is invisible to the client.
+    observed_fingerprints: Arc<Mutex<HashMap<String, ProviderFileFingerprint>>>,
 }
 
 impl RuleProviderApplication {
     pub fn new(cache: Option<Arc<dyn RuleProviderCachePort>>) -> Self {
-        Self { cache }
+        Self {
+            cache,
+            observed_fingerprints: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Whether the host exposes a rule-provider cache location at all.
@@ -158,6 +168,42 @@ impl RuleProviderApplication {
             ),
         }
     }
+
+    /// DUAL-11-05: observe a provider's local cache file and compare it with
+    /// the previous observation *this client* made.
+    ///
+    /// `None` means the host had no file to fingerprint (no cache port, a
+    /// non-remote provider, or no downloaded file yet). The returned
+    /// observation carries only local facts — size, SHA-256 and last-modified —
+    /// and must never be rendered as an HTTP `ETag`/`304` result.
+    pub async fn observe_fingerprint(
+        &self,
+        declaration: &RuleProviderDeclaration,
+    ) -> Option<ProviderCacheFingerprint> {
+        let cache = self.cache.as_ref()?;
+        let fact = match cache.fingerprint(declaration).await {
+            Ok(Some(fact)) => fact,
+            Ok(None) | Err(_) => return None,
+        };
+        let provider = declaration.name.clone();
+        let (previous, change) = {
+            let mut log = self
+                .observed_fingerprints
+                .lock()
+                .expect("provider fingerprint log lock");
+            let previous = log.get(&provider).cloned();
+            let change = ProviderCacheFingerprint::compare(previous.as_ref(), &fact.fingerprint);
+            log.insert(provider.clone(), fact.fingerprint.clone());
+            (previous, change)
+        };
+        Some(ProviderCacheFingerprint {
+            provider,
+            path: fact.path.display().to_string(),
+            change,
+            current: fact.fingerprint,
+            previous,
+        })
+    }
 }
 
 fn unsupported_cache() -> Failure {
@@ -207,12 +253,46 @@ mod tests {
     use async_trait::async_trait;
     use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
     use infiltrator_ports::rule_provider_cache::ProviderCacheEntry;
+    use infiltrator_ports::rule_provider_cache::ProviderFileFact;
     use serde_json::json;
     use std::path::PathBuf;
 
     struct FakeCache {
         entry: Option<ProviderCacheEntry>,
         purge: ProviderCachePurge,
+        /// Scripted fingerprint answers, popped per call; `None` means "no
+        /// local file to fingerpring" (an honest absence, not an error).
+        facts: Arc<Mutex<Vec<Option<ProviderFileFact>>>>,
+    }
+
+    impl FakeCache {
+        fn new(entry: Option<ProviderCacheEntry>, purge: ProviderCachePurge) -> Self {
+            Self {
+                entry,
+                purge,
+                facts: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn with_facts(mut self, facts: Vec<Option<ProviderFileFact>>) -> Self {
+            self.facts = Arc::new(Mutex::new(facts));
+            self
+        }
+    }
+
+    fn file_fact(
+        sha256: &str,
+        size_bytes: u64,
+        modified_unix_secs: Option<i64>,
+    ) -> ProviderFileFact {
+        ProviderFileFact {
+            path: PathBuf::from(format!("/kernel/rules/{sha256}")),
+            fingerprint: ProviderFileFingerprint {
+                size_bytes,
+                sha256: sha256.to_owned(),
+                modified_unix_secs,
+            },
+        }
     }
 
     #[async_trait]
@@ -222,6 +302,17 @@ mod tests {
             _declaration: &RuleProviderDeclaration,
         ) -> Result<Option<ProviderCacheEntry>, PortError> {
             Ok(self.entry.clone())
+        }
+
+        async fn fingerprint(
+            &self,
+            _declaration: &RuleProviderDeclaration,
+        ) -> Result<Option<ProviderFileFact>, PortError> {
+            let mut facts = self.facts.lock().expect("fake facts");
+            if facts.is_empty() {
+                return Ok(None);
+            }
+            Ok(facts.remove(0))
         }
 
         async fn purge(&self) -> Result<ProviderCachePurge, PortError> {
@@ -257,14 +348,14 @@ mod tests {
 
     #[tokio::test]
     async fn local_cache_file_is_read_before_the_controller() {
-        let cache = FakeCache {
-            entry: Some(ProviderCacheEntry {
+        let cache = FakeCache::new(
+            Some(ProviderCacheEntry {
                 origin: ProviderContentOrigin::KernelCacheFile,
                 path: Some(PathBuf::from("/kernel/rules/abc")),
                 bytes: b"cached.cn\n".to_vec(),
             }),
-            purge: ProviderCachePurge::default(),
-        };
+            ProviderCachePurge::default(),
+        );
         let application = RuleProviderApplication::new(Some(Arc::new(cache)));
         let decl = declaration(json!({
             "type": "http",
@@ -282,10 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn missing_everywhere_is_a_typed_unsupported_failure() {
-        let cache = FakeCache {
-            entry: None,
-            purge: ProviderCachePurge::default(),
-        };
+        let cache = FakeCache::new(None, ProviderCachePurge::default());
         let application = RuleProviderApplication::new(Some(Arc::new(cache)));
         let decl = declaration(json!({
             "type": "http",
@@ -308,14 +396,14 @@ mod tests {
         let failure = hostless.purge().await.expect_err("no cache port");
         assert_eq!(failure.code, ErrorCode::Unsupported);
 
-        let cache = FakeCache {
-            entry: None,
-            purge: ProviderCachePurge {
+        let cache = FakeCache::new(
+            None,
+            ProviderCachePurge {
                 directory: Some("/cache/rules".to_owned()),
                 files_removed: 4,
                 bytes_freed: 2048,
             },
-        };
+        );
         let application = RuleProviderApplication::new(Some(Arc::new(cache)));
         let purge = application.purge().await.expect("purge");
         assert_eq!(purge.files_removed, 4);
@@ -323,5 +411,71 @@ mod tests {
         let snapshot = application.snapshot().await;
         assert_eq!(snapshot.file_count, 2);
         assert!(snapshot.is_available());
+    }
+
+    #[tokio::test]
+    async fn fingerprint_observation_compares_against_the_previous_local_read() {
+        let cache = FakeCache::new(None, ProviderCachePurge::default()).with_facts(vec![
+            Some(file_fact("aa", 10, Some(100))),
+            Some(file_fact("aa", 10, Some(200))),
+            Some(file_fact("bb", 10, Some(200))),
+            None,
+        ]);
+        let application = RuleProviderApplication::new(Some(Arc::new(cache)));
+        let decl = declaration(json!({
+            "type": "http",
+            "behavior": "domain",
+            "format": "text",
+            "url": "https://example.com/ads.txt"
+        }));
+
+        let first = application
+            .observe_fingerprint(&decl)
+            .await
+            .expect("first observation");
+        assert_eq!(first.change_token(), "first-seen");
+        assert_eq!(first.previous, None);
+        assert_eq!(first.current.sha256, "aa");
+        assert_eq!(first.path, "/kernel/rules/aa");
+
+        // Same content, later timestamp: still the same local content.
+        let second = application
+            .observe_fingerprint(&decl)
+            .await
+            .expect("second observation");
+        assert_eq!(second.change_token(), "unchanged");
+        assert_eq!(
+            second.previous.as_ref().map(|f| f.sha256.as_str()),
+            Some("aa")
+        );
+
+        // A real rewrite is reported as changed and carries the old value.
+        let third = application
+            .observe_fingerprint(&decl)
+            .await
+            .expect("third observation");
+        assert_eq!(third.change_token(), "changed");
+        assert_eq!(third.current.sha256, "bb");
+        assert_eq!(
+            third.previous.as_ref().map(|f| f.sha256.as_str()),
+            Some("aa")
+        );
+
+        // A missing file is an honest absence: no observation is fabricated,
+        // and the previous local read is retained for the next comparison.
+        assert!(application.observe_fingerprint(&decl).await.is_none());
+        assert!(application.observe_fingerprint(&decl).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn fingerprint_is_absent_without_a_cache_port() {
+        let application = RuleProviderApplication::default();
+        let decl = declaration(json!({
+            "type": "http",
+            "behavior": "domain",
+            "format": "text",
+            "url": "https://example.com/ads.txt"
+        }));
+        assert!(application.observe_fingerprint(&decl).await.is_none());
     }
 }

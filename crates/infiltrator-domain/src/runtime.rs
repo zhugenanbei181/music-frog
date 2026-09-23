@@ -105,6 +105,20 @@ pub struct ConnectionMetadata {
     pub process_path: String,
     #[serde(rename = "specialProxy")]
     pub special_proxy: String,
+    /// DUAL-13-05: the kernel's GEOIP rule-evaluation result for the
+    /// destination IP (`/connections` metadata `destinationGeoIP`). `None`
+    /// means the kernel never evaluated a GEOIP rule for this connection;
+    /// `Some(vec![])` means it evaluated and found no record; `Some(codes)`
+    /// are the real codes the kernel resolved. The client never reads an MMDB
+    /// itself and never fabricates a code.
+    #[serde(rename = "destinationGeoIP", default)]
+    pub destination_geo_ip: Option<Vec<String>>,
+    /// DUAL-13-05: the kernel's raw `destinationIPASN` value (`/connections`
+    /// metadata). `""` = no IP-ASN rule was evaluated; whitespace-only =
+    /// evaluated with no ASN record; otherwise the kernel's own string (e.g.
+    /// `15169 Google LLC`). The client adds no prefix and invents nothing.
+    #[serde(rename = "destinationIPASN", default)]
+    pub destination_ip_asn: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

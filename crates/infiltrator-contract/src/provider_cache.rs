@@ -52,6 +52,95 @@ impl ProviderCachePurge {
     }
 }
 
+/// One real content fingerprint of a provider's local cache file.
+///
+/// This is a *file* observation, never an HTTP validator: the client sees the
+/// bytes on disk, not the `ETag`/`If-None-Match` exchange the kernel performs
+/// inside its own downloader.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderFileFingerprint {
+    /// File length in bytes, as observed.
+    pub size_bytes: u64,
+    /// Lowercase hex SHA-256 of the file's bytes, as observed.
+    pub sha256: String,
+    /// Last-modified time in Unix seconds, when the host's filesystem exposes
+    /// it. `None` means the host could not read a timestamp — never a guess.
+    #[serde(default)]
+    pub modified_unix_secs: Option<i64>,
+}
+
+impl ProviderFileFingerprint {
+    /// Whether two fingerprints carry the same file content.
+    ///
+    /// The verdict is content-based: a timestamp that advanced while the bytes
+    /// stayed identical (a re-download of unchanged content) is not reported
+    /// as a content change.
+    pub fn same_content(&self, other: &Self) -> bool {
+        self.size_bytes == other.size_bytes && self.sha256 == other.sha256
+    }
+}
+
+/// How a fresh fingerprint compares to the one this client observed before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderFingerprintChange {
+    /// This client has not observed a fingerprint for this provider yet.
+    FirstSeen,
+    /// Same size and same digest as the previous observation.
+    Unchanged,
+    /// Size or digest differs from the previous observation.
+    Changed,
+}
+
+impl ProviderFingerprintChange {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::FirstSeen => "first-seen",
+            Self::Unchanged => "unchanged",
+            Self::Changed => "changed",
+        }
+    }
+}
+
+/// DUAL-11-05: one client-visible observation of a provider's local cache file.
+///
+/// The observation deliberately carries the local facts only (`size`, SHA-256,
+/// last-modified) and what changed between two observations by *this* client.
+/// It is not an HTTP cache validator, and no surface may render it as a kernel
+/// download that was skipped.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderCacheFingerprint {
+    /// Name of the provider this file belongs to.
+    pub provider: String,
+    /// Absolute path of the observed file.
+    pub path: String,
+    pub change: ProviderFingerprintChange,
+    pub current: ProviderFileFingerprint,
+    /// The fingerprint this client observed previously, when it had one.
+    #[serde(default)]
+    pub previous: Option<ProviderFileFingerprint>,
+}
+
+impl ProviderCacheFingerprint {
+    /// The stable comparison token both surfaces render.
+    pub fn change_token(&self) -> &'static str {
+        self.change.as_str()
+    }
+
+    /// Compare a fresh fingerprint against a previously observed one.
+    pub fn compare(
+        previous: Option<&ProviderFileFingerprint>,
+        current: &ProviderFileFingerprint,
+    ) -> ProviderFingerprintChange {
+        match previous {
+            None => ProviderFingerprintChange::FirstSeen,
+            Some(previous) if previous.same_content(current) => {
+                ProviderFingerprintChange::Unchanged
+            }
+            Some(_) => ProviderFingerprintChange::Changed,
+        }
+    }
+}
+
 /// Availability of the host's rule-provider cache location.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleProviderCacheState {
@@ -201,5 +290,83 @@ mod tests {
             "controller-payload"
         );
         assert_eq!(RuleProviderCacheState::Ready.as_str(), "ready");
+    }
+
+    fn fingerprint(
+        size_bytes: u64,
+        sha256: &str,
+        modified: Option<i64>,
+    ) -> ProviderFileFingerprint {
+        ProviderFileFingerprint {
+            size_bytes,
+            sha256: sha256.to_owned(),
+            modified_unix_secs: modified,
+        }
+    }
+
+    #[test]
+    fn fingerprint_comparison_is_content_based_and_tokenised() {
+        let first = fingerprint(1_024, "aa", Some(1_700_000_000));
+        assert_eq!(
+            ProviderCacheFingerprint::compare(None, &first),
+            ProviderFingerprintChange::FirstSeen
+        );
+        assert_eq!(
+            ProviderCacheFingerprint::compare(Some(&first), &first),
+            ProviderFingerprintChange::Unchanged
+        );
+        // A re-download of identical bytes moves the timestamp only: the
+        // content verdict stays unchanged instead of inventing a rewrite.
+        let retimed = fingerprint(1_024, "aa", Some(1_700_000_900));
+        assert_eq!(
+            ProviderCacheFingerprint::compare(Some(&first), &retimed),
+            ProviderFingerprintChange::Unchanged
+        );
+        let resized = fingerprint(2_048, "aa", Some(1_700_000_000));
+        assert_eq!(
+            ProviderCacheFingerprint::compare(Some(&first), &resized),
+            ProviderFingerprintChange::Changed
+        );
+        let rewritten = fingerprint(1_024, "bb", Some(1_700_000_000));
+        assert_eq!(
+            ProviderCacheFingerprint::compare(Some(&first), &rewritten),
+            ProviderFingerprintChange::Changed
+        );
+        assert_eq!(ProviderFingerprintChange::FirstSeen.as_str(), "first-seen");
+        assert_eq!(ProviderFingerprintChange::Unchanged.as_str(), "unchanged");
+        assert_eq!(ProviderFingerprintChange::Changed.as_str(), "changed");
+    }
+
+    #[test]
+    fn fingerprint_observation_serialises_its_source_and_change() {
+        let observation = ProviderCacheFingerprint {
+            provider: "ads".to_owned(),
+            path: "/home/u/.config/mihomo-rs/rules/8f14e45fceea167a5a36dedd4bea2543".to_owned(),
+            change: ProviderFingerprintChange::Changed,
+            current: fingerprint(4_096, "cc", Some(1_700_000_100)),
+            previous: Some(fingerprint(2_048, "bb", Some(1_699_999_000))),
+        };
+        assert_eq!(observation.change_token(), "changed");
+        let json = serde_json::to_value(&observation).expect("serialise");
+        assert_eq!(json["change"], "Changed");
+        assert_eq!(json["current"]["sha256"], "cc");
+        assert_eq!(json["previous"]["size_bytes"], 2_048);
+        let restored: ProviderCacheFingerprint = serde_json::from_value(json).expect("deserialise");
+        assert_eq!(restored, observation);
+    }
+
+    #[test]
+    fn fingerprint_observation_omits_a_previous_value_and_tolerates_missing_mtime() {
+        let observation = ProviderCacheFingerprint {
+            provider: "geo".to_owned(),
+            path: "/cache/rules/deadbeef".to_owned(),
+            change: ProviderFingerprintChange::FirstSeen,
+            current: fingerprint(12, "dd", None),
+            previous: None,
+        };
+        let json = serde_json::to_value(&observation).expect("serialise");
+        assert!(json.get("previous").is_none() || json["previous"].is_null());
+        assert!(json["current"]["modified_unix_secs"].is_null());
+        assert!(observation.current.modified_unix_secs.is_none());
     }
 }

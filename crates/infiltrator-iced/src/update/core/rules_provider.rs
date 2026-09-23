@@ -303,6 +303,14 @@ mod tests {
             })
         }
 
+        async fn fingerprint(
+            &self,
+            _declaration: &RuleProviderDeclaration,
+        ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderFileFact>, PortError>
+        {
+            Ok(None)
+        }
+
         async fn snapshot(&self) -> Result<RuleProviderCacheSnapshot, PortError> {
             Ok(RuleProviderCacheSnapshot::ready("/kernel/rules", 0, 0))
         }

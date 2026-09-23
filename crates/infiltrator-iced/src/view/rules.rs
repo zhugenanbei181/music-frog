@@ -374,17 +374,45 @@ pub fn provider_lifecycle_line(
     parts.join(" · ")
 }
 
+/// DUAL-11-05: the local cache-content fingerprint line. The body is the file
+/// size, digest and last-modified time this client actually read; the trailing
+/// label compares that local read with the previous one. It is explicitly
+/// *not* an HTTP validator, and never claims the kernel skipped a download.
+pub fn provider_fingerprint_line(
+    observation: &infiltrator_contract::provider_cache::ProviderCacheFingerprint,
+    lang: &Lang<'_>,
+) -> String {
+    use infiltrator_contract::provider_cache::ProviderFingerprintChange;
+    let change = match observation.change {
+        ProviderFingerprintChange::FirstSeen => lang.tr("rules_provider_fingerprint_first_seen"),
+        ProviderFingerprintChange::Unchanged => lang.tr("rules_provider_fingerprint_unchanged"),
+        ProviderFingerprintChange::Changed => lang.tr("rules_provider_fingerprint_changed"),
+    };
+    let body = infiltrator_domain::rules::view::format_content_fingerprint(
+        &observation.current.sha256,
+        observation.current.size_bytes,
+        observation.current.modified_unix_secs,
+    );
+    format!(
+        "{}: {body} · {change}",
+        lang.tr("rules_provider_fingerprint_label")
+    )
+}
+
 pub fn rule_provider_row<'a>(
     provider: &RuleProvider,
     source_url: Option<&str>,
     refresh_interval_secs: Option<u64>,
-    _lang: &Lang<'_>,
+    fingerprint: Option<&infiltrator_contract::provider_cache::ProviderCacheFingerprint>,
+    lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     let behavior_badge_text = format_provider_behavior(&provider.behavior);
     let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
     let format_str = format_rule_provider_format(provider);
     let updated_text =
         provider_lifecycle_line(&provider.updated_at, source_url, refresh_interval_secs);
+    let fingerprint_text =
+        fingerprint.map(|observation| provider_fingerprint_line(observation, lang));
 
     let actions = row![
         button(
@@ -425,28 +453,37 @@ pub fn rule_provider_row<'a>(
         row![
             provider_icon_chip(Icon::ListChecks, 16.0),
             Space::new().width(theme::SP_MD),
-            column![
-                row![
-                    text(provider.name.clone())
-                        .size(13)
-                        .font(FONT_SEMIBOLD)
+            {
+                let mut details = column![
+                    row![
+                        text(provider.name.clone())
+                            .size(13)
+                            .font(FONT_SEMIBOLD)
+                            .style(|t: &Theme| text::Style {
+                                color: Some(tokens(t).text_primary)
+                            }),
+                        Space::new().width(theme::SP_SM),
+                        badge(behavior_badge_text, BadgeKind::Neutral),
+                        Space::new().width(theme::SP_XS),
+                        badge(rule_count_str, BadgeKind::Accent),
+                    ]
+                    .align_y(Alignment::Center),
+                    text(updated_text)
+                        .size(11)
+                        .font(MONO)
                         .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_primary)
+                            color: Some(tokens(t).text_secondary)
                         }),
-                    Space::new().width(theme::SP_SM),
-                    badge(behavior_badge_text, BadgeKind::Neutral),
-                    Space::new().width(theme::SP_XS),
-                    badge(rule_count_str, BadgeKind::Accent),
-                ]
-                .align_y(Alignment::Center),
-                text(updated_text)
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
-            ]
-            .width(Length::Fill),
+                ];
+                if let Some(fingerprint_text) = fingerprint_text {
+                    details = details.push(text(fingerprint_text).size(11).font(MONO).style(
+                        |t: &Theme| text::Style {
+                            color: Some(tokens(t).text_tertiary),
+                        },
+                    ));
+                }
+                details.width(Length::Fill)
+            },
             chip(format_str),
             Space::new().width(theme::SP_SM),
             actions,
@@ -1015,10 +1052,12 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .rule_provider_intervals
                     .get(&provider.name)
                     .copied();
+                let fingerprint = state.editor.rule_provider_fingerprints.get(&provider.name);
                 rule_list = rule_list.push(rule_provider_row(
                     provider,
                     source_url,
                     refresh_interval_secs,
+                    fingerprint,
                     lang,
                 ));
             }

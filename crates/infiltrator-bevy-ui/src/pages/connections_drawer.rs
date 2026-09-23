@@ -72,6 +72,10 @@ pub enum ConnDrawerFieldKind {
     Traffic,
     /// DUAL-13-10/12: the derived instantaneous rates of the connection.
     Rate,
+    /// DUAL-13-05: the kernel's `destinationIPASN` rule-evaluation result.
+    KernelAsn,
+    /// DUAL-13-05: the kernel's `destinationGeoIP` rule-evaluation result.
+    KernelGeo,
 }
 
 /// Marker on one route-chain hop text slot in the drawer (DUAL-13-06).
@@ -195,6 +199,8 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
             ),
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(Role::Mono) ),
             ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(Role::Mono) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelAsn) TextRole(Role::Mono) ),
+            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(Role::Mono) ),
             ( Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption) ),
             (
                 Node {
@@ -425,6 +431,39 @@ fn restamp_drawer<F, H, S>(
                     "瞬时速率: 等待第二次采样".to_owned()
                 }
             }
+            // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation results.
+            // The client reads no MMDB and never guesses a location or ASN.
+            ConnDrawerFieldKind::KernelAsn => match connection_view::destination_asn_fact(
+                &item.destination_ip_asn,
+            ) {
+                connection_view::DestinationAsnFact::NotEvaluated => {
+                    "目标 ASN 归属（/connections destinationIPASN）: 内核未对本次连接求值（需 IP-ASN 规则）"
+                        .to_owned()
+                }
+                connection_view::DestinationAsnFact::NoResult => {
+                    "目标 ASN 归属（/connections destinationIPASN）: 内核已求值 · 无该 IP 的记录".to_owned()
+                }
+                connection_view::DestinationAsnFact::Reported(value) => {
+                    format!("目标 ASN 归属（/connections destinationIPASN）: {value}")
+                }
+            },
+            ConnDrawerFieldKind::KernelGeo => match connection_view::destination_geo_fact(
+                item.destination_geo_ip.as_deref(),
+            ) {
+                connection_view::DestinationGeoFact::NotEvaluated => {
+                    "目标地理归属（/connections destinationGeoIP）: 内核未对本次连接求值（需 GEOIP 规则）"
+                        .to_owned()
+                }
+                connection_view::DestinationGeoFact::NoResult => {
+                    "目标地理归属（/connections destinationGeoIP）: 内核已求值 · 无该 IP 的记录".to_owned()
+                }
+                connection_view::DestinationGeoFact::Codes(codes) => {
+                    format!(
+                        "目标地理归属（/connections destinationGeoIP）: {}",
+                        codes.join(", ")
+                    )
+                }
+            },
         };
     }
     for (mut text, marker) in hops.iter_mut() {

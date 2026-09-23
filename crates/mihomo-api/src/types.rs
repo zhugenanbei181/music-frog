@@ -147,6 +147,17 @@ pub struct ConnectionMetadata {
     pub process_path: String,
     #[serde(rename = "specialProxy", default)]
     pub special_proxy: String,
+    /// DUAL-13-05: the kernel's GEOIP rule-evaluation result for the
+    /// destination IP (`null` = never queried, `[]` = queried with no record,
+    /// otherwise the country codes the kernel resolved).
+    #[serde(rename = "destinationGeoIP", default)]
+    pub destination_geo_ip: Option<Vec<String>>,
+    /// DUAL-13-05: the kernel's raw `destinationIPASN` value (e.g.
+    /// `15169 Google LLC`, no `AS` prefix added by the kernel). Empty when no
+    /// IP-ASN rule ran; whitespace-only when the kernel looked up the IP and
+    /// found no ASN record.
+    #[serde(rename = "destinationIPASN", default)]
+    pub destination_ip_asn: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,6 +279,8 @@ impl From<ConnectionMetadata> for infiltrator_domain::runtime::ConnectionMetadat
             dns_mode: value.dns_mode,
             process_path: value.process_path,
             special_proxy: value.special_proxy,
+            destination_geo_ip: value.destination_geo_ip,
+            destination_ip_asn: value.destination_ip_asn,
         }
     }
 }

@@ -134,6 +134,8 @@ mod tests {
             download_bps,
             upload_total: 0,
             download_total: 0,
+            destination_geo_ip: None,
+            destination_ip_asn: String::new(),
         }
     }
 

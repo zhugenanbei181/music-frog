@@ -189,6 +189,7 @@ fn matrix_11_04_rule_provider_source_url_projection() {
         updated_at: "2026-09-01".to_owned(),
         source_url: Some("https://example.com/cn.mrs".to_owned()),
         refresh_interval_secs: Some(86_400),
+        cache_fingerprint: None,
     };
     assert_eq!(
         provider.source_url.as_deref(),
@@ -214,8 +215,50 @@ fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
         updated_at: "2026-09-01".to_owned(),
         source_url: None,
         refresh_interval_secs: Some(3600),
+        cache_fingerprint: None,
     };
     assert_eq!(declared.refresh_interval_secs, Some(3600));
+
+    // The other honest half: the client's own observation of the local cache
+    // file. It is a local content fingerprint compared with the previous local
+    // read — never the kernel's `ETag`/304 result, which it cannot see.
+    use infiltrator_contract::provider_cache::{
+        ProviderCacheFingerprint, ProviderFileFingerprint, ProviderFingerprintChange,
+    };
+    let previous = ProviderFileFingerprint {
+        size_bytes: 2_048,
+        sha256: "0123456789abcdef".to_owned(),
+        modified_unix_secs: Some(1_699_000_000),
+    };
+    let current = ProviderFileFingerprint {
+        size_bytes: 4_096,
+        sha256: "abcdef0123456789".to_owned(),
+        modified_unix_secs: Some(1_700_000_000),
+    };
+    assert_eq!(
+        ProviderCacheFingerprint::compare(Some(&previous), &current),
+        ProviderFingerprintChange::Changed
+    );
+    let observed = infiltrator_contract::surface_snapshot::RuleProviderSnapshot {
+        name: "ads".to_owned(),
+        rule_count: 12,
+        behavior: "domain".to_owned(),
+        updated_at: "2026-09-01".to_owned(),
+        source_url: Some("https://example.com/ads.mrs".to_owned()),
+        refresh_interval_secs: Some(3600),
+        cache_fingerprint: Some(ProviderCacheFingerprint {
+            provider: "ads".to_owned(),
+            path: "/home/u/.config/mihomo-rs/rules/8f14e45fceea167a5a36dedd4bea2543".to_owned(),
+            change: ProviderFingerprintChange::Changed,
+            current,
+            previous: Some(previous),
+        }),
+    };
+    let fingerprint = observed.cache_fingerprint.expect("observed fingerprint");
+    assert_eq!(fingerprint.change_token(), "changed");
+    assert_eq!(fingerprint.current.size_bytes, 4_096);
+    // The observation never carries an HTTP validator verdict.
+    assert!(!fingerprint.change_token().contains("304"));
 }
 
 /// DUAL-11-08/13: keyword search + pagination are shared arithmetic, and the

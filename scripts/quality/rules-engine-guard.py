@@ -1160,6 +1160,130 @@ def main() -> int:
         "test_rules_workspace_partitions_delegate_to_shared_vocabulary",
     )
 
+    # DUAL-11-05 (2026-09-23): the client-visible local fact is the provider
+    # cache file's content fingerprint. The contract/reduction, the host port,
+    # the previous-observation comparison and both surfaces must all be wired;
+    # the fingerprint must stay explicitly non-HTTP.
+    require(
+        violations,
+        LEDGER,
+        "ProviderFileFingerprint",
+        "ProviderFingerprintChange",
+        "observe_fingerprint",
+        "rules_provider_fingerprint_label",
+        "本地缓存内容指纹（非 HTTP ETag）",
+        "test_provider_fingerprint_line_reports_local_file_facts",
+        "test_rules_provider_local_cache_fingerprint_renders_non_etag_label",
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/provider_cache.rs",
+        "pub struct ProviderFileFingerprint",
+        "pub fn same_content",
+        "pub enum ProviderFingerprintChange",
+        "pub struct ProviderCacheFingerprint",
+        "pub fn compare",
+        'Self::FirstSeen => "first-seen"',
+    )
+    require(
+        violations,
+        "crates/infiltrator-contract/src/surface_snapshot.rs",
+        "pub cache_fingerprint: Option<crate::provider_cache::ProviderCacheFingerprint>",
+    )
+    require(
+        violations,
+        "crates/infiltrator-ports/src/rule_provider_cache.rs",
+        "pub struct ProviderFileFact",
+        "async fn fingerprint(",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/rule_provider_cache.rs",
+        "async fn fingerprint(",
+        "digest_for",
+        "content_hash",
+        "provider_cache_file_name",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/rule_provider_application.rs",
+        "observed_fingerprints",
+        "pub async fn observe_fingerprint(",
+        "ProviderCacheFingerprint::compare",
+        "fingerprint_observation_compares_against_the_previous_local_read",
+    )
+    require(
+        violations,
+        "crates/infiltrator-application/src/surface_reader.rs",
+        "observe_fingerprint",
+        "cache_fingerprint",
+    )
+    require(
+        violations,
+        "crates/infiltrator-domain/src/rules/view.rs",
+        "pub fn format_content_fingerprint",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/state.rs",
+        "rule_provider_fingerprints",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "pub fn provider_fingerprint_line",
+        "rules_provider_fingerprint_label",
+        "rules_provider_fingerprint_changed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_ext.rs",
+        "rules_provider_fingerprint_label",
+        "rules_provider_fingerprint_first_seen",
+        "rules_provider_fingerprint_unchanged",
+        "rules_provider_fingerprint_changed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-shared/src/locales_table_en_ext.rs",
+        "rules_provider_fingerprint_label",
+        "rules_provider_fingerprint_first_seen",
+        "rules_provider_fingerprint_unchanged",
+        "rules_provider_fingerprint_changed",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "pub cache_fingerprint: Option<infiltrator_contract::provider_cache::ProviderCacheFingerprint>",
+        "本地缓存内容指纹（非 HTTP ETag）",
+        "较上次观测未变化",
+        "较上次观测已变化",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/surface_projection.rs",
+        "cache_fingerprint: provider.cache_fingerprint.clone()",
+    )
+    require(
+        violations,
+        "crates/infiltrator-desktop/src/rule_provider_cache.rs",
+        "fingerprint_reports_real_size_digest_and_mtime_for_the_cache_file",
+        "digest_memo_only_reuses_a_digest_for_identical_size_and_mtime",
+    )
+    # The local fingerprint must never be rendered as an HTTP validator claim.
+    forbid(
+        violations,
+        "crates/infiltrator-iced/src/view/rules.rs",
+        "ETag hit",
+        "304 Not Modified",
+    )
+    forbid(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/rules.rs",
+        "ETag 命中",
+        "304 未修改",
+    )
+
     # The guard itself is registered on both suites.
     require(
         violations,

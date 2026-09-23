@@ -679,6 +679,20 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "script_sandbox_directive_row" => "{id} · {label} ({affected} items)".into(),
         "script_sandbox_breaker_state" => "{state} · failures {fails}/{threshold} · cooldown {cooldown}ms / remaining {remaining}ms".into(),
         "script_sandbox_limits_value" => "Memory cap {memory_mb}MB · timeout {timeout}ms · measured {elapsed}ms / {bytes} bytes".into(),
+
+        // Category: DUAL-11-05 rule-provider local cache content fingerprint
+        "rules_provider_fingerprint_label" => "Local cache content fingerprint (not an HTTP ETag)".into(),
+        "rules_provider_fingerprint_first_seen" => "first observation".into(),
+        "rules_provider_fingerprint_unchanged" => "unchanged since last observation".into(),
+        "rules_provider_fingerprint_changed" => "changed since last observation".into(),
+
+        // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
+        "conn_drawer_kernel_asn" => "Target ASN attribution (/connections destinationIPASN)".into(),
+        "conn_drawer_kernel_geo" => "Target geo attribution (/connections destinationGeoIP)".into(),
+        "conn_drawer_kernel_not_evaluated" => {
+            "kernel did not evaluate this connection (needs a GEOIP/IP-ASN rule)".into()
+        }
+        "conn_drawer_kernel_no_result" => "kernel evaluated · no record for this IP".into(),
         _ => key.to_string().into(),
     }
 }

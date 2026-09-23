@@ -204,6 +204,17 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         meta_field_row(lang.tr("conn_drawer_local_addr"), local_endpoint),
         meta_field_row(lang.tr("conn_drawer_remote_addr"), remote_endpoint),
         meta_field_row(lang.tr("conn_drawer_network"), meta.network.to_uppercase()),
+        // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation results for
+        // the target IP. The client reads no MMDB here; when the kernel did not
+        // evaluate a matching rule, the row says so instead of guessing.
+        meta_field_row(
+            lang.tr("conn_drawer_kernel_asn"),
+            kernel_asn_label(&meta.destination_ip_asn, &lang),
+        ),
+        meta_field_row(
+            lang.tr("conn_drawer_kernel_geo"),
+            kernel_geo_label(meta.destination_geo_ip.as_deref(), &lang),
+        ),
     ]
     .spacing(6);
 
@@ -434,3 +445,35 @@ fn meta_field_row<'a, Message: 'a>(
     .align_y(Alignment::Center)
     .into()
 }
+
+/// DUAL-13-05: render the kernel's raw `destinationIPASN` value through the
+/// shared fact reduction. No ASN is inferred client-side.
+fn kernel_asn_label(raw: &str, lang: &Lang<'_>) -> String {
+    match connection_view::destination_asn_fact(raw) {
+        connection_view::DestinationAsnFact::NotEvaluated => {
+            lang.tr("conn_drawer_kernel_not_evaluated").to_string()
+        }
+        connection_view::DestinationAsnFact::NoResult => {
+            lang.tr("conn_drawer_kernel_no_result").to_string()
+        }
+        connection_view::DestinationAsnFact::Reported(value) => value,
+    }
+}
+
+/// DUAL-13-05: render the kernel's raw `destinationGeoIP` value through the
+/// shared fact reduction.
+fn kernel_geo_label(codes: Option<&[String]>, lang: &Lang<'_>) -> String {
+    match connection_view::destination_geo_fact(codes) {
+        connection_view::DestinationGeoFact::NotEvaluated => {
+            lang.tr("conn_drawer_kernel_not_evaluated").to_string()
+        }
+        connection_view::DestinationGeoFact::NoResult => {
+            lang.tr("conn_drawer_kernel_no_result").to_string()
+        }
+        connection_view::DestinationGeoFact::Codes(codes) => codes.join(", "),
+    }
+}
+
+#[cfg(test)]
+#[path = "../../tests/gui/view_connection_drawer_tests.rs"]
+mod tests;

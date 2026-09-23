@@ -486,6 +486,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                     updated_at: provider.updated_at,
                     source_url: provider.source_url,
                     refresh_interval_secs: provider.refresh_interval_secs,
+                    cache_fingerprint: provider.cache_fingerprint,
                 })
                 .collect(),
             rules: value
@@ -532,6 +533,8 @@ impl From<ConnectionsProjection> for surface_snapshot::ConnectionsPageSnapshot {
                     source_port: connection.source_port,
                     destination_ip: connection.destination_ip,
                     destination_port: connection.destination_port,
+                    destination_geo_ip: connection.destination_geo_ip,
+                    destination_ip_asn: connection.destination_ip_asn,
                     upload_bps: connection.upload_bps,
                     download_bps: connection.download_bps,
                     upload_total: connection.upload_total,

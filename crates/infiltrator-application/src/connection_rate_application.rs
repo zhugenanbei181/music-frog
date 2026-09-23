@@ -89,6 +89,10 @@ pub fn connections_page_snapshot(
                     source_port: connection.metadata.source_port.clone(),
                     destination_ip: connection.metadata.destination_ip.clone(),
                     destination_port: connection.metadata.destination_port.clone(),
+                    // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation
+                    // results for the target IP, carried through untouched.
+                    destination_geo_ip: connection.metadata.destination_geo_ip.clone(),
+                    destination_ip_asn: connection.metadata.destination_ip_asn.clone(),
                     upload_bps: rate.upload_bps,
                     download_bps: rate.download_bps,
                     upload_total: connection.upload,

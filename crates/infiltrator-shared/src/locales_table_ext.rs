@@ -692,6 +692,18 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "script_sandbox_limits_value" => {
             "内存上限 {memory_mb}MB · 超时上限 {timeout}ms · 实测 {elapsed}ms / {bytes} 字节".into()
         }
+
+        // Category: DUAL-11-05 rule-provider local cache content fingerprint
+        "rules_provider_fingerprint_label" => "本地缓存内容指纹（非 HTTP ETag）".into(),
+        "rules_provider_fingerprint_first_seen" => "首次观测".into(),
+        "rules_provider_fingerprint_unchanged" => "较上次观测未变化".into(),
+        "rules_provider_fingerprint_changed" => "较上次观测已变化".into(),
+
+        // Category: DUAL-13-05 kernel-provided target ASN / geolocation facts
+        "conn_drawer_kernel_asn" => "目标 ASN 归属（/connections destinationIPASN）".into(),
+        "conn_drawer_kernel_geo" => "目标地理归属（/connections destinationGeoIP）".into(),
+        "conn_drawer_kernel_not_evaluated" => "内核未对本次连接求值（需 GEOIP/IP-ASN 规则）".into(),
+        "conn_drawer_kernel_no_result" => "内核已求值 · 无该 IP 的记录".into(),
         _ => key.to_string().into(),
     }
 }

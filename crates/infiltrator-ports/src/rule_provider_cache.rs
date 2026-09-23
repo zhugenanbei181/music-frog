@@ -22,6 +22,13 @@ pub struct ProviderCacheEntry {
     pub bytes: Vec<u8>,
 }
 
+/// One real provider file the host fingerprinted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderFileFact {
+    pub path: PathBuf,
+    pub fingerprint: infiltrator_contract::provider_cache::ProviderFileFingerprint,
+}
+
 /// Read + purge access to the kernel's cached rule-provider files.
 #[async_trait]
 pub trait RuleProviderCachePort: Send + Sync {
@@ -33,6 +40,19 @@ pub trait RuleProviderCachePort: Send + Sync {
         &self,
         declaration: &RuleProviderDeclaration,
     ) -> Result<Option<ProviderCacheEntry>, PortError>;
+
+    /// Fingerprint the provider file the kernel downloaded for `declaration`.
+    ///
+    /// Only remote (`type: http`) providers have a downloaded file to observe;
+    /// a declaration without one answers `Ok(None)`. The size, digest and
+    /// last-modified time are read from the same file, and the digest is only
+    /// recomputed when the file's length or timestamp no longer match the last
+    /// file this host hashed — an unchanged-input shortcut, never a fabricated
+    /// value for a file that moved.
+    async fn fingerprint(
+        &self,
+        declaration: &RuleProviderDeclaration,
+    ) -> Result<Option<ProviderFileFact>, PortError>;
 
     /// Delete cached rule-provider files only, reporting real counts.
     async fn purge(&self) -> Result<ProviderCachePurge, PortError>;
