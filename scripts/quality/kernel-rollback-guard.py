@@ -114,7 +114,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
         "core_versions.rollback.target",
         "Message::RollbackCore",
         "Rollback target",

@@ -118,7 +118,7 @@ ICED_ABSENT_ROWS = {
 ICED_SCRIM_BACKDROPS = (
     "crates/infiltrator-iced/src/view_root/command_palette.rs",
     "crates/infiltrator-iced/src/view_root/connection_drawer.rs",
-    "crates/infiltrator-iced/src/view_root/modals.rs",
+    "crates/infiltrator-iced/src/view_root/modals/card.rs",
 )
 
 #: The Bevy scenes that must paint the shared scrim token.
@@ -1250,7 +1250,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/hotkeys.rs",
         "hotkeys_card",
         "shortcut_registry.get(action)",
         "Message::BeginHotkeyCapture",
@@ -2264,7 +2264,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view_root/modals.rs",
+        "crates/infiltrator-iced/src/view_root/modals/card.rs",
         "tokens(t).scrim",
     )
     require(

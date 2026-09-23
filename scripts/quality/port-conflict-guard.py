@@ -165,8 +165,12 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "format_port_conflicts",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/integration.rs",
         "Check & repair",
         "Message::RepairPortConflicts",
     )

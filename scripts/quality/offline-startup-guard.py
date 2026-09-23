@@ -152,10 +152,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "format_offline_startup",
-        "Offline startup:",
         "offline-first",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
+        "Offline startup:",
     )
     require(
         violations,

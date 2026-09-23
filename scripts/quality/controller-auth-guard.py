@@ -114,10 +114,14 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-iced/src/view/settings.rs",
+        "crates/infiltrator-iced/src/view/settings/format.rs",
         "format_controller_auth",
-        "Controller auth",
         "secured · Bearer",
+    )
+    require(
+        violations,
+        "crates/infiltrator-iced/src/view/settings/kernel.rs",
+        "Controller auth",
     )
     require(
         violations,

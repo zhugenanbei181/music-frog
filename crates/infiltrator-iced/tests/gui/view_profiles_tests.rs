@@ -1,4 +1,7 @@
+use super::helpers::{format_bytes, format_datetime, traffic_row, ua_preset_chip};
 use super::*;
+use chrono::DateTime;
+use infiltrator_domain::profiles::ProfileInfo;
 
 #[test]
 fn test_format_bytes_scale() {

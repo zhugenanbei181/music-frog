@@ -827,7 +827,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
     );
     assert_eq!(state.editor.rule_publish_omitted, Some(7_000));
     let lang = infiltrator_shared::locales::Lang("en");
-    let note = crate::view::rules::publish_truncation_line(&state, &lang)
+    let note = crate::view::rules::rules_list::publish_truncation_line(&state, &lang)
         .expect("truncation note while the shared view is capped");
     assert!(note.contains("7000"), "{note}");
     assert!(note.contains("5000"), "{note}");
@@ -854,7 +854,7 @@ fn test_rules_provider_interval_and_publish_truncation_project_from_snapshot() {
     });
     assert!(state.apply_shared_surface_snapshot(complete));
     assert_eq!(state.editor.rule_publish_omitted, None);
-    assert!(crate::view::rules::publish_truncation_line(&state, &lang).is_none());
+    assert!(crate::view::rules::rules_list::publish_truncation_line(&state, &lang).is_none());
 }
 
 #[test]
@@ -958,28 +958,28 @@ fn test_rule_provider_diff_and_unpack_flow() {
     };
 
     assert_eq!(
-        crate::view::rules::format_provider_behavior(&domain_provider.behavior),
+        crate::view::rules::providers::format_provider_behavior(&domain_provider.behavior),
         "Domain"
     );
     assert_eq!(
-        crate::view::rules::format_provider_behavior(&ipcidr_provider.behavior),
+        crate::view::rules::providers::format_provider_behavior(&ipcidr_provider.behavior),
         "IPCIDR"
     );
     assert_eq!(
-        crate::view::rules::format_provider_behavior(&classical_provider.behavior),
+        crate::view::rules::providers::format_provider_behavior(&classical_provider.behavior),
         "Classical"
     );
 
     assert_eq!(
-        crate::view::rules::format_rule_provider_format(&domain_provider),
+        crate::view::rules::providers::format_rule_provider_format(&domain_provider),
         "HTTP"
     );
     assert_eq!(
-        crate::view::rules::format_rule_provider_format(&ipcidr_provider),
+        crate::view::rules::providers::format_rule_provider_format(&ipcidr_provider),
         "MRS"
     );
     assert_eq!(
-        crate::view::rules::format_rule_provider_format(&classical_provider),
+        crate::view::rules::providers::format_rule_provider_format(&classical_provider),
         "YAML"
     );
 
@@ -989,11 +989,11 @@ fn test_rule_provider_diff_and_unpack_flow() {
         classical_provider.clone(),
     ];
     assert_eq!(
-        crate::view::rules::total_external_rules(&providers),
+        crate::view::rules::providers::total_external_rules(&providers),
         1420 + 850 + 572
     );
 
-    let _dom_elem = crate::view::rules::rule_provider_row(
+    let _dom_elem = crate::view::rules::providers::rule_provider_row(
         &domain_provider,
         Some("https://example.com/domain.mrs"),
         Some(86_400),
@@ -1001,12 +1001,17 @@ fn test_rule_provider_diff_and_unpack_flow() {
         &lang,
     );
     let _ipc_elem =
-        crate::view::rules::rule_provider_row(&ipcidr_provider, None, None, None, &lang);
-    let _cls_elem =
-        crate::view::rules::rule_provider_row(&classical_provider, None, None, None, &lang);
+        crate::view::rules::providers::rule_provider_row(&ipcidr_provider, None, None, None, &lang);
+    let _cls_elem = crate::view::rules::providers::rule_provider_row(
+        &classical_provider,
+        None,
+        None,
+        None,
+        &lang,
+    );
 
     state.editor.rule_providers = providers;
-    let _providers_elem = crate::view::rules::providers_view(&state, &lang);
+    let _providers_elem = crate::view::rules::providers::providers_view(&state, &lang);
 }
 
 // ---- LEFT-05 L1 / DUAL-09-01: editor saves keep comments -------------------

@@ -1,4 +1,12 @@
+use super::providers::{
+    etag_support_line, format_provider_behavior, format_rule_provider_format,
+    provider_fingerprint_line, provider_lifecycle_line, proxy_provider_row, rule_provider_row,
+    total_external_rules,
+};
+use super::rules_list::{RuleHitStats, lookup_hit_stats};
 use super::*;
+use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
+use std::collections::HashMap;
 
 #[test]
 fn test_semantic_badge_kind_mapping() {
