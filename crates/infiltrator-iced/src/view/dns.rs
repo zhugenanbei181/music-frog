@@ -509,6 +509,10 @@ fn dns_leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Messa
     crate::view::dns_leak_panel::leak_panel(state, lang)
 }
 
+fn stun_probe_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
+    crate::view::stun_probe_panel::stun_panel(state, lang)
+}
+
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let header = row![
@@ -638,6 +642,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             header,
             Space::new().height(theme::SP_MD),
             dns_leak_panel(state, &lang),
+            Space::new().height(theme::SP_SM),
+            stun_probe_panel(state, &lang),
             Space::new().height(theme::SP_SM),
             tabs,
             Space::new().height(theme::SP_MD),

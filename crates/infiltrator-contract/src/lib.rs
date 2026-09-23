@@ -76,6 +76,7 @@ pub mod snapshot;
 pub mod snapshot_history;
 pub mod speedtest;
 pub mod speedtest_matrix;
+pub mod stun_probe;
 pub mod subscription_import;
 pub mod subscription_quota;
 pub mod surface;

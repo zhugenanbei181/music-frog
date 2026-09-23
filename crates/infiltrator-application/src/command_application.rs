@@ -91,6 +91,9 @@ pub struct CommandApplication {
     dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
     /// DUAL-14-08: the shared cross-source leak prober `TestDnsLeak` drives.
     dns_leak: Option<crate::dns_leak_application::DnsLeakApplication>,
+    /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober `RunStunProbe`
+    /// drives.
+    stun_probe: Option<crate::stun_probe_application::StunProbeApplication>,
     rule_provider: Option<crate::rule_provider_application::RuleProviderApplication>,
 }
 
@@ -283,6 +286,17 @@ impl CommandApplication {
         dns_leak: crate::dns_leak_application::DnsLeakApplication,
     ) -> Self {
         self.dns_leak = Some(dns_leak);
+        self
+    }
+
+    /// DUAL-14-09 (re-scoped): share the STUN UDP-egress application so
+    /// `RunStunProbe` runs the real host probe and both surfaces publish the
+    /// same report.
+    pub fn with_stun_probe(
+        mut self,
+        stun_probe: crate::stun_probe_application::StunProbeApplication,
+    ) -> Self {
+        self.stun_probe = Some(stun_probe);
         self
     }
 
@@ -1038,6 +1052,7 @@ impl CommandApplication {
                 .map(|_| ()),
             CommandIntent::TestDnsLatency => self.test_dns_latency().await,
             CommandIntent::TestDnsLeak => self.test_dns_leak().await,
+            CommandIntent::RunStunProbe => self.run_stun_probe().await,
             CommandIntent::RefreshPublicIpProbe
             | CommandIntent::ReorderOverviewCards { .. }
             | CommandIntent::ResetOverviewCardOrder
@@ -1079,6 +1094,23 @@ impl CommandApplication {
             ));
         };
         infiltrator_ports::dns_leak::DnsLeakProbePort::probe(application)
+            .await
+            .map(|_| ())
+            .map_err(Failure::from)
+    }
+
+    /// DUAL-14-09 (re-scoped): run the shared STUN UDP-egress probe. The
+    /// application already owns the configured server and expected egress, so
+    /// a host without a prober answers a typed unsupported instead of a
+    /// fabricated mapping. This is the host's own UDP egress, not a browser
+    /// WebRTC result.
+    async fn run_stun_probe(&self) -> Result<(), Failure> {
+        let Some(application) = self.stun_probe.as_ref() else {
+            return Err(Failure::unsupported(
+                crate::stun_probe_application::NO_STUN_PORT_REASON,
+            ));
+        };
+        infiltrator_ports::stun_probe::StunEgressProbePort::probe(application)
             .await
             .map(|_| ())
             .map_err(Failure::from)

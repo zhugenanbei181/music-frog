@@ -18,6 +18,7 @@ use infiltrator_contract::dns_leak::{
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
+use infiltrator_contract::stun_probe::{StunMappedAddress, StunProbeObservation, StunProbeReport};
 
 use crate::pages::dns::{DnsProjection, DnsServerItem};
 
@@ -83,6 +84,7 @@ impl DnsProjection {
             },
             latency: demo_latency_report(),
             leak: demo_leak_report(),
+            stun: demo_stun_report(),
             self_heal: demo_self_heal_snapshot(),
             hosts: vec![
                 DnsHostEntry {
@@ -196,6 +198,20 @@ fn demo_leak_report() -> DnsLeakReport {
                 },
             },
         ],
+    )
+}
+
+/// DUAL-14-09: the demo's pinned STUN UDP-egress observation, explicitly a
+/// fixture (`DemoSurfaceSource` is its only consumer; no runtime path can
+/// construct it). The mapping is a documentation address and the expected
+/// egress matches it, so the screenshot never implies a measured leak.
+fn demo_stun_report() -> StunProbeReport {
+    StunProbeReport::from_observation(
+        StunProbeObservation::observed(
+            infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER,
+            StunMappedAddress::new("203.0.113.9", 51234),
+        ),
+        Some(StunMappedAddress::new("203.0.113.9", 0)),
     )
 }
 

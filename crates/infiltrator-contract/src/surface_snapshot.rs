@@ -496,6 +496,11 @@ pub struct DnsPageSnapshot {
     /// DUAL-14-08: the last real DNS leak cross-source probe of this host.
     #[serde(default)]
     pub leak: crate::dns_leak::DnsLeakReport,
+    /// DUAL-14-09 (re-scoped): the last real STUN UDP-egress probe of this
+    /// host/process, compared against the expected proxied egress. This is the
+    /// host's own UDP mapping, not a browser WebRTC result.
+    #[serde(default)]
+    pub stun: crate::stun_probe::StunProbeReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     #[serde(default)]
     pub self_heal: crate::dns_self_heal::DnsSelfHealSnapshot,

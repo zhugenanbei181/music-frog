@@ -18,6 +18,22 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "dns_leak_observed" => "observed identity: {identity}".into(),
         "dns_leak_sources" => "{count} configured probe sources".into(),
 
+        // Category 1a: STUN UDP-egress probe (DUAL-14-09, re-scoped)
+        "dns_stun_probe_title" => "STUN UDP Egress Mapping Probe".into(),
+        "dns_stun_probe_desc" => "Observes this host/process's UDP egress mapping (public IP:port) through an external STUN server and compares it against the expected proxied egress; this is not a browser WebRTC measurement".into(),
+        "dns_stun_btn_run" => "Run STUN Probe".into(),
+        "dns_stun_probing" => "STUN probing...".into(),
+        "dns_stun_server" => "STUN server: {server}".into(),
+        "dns_stun_observed" => "observed mapping: {mapping}".into(),
+        "dns_stun_timed_out" => "timeout: the STUN server did not answer before the deadline".into(),
+        "dns_stun_failed" => "probe failed: {reason}".into(),
+        "dns_stun_unsupported" => "this host provides no STUN probe ({reason})".into(),
+        "dns_stun_unknown" => "not probed yet".into(),
+        "dns_stun_consistent" => "consistent with the expected proxied egress".into(),
+        "dns_stun_divergent" => "divergent from the expected proxied egress: observed {observed} != expected {expected} (facts only)".into(),
+        "dns_stun_unknown_comparison" => "cannot compare: {reason}".into(),
+        "dns_stun_not_webrtc" => "boundary: this is this host/process's UDP egress mapping, not a WebRTC traversal conclusion for any browser instance".into(),
+
         // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
         "dns_form_issues" => "Form validation failed".into(),
         "dns_form_err_scheme" => "Unsupported upstream scheme in {field}: {entry}".into(),

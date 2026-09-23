@@ -771,6 +771,7 @@ fn command_name(intent: &CommandIntent) -> &'static str {
         CommandIntent::ClearDnsCache => "clear_dns_cache",
         CommandIntent::TestDnsLatency => "test_dns_latency",
         CommandIntent::TestDnsLeak => "test_dns_leak",
+        CommandIntent::RunStunProbe => "run_stun_probe",
         CommandIntent::ApplyDnsSettings { .. } => "apply_dns_settings",
         CommandIntent::RunDoctorDiagnostics => "run_doctor_diagnostics",
         CommandIntent::RepairDoctorIssue { .. } => "repair_doctor_issue",

@@ -105,6 +105,8 @@ impl AppState {
                 | Message::RunDnsLatencyProbe
                 | Message::RunDnsLeakProbe
                 | Message::DnsLeakProbed(_)
+                | Message::RunStunProbe
+                | Message::StunProbed(_)
                 // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
                 | Message::RunDoctor
                 | Message::RunDoctorFix

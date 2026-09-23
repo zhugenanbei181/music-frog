@@ -407,6 +407,8 @@ pub struct ConfigEditorState {
     pub dns_latency: infiltrator_contract::dns_latency::DnsLatencyReport,
     /// DUAL-14-08: the shared cross-source DNS leak report.
     pub dns_leak: infiltrator_contract::dns_leak::DnsLeakReport,
+    /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress report of this host.
+    pub dns_stun: infiltrator_contract::stun_probe::StunProbeReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub dns_self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot,
     /// DUAL-14-10: a probe started from this surface is in flight.
@@ -496,6 +498,9 @@ pub struct DiagnosticsState {
     pub doctor: crate::types::doctor::DoctorPanelState,
     pub inspecting_connection_id: Option<String>,
     pub is_probing_dns_leak: bool,
+    /// DUAL-14-09 (re-scoped): a STUN egress probe started from this surface
+    /// is in flight.
+    pub is_probing_stun: bool,
     /// Honest per-target report of the last Fake-IP / OS DNS cache flush,
     /// consumed from the shared DNS page read model (DUAL-14-07).
     pub dns_cache_flush: infiltrator_contract::dns::DnsCacheFlushReport,
@@ -836,6 +841,9 @@ impl AppState {
             self.editor.dns_self_heal = dns.self_heal.clone();
             // DUAL-14-08: the cross-source leak report is a shared fact.
             self.apply_dns_leak_snapshot(dns);
+            // DUAL-14-09 (re-scoped): the STUN UDP-egress report is a shared
+            // fact.
+            self.apply_stun_snapshot(dns);
             // DUAL-14-11: re-seed the hosts draft while it has no pending edit.
             if !self.editor.dns_hosts_dirty && !self.editor.is_saving_dns_hosts {
                 self.editor.dns_hosts = dns.hosts.clone();

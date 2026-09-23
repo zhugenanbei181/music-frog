@@ -57,6 +57,11 @@ pub struct MihomoRuntime {
     /// has a controlled echo authority, so both surfaces publish the typed
     /// unsupported state instead of a verdict.
     dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
+    /// DUAL-14-09 (re-scoped): one STUN UDP-egress probe application shared by
+    /// the command handler, the host port and the surface reader. The desktop
+    /// injects the real UDP adapter; the observed mapping is this host's own
+    /// egress as seen by a STUN server, never a browser WebRTC result.
+    stun_probe: infiltrator_application::stun_probe_application::StunProbeApplication,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -189,6 +194,15 @@ impl MihomoRuntime {
             )),
             infiltrator_application::dns_leak_application::default_echo_sources(),
         );
+        // DUAL-14-09 (re-scoped): the real UDP STUN adapter and the public
+        // default server. The observation is this host/process's UDP egress
+        // mapping as seen by a STUN server; the application never presents it
+        // as a browser WebRTC result, and a host with no expected egress keeps
+        // the comparison honestly unknown.
+        let stun_probe = infiltrator_application::stun_probe_application::StunProbeApplication::new(
+            Some(Arc::new(infiltrator_core::stun_io::UdpStunProbe::new())),
+            infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER,
+        );
         let application = Arc::new(crate::composition::core_application(
             &service_manager,
             endpoint.url.clone(),
@@ -198,6 +212,7 @@ impl MihomoRuntime {
             dns_cache.clone(),
             dns_latency.clone(),
             dns_leak.clone(),
+            stun_probe.clone(),
             cm.clone(),
             Arc::new(crate::storage::subscription_source()),
         )?);
@@ -249,6 +264,7 @@ impl MihomoRuntime {
             dns_cache,
             dns_latency,
             dns_leak,
+            stun_probe,
             network_roaming_port,
         })
     }
@@ -354,6 +370,7 @@ impl MihomoRuntime {
                 dns_cache: self.dns_cache.clone(),
                 dns_latency: self.dns_latency.clone(),
                 dns_leak: self.dns_leak.clone(),
+                stun_probe: self.stun_probe.clone(),
             },
         )
         .await
@@ -805,6 +822,15 @@ impl HostRuntime for MihomoRuntime {
         &self,
     ) -> Option<Arc<dyn infiltrator_ports::dns_leak::DnsLeakProbePort>> {
         Some(Arc::new(self.dns_leak.clone()))
+    }
+
+    /// DUAL-14-09 (re-scoped): the shared STUN application is the port itself,
+    /// so a probe started from either surface lands in the one report the
+    /// surface reader publishes.
+    fn stun_egress_probe_port(
+        &self,
+    ) -> Option<Arc<dyn infiltrator_ports::stun_probe::StunEgressProbePort>> {
+        Some(Arc::new(self.stun_probe.clone()))
     }
 
     fn mini_hud_window_port(

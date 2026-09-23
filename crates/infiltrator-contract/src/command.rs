@@ -325,6 +325,10 @@ pub enum CommandIntent {
     /// DUAL-14-08: run the shared DNS leak cross-source probe (random
     /// subdomains under every configured echo authority).
     TestDnsLeak,
+    /// DUAL-14-09 (re-scoped): probe this host/process's UDP egress mapping
+    /// through the configured STUN server and compare it against the expected
+    /// proxied egress. Not a browser WebRTC measurement.
+    RunStunProbe,
     /// Apply a shared DNS workbench patch (switches / mapping mode / filter mode).
     ApplyDnsSettings {
         patch: crate::dns::DnsSettingsPatch,
@@ -575,6 +579,7 @@ impl CommandIntent {
             | Self::SetLogLevelFilter { .. }
             | Self::TestDnsLatency
             | Self::TestDnsLeak
+            | Self::RunStunProbe
             | Self::ApplyDnsSettings { .. }
             | Self::RunDoctorDiagnostics
             | Self::RepairDoctorIssue { .. }

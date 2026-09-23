@@ -21,6 +21,22 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_leak_observed" => "观测身份：{identity}".into(),
         "dns_leak_sources" => "已配置探测源 {count} 个".into(),
 
+        // Category 1a: STUN UDP-egress probe (DUAL-14-09, re-scoped)
+        "dns_stun_probe_title" => "STUN UDP 出网映射探测".into(),
+        "dns_stun_probe_desc" => "经外部 STUN 服务器观测本机/本进程的 UDP 出网映射（公网 IP:端口），并与期望的代理出网比较；这不是浏览器 WebRTC 探测".into(),
+        "dns_stun_btn_run" => "发起 STUN 探测".into(),
+        "dns_stun_probing" => "STUN 探测中…".into(),
+        "dns_stun_server" => "STUN 服务器：{server}".into(),
+        "dns_stun_observed" => "观测映射：{mapping}".into(),
+        "dns_stun_timed_out" => "超时：STUN 服务器未在期限内应答".into(),
+        "dns_stun_failed" => "探测失败：{reason}".into(),
+        "dns_stun_unsupported" => "宿主未提供 STUN 探测能力（{reason}）".into(),
+        "dns_stun_unknown" => "尚未探测".into(),
+        "dns_stun_consistent" => "与期望代理出网一致".into(),
+        "dns_stun_divergent" => "与期望代理出网不一致：观测 {observed} ≠ 期望 {expected}（仅列事实）".into(),
+        "dns_stun_unknown_comparison" => "无法比较：{reason}".into(),
+        "dns_stun_not_webrtc" => "边界：这是本机/本进程的 UDP 出网映射，不是某个浏览器实例的 WebRTC 穿透结论".into(),
+
         // Category 1b: DNS workbench form parity & cache flush (DUAL-14)
         "dns_form_issues" => "表单校验未通过".into(),
         "dns_form_err_scheme" => "字段 {field} 的上游协议不受支持: {entry}".into(),

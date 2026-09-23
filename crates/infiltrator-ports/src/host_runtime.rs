@@ -111,6 +111,14 @@ pub trait HostRuntime: ManagedRuntime {
     fn dns_leak_probe_port(&self) -> Option<Arc<dyn crate::dns_leak::DnsLeakProbePort>> {
         None
     }
+    /// DUAL-14-09 (re-scoped): optional STUN UDP-egress probe. Hosts without a
+    /// STUN adapter inject nothing and both surfaces publish a typed
+    /// unsupported state instead of a fabricated public mapping. The
+    /// observation is this host/process's own UDP egress, never a browser
+    /// WebRTC result.
+    fn stun_egress_probe_port(&self) -> Option<Arc<dyn crate::stun_probe::StunEgressProbePort>> {
+        None
+    }
     /// DUAL-11-06/07: the kernel's local rule-provider files. Hosts without a
     /// resolvable kernel home directory omit it instead of reporting a purge
     /// that never happened.

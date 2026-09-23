@@ -88,6 +88,9 @@ pub struct ApplicationSurfaceReader {
     /// DUAL-14-08: the shared cross-source leak prober whose last report the
     /// DNS page publishes to both surfaces.
     dns_leak: Option<crate::dns_leak_application::DnsLeakApplication>,
+    /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober whose last
+    /// report the DNS privacy area publishes to both surfaces.
+    stun_probe: Option<crate::stun_probe_application::StunProbeApplication>,
     rule_provider: crate::rule_provider_application::RuleProviderApplication,
     /// DUAL-13-10/12: the shared per-connection instantaneous-rate window.
     /// Kept across reads (and cloned readers) so successive snapshots diff.
@@ -131,6 +134,7 @@ impl ApplicationSurfaceReader {
             dns_cache: None,
             dns_latency: None,
             dns_leak: None,
+            stun_probe: None,
             rule_provider: crate::rule_provider_application::RuleProviderApplication::default(),
             connection_rates: ConnectionRateApplication::new(),
             version_cache: Arc::new(Mutex::new(None)),
@@ -292,6 +296,17 @@ impl ApplicationSurfaceReader {
         application: crate::dns_leak_application::DnsLeakApplication,
     ) -> Self {
         self.dns_leak = Some(application);
+        self
+    }
+
+    /// DUAL-14-09 (re-scoped): share the STUN UDP-egress probe application so
+    /// the published read model carries the last real host observation and its
+    /// comparison against the expected proxied egress.
+    pub fn with_stun_probe(
+        mut self,
+        application: crate::stun_probe_application::StunProbeApplication,
+    ) -> Self {
+        self.stun_probe = Some(application);
         self
     }
 
@@ -575,6 +590,7 @@ impl SurfaceReader for ApplicationSurfaceReader {
             self.dns_cache.as_ref(),
             self.dns_latency.as_ref(),
             self.dns_leak.as_ref(),
+            self.stun_probe.as_ref(),
             runtime_connections.as_ref(),
             &port_conflicts,
         )
@@ -1017,12 +1033,14 @@ fn rule_snapshot(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn build_dns_page(
     configuration: Option<&ConfigurationApplication>,
     runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
     dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
     dns_latency: Option<&crate::dns_latency_application::DnsLatencyApplication>,
     dns_leak: Option<&crate::dns_leak_application::DnsLeakApplication>,
+    stun_probe: Option<&crate::stun_probe_application::StunProbeApplication>,
     runtime_connections: Option<
         &Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError>,
     >,
@@ -1031,6 +1049,7 @@ async fn build_dns_page(
     let cache_flush = crate::dns_workbench_application::cache_flush_report(dns_cache);
     let latency = crate::dns_workbench_application::latency_report(dns_latency);
     let leak = crate::dns_workbench_application::leak_report(dns_leak);
+    let stun = crate::dns_workbench_application::stun_report(stun_probe);
     let connections = runtime_connections.and_then(|result| result.as_ref().ok());
     if let Some(configuration) = configuration {
         let dns = configuration.load_dns_config().await;
@@ -1049,6 +1068,7 @@ async fn build_dns_page(
             );
             crate::dns_workbench_application::apply_latency_report(&mut snapshot, &latency);
             snapshot.leak = leak.clone();
+            snapshot.stun = stun.clone();
             snapshot.self_heal = crate::dns_self_heal_application::dns_self_heal_snapshot(
                 &dns,
                 crate::dns_self_heal_application::dns_listen_conflict(port_conflicts),
@@ -1070,6 +1090,7 @@ async fn build_dns_page(
                 cache_flush,
                 latency: latency.clone(),
                 leak: leak.clone(),
+                stun: stun.clone(),
                 // The runtime DnsSnapshot carries no fake-ip-range, so the
                 // pool stays honestly unsupported on this path.
                 ..surface_snapshot::DnsPageSnapshot::default()
@@ -1079,6 +1100,7 @@ async fn build_dns_page(
                 cache_flush,
                 latency,
                 leak,
+                stun,
                 ..surface_snapshot::DnsPageSnapshot::default()
             }),
         },
