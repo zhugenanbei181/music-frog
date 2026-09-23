@@ -667,6 +667,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         // Category: DUAL-10 scripting sandbox shared read model
         "script_sandbox_presets" => "Presets:".into(),
         "script_sandbox_engine" => "Engine:".into(),
+        "script_sandbox_capabilities" => "Engine capabilities:".into(),
         "script_sandbox_hook_stage" => "Lifecycle stage:".into(),
         "script_sandbox_breaker" => "Circuit breaker:".into(),
         "script_sandbox_limits" => "Resource limits:".into(),

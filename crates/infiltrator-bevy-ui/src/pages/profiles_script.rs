@@ -85,8 +85,9 @@ pub fn script_sandbox_body(
         )),
         Some(snapshot) => {
             rows.push(text_row(format!(
-                "执行引擎: {} · 生命周期阶段: {} ({})",
+                "执行引擎: {} · 引擎能力: {} · 生命周期阶段: {} ({})",
                 snapshot.engine_label_zh(),
+                snapshot.engine_capability_label_zh(),
                 snapshot.hook_stage_label,
                 snapshot.hook_stage
             )));

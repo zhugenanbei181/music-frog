@@ -100,10 +100,12 @@ pub struct ScriptPresetSummary {
 
 /// What actually produced a sandbox projection.
 ///
-/// The workspace bundles no JavaScript runtime, so the only honest value today
-/// is [`ScriptEngineKind::DirectiveDsl`]. The enum exists (rather than a bare
-/// `bool`) so a future real engine could be reported without changing the
-/// surface contract, and so both surfaces can render the honest label.
+/// DUAL-10-01: the workspace bundles no JavaScript runtime, so the only value
+/// the shipped default ever produces is [`ScriptEngineKind::DirectiveDsl`].
+/// [`ScriptEngineKind::JavascriptEngine`] is the negotiation slot for a future
+/// real engine: a host that injects one reports it here and both surfaces
+/// render the new label without any surface change. The enum exists (rather
+/// than a bare `bool`) so an engine swap is a read-model fact, not a UI edit.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScriptEngineKind {
@@ -111,17 +113,96 @@ pub enum ScriptEngineKind {
     /// interpreter.
     #[default]
     DirectiveDsl,
+    /// A real ECMAScript interpreter. No such engine is bundled today; the
+    /// variant is only ever produced when a host injects one.
+    JavascriptEngine,
 }
 
 impl ScriptEngineKind {
     pub const fn label_zh(self) -> &'static str {
         match self {
             Self::DirectiveDsl => "指令 DSL（正则识别，非 JavaScript 引擎）",
+            Self::JavascriptEngine => "JavaScript 引擎（真实解析 ECMAScript）",
         }
     }
 
+    pub const fn label_en(self) -> &'static str {
+        match self {
+            Self::DirectiveDsl => "Directive DSL (regex-matched, not a JavaScript engine)",
+            Self::JavascriptEngine => "JavaScript engine (real ECMAScript parser)",
+        }
+    }
+
+    /// `true` only for a real ECMAScript interpreter. The bundled directive DSL
+    /// is always `false`.
     pub const fn is_real_javascript(self) -> bool {
-        false
+        matches!(self, Self::JavascriptEngine)
+    }
+}
+
+/// The capability negotiation reported next to [`ScriptEngineKind`].
+///
+/// DUAL-10-01: the read model must state the *limits* of whatever produced a
+/// result, not just its name. The bundled directive DSL always negotiates
+/// `supports_javascript_syntax = false`; a future engine would flip exactly
+/// that flag. Both surfaces render [`Self::bottom_line_zh`] / [`Self::bottom_line_en`]
+/// so "no JS syntax" is never implied away.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptEngineCapabilities {
+    /// `true` only for a real ECMAScript interpreter.
+    pub supports_javascript_syntax: bool,
+    /// `true` when the engine recognises the known regex directives.
+    pub supports_directive_dsl: bool,
+    /// `true` when `console.*` output is captured into the read model.
+    pub captures_console: bool,
+    /// `true` when the engine enforces a hard wall-clock timeout.
+    pub enforces_timeout: bool,
+    /// `true` when the engine enforces a memory ceiling.
+    pub enforces_memory_limit: bool,
+    /// Hard timeout ceiling in milliseconds.
+    pub timeout_ms: u64,
+    /// Hard memory ceiling in bytes.
+    pub max_memory_bytes: usize,
+}
+
+impl Default for ScriptEngineCapabilities {
+    fn default() -> Self {
+        Self::directive_dsl()
+    }
+}
+
+impl ScriptEngineCapabilities {
+    pub const DEFAULT_MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+    pub const DEFAULT_TIMEOUT_MS: u64 = 500;
+
+    /// The honest negotiation of the bundled default engine.
+    pub const fn directive_dsl() -> Self {
+        Self {
+            supports_javascript_syntax: false,
+            supports_directive_dsl: true,
+            captures_console: true,
+            enforces_timeout: true,
+            enforces_memory_limit: true,
+            timeout_ms: Self::DEFAULT_TIMEOUT_MS,
+            max_memory_bytes: Self::DEFAULT_MAX_MEMORY_BYTES,
+        }
+    }
+
+    /// The one capability limit the UI must never hide: JS syntax support.
+    pub const fn bottom_line_zh(self) -> &'static str {
+        if self.supports_javascript_syntax {
+            "支持 JavaScript 语法"
+        } else {
+            "不支持 JavaScript 语法（仅指令 DSL）"
+        }
+    }
+
+    pub const fn bottom_line_en(self) -> &'static str {
+        if self.supports_javascript_syntax {
+            "JavaScript syntax supported"
+        } else {
+            "No JavaScript syntax (directive DSL only)"
+        }
     }
 }
 
@@ -180,6 +261,10 @@ pub struct ScriptSandboxSnapshot {
     /// What produced this projection (always the directive DSL today).
     #[serde(default)]
     pub engine_kind: ScriptEngineKind,
+    /// DUAL-10-01: capability negotiation for [`Self::engine_kind`]. A future
+    /// engine swap flips `supports_javascript_syntax` without a surface change.
+    #[serde(default)]
+    pub engine_capabilities: ScriptEngineCapabilities,
     /// Sandbox operational status.
     pub status: ScriptSandboxStatus,
     /// Lifecycle hook stage the transform ran at, e.g. `pre_merge`.
@@ -277,6 +362,7 @@ impl ScriptSandboxSnapshot {
 
         Self {
             engine_kind: ScriptEngineKind::DirectiveDsl,
+            engine_capabilities: ScriptEngineCapabilities::directive_dsl(),
             status: ScriptSandboxStatus::Success,
             hook_stage: "pre_merge".to_string(),
             hook_stage_label: "Pre-Merge (合并前)".to_string(),
@@ -333,6 +419,29 @@ impl ScriptSandboxSnapshot {
     pub fn engine_label_zh(&self) -> &'static str {
         self.engine_kind.label_zh()
     }
+
+    /// The same label in English, for the Iced `en-US` locale.
+    pub fn engine_label_en(&self) -> &'static str {
+        self.engine_kind.label_en()
+    }
+
+    /// The negotiated capability bottom line both surfaces must render.
+    pub fn engine_capability_label_zh(&self) -> &'static str {
+        self.engine_capabilities.bottom_line_zh()
+    }
+
+    /// The same capability bottom line in English.
+    pub fn engine_capability_label_en(&self) -> &'static str {
+        self.engine_capabilities.bottom_line_en()
+    }
+
+    /// `true` when the reported kind agrees with the negotiated capabilities.
+    ///
+    /// The port seam sets both from one engine; a caller that hand-builds a
+    /// snapshot can use this to assert it did not contradict itself.
+    pub fn engine_kind_matches_capabilities(&self) -> bool {
+        self.engine_kind.is_real_javascript() == self.engine_capabilities.supports_javascript_syntax
+    }
 }
 
 #[cfg(test)]
@@ -361,6 +470,9 @@ mod tests {
         assert!(fixture.diff.is_some());
         assert_eq!(fixture.engine_kind, ScriptEngineKind::DirectiveDsl);
         assert!(!fixture.engine_kind.is_real_javascript());
+        assert!(fixture.engine_kind_matches_capabilities());
+        assert!(!fixture.engine_capabilities.supports_javascript_syntax);
+        assert!(fixture.engine_capabilities.supports_directive_dsl);
         assert_eq!(fixture.matched_directive_count(), 1);
         assert_eq!(fixture.hook_stage, "pre_merge");
         assert!(!fixture.is_circuit_tripped());
@@ -381,6 +493,33 @@ mod tests {
                 .label_zh()
                 .contains("非 JavaScript")
         );
+        // The negotiation slot is real but distinct: only a host-injected JS
+        // engine may report it, and its label and capability agree.
+        assert!(ScriptEngineKind::JavascriptEngine.is_real_javascript());
+        assert!(
+            ScriptEngineKind::JavascriptEngine
+                .label_zh()
+                .contains("JavaScript")
+        );
+        assert!(
+            ScriptEngineKind::JavascriptEngine
+                .label_en()
+                .contains("ECMAScript")
+        );
+        let js_capabilities = ScriptEngineCapabilities {
+            supports_javascript_syntax: true,
+            ..ScriptEngineCapabilities::directive_dsl()
+        };
+        assert!(js_capabilities.bottom_line_zh().contains("支持 JavaScript"));
+        assert_eq!(
+            ScriptEngineCapabilities::directive_dsl().bottom_line_zh(),
+            "不支持 JavaScript 语法（仅指令 DSL）"
+        );
+        assert!(
+            ScriptEngineCapabilities::directive_dsl()
+                .bottom_line_en()
+                .contains("No JavaScript syntax")
+        );
         assert!(
             ScriptCircuitBreakerSnapshot::default()
                 .label_zh()
@@ -391,5 +530,24 @@ mod tests {
             ..Default::default()
         };
         assert!(tripped.label_zh().contains("熔断"));
+    }
+
+    #[test]
+    fn capability_defaults_state_the_no_js_boundary() {
+        let capabilities = ScriptEngineCapabilities::default();
+        assert!(!capabilities.supports_javascript_syntax);
+        assert!(capabilities.supports_directive_dsl);
+        assert!(capabilities.captures_console);
+        assert!(capabilities.enforces_timeout);
+        assert!(capabilities.enforces_memory_limit);
+        assert_eq!(capabilities.timeout_ms, 500);
+        assert_eq!(capabilities.max_memory_bytes, 64 * 1024 * 1024);
+        // A snapshot whose kind and capabilities contradict each other is
+        // detectable, so no surface can quietly hide the real boundary.
+        let mut snapshot = ScriptSandboxSnapshot::demo_fixture();
+        snapshot.engine_kind = ScriptEngineKind::JavascriptEngine;
+        assert!(!snapshot.engine_kind_matches_capabilities());
+        snapshot.engine_capabilities.supports_javascript_syntax = true;
+        assert!(snapshot.engine_kind_matches_capabilities());
     }
 }

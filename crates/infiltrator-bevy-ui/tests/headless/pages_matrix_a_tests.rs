@@ -5831,6 +5831,10 @@ fn test_profiles_script_console_renders_the_shared_projection() {
         "the sandbox resource limits render"
     );
     assert!(
+        subtree_has_text(app.world(), root, "引擎能力: 不支持 JavaScript 语法"),
+        "the negotiated engine capability states the no-JS limit"
+    );
+    assert!(
         subtree_has_text(app.world(), root, "变换后 YAML"),
         "the before/after preview renders"
     );
@@ -5854,5 +5858,49 @@ fn test_profiles_script_console_renders_the_shared_projection() {
     assert!(
         !subtree_has_text(app.world(), root, "已执行指令 auto_country_groups"),
         "the failed projection no longer claims a directive"
+    );
+}
+
+/// DUAL-10-01: the Bevy console renders whatever engine the shared read model
+/// reports. A snapshot whose engine negotiated the JavaScript slot renders the
+/// JS label and the JS capability line through the same card code, so an engine
+/// swap needs no Bevy change.
+#[test]
+fn test_profiles_script_console_renders_an_injected_javascript_engine() {
+    use infiltrator_contract::script_sandbox::{
+        ScriptEngineCapabilities, ScriptEngineKind, ScriptSandboxSnapshot,
+    };
+
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+    let (root, _) = navigate_to(&mut app, Route::Profiles);
+
+    let mut snapshot = ScriptSandboxSnapshot::demo_fixture();
+    snapshot.engine_kind = ScriptEngineKind::JavascriptEngine;
+    snapshot.engine_capabilities = ScriptEngineCapabilities {
+        supports_javascript_syntax: true,
+        supports_directive_dsl: false,
+        ..ScriptEngineCapabilities::directive_dsl()
+    };
+    assert!(snapshot.engine_kind_matches_capabilities());
+
+    let mut projection = editor_options_page_projection("mode: rule\n", None);
+    projection.script_sandbox = Some(snapshot);
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+
+    assert!(
+        subtree_has_text(app.world(), root, "JavaScript 引擎"),
+        "the injected engine kind renders"
+    );
+    assert!(
+        subtree_has_text(app.world(), root, "引擎能力: 支持 JavaScript 语法"),
+        "the negotiated JS capability renders"
+    );
+    assert!(
+        !subtree_has_text(app.world(), root, "不支持 JavaScript 语法"),
+        "the no-JS limit is not shown for a JS engine"
     );
 }

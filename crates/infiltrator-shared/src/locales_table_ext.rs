@@ -676,6 +676,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         // Category: DUAL-10 scripting sandbox shared read model
         "script_sandbox_presets" => "预设:".into(),
         "script_sandbox_engine" => "执行引擎:".into(),
+        "script_sandbox_capabilities" => "引擎能力:".into(),
         "script_sandbox_hook_stage" => "生命周期阶段:".into(),
         "script_sandbox_breaker" => "熔断状态:".into(),
         "script_sandbox_limits" => "资源限额:".into(),

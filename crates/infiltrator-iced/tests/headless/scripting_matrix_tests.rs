@@ -100,8 +100,51 @@ fn shared_console_projection_carries_every_wired_fact_for_both_surfaces() {
     assert_eq!(snapshot.matched_directive_count(), 1);
     assert_eq!(snapshot.matched_directives[0].id, "auto_country_groups");
     assert!(!snapshot.engine_kind.is_real_javascript());
+    // DUAL-10-01: the capability negotiation travels with the projection and
+    // states the bundled engine's real limit (no JS syntax).
+    assert!(!snapshot.engine_capabilities.supports_javascript_syntax);
+    assert!(snapshot.engine_capabilities.supports_directive_dsl);
+    assert!(snapshot.engine_kind_matches_capabilities());
     publish_script_sandbox(snapshot.clone());
     assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
+}
+
+/// DUAL-10-01: the Iced console renders whatever engine the shared read model
+/// reports. A directive-DSL snapshot shows the honest "no JS syntax" limit; a
+/// snapshot whose engine negotiated the JavaScript slot renders the JS label
+/// through the same helper, so the swap needs no view change.
+#[test]
+fn iced_console_renders_the_reported_engine_and_its_capability_limits() {
+    use infiltrator_contract::script_sandbox::{
+        ScriptEngineCapabilities, ScriptEngineKind, ScriptSandboxSnapshot,
+    };
+    use infiltrator_iced::view::script_console::engine_meta_rows;
+    use infiltrator_shared::locales::Lang;
+
+    let dsl = ScriptSandboxSnapshot::demo_fixture();
+    let (engine_zh, capabilities_zh) = engine_meta_rows(&Lang("zh-CN"), &dsl);
+    assert!(engine_zh.contains("指令 DSL"));
+    assert!(capabilities_zh.contains("不支持 JavaScript 语法"));
+    let (engine_en, capabilities_en) = engine_meta_rows(&Lang("en-US"), &dsl);
+    assert!(engine_en.contains("Directive DSL"));
+    assert!(capabilities_en.contains("No JavaScript syntax"));
+
+    // Same helper, a read model produced by a JavaScript-capable engine: the
+    // surface needs no change to report it honestly.
+    let mut js = ScriptSandboxSnapshot::demo_fixture();
+    js.engine_kind = ScriptEngineKind::JavascriptEngine;
+    js.engine_capabilities = ScriptEngineCapabilities {
+        supports_javascript_syntax: true,
+        supports_directive_dsl: false,
+        ..ScriptEngineCapabilities::directive_dsl()
+    };
+    assert!(js.engine_kind_matches_capabilities());
+    let (engine_zh, capabilities_zh) = engine_meta_rows(&Lang("zh-CN"), &js);
+    assert!(engine_zh.contains("JavaScript 引擎"));
+    assert!(capabilities_zh.contains("支持 JavaScript"));
+    let (engine_en, capabilities_en) = engine_meta_rows(&Lang("en-US"), &js);
+    assert!(engine_en.contains("ECMAScript"));
+    assert!(capabilities_en.contains("JavaScript syntax supported"));
 }
 
 #[test]

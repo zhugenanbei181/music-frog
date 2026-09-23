@@ -80,7 +80,7 @@
 | 组 07 订阅生命周期与定时更新 | 15 | `parity-ready` | `subscription`、`filter` 管道 | 15/15 收口（2026-09-22）：07-09/14 于批次 E 双端接线（见组 07 逐项账目） |
 | 组 08 多源聚合器与自动拓扑 | 15 | `parity-ready (15/15)` | `profile_aggregator.rs`（domain）、`aggregator_modal.rs`（Iced）、`profiles_aggregator.rs`/`profiles_aggregator_wizard.rs`（Bevy） | 15/15 收口（2026-09-22）：批次 A 收口 08-01/02/03/04/05/06/14/15，批次 B 收口 08-07/08/09/10/11/12/13（见组 08 逐项账目） |
 | 组 09 AST YAML 引擎与快照 Diff | 15 | `parity-ready (15/15)` | `yaml_edit/`（domain）、`snapshot_diff_modal.rs`（Iced）、`profiles_diff.rs`/`profiles_editor_panes.rs`（Bevy） | 2026-09-22 四批收口（见组 09 逐项账目）：批次一 01/08/09/10/12/15、批次二 03/05/06/07/11、批次三 02/04/13、批次四 14，全部 `parity-ready` |
-| 组 10 脚本沙箱与多级 Mixin | 15 | `in progress (14/15)` | `script_console.rs`、`profiles_script.rs`、`mixin_studio.rs`、`script_sandbox.rs`、`script_export.rs` | 2026-09-23 批次 B/C 收口（见组 10 逐项账目）：02-08、10-15 双端 `parity-ready`（14/15），01 `planned`（无真实 QuickJS 引擎，绝不冒充 JS 执行），09 三栏式 Mixin 编辑器与 12 逐端导出均于批次 C 收口为 `parity-ready` |
+| 组 10 脚本沙箱与多级 Mixin | 15 | `in progress (14/15)` | `script_console.rs`、`profiles_script.rs`、`mixin_studio.rs`、`script_sandbox.rs`、`script_export.rs` | 2026-09-23 批次 B/C/D 收口（见组 10 逐项账目）：02-08、10-15 双端 `parity-ready`（14/15），01 `shared-ready`（可插拔引擎接缝 `ScriptEnginePort` + 能力协商 `ScriptEngineCapabilities`，决策记录 `docs/SCRIPT_ENGINE_DECISION.md`；仍无真实 QuickJS 引擎，绝不冒充 JS 执行），09 三栏式 Mixin 编辑器与 12 逐端导出均于批次 C 收口为 `parity-ready` |
 | 组 11 规则引擎与 MRS 治理 | 15 | `parity-ready (14/15)` | `rules.rs`、`rules_mrs.rs`、`mrs` | 2026-09-22 五批收口（见组 11 逐项账目）：01/02/03/04/06/07/08/09/10/11/12/13/14/15 双端收口（14/15），05 为 `shared-ready`（ETag/304 仅在 mihomo 内核内、控制器不返回校验器） |
 | 组 12 Live Rule Tracer 与命中审计 | 15 | `parity-ready` | `rules_tracer.rs`（两端同名） | 15/15 收口（2026-09-22）：决策链回放/预设/离线模拟/命中审计/时延审计/沙盒来源 IP/反向应用均双端接线（见组 12 逐项账目） |
 | 组 13 连接审计与深度透视 | 15 | `in progress (13/15)` | `connections.rs`、`connection_drawer.rs` | 2026-09-23 三批展开（见组 13 逐项账目）：01/02/03/06/07/08/09/11/13/15 + 批次 C 的 10/12/14 已双端收口（13/15 `parity-ready`），04/05 `planned`（宿主无阶段耗时、无 ASN 事实源；14 的瀑布流边界见批次 C 说明） |
@@ -786,14 +786,15 @@
 组 10 闭环口径同其余组 = shared contract/application（或共享纯归约）+ Iced + Bevy + 双端无头测试 + 守卫。
 本轮关键事实：仓库内 **无真实 QuickJS 引擎**——`infiltrator-domain::script_engine` 是识别已知指令
 （`filter_nodes_by_regex`/`auto_country_groups`/…）并按字符串正则改写 YAML AST 的 *指令 DSL*，
-不执行任意 JavaScript，故 10-01 诚实记为 `planned`，绝不把指令识别冒充 JS 沙箱。
+不执行任意 JavaScript；故 10-01 的 JS 引擎执行部分诚实保持 `planned`（矩阵行不宣称覆盖），
+而**可插拔引擎接缝与能力协商**（批次 D）已收口为 `shared-ready`，绝不把指令识别冒充 JS 沙箱。
 本轮收口 10-08/10/11/15：新增共享纯归约 `infiltrator-domain::mixin_studio`（预检 / 预设开关 / 级联预览）、
 共享契约 + 应用 `script_sandbox_matrix`（真实跑 domain 引擎与 `ScriptApplication` 的回归矩阵），
 Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编解码。
 
 | 项 | 任务 | 状态 | 证据 |
 | :--- | :--- | :--- | :--- |
-| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `planned` | **无真实 QuickJS 引擎**：`infiltrator-domain/src/script_engine.rs:40` 的 `execute_transform` 经 `script_engine_directives.rs:13` 用正则识别已知指令后改写 YAML AST；`script_engine_runtime.rs:72` 甚至以字符串匹配拒绝 `while(true)`。这是诚实的指令 DSL，不是 JS 解释器，故不宣称沙箱执行；矩阵 `DUAL-10-01` 行明示未覆盖。**本项是产品/依赖决策，不是实现缺口**：可选路线与阻塞条件见批次 C 说明（引入 `rquickjs`/`boa_engine` 需先定依赖准入、FFI 交叉编译、脚本 ABI 与内核回调边界），在决策落地前不添加任何 JS 引擎依赖（守卫反向断言禁止出现 `rquickjs`/`boa_engine`/`quickjs::`） |
+| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready` | **仍无真实 QuickJS 引擎**：本项只交付「可插拔引擎接缝 + 能力协商」，它不是 JS 引擎。共享端口 `infiltrator-ports/src/script_engine.rs` 的 `ScriptEnginePort`（`kind()`/`capabilities()`/`execute()`）是唯一执行边界；默认适配器 `infiltrator-application/src/script_engine_direct.rs` 的 `DirectiveDslScriptEngine` 包真实 domain `ScriptEngine`（正则识别已知指令后改写 YAML AST），`ScriptApplication::with_engine` 让未来引擎 drop-in；共享读模型新增 `ScriptEngineKind::JavascriptEngine`（协商槽，当前**永不产出**）与 `ScriptEngineCapabilities`（默认 `supports_javascript_syntax = false`，附 64MB/500ms 限额），`ScriptSandboxSnapshot.engine_capabilities` 随投影下发；Iced `view/script_console.rs::engine_meta_rows` 与 Bevy `profiles_script.rs` 的「引擎能力」行如实渲染「不支持 JavaScript 语法（仅指令 DSL）」。测试：ports `a_second_engine_negotiates_its_kind_through_the_trait_object`、application 假第二引擎 `engine_seam_switches_the_reported_kind_and_capabilities`、Iced `iced_console_renders_the_reported_engine_and_its_capability_limits`、Bevy `test_profiles_script_console_renders_an_injected_javascript_engine`（同一表面代码渲染注入的 JS 引擎，证明切换无需改面）。**仍是产品/依赖决策**：`rquickjs`（C 源码静态编译）/`boa_engine`（纯 Rust）两候选的实测证据与迁移计划见 [SCRIPT_ENGINE_DECISION.md](SCRIPT_ENGINE_DECISION.md)；决策落地前不添加任何 JS 引擎依赖（守卫反向断言禁止 `rquickjs`/`boa_engine`/`quickjs::`）；矩阵 `DUAL-10-01` 行仍为 `planned`（无 JS 引擎执行，不宣称覆盖） |
 | `DUAL-10-02` | Pre/Post-Process 钩子 | `parity-ready` | domain `HookStage`（`script_engine.rs:26`，`pre_download/post_download/pre_merge/post_merge`）与 `execute_transform_detailed`（`script_engine_runtime.rs:60`）真实携带阶段；`ScriptApplication::run_sandbox` 从共享预设解析阶段（`script_application.rs` `stage_for_preset`），读模型 `ScriptSandboxSnapshot.hook_stage/hook_stage_label` 发布真实阶段；Iced `view/script_console.rs` 渲染「生命周期阶段」行、Bevy `profiles_script.rs` 渲染「生命周期阶段: Pre-Merge」；矩阵 `check_hook_stages` + application `run_sandbox_at_stage_reports_the_requested_hook`、Iced `shared_console_projection_carries_every_wired_fact_for_both_surfaces`、Bevy `test_profiles_script_console_renders_the_shared_projection` 双端断言 |
 | `DUAL-10-03` | 沙箱资源熔断安全防护（64MB/500ms） | `parity-ready` | domain 常量 `DEFAULT_SCRIPT_TIMEOUT_MS`/`DEFAULT_MAX_MEMORY_BYTES`（`script_engine.rs:20`）、内存门（`script_engine_runtime.rs:67`）；`ScriptApplication` 以 64MB/500ms 构造引擎（`script_application.rs:32`），读模型发布 `max_memory_limit_bytes`/`timeout_limit_ms` 与新增 `ScriptCircuitBreakerSnapshot`（连续失败/阈值/冷却/剩余冷却）；Iced 「资源限额/熔断状态」行、Bevy 「资源限额: 内存上限 64MB / 熔断状态」行；矩阵 `check_resource_limits`/`check_circuit_breaker` + 双端 `shared_console_projection...`/`test_profiles_script_console...` |
 | `DUAL-10-04` | 内置三大官方常用脚本模板 | `parity-ready` | 共享目录 `ScriptEngine::builtin_presets`（`script_engine_presets.rs:6`，四个真实模板）经 `ScriptApplication::builtin_presets`（`script_application.rs`）发布；Iced 预设芯片改为遍历共享目录（`view/script_console.rs`），`Message::SelectScriptPreset` 经 `ScriptEngine::find_preset` 载入共享脚本与阶段；Bevy `profiles_script.rs` 渲染「共享预设目录（4 项）」同一目录；矩阵 `check_presets` + Iced `test_advancement_6_quickjs_script_sandbox_console_lifecycle`（按共享 id 载入）、Bevy `test_profiles_script_console_renders_the_shared_projection` |
@@ -807,7 +808,7 @@ Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编
 | `DUAL-10-12` | 扩展脚本导出与社区分享 | `parity-ready` | **共享契约** `infiltrator-contract::script_export`（`ScriptExportKind`/`ScriptExportSnapshot`/`ScriptExportOutcome`/`ScriptExportRequest`/`ScriptExportReceipt` + 强制诚实文件头常量 `DIRECTIVE_DSL_JS_HEADER`；`ScriptExportKind::is_javascript()` 恒为 `false`，`.js` 的 media type 是 `text/plain`）；**共享归约** `infiltrator_domain::script_export`（`compose_mixin_overlay_export` 先过共享预检再产出真实 `.yaml` 覆写文档、`compose_directive_dsl_export` 产出带「不是 JavaScript」文件头的 `.js` 指令 DSL、`compose_extension_package_export` 带真实 SHA-256、`sanitize_file_stem` 单组件文件名）；**端口** `infiltrator_ports::script_export::ScriptExportPort` + `UnsupportedScriptExportPort`（类型化 unsupported），`HostRuntime::script_export_port()`（默认 `None`）；**应用** `ScriptExportApplication`（`export_mixin_overlay`/`export_directive_dsl`/`export_preset`/`export_extension_package`/`export_draft_package`）把真实产物交给宿主端口并发布 `last_script_export`，经 `surface_reader` 重发 `SurfaceSnapshot.script_export`。**桌面宿主** `infiltrator-desktop::script_export::DesktopScriptExportPort` 写入 `<configs>/exports/` 并回报真实路径/字节数（拒绝路径穿越与 >8MiB）。**Iced** `view/script_export.rs:export_section` 在 Mixin 面板与脚本控制台各挂真实按钮，`update/script_export.rs:export_script_draft` 路由到共享用例，`Message::ExportScriptDraft`/`ScriptExportFinished` 回灌共享投影（含 SHA-256、诚实说明、产物预览），无端口宿主经 `push_toast` 报类型化「宿主不支持文件对话框」。**Bevy** `profiles_script.rs:export_rows` 渲染同一共享投影（文件名/字节数/宿主结果/SHA-256/诚实说明/内容预览）。矩阵 `check_extension_export`（含 `check_extension_round_trip`）+ Iced `mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome`（真实临时目录落盘）/`three_column_editor_and_export_ride_the_shared_reduction`、Bevy `test_profiles_script_console_renders_the_shared_export_projection`、application `a_host_with_a_save_port_persists_the_real_artifact_and_reports_the_path`、desktop `a_real_file_lands_in_the_exports_directory`。**诚实边界**：桌面宿主没有原生保存对话框（`rfd` 仅用于 Iced 的导入选文件），导出落到宿主自有 `exports/` 目录并回报真实路径；Bevy 端的导出按钮不存在（运行/导出由 Iced 经共享用例执行后经 surface 读模型下发，与 10-05/14 同口径），记为 `local` |
 | `DUAL-10-13` | 异常处理安全降级 | `parity-ready` | `run_sandbox` 失败路径返回 typed `ScriptSandboxStatus` + `error_detail` 且 `transformed_yaml` 为 `None`、`input_yaml` 原样保留，并不列出任何 `matched_directives`（不伪造已执行）；Iced 控制台渲染错误详情 +「安全降级」提示，Bevy `profiles_script.rs` 渲染「执行失败 + 安全降级：原配置保持不变」；矩阵 `check_safe_degradation` + Iced `safe_degradation_projection_names_no_directive_on_failure`、Bevy 同一无头测试；**诚实边界**：仅 Iced 以面板内告警呈现（Bevy 为卡片内文字，无 toast 系统） |
 | `DUAL-10-14` | 双端脚本控制台与 Mixin 视口对齐 | `parity-ready` | Mixin 视口已双端同源（DUAL-09-14）；脚本控制台现由同一共享读模型驱动：Iced `update/ui.rs` 改调 `ScriptApplication::run_sandbox`（删除内联 domain 引擎直跑）并把 `ScriptSandboxSnapshot` 存入 `ScriptSandboxState.snapshot`，`ScriptApplication` 经 `publish_script_sandbox` 发布、`surface_reader.rs` 重发 `SurfaceSnapshot.script_sandbox`，Bevy `ProfilesProjection.script_sandbox` → `profiles_script.rs` 渲染同一投影；矩阵 `check_dual_surface_alignment` + Iced `shared_console_projection_carries_every_wired_fact_for_both_surfaces`、Bevy `test_profiles_script_console_renders_the_shared_projection`；**诚实边界**：Bevy 无编辑器/运行按钮（上述只读呈现），两端形态差异记为 `local` |
-| `DUAL-10-15` | QuickJS 引擎与沙箱熔断单测 | `parity-ready` | 共享契约 `ScriptSandboxMatrixReport`/`ScriptSandboxMatrixScenario`（`infiltrator-contract/src/script_sandbox_matrix.rs`，聚合只声明已覆盖项）；共享执行器 `ScriptSandboxMatrixApplication::run_deterministic_matrix`（`script_sandbox_matrix_application.rs`）真实跑 domain 引擎 + `ScriptApplication` + `ScriptExportApplication`：钩子阶段、超时/内存熔断、预设、日志捕获、AST diff、级联、预检、开关、导出往返、逐端导出（`check_extension_export`）、三栏编辑器归约（`check_three_column_editor`）、安全降级、共享读模型（`check_console_read_model`/`check_dual_surface_alignment`）、`ScriptCircuitBreaker` 触发/复位（`check_circuit_breaker`），15 行中 14 行 `covered` 全过、1 行诚实 `planned`（`DUAL-10-01` 无 JS 引擎）；双端断言同一矩阵 Iced `script_sandbox_matrix_passes_on_the_iced_surface`、Bevy `test_script_sandbox_matrix_passes_on_the_bevy_surface`、application `deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones`/`matrix_is_deterministic_across_runs` |
+| `DUAL-10-15` | QuickJS 引擎与沙箱熔断单测 | `parity-ready` | 共享契约 `ScriptSandboxMatrixReport`/`ScriptSandboxMatrixScenario`（`infiltrator-contract/src/script_sandbox_matrix.rs`，聚合只声明已覆盖项）；共享执行器 `ScriptSandboxMatrixApplication::run_deterministic_matrix`（`script_sandbox_matrix_application.rs`）真实跑 domain 引擎 + `ScriptApplication` + `ScriptExportApplication`：钩子阶段、超时/内存熔断、预设、日志捕获、AST diff、级联、预检、开关、导出往返、逐端导出（`check_extension_export`）、三栏编辑器归约（`check_three_column_editor`）、安全降级、共享读模型（`check_console_read_model`/`check_dual_surface_alignment`）、`ScriptCircuitBreaker` 触发/复位（`check_circuit_breaker`），15 行中 14 行 `covered` 全过、1 行诚实 `planned`（`DUAL-10-01` 无 JS 引擎执行；其可插拔接缝与能力协商另记 `shared-ready`，见 01 行）；双端断言同一矩阵 Iced `script_sandbox_matrix_passes_on_the_iced_surface`、Bevy `test_script_sandbox_matrix_passes_on_the_bevy_surface`、application `deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones`/`matrix_is_deterministic_across_runs` |
 
 > **2026-09-22 组 10 批次 A**：`DUAL-10-08/10/11/15` 收口为 `parity-ready`。
 > 08：新增共享纯归约 `infiltrator-domain::mixin_studio::preview_cascade`，逐段运行真实
@@ -839,8 +840,8 @@ Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编
 > 导出 UI，均未收口（两项已于同日批次 C 收口）。守卫更新为固化上述标记（含 `ScriptEngineKind`、
 > `matched_directives`、`last_script_sandbox` 与「无真实 QuickJS 引擎」反向断言）。
 
-> **2026-09-23 组 10 批次 C**：`DUAL-10-09/12` 收口为 `parity-ready`，`DUAL-10-01`
-> 维持 `planned` 并记录为产品决策项。
+> **2026-09-23 组 10 批次 C**：`DUAL-10-09/12` 收口为 `parity-ready`；`DUAL-10-01`
+> 当时维持 `planned`（批次 D 仅把其接缝收口为 `shared-ready`，JS 引擎执行仍不宣称）。
 > 09：新增共享纯归约 `mixin_studio::mixin_editor_columns`（Base/覆写/合成为真实内容，
 > 合成列为 `preview_cascade_from_yaml` 的真实输出，阻断时为空 + 真实原因）；Iced
 > `view/mixin_studio.rs:three_column_row` 与 Bevy `profiles_editor_mixin_studio.rs:
@@ -863,6 +864,28 @@ Iced Mixin 面板与 Bevy 编辑卡同源渲染并回写同一 `MixinConfig` 编
 > `ScriptExportPort`、`script_export_port`、`DesktopScriptExportPort`、
 > `compose_directive_dsl_export`、`is_javascript`、`check_three_column_editor`、
 > `check_extension_export`，以及「桌面宿主无原生保存对话框」的诚实事实）。
+
+> **2026-09-23 组 10 批次 D**：`DUAL-10-01` 只在**接缝与能力诚实**这一层收口为
+> `shared-ready`，**不是 JS 引擎**，矩阵行仍 `planned`。
+> 接缝：新增共享端口 `infiltrator-ports::script_engine::ScriptEnginePort`
+> （`kind()` / `capabilities()` / `execute()`，同步、无 Tokio/UI 类型）与默认适配器
+> `infiltrator-application::script_engine_direct::DirectiveDslScriptEngine`（包真实
+> domain `ScriptEngine`）；`ScriptApplication::with_engine` 使任意引擎可 drop-in，
+> `engine_kind`/`engine_capabilities` 暴露协商结果。
+> 读模型：`ScriptEngineKind` 增加 `JavascriptEngine` 协商槽（当前永不产出）、
+> `ScriptEngineCapabilities`（`supports_javascript_syntax` 对默认恒 false，附 64MB/500ms
+> 限额）与 `ScriptSandboxSnapshot.engine_capabilities`；Iced `engine_meta_rows` 与 Bevy
+> 「引擎能力」行如实渲染「不支持 JavaScript 语法（仅指令 DSL）」。
+> 测试：ports `a_second_engine_negotiates_its_kind_through_the_trait_object`、application
+> 假第二引擎 `engine_seam_switches_the_reported_kind_and_capabilities`、Iced
+> `iced_console_renders_the_reported_engine_and_its_capability_limits`、Bevy
+> `test_profiles_script_console_renders_an_injected_javascript_engine` —— 同一套表面
+> 代码渲染注入的 JS 引擎，证明切换不改面。
+> 决策记录：`docs/SCRIPT_ENGINE_DECISION.md`（真实命令与输出：`Cargo.lock`/`vendor` 无
+> `rquickjs`/`boa_engine`/`quickjs`；`cargo info rquickjs` = 0.14.0 MIT MSRV 1.87、
+> `cargo info boa_engine` = 0.22.0 Unlicense OR MIT MSRV 1.91，`quickjs-rs` 不存在），
+> 结论：**当前不添加 JS 引擎**，给出迁移计划与触发条件。守卫新增接缝标记与
+> `docs/SCRIPT_ENGINE_DECISION.md` 存在性断言，并继续反向禁止任何 JS 引擎依赖。
 
 ### 组 11：分流规则引擎、MRS 二进制加速与逻辑子规则 (Rules & Rule-Providers)
 1. **28+ 规则类型全矩阵支持**：DOMAIN, DOMAIN-SUFFIX, DOMAIN-KEYWORD, IP-CIDR, SRC-IP-CIDR, GEOIP, GEOSITE, PROCESS-NAME, PROCESS-PATH, DSCP, UID 等。

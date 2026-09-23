@@ -24,7 +24,13 @@ per-item ledger. This guard asserts:
 * the honest gaps do not regress into a fabricated QuickJS claim: there is no
   bundled QuickJS engine, the read model reports a directive DSL, the ledger
   states that a desktop file dialog does not exist, and a real JS engine stays
-  a recorded product decision.
+  a recorded product decision;
+* DUAL-10-01's seam is real: the pluggable `ScriptEnginePort`, its default
+  directive-DSL adapter, the capability negotiation on the shared read model,
+  and the same-as-default Drop-in slot quoted by both surfaces. The ledger row
+  is `shared-ready` for exactly that seam and still states **无真实 QuickJS
+  引擎**; the decision record `docs/SCRIPT_ENGINE_DECISION.md` is present and
+  names the two candidates without adding either dependency.
 """
 
 from __future__ import annotations
@@ -46,8 +52,10 @@ CONTRACT_MATRIX = "crates/infiltrator-contract/src/script_sandbox_matrix.rs"
 CONTRACT_EXPORT = "crates/infiltrator-contract/src/script_export.rs"
 CONTRACT_SURFACE = "crates/infiltrator-contract/src/surface_snapshot.rs"
 PORTS_EXPORT = "crates/infiltrator-ports/src/script_export.rs"
+PORTS_SCRIPT_ENGINE = "crates/infiltrator-ports/src/script_engine.rs"
 PORTS_HOST_RUNTIME = "crates/infiltrator-ports/src/host_runtime.rs"
 APP_SCRIPT = "crates/infiltrator-application/src/script_application.rs"
+APP_DIRECTIVE_ENGINE = "crates/infiltrator-application/src/script_engine_direct.rs"
 APP_EXPORT = "crates/infiltrator-application/src/script_export_application.rs"
 APP_EXPORT_TEST = "crates/infiltrator-application/src/script_export_application_test.rs"
 APP_READER = "crates/infiltrator-application/src/surface_reader.rs"
@@ -71,6 +79,7 @@ BEVY_MATRIX_TEST = "crates/infiltrator-bevy-ui/tests/headless/pages_matrix_a_tes
 DOMAIN_LIB = "crates/infiltrator-domain/src/lib.rs"
 CONTRACT_LIB = "crates/infiltrator-contract/src/lib.rs"
 APP_LIB = "crates/infiltrator-application/src/lib.rs"
+DECISION_DOC = "docs/SCRIPT_ENGINE_DECISION.md"
 
 
 def read(path: str) -> str:
@@ -130,6 +139,11 @@ def main() -> int:
         "parity-ready",
         "shared-ready",
         "planned",
+        # DUAL-10-01 is shared-ready for the seam only; the JS engine is still
+        # not bundled, and the ledger row must say both.
+        "| `DUAL-10-01` | QuickJS 嵌入式轻量执行沙箱 | `shared-ready`",
+        "ScriptEnginePort",
+        "docs/SCRIPT_ENGINE_DECISION.md",
         # Honest facts the ledger must keep stating.
         "无真实 QuickJS 引擎",
         "指令 DSL",
@@ -210,9 +224,14 @@ def main() -> int:
         violations,
         CONTRACT_SANDBOX,
         "pub enum ScriptEngineKind",
+        "JavascriptEngine",
+        "pub struct ScriptEngineCapabilities",
+        "supports_javascript_syntax",
+        "pub const fn bottom_line_zh",
         "pub struct ScriptDirectiveMatch",
         "pub struct ScriptCircuitBreakerSnapshot",
         "fn is_real_javascript",
+        "pub engine_capabilities: ScriptEngineCapabilities",
         "pub matched_directives: Vec<ScriptDirectiveMatch>",
         "pub circuit_breaker: ScriptCircuitBreakerSnapshot",
         "pub hook_stage: String",
@@ -256,10 +275,33 @@ def main() -> int:
         "pub fn last_script_sandbox",
         "pub fn publish_script_sandbox",
         "pub fn run_sandbox_at_stage",
-        "ScriptEngineKind::DirectiveDsl",
+        "pub fn with_engine",
+        "pub fn engine_kind",
+        "pub fn engine_capabilities",
+        "self.engine.execute(",
+        "engine_kind_matches_capabilities",
+        "engine_seam_switches_the_reported_kind_and_capabilities",
         "fn project_directives",
         "fn stage_for_preset",
         "fn breaker_snapshot",
+    )
+    # DUAL-10-01: the real engine seam and its default directive-DSL adapter.
+    require(
+        violations,
+        PORTS_SCRIPT_ENGINE,
+        "pub trait ScriptEnginePort",
+        "fn kind(&self) -> ScriptEngineKind",
+        "fn capabilities(&self) -> ScriptEngineCapabilities",
+        "fn execute(",
+        "JavascriptEngine",
+    )
+    require(
+        violations,
+        APP_DIRECTIVE_ENGINE,
+        "pub struct DirectiveDslScriptEngine",
+        "impl ScriptEnginePort for DirectiveDslScriptEngine",
+        "ScriptEngineKind::DirectiveDsl",
+        "ScriptEngineCapabilities::directive_dsl()",
     )
     require(
         violations,
@@ -303,6 +345,8 @@ def main() -> int:
         "fn check_extension_export",
         "fn check_extension_round_trip",
         "ScriptExportApplication",
+        "snapshot.engine_capabilities",
+        "engine_kind_matches_capabilities",
         "无真实 QuickJS 引擎",
     )
     # The application layer stays executor-neutral.
@@ -311,6 +355,7 @@ def main() -> int:
     require(
         violations,
         APP_LIB,
+        "pub mod script_engine_direct;",
         "pub mod script_export_application;",
         "pub mod script_sandbox_matrix_application;",
     )
@@ -358,6 +403,8 @@ def main() -> int:
         "fn console_body",
         "matched_directives",
         "script_sandbox_engine",
+        "script_sandbox_capabilities",
+        "pub fn engine_meta_rows",
         "builtin_presets",
         "script_sandbox.snapshot.as_ref()",
         "script_export::export_section",
@@ -400,6 +447,7 @@ def main() -> int:
         "script_sandbox_matrix_passes_on_the_iced_surface",
         "shared_console_projection_carries_every_wired_fact_for_both_surfaces",
         "three_column_editor_and_export_ride_the_shared_reduction",
+        "iced_console_renders_the_reported_engine_and_its_capability_limits",
         "assert_eq!(report.covered_passed_count(), 14)",
     )
     require(
@@ -453,6 +501,7 @@ def main() -> int:
         "已执行指令",
         "安全降级",
         "熔断状态",
+        "引擎能力",
         "builtin_presets",
         "script_export",
         "宿主结果",
@@ -470,6 +519,7 @@ def main() -> int:
         "test_script_sandbox_matrix_passes_on_the_bevy_surface",
         "test_profiles_script_console_renders_the_shared_projection",
         "test_profiles_script_console_renders_the_shared_export_projection",
+        "test_profiles_script_console_renders_an_injected_javascript_engine",
         "安全降级：原配置保持不变",
         "Base 配置",
         "合成后最终配置",
@@ -495,6 +545,22 @@ def main() -> int:
     forbid(violations, CONTRACT_EXPORT, "quickjs::", "rquickjs", "boa_engine")
     forbid(violations, APP_EXPORT, "quickjs::", "rquickjs", "boa_engine")
     forbid(violations, PORTS_EXPORT, "quickjs::", "rquickjs", "boa_engine")
+    # The new seam files must stay engine-free too: the enum slot is a report
+    # vocabulary, never a bundled engine.
+    forbid(violations, PORTS_SCRIPT_ENGINE, "quickjs::", "rquickjs", "boa_engine")
+    forbid(violations, APP_DIRECTIVE_ENGINE, "quickjs::", "rquickjs", "boa_engine")
+
+    # 9. DUAL-10-01: the decision record is real evidence, and it recommends
+    #    against adding a JS engine at this time. It must not be missing.
+    require(
+        violations,
+        DECISION_DOC,
+        "rquickjs",
+        "boa_engine",
+        "quickjs-rs",
+        "不添加",
+        "推荐",
+    )
 
     if violations:
         for violation in violations:

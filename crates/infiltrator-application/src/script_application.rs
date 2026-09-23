@@ -9,21 +9,25 @@
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_sandbox::{
-    ScriptCircuitBreakerSnapshot, ScriptDirectiveMatch, ScriptEngineKind, ScriptLogEntry,
-    ScriptLogLevel, ScriptPresetSummary, ScriptSandboxSnapshot, ScriptSandboxStatus,
+    ScriptCircuitBreakerSnapshot, ScriptDirectiveMatch, ScriptEngineCapabilities, ScriptEngineKind,
+    ScriptLogEntry, ScriptLogLevel, ScriptPresetSummary, ScriptSandboxSnapshot,
+    ScriptSandboxStatus,
 };
 use infiltrator_domain::myers_diff;
 use infiltrator_domain::script_engine::{
     ExtensionPackage, HookStage, ScriptCircuitBreaker, ScriptEngine, ScriptError,
     ScriptExecutionResult, ScriptValidationResult,
 };
+use infiltrator_ports::script_engine::ScriptEnginePort;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Instant;
+
+use crate::script_engine_direct::DirectiveDslScriptEngine;
 
 /// Thread-safe application service for managing directive-DSL scripts and sandboxes.
 #[derive(Clone)]
 pub struct ScriptApplication {
-    engine: Arc<ScriptEngine>,
+    engine: Arc<dyn ScriptEnginePort>,
     circuit_breaker: Arc<Mutex<ScriptCircuitBreaker>>,
 }
 
@@ -65,14 +69,33 @@ impl ScriptApplication {
     pub const DEFAULT_TIMEOUT_MS: u64 = 500; // 500ms
 
     pub fn new() -> Self {
-        let engine = ScriptEngine::new()
-            .with_timeout(Duration::from_millis(Self::DEFAULT_TIMEOUT_MS))
-            .with_max_memory(Self::DEFAULT_MAX_MEMORY_BYTES);
+        let engine =
+            DirectiveDslScriptEngine::new(Self::DEFAULT_TIMEOUT_MS, Self::DEFAULT_MAX_MEMORY_BYTES);
 
         Self {
             engine: Arc::new(engine),
             circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
         }
+    }
+
+    /// DUAL-10-01: build the service over an injected engine. This is the seam
+    /// a future real engine (or a test double) drops into; the read model then
+    /// reports that engine's kind and negotiated capabilities.
+    pub fn with_engine(engine: Arc<dyn ScriptEnginePort>) -> Self {
+        Self {
+            engine,
+            circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
+        }
+    }
+
+    /// The engine kind the shared read model will report.
+    pub fn engine_kind(&self) -> ScriptEngineKind {
+        self.engine.kind()
+    }
+
+    /// The capability negotiation the shared read model will report.
+    pub fn engine_capabilities(&self) -> ScriptEngineCapabilities {
+        self.engine.capabilities()
     }
 
     /// The lifecycle stage the selected preset declares, defaulting to
@@ -123,6 +146,10 @@ impl ScriptApplication {
         let presets = self.builtin_presets();
         let selected_preset = preset.map(ToString::to_string);
         let start = Instant::now();
+        // DUAL-10-01: negotiate once so every branch of this projection reports
+        // the same engine kind and capability limits.
+        let engine_kind = self.engine.kind();
+        let engine_capabilities = self.engine.capabilities();
 
         // Check circuit breaker first
         {
@@ -130,7 +157,8 @@ impl ScriptApplication {
             if breaker.is_tripped() {
                 drop(breaker);
                 return ScriptSandboxSnapshot {
-                    engine_kind: ScriptEngineKind::DirectiveDsl,
+                    engine_kind,
+                    engine_capabilities,
                     status: ScriptSandboxStatus::RuntimeError,
                     hook_stage: stage.as_str().to_string(),
                     hook_stage_label: stage.display_name().to_string(),
@@ -158,9 +186,7 @@ impl ScriptApplication {
 
         let mut console_logs = extract_console_logs(script, 0);
 
-        let run_result = self
-            .engine
-            .execute_transform_detailed(script, input_yaml, stage);
+        let run_result = self.engine.execute(script, input_yaml, stage);
 
         let elapsed_ms = start.elapsed().as_millis() as u64;
         let estimated_memory = script.len() + input_yaml.len() * 4 + 1024 * 1024; // baseline + buffers
@@ -191,7 +217,8 @@ impl ScriptApplication {
                 );
 
                 ScriptSandboxSnapshot {
-                    engine_kind: ScriptEngineKind::DirectiveDsl,
+                    engine_kind,
+                    engine_capabilities,
                     status: ScriptSandboxStatus::Success,
                     hook_stage: stage.as_str().to_string(),
                     hook_stage_label: stage.display_name().to_string(),
@@ -243,7 +270,8 @@ impl ScriptApplication {
                 ));
 
                 ScriptSandboxSnapshot {
-                    engine_kind: ScriptEngineKind::DirectiveDsl,
+                    engine_kind,
+                    engine_capabilities,
                     status,
                     hook_stage: stage.as_str().to_string(),
                     hook_stage_label: stage.display_name().to_string(),
@@ -463,5 +491,81 @@ mod tests {
         assert_eq!(snapshot.input_yaml, input);
         assert!(snapshot.matched_directives.is_empty());
         assert!(snapshot.error_detail.is_some());
+    }
+
+    /// DUAL-10-01: a fake second engine that reports the JavaScript
+    /// negotiation slot. It proves an engine swap changes the reported kind and
+    /// capability limits with no surface edit; it is test-only and never on the
+    /// shipped path.
+    struct FakeJavascriptScriptEngine;
+
+    impl ScriptEnginePort for FakeJavascriptScriptEngine {
+        fn kind(&self) -> ScriptEngineKind {
+            ScriptEngineKind::JavascriptEngine
+        }
+
+        fn capabilities(&self) -> ScriptEngineCapabilities {
+            ScriptEngineCapabilities {
+                supports_javascript_syntax: true,
+                supports_directive_dsl: false,
+                ..ScriptEngineCapabilities::directive_dsl()
+            }
+        }
+
+        fn execute(
+            &self,
+            _script: &str,
+            input_yaml: &str,
+            stage: HookStage,
+        ) -> Result<ScriptExecutionResult, ScriptError> {
+            Ok(ScriptExecutionResult {
+                transformed_yaml: input_yaml.to_string(),
+                console_logs: vec!["fake js engine ran".to_string()],
+                execution_time_ms: 3,
+                success: true,
+                stage,
+                matched_directives: Vec::new(),
+            })
+        }
+    }
+
+    #[test]
+    fn engine_seam_switches_the_reported_kind_and_capabilities() {
+        // Default: the bundled directive DSL, honest about having no JS syntax.
+        let default_app = ScriptApplication::new();
+        assert_eq!(default_app.engine_kind(), ScriptEngineKind::DirectiveDsl);
+        let default_capabilities = default_app.engine_capabilities();
+        assert!(!default_capabilities.supports_javascript_syntax);
+        assert!(default_capabilities.supports_directive_dsl);
+
+        // Inject the fake second engine: the same application surfaces now
+        // report the new kind and the negotiated JS capability.
+        let app = ScriptApplication::with_engine(Arc::new(FakeJavascriptScriptEngine));
+        let snapshot = app.run_sandbox(
+            "function main(config) { return config; }",
+            "port: 7890\n",
+            None,
+        );
+        assert_eq!(snapshot.engine_kind, ScriptEngineKind::JavascriptEngine);
+        assert!(snapshot.engine_kind.is_real_javascript());
+        assert!(snapshot.engine_capabilities.supports_javascript_syntax);
+        assert!(!snapshot.engine_capabilities.supports_directive_dsl);
+        assert!(snapshot.engine_kind_matches_capabilities());
+        // The label methods both surfaces call already render the new engine,
+        // so the swap needs no surface change.
+        assert!(snapshot.engine_label_zh().contains("JavaScript 引擎"));
+        assert!(snapshot.engine_label_en().contains("ECMAScript"));
+        assert!(
+            snapshot
+                .engine_capability_label_zh()
+                .contains("支持 JavaScript")
+        );
+        assert!(
+            snapshot
+                .engine_capability_label_en()
+                .contains("JavaScript syntax supported")
+        );
+        // The projection published for the Bevy surface carries the same fact.
+        assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
     }
 }

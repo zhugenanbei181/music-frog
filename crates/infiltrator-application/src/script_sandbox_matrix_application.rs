@@ -274,6 +274,12 @@ fn check_console_read_model() -> Check {
     (
         snapshot.engine_kind == ScriptEngineKind::DirectiveDsl
             && !snapshot.engine_kind.is_real_javascript()
+            // DUAL-10-01: the capability negotiation is published next to the
+            // kind, and the bundled default is honest about having no JS syntax.
+            && !snapshot.engine_capabilities.supports_javascript_syntax
+            && snapshot.engine_capabilities.supports_directive_dsl
+            && snapshot.engine_capabilities.captures_console
+            && snapshot.engine_kind_matches_capabilities()
             && snapshot.hook_stage == "pre_merge"
             && !snapshot.hook_stage_label.is_empty()
             && ids == vec!["auto_country_groups"]
@@ -282,7 +288,11 @@ fn check_console_read_model() -> Check {
             && snapshot.diff.is_some()
             && snapshot.circuit_breaker.failure_threshold == 3
             && snapshot.console_logs.len() >= 2,
-        format!("directives={ids:?} stage={}", snapshot.hook_stage),
+        format!(
+            "directives={ids:?} stage={} engine={}",
+            snapshot.hook_stage,
+            snapshot.engine_capability_label_zh()
+        ),
     )
 }
 
@@ -444,7 +454,7 @@ impl ScriptSandboxMatrixApplication {
                 planned(
                     "DUAL-10-01",
                     "QuickJS embedded engine",
-                    "无真实 QuickJS 引擎；现有 `script_engine` 是识别已知指令的正则 DSL，不宣称 JS 执行",
+                    "无真实 QuickJS 引擎：本项仅交付可插拔引擎接缝（ScriptEnginePort + 能力协商，shared-ready），默认实现仍是识别已知指令的正则 DSL；矩阵不对 JS 引擎执行宣称覆盖",
                 ),
                 closed(
                     "DUAL-10-02",

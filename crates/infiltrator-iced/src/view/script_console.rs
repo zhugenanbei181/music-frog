@@ -72,6 +72,24 @@ fn meta_line<'a>(label: String, value: String) -> Element<'a, Message> {
     .into()
 }
 
+/// DUAL-10-01: the engine row and the negotiated capability row. Selecting the
+/// locale here keeps the surface honest in both languages while the shared read
+/// model reports one engine kind; headless tests assert these exact values.
+pub fn engine_meta_rows(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> (String, String) {
+    let english = lang.0.starts_with("en");
+    let engine = if english {
+        snapshot.engine_label_en()
+    } else {
+        snapshot.engine_label_zh()
+    };
+    let capabilities = if english {
+        snapshot.engine_capability_label_en()
+    } else {
+        snapshot.engine_capability_label_zh()
+    };
+    (engine.to_string(), capabilities.to_string())
+}
+
 fn preview_box<'a>(title: String, body: String) -> Element<'a, Message> {
     column![
         text(title)
@@ -124,6 +142,9 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
     } else {
         BadgeKind::Success
     };
+    // DUAL-10-01: the engine that produced this result and its negotiated
+    // capability limits, both straight from the shared read model.
+    let (engine_label, engine_capability_label) = engine_meta_rows(lang, snapshot);
 
     let mut directives_col = column![].spacing(4);
     if snapshot.matched_directives.is_empty() {
@@ -221,9 +242,10 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
+        meta_line(lang.tr("script_sandbox_engine").to_string(), engine_label,),
         meta_line(
-            lang.tr("script_sandbox_engine").to_string(),
-            snapshot.engine_label_zh().to_string(),
+            lang.tr("script_sandbox_capabilities").to_string(),
+            engine_capability_label,
         ),
         meta_line(
             lang.tr("script_sandbox_hook_stage").to_string(),
