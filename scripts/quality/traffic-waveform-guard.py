@@ -99,6 +99,10 @@ def main() -> int:
         "crates/infiltrator-bevy-ui/src/pages/overview.rs",
         "chart_inputs",
         "chart_scene_with_scale",
+    )
+    require(
+        violations,
+        "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
         "with_smooth(smooth)",
     )
     require(

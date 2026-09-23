@@ -107,7 +107,7 @@ pub fn shell_scene_with_toggles(
                 ]
             ),
             ( { bottom_nav_scene(palette) } ),
-            ( { crate::pages::overview::overview_speedtest_detail_modal_scene(palette) } ),
+            ( { crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene(palette) } ),
         ]
     }
 }

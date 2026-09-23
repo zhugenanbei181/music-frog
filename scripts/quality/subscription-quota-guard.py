@@ -105,7 +105,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
         "projection.subscription_quota",
         "subscription_quota_text_value",
         "quota_progress",

@@ -57,7 +57,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_public_ip.rs",
         "PublicIpProbeCard",
         "PublicIpRefreshButton",
         "on_overview_public_ip_refresh_activated",

@@ -69,7 +69,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_topology.rs",
         "TopologyStageButton",
         "on_topology_stage_activated",
         "TrafficTopologyNavigationApplication::page_for_stage",
@@ -77,7 +77,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview_cards.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_topology.rs",
         "TopologyStageButton { stage",
         "enabled: { snapshot.is_drawable() }",
         "Button",

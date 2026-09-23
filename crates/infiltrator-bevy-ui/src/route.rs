@@ -40,9 +40,13 @@ use crate::pages::doctor::{DoctorProjectionUpdated, doctor_page};
 use crate::pages::logs::{LogsProjectionUpdated, logs_page};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
-    replay_projection_after_theme, reskin_overview_tokens, sync_overview_metrics_columns,
-    sync_overview_responsive, sync_overview_speedtest_button, sync_overview_speedtest_detail,
+    replay_projection_after_theme, sync_overview_metrics_columns,
 };
+use crate::pages::overview_restamp::reskin_overview_tokens;
+use crate::pages::overview_speedtest::{
+    sync_overview_speedtest_button, sync_overview_speedtest_detail,
+};
+use crate::pages::overview_topology::sync_overview_responsive;
 use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
 use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page, sync_proxies_node_columns};
 use crate::pages::rules::{RulesProjectionUpdated, rules_page};

@@ -20,9 +20,8 @@ use infiltrator_bevy_ui::pages::app_routing::{
 use infiltrator_bevy_ui::pages::connections::{
     ConnSpeedText, ConnectionItem, ConnectionsProjection, ConnectionsProjectionUpdated,
 };
-use infiltrator_bevy_ui::pages::dns::{
-    DnsProjection, DnsProjectionUpdated, DnsServerItem, DnsServerLatency,
-};
+use infiltrator_bevy_ui::pages::dns::{DnsProjection, DnsProjectionUpdated, DnsServerItem};
+use infiltrator_bevy_ui::pages::dns_servers::DnsServerLatency;
 use infiltrator_bevy_ui::pages::doctor::{
     CheckStateText, DoctorCheckItem, DoctorCheckState, DoctorProjection, DoctorProjectionUpdated,
 };

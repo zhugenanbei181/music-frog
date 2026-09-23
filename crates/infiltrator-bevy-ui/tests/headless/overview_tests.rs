@@ -25,16 +25,23 @@ use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
-    ActiveExitText, ActiveExitTextKind, CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText,
-    OverviewCardState, OverviewChip, OverviewChipKind, OverviewLine, OverviewLineKind,
-    OverviewMasterSwitchButton, OverviewModeChip, OverviewModePill, OverviewProjectionUpdated,
-    OverviewReloadMask, OverviewReloadMaskText, OverviewStatusCard, PublicIpProbeCard,
-    PublicIpRefreshButton, PublicIpText, PublicIpTextKind, StatusDot, StopButton,
-    SubscriptionQuotaCard, TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind,
-    format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
+    CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
+    OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
+    OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText, OverviewStatusCard,
+    StatusDot, StopButton, format_memory, format_rate, subscription_quota_scene,
+    topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
+};
+use infiltrator_bevy_ui::pages::overview_public_ip::{
+    PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
+};
+use infiltrator_bevy_ui::pages::overview_restamp::{
+    ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, SubscriptionQuotaCard,
+};
+use infiltrator_bevy_ui::pages::overview_topology::{
+    TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind,
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
@@ -1624,7 +1631,7 @@ fn overview_speedtest_button_submits_test_all_proxy_groups() {
         let world = app.world_mut();
         let mut buttons = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
         )>();
         buttons
             .iter(world)
@@ -1647,10 +1654,9 @@ fn overview_speedtest_button_reflects_shared_engine_phase() {
 
     let read_caption = |app: &mut App| -> String {
         let world = app.world_mut();
-        let mut texts = world.query_filtered::<
-            &Text,
-            bevy::ecs::query::With<infiltrator_bevy_ui::pages::overview::OverviewSpeedtestText>,
-        >();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestText,
+        >>();
         texts
             .iter(world)
             .next()
@@ -1659,8 +1665,9 @@ fn overview_speedtest_button_reflects_shared_engine_phase() {
     };
     let read_testing = |app: &mut App| -> bool {
         let world = app.world_mut();
-        let mut buttons =
-            world.query::<&infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton>();
+        let mut buttons = world
+            .query::<&infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton>(
+        );
         buttons
             .iter(world)
             .next()
@@ -1695,7 +1702,7 @@ fn overview_speedtest_metrics_follow_shared_engine() {
     let read_metrics = |app: &mut App| -> String {
         let world = app.world_mut();
         let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestMetricsText,
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestMetricsText,
         >>();
         texts
             .iter(world)
@@ -1705,10 +1712,9 @@ fn overview_speedtest_metrics_follow_shared_engine() {
     };
     let read_dead = |app: &mut App| -> String {
         let world = app.world_mut();
-        let mut texts =
-            world.query_filtered::<&Text, bevy::ecs::query::With<
-                infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDeadText,
-            >>();
+        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDeadText,
+        >>();
         texts
             .iter(world)
             .next()
@@ -1748,7 +1754,7 @@ fn overview_speedtest_history_follows_shared_engine() {
     let read_history = |app: &mut App| -> String {
         let world = app.world_mut();
         let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestHistoryText,
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestHistoryText,
         >>();
         texts
             .iter(world)
@@ -1799,7 +1805,7 @@ fn overview_speedtest_running_button_submits_cancel() {
         let world = app.world_mut();
         let mut buttons = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
         )>();
         buttons
             .iter(world)
@@ -1844,7 +1850,7 @@ fn overview_speedtest_typed_url_reaches_the_shared_intent() {
         let world = app.world_mut();
         let mut buttons = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestButton,
+            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
         )>();
         buttons
             .iter(world)
@@ -1898,7 +1904,7 @@ fn overview_speedtest_concurrency_stepper_submits_shared_intent() {
         let world = app.world_mut();
         let mut steps = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestConcurrencyStep,
+            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestConcurrencyStep,
         )>();
         steps
             .iter(world)
@@ -1947,7 +1953,7 @@ fn overview_speedtest_concurrency_text_follows_shared_engine() {
     let read = |app: &mut App| -> String {
         let world = app.world_mut();
         let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestConcurrencyText,
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestConcurrencyText,
         >>();
         texts
             .iter(world)
@@ -2161,7 +2167,7 @@ fn overview_speedtest_egress_and_detail_modal_follow_shared_engine() {
     let read_egress = |app: &mut App| -> String {
         let world = app.world_mut();
         let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestEgressText,
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestEgressText,
         >>();
         texts
             .iter(world)
@@ -2172,7 +2178,7 @@ fn overview_speedtest_egress_and_detail_modal_follow_shared_engine() {
     let read_body = |app: &mut App| -> String {
         let world = app.world_mut();
         let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDetailBodyText,
+            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDetailBodyText,
         >>();
         texts
             .iter(world)
@@ -2227,7 +2233,7 @@ fn overview_speedtest_egress_and_detail_modal_follow_shared_engine() {
         let world = app.world_mut();
         let mut buttons = world.query::<(
             Entity,
-            &infiltrator_bevy_ui::pages::overview::OverviewSpeedtestDetailButton,
+            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDetailButton,
         )>();
         buttons
             .iter(world)

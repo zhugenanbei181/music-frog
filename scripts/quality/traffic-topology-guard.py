@@ -95,7 +95,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview_cards.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_topology.rs",
         "topology_chain_scene_with_snapshot",
         "topology_spec",
         "topology_scene",
@@ -104,7 +104,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
         "projection.traffic_topology",
         "topology_text_value",
         "TopologyPlate",

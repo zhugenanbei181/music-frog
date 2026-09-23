@@ -117,7 +117,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
         "OverviewSpeedtestHistoryText",
         "recent_history",
     )
@@ -142,7 +142,7 @@ def main() -> int:
     )
     forbid(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
         "SpeedtestHistoryStore",
         "speedtest_history.json",
     )

@@ -120,7 +120,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
         "OverviewSpeedtestEgressText",
         "OverviewSpeedtestDetailButton",
         "OverviewSpeedtestDetailBodyText",
