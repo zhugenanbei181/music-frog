@@ -100,7 +100,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
         "pub struct ActiveExitText",
         "projection.active_exit",
         "active_exit_text_value",

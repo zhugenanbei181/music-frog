@@ -129,7 +129,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
         "OverviewSpeedtestConcurrencyStep",
         "OverviewSpeedtestUrlField",
         "snapshot.config.concurrency",
@@ -158,13 +158,13 @@ def main() -> int:
     for ui_path in (
         "crates/infiltrator-iced/src/update/core/proxies.rs",
         "crates/infiltrator-iced/src/view/speedtest_modal.rs",
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
     ):
         forbid(violations, ui_path, "config.concurrency =", "concurrency: 30")
     # The speedtest card / Overview must never hardcode an effective target URL.
     for ui_path in (
         "crates/infiltrator-iced/src/view/speedtest_modal.rs",
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_speedtest.rs",
     ):
         forbid(violations, ui_path, "http://www.gstatic.com/generate_204")
     require(

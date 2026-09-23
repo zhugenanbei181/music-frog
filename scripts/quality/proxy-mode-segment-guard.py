@@ -82,7 +82,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/overview.rs",
+        "crates/infiltrator-bevy-ui/src/pages/overview_restamp.rs",
         "OverviewModeSegmentPill",
         "on_overview_mode_segment_activated",
         "ProxyModeApplication::intent",

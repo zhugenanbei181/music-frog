@@ -23,6 +23,7 @@ pub mod cadence;
 pub mod capture;
 pub mod chrome;
 pub mod command;
+pub mod command_events;
 pub mod command_palette;
 pub mod command_palette_shell;
 pub mod controller;

@@ -6,7 +6,6 @@
 //! command sink handle. No direct blocking calls in UI systems.
 
 use bevy::app::{App, Plugin};
-use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
 use infiltrator_application::core_application::CoreApplication;
 use std::sync::{Arc, Mutex};
@@ -749,31 +748,6 @@ impl Plugin for CommandPumpPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CommandSinkHandle(Arc::clone(&self.sink)));
     }
-}
-
-/// Notification severity level.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NotificationLevel {
-    Info,
-    Success,
-    Warning,
-    Error,
-}
-
-/// User notification event dispatched onto the event bus.
-#[derive(Event, Clone, Debug, PartialEq, Eq)]
-pub struct UiNotificationEvent {
-    pub level: NotificationLevel,
-    pub title: String,
-    pub message: String,
-}
-
-/// Event dispatched when a command completes or fails.
-#[derive(Event, Clone, Debug, PartialEq, Eq)]
-pub struct CommandExecutedEvent {
-    pub command: UiCommand,
-    pub success: bool,
-    pub error: Option<String>,
 }
 
 #[cfg(test)]

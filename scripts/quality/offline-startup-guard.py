@@ -178,7 +178,7 @@ def main() -> int:
     )
     require(
         violations,
-        "crates/infiltrator-bevy-ui/src/pages/settings_core.rs",
+        "crates/infiltrator-bevy-ui/src/pages/settings_offline_startup.rs",
         "离线启动 (Offline-first)",
         "format_offline_startup",
         "远端可选",

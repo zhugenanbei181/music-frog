@@ -48,6 +48,8 @@ pub mod settings_ipv6;
 pub mod settings_lan;
 #[path = "settings_network_roaming.rs"]
 pub mod settings_network_roaming;
+#[path = "settings_offline_startup.rs"]
+pub mod settings_offline_startup;
 #[path = "settings_pac.rs"]
 pub mod settings_pac;
 #[path = "settings_privileged_network.rs"]
@@ -504,7 +506,7 @@ pub fn general_card_scene(
                         ]
                     ),
                     ( { settings_core::core_rollback_row_scene(projection, palette) } ),
-                    ( { settings_core::offline_startup_row_scene(&projection.offline_startup, palette) } ),
+                    ( { settings_offline_startup::offline_startup_row_scene(&projection.offline_startup, palette) } ),
                     ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
                     ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
                     ( { settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) } ),
@@ -727,7 +729,9 @@ pub(crate) fn apply_settings_projection(
                     text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
                 }
                 SettingsLineKind::OfflineStartup => {
-                    text.0 = settings_core::format_offline_startup(&projection.offline_startup);
+                    text.0 = settings_offline_startup::format_offline_startup(
+                        &projection.offline_startup,
+                    );
                 }
                 SettingsLineKind::MixedPort => {
                     text.0 = format!("端口: {}", projection.mixed_port);
