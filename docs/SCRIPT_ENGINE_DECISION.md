@@ -1,11 +1,16 @@
 # 脚本引擎决策记录 / Script Engine Decision Record
 
-- 记录项：`DUAL-10-01`（QuickJS 嵌入式轻量执行沙箱）
-- 状态：**默认路径不添加任何 JS 引擎依赖**；仓库默认仍是「指令 DSL + 可插拔引擎接缝」
-  （接缝与能力协商记为 `shared-ready`）。**2026-09-23 更新**：§5 迁移计划已在本分支
-  落地——纯 Rust 的 `boa_engine` 0.22.0 现作为**非默认特性 `script-engine-boa`** 的可选
-  依赖引入（默认 `cargo build` / `bash scripts/test.sh` 仍不链接任何 JS 引擎）；真实适配器
-  `BoaScriptEngine`、熔断/配额落点、许可证登记与守卫更新见 §5.1 与 §7。
+- 记录项：`DUAL-10-01`（ECMAScript 嵌入式轻量执行沙箱；引擎为纯 Rust `boa_engine`，
+  **不是 QuickJS**）
+- 状态：**默认构建即编译并执行真实 ECMAScript 引擎**。**2026-09-23 更新**：§5 迁移计划
+  已落地并提升为默认——纯 Rust 的 `boa_engine` 0.22.0 由默认特性
+  `script-engine-boa`（`default = ["script-engine-boa"]`）引入，`cargo build` /
+  `bash scripts/test.sh` 会编译它；共享矩阵默认**真实执行** Boa 并把 `DUAL-10-01` 判为
+  `parity-ready`（15/15）。指令 DSL 仍是每个宿主的默认**选用**引擎
+  （`ScriptApplication::new()` 仍返回 `DirectiveDslScriptEngine`），Boa 通过
+  `with_engine` 注入并由矩阵的 `check_javascript_engine()` 执行。真实适配器
+  `BoaScriptEngine`、诚实限制、许可证登记与守卫更新见 §5.1 与 §7。显式
+  `--no-default-features` 会退回「指令 DSL + 可插拔接缝」，矩阵行相应回到 `planned`。
 - 结论摘要：`rquickjs` 与 `boa_engine` 都是候选；§4 的偏好是 `rquickjs`，但 §5 迁移计划
   允许 `script-engine-boa`，本次为规避 §4 指出的 C 交叉编译前置条件，先以纯 Rust 的
   `boa_engine` 落地（偏差与理由见 §7）。本文记录的是**可复现的证据**，不是主观倾向。
@@ -27,9 +32,10 @@ $ grep -rn -iE 'rquickjs|boa_engine|quickjs' Cargo.toml crates/*/Cargo.toml
 （无输出，退出码 1）
 ```
 
-> **2026-09-23 更新**：以上 grep 记录的是迁移前状态。§5.1 落地后，`boa_engine`
-> 会以**非默认可选依赖**出现在 `Cargo.lock` 与 `infiltrator-application/Cargo.toml`
-> 的 `script-engine-boa` 特性中；默认 `cargo build` 仍不编译/链接它，
+> **2026-09-23 更新**：以上 grep 记录的是迁移前状态。§5.1 落地并提升为默认后，
+> `boa_engine` 以**默认可选依赖**出现在 `Cargo.lock` 与
+> `infiltrator-application/Cargo.toml` 的 `script-engine-boa` 特性中
+> （`default = ["script-engine-boa"]`）；默认 `cargo build` 会编译/链接它，
 > `rquickjs`/`quickjs` 依旧不存在。
 
 ### 1.2 vendor 目录只有 mihomo 二进制
@@ -203,6 +209,11 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
 **推荐：当前不添加 JS 引擎。** 保持指令 DSL 为默认实现，只保留已经落地的可插拔接缝
 （`ScriptEnginePort` + `ScriptEngineCapabilities`），等待触发条件满足。
 
+> **2026-09-23 更新（本推荐已被 §5.1 取代）**：本节是迁移前的决策史。§5 迁移计划已按
+> `script-engine-boa` 路线落地，并进一步**提升为默认**（见 §5.1）；指令 DSL 仍保留为
+> 每个宿主的默认**选用**引擎。以下触发条件（可复现体积/移动端实测、沙箱 ABI 定稿、
+> iOS/C 工具链取舍等）仍然有效，继续作为后续评审依据。
+
 若未来产品确需任意 JavaScript：
 
 1. **首选 `rquickjs`**：它与 mihomo 生态的脚本语义（ES2020）最接近，静态编译、体积小、
@@ -222,8 +233,9 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
 
 ## 5. 迁移计划（接缝已在位）
 
-1. 以 **非默认特性** 引入引擎：`script-engine-quickjs`（或 `script-engine-boa`），
-   `cargo build` 默认仍是不带 JS 引擎的指令 DSL。
+1. 以特性引入引擎：`script-engine-quickjs`（或 `script-engine-boa`）。本次落地并提升为
+   默认特性 `script-engine-boa`：`cargo build` 默认即编译真实 ECMAScript 引擎，
+   显式 `--no-default-features` 可退回纯指令 DSL。
 2. 新增 `ScriptEnginePort` 适配器实现，`kind()` 返回 `ScriptEngineKind::JavascriptEngine`，
    `capabilities()` 返回 `supports_javascript_syntax = true` 与真实限额；
    `ScriptApplication::with_engine` 已可直接注入，两表面**无需改动**即可渲染。
@@ -233,15 +245,21 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
 5. 在 `THIRD-PARTY-NOTICES.md` 登记所选引擎（许可证已在白名单内），并经
    `scripts/quality/license-guard.py`。
 6. 矩阵 `DUAL-10-01` 行仅当真实引擎适配器在共享矩阵中被执行后，才可从 `planned`
-   升为 `covered`；在此之前守卫继续反向禁止 `rquickjs`/`boa_engine`/`quickjs::`。
+   升为 `covered`。适配器已编译进默认构建，故默认矩阵真实执行 Boa 并把该行判为
+   `covered`（15/15）；守卫只对**引擎无关**的共享文件继续反向禁止
+   `rquickjs`/`boa_engine`/`quickjs::`，并要求应用层的真实适配器与默认特性在位。
 
 ### 5.1 落地记录（2026-09-23，`parity/boa-engine`）
 
 - **特性（步骤 1）**：`crates/infiltrator-application/Cargo.toml` 新增
-  `script-engine-boa = ["dep:boa_engine"]`（`default = []`），依赖为
+  `script-engine-boa = ["dep:boa_engine"]` 并置入默认集
+  （`default = ["script-engine-boa"]`），依赖为
   `boa_engine = { workspace = true, optional = true }`（工作区声明
   `0.22.0`，`default-features = false`，去掉 temporal/float16/xsum 内建）。
-  Iced/Bevy 两个 surface 各自新增同名转发特性，便于逐端在开启时编译检查。
+  Iced/Bevy 两个 surface 各自新增同名转发特性并同样置入默认集
+  （`default = ["script-engine-boa"]` → `infiltrator-application/script-engine-boa`），
+  保证逐端默认即编译真实引擎、可被测试覆盖。显式 `--no-default-features` 仍可退回
+  纯指令 DSL。
 - **适配器（步骤 2）**：`crates/infiltrator-application/src/script_engine_boa.rs`
   的 `BoaScriptEngine` 实现 `ScriptEnginePort`：`kind()` =
   `ScriptEngineKind::JavascriptEngine`；`capabilities()` =
@@ -251,9 +269,11 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
   `timeout_ms = 500`、`max_memory_bytes = 64MB`（产品上限）。
   执行路径：YAML→JSON→JS 对象，`context.eval` 定义 `main(config, profile)`，
   调用后把返回值序列化回 YAML；`console.*` 由宿主原生函数捕获。
-- **默认与回退（步骤 3）**：默认引擎仍是 `DirectiveDslScriptEngine`；
-  `ScriptApplication::with_engine` 注入 Boa 时才切换，两个 surface 的渲染代码
-  无需改动（既有 `engine_meta_rows` / 「引擎能力」行按协商结果渲染）。
+- **默认与回退（步骤 3）**：默认**选用**引擎仍是 `DirectiveDslScriptEngine`
+  （`ScriptApplication::new()` 不变，逐 profile 的指令 DSL 行为不变）；默认**构建**则
+  已编译 Boa，`ScriptApplication::with_engine` 注入时切换，两个 surface 的渲染代码
+  无需改动（既有 `engine_meta_rows` / 「引擎能力」行按协商结果渲染）。即
+  **compiled-by-default / covered-by-default，但并非 selected-by-default**。
 - **熔断与配额（步骤 4）**：`ScriptApplication` 的 `ScriptCircuitBreaker` 仍包住
   `execute`；Boa 侧把 `RuntimeLimitError::LoopIteration` 映射为
   `ScriptError::Timeout`（超时/中断落点），解析错误映射 `Syntax`、其余映射
@@ -262,14 +282,16 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
   `THIRD-PARTY-NOTICES.md` §11；`scripts/quality/license-guard.py --mode enforce`
   通过。
 - **矩阵（步骤 6）**：共享矩阵新增 `dual_10_01_scenario()` /
-  `check_javascript_engine()`：开启 `script-engine-boa` 时**真实执行** Boa 适配器，
-  `DUAL-10-01` 记为 `covered`（矩阵 15/15）；默认关闭时仍记为 `planned`（14/14），
-  并保留「无真实 QuickJS 引擎」的诚实理由。守卫同步更新：默认路径继续反向禁止
-  JS 引擎依赖，新增对非默认特性与 `BoaScriptEngine` 诚实边界的断言。
-- **验证命令**：
+  `check_javascript_engine()`：默认配置**真实执行** Boa 适配器，
+  `DUAL-10-01` 记为 `covered`（矩阵 15/15，全部 covered）；显式
+  `--no-default-features` 时才退回 `planned`（14/14）并保留「无真实 QuickJS 引擎」
+  的诚实理由。守卫同步更新：默认特性必须携带真实适配器，引擎无关的共享文件继续
+  反向禁止 JS 引擎依赖，并保留对 `BoaScriptEngine` 诚实边界的断言。
+- **验证命令**（默认配置即覆盖真实引擎）：
   ```console
-  $ CARGO_TARGET_DIR=… cargo test -p infiltrator-application --features script-engine-boa
-  $ CARGO_TARGET_DIR=… cargo clippy -p infiltrator-application --all-targets --features script-engine-boa -- -D warnings
+  $ CARGO_TARGET_DIR=… cargo test -p infiltrator-application
+  $ CARGO_TARGET_DIR=… cargo clippy -p infiltrator-application --all-targets -- -D warnings
+  $ CARGO_TARGET_DIR=… bash scripts/test.sh
   ```
 - **诚实限制**：见 §7。
 
@@ -287,9 +309,10 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
 - 双端渲染：Iced `view/script_console.rs::engine_meta_rows` 与 Bevy
   `pages/profiles_script.rs` 的「引擎能力」行，默认如实显示「不支持 JavaScript 语法
   （仅指令 DSL）」；注入 JS 引擎时同一代码渲染 JS 标签（测试证明不改面）。
-- 守卫：`scripts/quality/scripting-sandbox-guard.py` 固化接缝标记、本文存在性，并继续
-  反向断言默认路径不出现任何 JS 引擎依赖；非默认 `script-engine-boa` 特性与
-  `BoaScriptEngine` 的诚实边界另行断言。
+- 守卫：`scripts/quality/scripting-sandbox-guard.py` 固化接缝标记、本文存在性，要求
+  默认特性集包含 `script-engine-boa` 与真实 `BoaScriptEngine` 适配器；对**引擎无关**的
+  共享文件继续反向断言不出现任何 JS 引擎依赖，并对 `BoaScriptEngine` 的诚实边界
+  （`enforces_memory_limit: false`、`set_loop_iteration_limit`）另行断言。
 
 ---
 
@@ -298,11 +321,13 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
 本节把 §5.1 落地后仍然存在的限制逐条记录，避免把「可选的 Boa 适配器」夸大为
 「产品已默认运行任意 JavaScript」。
 
-1. **非默认特性，默认矩阵仍记为 `planned`**：`script-engine-boa` 默认关闭，
-   `cargo build` / `bash scripts/test.sh`（`cargo nextest run --workspace`）都不会
-   链接或执行 Boa，共享矩阵在默认构建下仍把 `DUAL-10-01` 记为 `planned`（14/14）；
-   只有显式开启特性时该行才升为 `covered`（15/15）。这是 §5 步骤 1/3 的设计，
-   不是遗漏，但意味着**默认 CI 不覆盖真实 JS 执行**。
+1. **引擎是 `boa_engine`，不是 QuickJS**：默认构建已编译并执行真实 ECMAScript，
+   但实现是纯 Rust 的 Boa，不是任务标题里的 QuickJS；`DUAL-10-01` 的覆盖含义是
+   「真实 ECMAScript 执行」，**不是**「QuickJS 兼容性」。共享矩阵在默认构建下把该行
+   记为 `covered`（15/15），只有显式 `--no-default-features` 才退回 `planned`（14/14）。
+   另外，默认**选用**引擎仍是逐 profile 的指令 DSL（`ScriptApplication::new()`
+   仍返回 `DirectiveDslScriptEngine`），Boa 只在显式注入（`with_engine`）时执行——
+   即 compiled-by-default / covered-by-default，而非 selected-by-default。
 2. **内存配额未真实强制**：Boa 0.22 未暴露堆配额 API，适配器诚实地协商
    `enforces_memory_limit = false`；`max_memory_bytes = 64MB` 只是产品上限展示，
    不是引擎熔断。因此 §3 表中「内存配额落点」对 Boa 仍**未闭环**。
@@ -318,5 +343,6 @@ release 二进制体积增量、也没有 Android 实机启动/内存数据。�
    启动/内存数据，也未在 Android/iOS 目标上交叉编译该可选特性；§2 的诚实声明
    继续成立。
 6. **与 §4 偏好的偏差**：§4 首选 `rquickjs`，本次按 §5 允许的 `script-engine-boa`
-   以纯 Rust 先落地，理由是规避 §4 指出的 C 交叉编译/NDK 前置条件；
-   `rquickjs` 仍按 §4 触发条件保留为待评候选，不因本次落地而排除。
+   以纯 Rust 先落地并提升为默认，理由是规避 §4 指出的 C 交叉编译/NDK 前置条件；
+   `rquickjs` 仍按 §4 触发条件保留为待评候选，不因本次落地而排除。若未来确定需要
+   QuickJS 语义或可抢占墙钟中断，仍可在同一 `ScriptEnginePort` 接缝下替换。

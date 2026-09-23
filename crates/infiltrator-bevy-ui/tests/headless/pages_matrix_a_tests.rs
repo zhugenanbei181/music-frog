@@ -5889,16 +5889,10 @@ fn test_script_sandbox_matrix_passes_on_the_bevy_surface() {
         "failed covered rows: {:?}",
         report.failed_ids()
     );
-    #[cfg(not(feature = "script-engine-boa"))]
-    {
-        assert_eq!(report.not_covered_ids(), vec!["DUAL-10-01"]);
-        assert_eq!(report.covered_passed_count(), 14);
-    }
-    #[cfg(feature = "script-engine-boa")]
-    {
-        assert!(report.not_covered_ids().is_empty());
-        assert_eq!(report.covered_passed_count(), 15);
-    }
+    // The default configuration compiles and runs the real boa_engine adapter
+    // through the shared application, so every row is covered: 15/15.
+    assert!(report.not_covered_ids().is_empty());
+    assert_eq!(report.covered_passed_count(), 15);
 }
 
 /// DUAL-10-12: the Bevy console renders the *shared* export projection — the

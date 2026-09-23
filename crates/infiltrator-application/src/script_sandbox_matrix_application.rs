@@ -2,9 +2,10 @@
 //!
 //! Every covered row runs the real domain engine, the real
 //! [`ScriptApplication`] service and the real Mixin reductions, and reports
-//! what it measured. Items without a runnable backend (the QuickJS engine
-//! claim, the three-column editor) are registered as explicitly *not covered*
-//! with the honest reason.
+//! what it measured. DUAL-10-01 runs the real `boa_engine` adapter, which is
+//! compiled in the default configuration, so all 15 rows are covered by
+//! default. A row without a runnable backend would be registered as explicitly
+//! *not covered* with the honest reason.
 
 #[cfg(test)]
 #[path = "script_sandbox_matrix_application_test.rs"]
@@ -297,15 +298,18 @@ fn check_console_read_model() -> Check {
     )
 }
 
-/// DUAL-10-01 migration step 6: when the non-default `script-engine-boa`
-/// feature is on, the shared matrix runs the **real** Boa adapter and reports
-/// the row as covered; the default build keeps the honest `planned` gap.
+/// DUAL-10-01: the shared matrix runs the **real** Boa adapter in the default
+/// configuration (`script-engine-boa` is a default feature) and reports the row
+/// as covered by genuine execution. The engine is `boa_engine`, never QuickJS;
+/// the row detail names that boundary so the coverage is not read as a QuickJS
+/// claim. An explicit `--no-default-features` build does not compile the
+/// adapter and honestly degrades the row to `planned`.
 fn dual_10_01_scenario() -> ScriptSandboxMatrixScenario {
     #[cfg(feature = "script-engine-boa")]
     {
         closed(
             "DUAL-10-01",
-            "QuickJS/ECMAScript embedded engine",
+            "ECMAScript embedded engine (boa_engine, not QuickJS)",
             check_javascript_engine(),
         )
     }
@@ -313,8 +317,8 @@ fn dual_10_01_scenario() -> ScriptSandboxMatrixScenario {
     {
         planned(
             "DUAL-10-01",
-            "QuickJS embedded engine",
-            "无真实 QuickJS 引擎：默认构建仅交付可插拔引擎接缝（ScriptEnginePort + 能力协商，shared-ready），识别已知指令的正则 DSL 仍是默认实现；真实 ECMAScript 适配器由非默认特性 `script-engine-boa` 显式 opt-in，默认矩阵不对 JS 引擎执行宣称覆盖",
+            "ECMAScript embedded engine",
+            "默认特性 `script-engine-boa` 被显式禁用：本次构建未编译真实 ECMAScript 适配器，矩阵不宣称 JS 引擎执行覆盖；启用默认特性即由 boa_engine 真实执行（仍无 QuickJS 引擎）",
         )
     }
 }
@@ -345,7 +349,7 @@ fn check_javascript_engine() -> Check {
             && transformed.contains("port: 8080")
             && transformed.contains("mode: rule"),
         format!(
-            "engine={} transformed={}",
+            "engine={} (boa_engine, not QuickJS) transformed={}",
             snapshot.engine_kind.label_en(),
             transformed.lines().count()
         ),

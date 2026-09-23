@@ -221,9 +221,11 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
 
 - Source: [`boa-dev/boa`](https://github.com/boa-dev/boa), crate
   `boa_engine` **0.22.0**, declared as an **optional** workspace dependency and
-  pulled in only by the non-default `script-engine-boa` feature. The default
-  `cargo build` / `cargo nextest` graph does **not** compile or link it. /
-  仅由非默认特性 `script-engine-boa` 引入，默认构建不编译、不链接。
+  pulled in by the `script-engine-boa` feature, which is part of the default
+  feature set. The default `cargo build` / `cargo nextest` graph **does**
+  compile and link it; an explicit `--no-default-features` build drops it. /
+  由默认特性 `script-engine-boa` 引入，默认构建即编译、链接；显式
+  `--no-default-features` 可退回纯指令 DSL。
 - License: **Unlicense OR MIT** (upstream `boa_engine` manifest); the MIT arm
   is in the `license-guard.py` whitelist. Its pure-Rust transitive crates
   (`boa_ast`, `boa_gc`, `boa_interner`, `boa_macros`, `boa_parser`,
