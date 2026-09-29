@@ -28,7 +28,21 @@ surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 A
 - **100% `bsn!` 场景法**：生产 UI 树（页面、行/单元格、控件、覆盖层）全部由 `bsn!`
   场景组合并经 `spawn_scene` 挂载；禁止命令式 `Node{}`/`Children`/`with_children`
   另起 UI 树。ECS 系统只更新场景实体的 typed 组件、接线事件/焦点，或以新场景替换
-  有界子树。（M2 落地机械守卫 BEVY-004，移植 taskmanager 的 `bevy_bsn_guard.py`。）
+  有界子树。机械红线由 `scripts/quality/bevy_bsn_guard.py` 强制（001–004 与
+  taskmanager 对齐，005/006 为本项目加严）：
+  - **结构/状态划线**：结构原语（`Node`/`Children`/`Text`）只能在场景内声明，
+    运行时只许原地改字段（`node.width = …`）；状态组件（`ImageNode`、颜色、标记位）
+    允许观察者盖章——红线封的是结构旁路，不是 ECS。
+  - **BEVY-BSN-005 临时值即旁路**：结构原语的 `::default()`/`::EMPTY`/`::new`/
+    `::from_*` 构造出现在场景外即违规——"先落占位值、再命令式补写"与字面量旁路
+    同罪；`accesskit::Node::new`（无障碍树）是唯一机械豁免。
+  - **BEVY-BSN-006 挂载缝唯一**：`insert(ChildOf(…))` 只能是
+    `spawn_scene(…).insert(ChildOf(…))` 同一语句链的尾环；独立 reparent 禁止，
+    改挂载 = 替换有界子树。
+  - **BEVY-BSN-002/003 层级 API 全封**：`insert_children`/`replace_children`/
+    `add_related`/`insert_related`（含 turbofish）、`spawn_empty(_at)`、
+    `ChildSpawner(Commands)`/`RelatedSpawner(Commands)` 类型声明均违规；
+    `despawn_children`/`remove_child(ren)`（拆除路线）允许。
 - **观察者改组件，永不重建树**：运行时变化由 `On<Add<…>>`/`On<Activate>` 等观察者
   原地盖章/换肤；页面重挂载以替换有界子树实现。
 - **纯核 + 场景适配器二分**：控件 = 零 bevy 依赖的纯函数核（状态机/投影/窗口数学，

@@ -237,12 +237,18 @@ python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
 
 - **扫描范围**：两个 bevy crate 的 `src/` 生产代码；`tests/` 目录与 `*_test(s).rs`
   挂载测试模块不在红线内。注释与字符串/字符字面量剥离后再扫。
-- **违规项**：`bsn!` 之外出现 `Node {` / `Children [` / `Text(…)` 及遗留 UI
-  bundle（`NodeBundle` 等）；`with_children`/`push_children`/`add_child(ren)`
-  手工接线；任何 `.spawn(` / `.spawn_batch(` 直建实体树；`bsn!` 花括号不平衡。
+- **违规项**：`bsn!` 之外出现结构原语（`Node {` / `Children [` / `Text(…)`）及
+  遗留 UI bundle（`NodeBundle` 等）；`with_children`/`push_children`/
+  `add_child(ren)`/`insert_children`/`replace_children`/`add_related`/
+  `insert_related`（含 turbofish）手工接线与 `ChildSpawner(Commands)`/
+  `RelatedSpawner(Commands)` 类型声明；任何 `.spawn(` / `.spawn_batch(` /
+  `.spawn_empty(_at)` 直建实体树；结构原语的 `::default()`/`::EMPTY`/`::new`/
+  `::from_*` 临时值构造（BEVY-BSN-005）；`insert(ChildOf(…))` 脱离
+  `spawn_scene` 同语句链（BEVY-BSN-006）；`bsn!` 花括号不平衡。
 - **豁免**：`spawn_scene`（唯一挂载缝）、`spawn(Camera2d)` 与
   `spawn(Observer::new(…))`（相机/观察者基础设施，非 UI 树）——按首个实参文本
-  前缀机械判定，无逐文件白名单。
+  前缀机械判定，无逐文件白名单；`accesskit::Node::new`（无障碍树）与
+  `despawn_children`/`remove_child(ren)`（拆除路线）。
 - **机械检查**：`python3 scripts/quality/bevy_bsn_guard.py --mode enforce`，
   CI 强制执行；本地先用 `--mode report` 看违规清单，`--self-test` 内嵌正反用例
   并复扫真实生产树。

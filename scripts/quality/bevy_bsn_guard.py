@@ -4,24 +4,50 @@
 The two Bevy crates (`infiltrator-bevy-widgets`, `infiltrator-bevy-ui`) have
 exactly one sanctioned route for declaring a UI tree: a scene built by the
 ``bsn!`` macro and mounted through ``Commands::spawn_scene`` (crate law,
-docs/BEVY_UI_FRONTEND.md). The guard deliberately does not restrict ECS state
-binding — observers restamping components in place are the sanctioned runtime
-route. It rejects the imperative/parallel hierarchy routes instead:
+docs/BEVY_UI_FRONTEND.md). The dividing line the guard enforces is
+**structure vs state**: structure (the tree, its layout and text primitives)
+may only be declared inside a ``bsn!`` scene; state (colors, images, markers,
+selection bits) may be restamped in place by observers and systems. It
+rejects every imperative/parallel structure route instead:
 
-* BEVY-BSN-001 — UI primitives (``Node { ... }``, ``Children [ ... ]``,
+* BEVY-BSN-001 — structure primitives (``Node { ... }``, ``Children [ ... ]``,
   ``Text( ... )``) or legacy UI bundles (``NodeBundle`` / ``TextBundle`` /
-  ``ButtonBundle`` / ``ImageBundle`` / ``ChildBuilder`` /
-  ``ChildSpawnerCommands``) appearing outside a ``bsn! { ... }`` scene span.
-* BEVY-BSN-002 — manual child-link APIs (``with_children`` /
-  ``push_children`` / ``add_child`` / ``add_children``), anywhere: inside a
+  ``ButtonBundle`` / ``ImageBundle``) appearing outside a ``bsn! { ... }``
+  scene span. Visual components (``ImageNode``, ``BackgroundColor``) are
+  deliberately out of this list: stamping them onto existing tree entities is
+  the sanctioned observer route.
+* BEVY-BSN-002 — manual child-link APIs and spawner types, anywhere: inside a
   scene they are meaningless, outside one they are the imperative tree route.
-* BEVY-BSN-003 — direct entity spawn via ``.spawn(`` / ``.spawn_batch(``.
-  Receiver-agnostic on purpose: Commands, World, ``world_mut()``,
-  EntityWorldMut and child builders are all entity-tree routes. The sanctioned
-  mounting seam ``spawn_scene`` never matches (the literal ``spawn`` must be
-  followed directly by ``(`` or ``_batch(``).
+  Methods: ``with_children`` / ``push_children`` / ``add_child`` /
+  ``add_children`` / ``insert_children`` / ``replace_children`` /
+  ``add_related`` / ``insert_related`` (turbofish form included). Types:
+  ``ChildBuilder`` / ``ChildSpawner(Commands)`` / ``RelatedSpawner(Commands)``
+  — a system parameter declaring a spawner is a hierarchy route.
+  ``despawn_children`` / ``remove_child`` / ``remove_children`` are removal
+  routes (bounded-subtree replacement) and stay allowed.
+* BEVY-BSN-003 — direct entity spawn via ``.spawn(`` / ``.spawn_batch(`` /
+  ``.spawn_empty(`` / ``.spawn_empty_at(``. Receiver-agnostic on purpose:
+  Commands, World, ``world_mut()``, EntityWorldMut and child builders are all
+  entity-tree routes. The sanctioned mounting seam ``spawn_scene`` never
+  matches (the literal ``spawn`` must be followed directly by ``(``,
+  ``_batch(``, ``_empty(`` or ``_empty_at(``).
 * BEVY-BSN-004 — an unbalanced ``bsn! {`` (fails safe: a scene the scanner
   cannot bracket is treated as no scene at all).
+* BEVY-BSN-005 — temporary-value constructors of structure primitives outside
+  a scene: ``Node::default()`` / ``Node::EMPTY`` / ``Text::new(...)`` /
+  ``Children::from_*`` and friends. This is the placeholder wall: an empty or
+  default structure value conjured outside the scene, then stuffed into the
+  tree via ``insert`` or filled in imperatively afterwards, is the same
+  bypass as BEVY-BSN-001 with different spelling. Sanctioned restamps mutate
+  fields in place (``node.width = ...``); ``..Node::default()`` spreads inside
+  a scene are fine. ``accesskit::Node::new`` is the one mechanical exemption —
+  that ``Node`` is the accessibility tree, not UI structure.
+* BEVY-BSN-006 — the mount seam must stay a seam: ``.insert(ChildOf(...))``
+  (direct or tuple-first argument) is only legal inside the same statement as
+  a ``spawn_scene`` call — the ``spawn_scene(scene).insert(ChildOf(slot))``
+  chain. A standalone ``ChildOf`` insert reparents arbitrary entities without
+  any scene; replace a bounded subtree instead. ``Query<&ChildOf>`` reads are
+  unaffected.
 
 Exemptions are mechanical, decided from the spawn argument text (no per-file
 allowlist, no line numbers to maintain):
@@ -41,8 +67,10 @@ Comments and string/char literals are masked before scanning with offsets
 preserved, so prose and doc examples can neither satisfy nor trip the rule.
 Scanned scope is production code only: the ``src/`` trees of the two Bevy
 crates; dedicated ``tests/`` directories and ``*_test(s).rs`` modules are
-outside the authoring contract. Violation codes intentionally match
-taskmanager's ``bevy_bsn_guard.py`` for cross-project greppability.
+outside the authoring contract. Violation codes 001-004 intentionally match
+taskmanager's ``bevy_bsn_guard.py`` for cross-project greppability; 005 and
+006 are music-frog extensions of the same family (taskmanager has no rule for
+them yet).
 
 Usage:
     python3 scripts/quality/bevy_bsn_guard.py [--mode report|enforce] [--root PATH]
@@ -68,15 +96,26 @@ SCAN_ROOTS = (
 BSN_START = re.compile(r"\bbsn!\s*\{")
 UI_CONSTRUCTION = re.compile(
     r"\b(?:Node|Children|Text)\s*(?:\{|\[|\()"
-    r"|\b(?:NodeBundle|TextBundle|ButtonBundle|ImageBundle|ChildBuilder|"
-    r"ChildSpawnerCommands)\b"
+    r"|\b(?:NodeBundle|TextBundle|ButtonBundle|ImageBundle)\b"
 )
 MANUAL_CHILD_API = re.compile(
-    r"\.\s*(?:with_children|push_children|add_child|add_children)\s*\("
+    r"\.\s*(?:with_children|push_children|add_child|add_children|insert_children"
+    r"|replace_children|add_related|insert_related)\s*(?:\(|::<)"
+    r"|\b(?:ChildBuilder|ChildSpawner(?:Commands)?|RelatedSpawner(?:Commands)?)\b"
 )
-DIRECT_SPAWN = re.compile(r"\.\s*spawn(?:_batch)?\s*\(")
+DIRECT_SPAWN = re.compile(r"\.\s*spawn(?:_empty(?:_at)?|_batch)?\s*\(")
 # Spawn arguments that are infrastructure, not UI trees (see module docstring).
 ALLOWED_SPAWN_ARGUMENTS = ("Camera2d", "Observer::new")
+# `accesskit::Node::new` builds the accessibility tree, not UI structure — the
+# fixed-width lookbehind exempts exactly that path prefix.
+STRUCTURE_TEMP_CONSTRUCTOR = re.compile(
+    r"(?<!accesskit::)\b(?:Node|Children|Text)::(?:new|default|EMPTY|from\w*)\b"
+)
+# Path-aware on purpose: `insert(ChildOf(..))` and the fully qualified
+# `insert(bevy::ecs::hierarchy::ChildOf(..))` are the same bypass.
+CHILDOF_MOUNT = re.compile(
+    r"\.\s*insert\(\s*\(?\s*(?:\w+\s*::\s*)*ChildOf\b"
+)
 
 
 @dataclass(frozen=True)
@@ -225,6 +264,17 @@ def matching_paren(masked: str, opening: int) -> int | None:
     return None
 
 
+def mount_anchored_to_spawn_scene(masked: str, offset: int) -> bool:
+    """True when a ``spawn_scene`` call precedes ``offset`` in its statement.
+
+    The statement starts after the closest ``;`` or ``{``/``}`` before the
+    insert — method chains spanning lines carry no ``;`` until the end.
+    """
+    boundaries = [masked.rfind(ch, 0, offset) for ch in ";{}"]
+    statement_start = max(boundaries) + 1
+    return "spawn_scene" in masked[statement_start:offset]
+
+
 def analyze(rel_path: str, text: str) -> list[Violation]:
     """Violations for one file: `text` is raw Rust, masking happens here."""
     original = text
@@ -249,7 +299,7 @@ def analyze(rel_path: str, text: str) -> list[Violation]:
                     rel_path,
                     line_number(original, match.start()),
                     "BEVY-BSN-001",
-                    "UI hierarchy construction must be inside a bsn! Scene",
+                    "UI structure construction must be inside a bsn! Scene",
                 )
             )
 
@@ -262,6 +312,30 @@ def analyze(rel_path: str, text: str) -> list[Violation]:
                 "manual child-link APIs are forbidden; compose a bsn! Scene",
             )
         )
+
+    for match in STRUCTURE_TEMP_CONSTRUCTOR.finditer(masked):
+        if not inside_scene(match.start(), spans):
+            violations.append(
+                Violation(
+                    rel_path,
+                    line_number(original, match.start()),
+                    "BEVY-BSN-005",
+                    "structure temp-value constructor outside a bsn! Scene;"
+                    " declare it in the scene or mutate fields in place",
+                )
+            )
+
+    for match in CHILDOF_MOUNT.finditer(masked):
+        if not mount_anchored_to_spawn_scene(masked, match.start()):
+            violations.append(
+                Violation(
+                    rel_path,
+                    line_number(original, match.start()),
+                    "BEVY-BSN-006",
+                    "ChildOf mount must chain from spawn_scene in the same"
+                    " statement; replace a bounded subtree instead",
+                )
+            )
 
     for match in DIRECT_SPAWN.finditer(masked):
         opening = masked.find("(", match.start(), match.end())
@@ -397,8 +471,47 @@ def self_test() -> int:
         use bevy::ecs::hierarchy::Children;
         #[derive(Component)]
         struct TextRole(pub Role);
-        let n = Node::default();
         fn borrow<'a>(x: &'a str) -> &'a str { x }
+        """,
+        [],
+    )
+    expect(
+        "accesskit::Node::new is the a11y tree, not UI structure",
+        "fn a11y() { let mut n = accesskit::Node::new(accesskit::Role::Window); }",
+        [],
+    )
+    expect(
+        "..Default spreads inside a bsn! scene are fine",
+        """
+        fn scene(handle: Handle<Image>) -> impl Scene {
+            bsn! { ImageNode { image: handle ..ImageNode::default() } }
+        }
+        """,
+        [],
+    )
+    expect(
+        "spawn_scene then ChildOf mount in one chain is the sanctioned seam",
+        """
+        fn mount(mut commands: Commands, scene: impl Scene) {
+            commands.spawn_scene(scene).insert(ChildOf(slot));
+        }
+        """,
+        [],
+    )
+    expect(
+        "tuple-form ChildOf mount in the spawn_scene chain is sanctioned",
+        "fn m(mut c: Commands) { c.spawn_scene(s()).insert((ChildOf(slot), Marker)); }",
+        [],
+    )
+    expect(
+        "ChildOf reads and removal routes are allowed",
+        """
+        fn reads(q: Query<&ChildOf>) {}
+        fn teardown(mut commands: Commands, e: Entity, child: Entity) {
+            commands.entity(e).despawn_children();
+            commands.entity(e).remove_child(child);
+            commands.entity(e).remove_children(&[]);
+        }
         """,
         [],
     )
@@ -428,6 +541,24 @@ def self_test() -> int:
         ["BEVY-BSN-002", "BEVY-BSN-003"],
     )
     expect(
+        "full hierarchy API surface is banned (turbofish included)",
+        """
+        commands.entity(root).insert_children(0, &rows);
+        commands.entity(root).replace_children(&rows);
+        commands.entity(root).add_related::<ChildOf>(&rows);
+        commands.entity(root).insert_related::<ChildOf>(0, &rows);
+        """,
+        ["BEVY-BSN-002"] * 4,
+    )
+    expect(
+        "spawner types declared anywhere are banned",
+        """
+        fn a(mut spawner: RelatedSpawnerCommands<ChildOf>) {}
+        fn b(mut spawner: ChildSpawner) {}
+        """,
+        ["BEVY-BSN-002"] * 2,
+    )
+    expect(
         "direct UI spawn is banned",
         "commands.spawn(Button);",
         ["BEVY-BSN-003"],
@@ -446,6 +577,43 @@ def self_test() -> int:
         "spawn_batch is banned",
         "commands.spawn_batch(rows);",
         ["BEVY-BSN-003"],
+    )
+    expect(
+        "spawn_empty / spawn_empty_at are banned",
+        """
+        commands.spawn_empty();
+        world.spawn_empty_at(entity);
+        """,
+        ["BEVY-BSN-003"] * 2,
+    )
+    expect(
+        "structure temp-value constructors outside bsn! are banned",
+        """
+        let a = Node::default();
+        let b = Node::EMPTY;
+        let c = Text::new("hi");
+        let d = Children::from_entity(e);
+        let f = bevy::ui::Node::EMPTY;
+        """,
+        ["BEVY-BSN-005"] * 5,
+    )
+    expect(
+        "standalone ChildOf insert (reparent) is banned",
+        "commands.entity(e).insert(ChildOf(parent));",
+        ["BEVY-BSN-006"],
+    )
+    expect(
+        "fully qualified ChildOf insert is the same bypass",
+        "commands.entity(e).insert(bevy::ecs::hierarchy::ChildOf(parent));",
+        ["BEVY-BSN-006"],
+    )
+    expect(
+        "ChildOf insert after an unrelated statement is banned (same-block escape)",
+        """
+        commands.spawn_scene(scene);
+        commands.entity(e).insert(ChildOf(parent));
+        """,
+        ["BEVY-BSN-006"],
     )
     expect(
         "non-whitelisted spawn argument fails even with camera-adjacent text",
