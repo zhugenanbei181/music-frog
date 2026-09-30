@@ -33,7 +33,9 @@ use infiltrator_contract::traffic_topology::{
     TrafficTopologyStatus,
 };
 
-use crate::pages::overview::{AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill};
+use crate::pages::overview::{
+    AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill,
+};
 use crate::route::Route;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
@@ -430,7 +432,10 @@ pub fn sync_topology_hover_highlight(
     mut plates: Query<&mut TopologyPlate>,
 ) {
     let hovered_stage = stage_buttons.iter().find_map(|(btn, interaction)| {
-        if matches!(interaction, Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) {
+        if matches!(
+            interaction,
+            Some(PickingInteraction::Hovered | PickingInteraction::Pressed)
+        ) {
             Some(btn.stage.as_str().to_string())
         } else {
             None

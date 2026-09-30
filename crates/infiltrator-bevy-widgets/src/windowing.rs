@@ -158,7 +158,8 @@ impl WindowBackdropSpec {
         Self {
             material: resolved,
             surface_alpha: alpha,
-            corner_radius: if os.eq_ignore_ascii_case("macos") || os.eq_ignore_ascii_case("darwin") {
+            corner_radius: if os.eq_ignore_ascii_case("macos") || os.eq_ignore_ascii_case("darwin")
+            {
                 10.0
             } else {
                 8.0
@@ -215,23 +216,15 @@ mod tests {
         assert!(win10_acrylic.is_translucent());
 
         // macOS Vibrancy
-        let macos_vibrancy = WindowBackdropSpec::for_platform(
-            WindowBackdropMaterial::Vibrancy,
-            "macos",
-            None,
-            true,
-        );
+        let macos_vibrancy =
+            WindowBackdropSpec::for_platform(WindowBackdropMaterial::Vibrancy, "macos", None, true);
         assert_eq!(macos_vibrancy.material, WindowBackdropMaterial::Vibrancy);
         assert_eq!(macos_vibrancy.corner_radius, 10.0);
         assert!(macos_vibrancy.is_translucent());
 
         // Linux falls back to Opaque
-        let linux_fallback = WindowBackdropSpec::for_platform(
-            WindowBackdropMaterial::Mica,
-            "linux",
-            None,
-            true,
-        );
+        let linux_fallback =
+            WindowBackdropSpec::for_platform(WindowBackdropMaterial::Mica, "linux", None, true);
         assert_eq!(linux_fallback.material, WindowBackdropMaterial::Opaque);
         assert!(!linux_fallback.is_translucent());
     }

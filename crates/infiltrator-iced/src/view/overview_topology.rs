@@ -124,14 +124,21 @@ pub fn topology_card<'a>(
     let mut card_content = column![card_header].spacing(theme::SP_SM);
     if !is_compact {
         card_content = card_content
-            .push(topology_flow_canvas(topology, state.diag.topology_flow_phase))
+            .push(topology_flow_canvas(
+                topology,
+                state.diag.topology_flow_phase,
+            ))
             .push(Space::new().height(theme::SP_XS));
     }
     card_content = card_content.push(flow_layout);
 
     container(card_content)
         .width(Length::Fill)
-        .padding(if is_compact { theme::SP_MD } else { theme::SP_XXL })
+        .padding(if is_compact {
+            theme::SP_MD
+        } else {
+            theme::SP_XXL
+        })
         .style(card_surface)
         .into()
 }

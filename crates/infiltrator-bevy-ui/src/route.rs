@@ -48,7 +48,7 @@ use crate::pages::overview_speedtest::{
     sync_overview_speedtest_button, sync_overview_speedtest_detail,
 };
 use crate::pages::overview_topology::{
-    sync_overview_responsive, sync_topology_hover_highlight, TopologyDrilldownFilter,
+    TopologyDrilldownFilter, sync_overview_responsive, sync_topology_hover_highlight,
 };
 use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
 use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page, sync_proxies_node_columns};

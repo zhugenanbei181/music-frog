@@ -542,4 +542,3 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
     let (_, drawer_closed) = drawer_q.iter(app.world()).next().expect("drawer exists");
     assert_eq!(drawer_closed.display, Display::None);
 }
-

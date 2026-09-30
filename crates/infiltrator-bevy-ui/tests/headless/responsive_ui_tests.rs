@@ -798,7 +798,10 @@ fn test_compact_mobile_touch_hitbox_expansion_and_restoration() {
                 assert!(min_h >= 48.0, "min_height {min_h} should be >= 48.0");
             }
         }
-        assert!(found_hitbox, "at least one TouchHitbox must exist in the app");
+        assert!(
+            found_hitbox,
+            "at least one TouchHitbox must exist in the app"
+        );
     }
 
     // 2. Expand to desktop (1200px): TouchHitbox restores to desktop compact size

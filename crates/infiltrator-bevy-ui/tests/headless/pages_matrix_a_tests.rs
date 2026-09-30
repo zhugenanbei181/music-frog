@@ -357,10 +357,7 @@ fn test_proxies_swipe_action_drawer_triggers_favorite_and_test_group() {
     }
 
     let mut pin_query = app.world_mut().query::<(Entity, &NodePinButton)>();
-    let (pin_entity, pin_btn) = pin_query
-        .iter(app.world())
-        .next()
-        .expect("node pin button");
+    let (pin_entity, pin_btn) = pin_query.iter(app.world()).next().expect("node pin button");
     let target_node_name = pin_btn.node_name.clone();
 
     app.world_mut()

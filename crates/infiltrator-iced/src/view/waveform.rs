@@ -183,19 +183,13 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
                 frame.fill(
                     &canvas::Path::circle(down_pt, 6.0),
-                    Color {
-                        a: 0.25,
-                        ..accent
-                    },
+                    Color { a: 0.25, ..accent },
                 );
                 frame.fill(&canvas::Path::circle(down_pt, 3.5), accent);
 
                 frame.fill(
                     &canvas::Path::circle(up_pt, 5.5),
-                    Color {
-                        a: 0.25,
-                        ..success
-                    },
+                    Color { a: 0.25, ..success },
                 );
                 frame.fill(&canvas::Path::circle(up_pt, 3.0), success);
 

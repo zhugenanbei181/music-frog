@@ -532,11 +532,7 @@ pub fn sync_pull_to_refresh_indicators(
 pub fn sync_swipe_to_action_items(
     time: Option<Res<Time>>,
     gesture_state: Res<ShellGestureState>,
-    mut swipe_items: Query<(
-        &mut SwipeToActionItem,
-        &mut SwipeToActionSpring,
-        &Children,
-    )>,
+    mut swipe_items: Query<(&mut SwipeToActionItem, &mut SwipeToActionSpring, &Children)>,
     mut swipe_contents: Query<&mut Node, With<SwipeContentContainer>>,
     mut swipe_drawers: Query<&mut Node, (With<SwipeActionDrawer>, Without<SwipeContentContainer>)>,
 ) {

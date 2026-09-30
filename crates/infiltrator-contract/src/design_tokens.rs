@@ -414,6 +414,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn typography_scale_and_elevation_are_valid() {
         assert!(type_scale::TAG < type_scale::CAPTION);
         assert!(type_scale::CAPTION < type_scale::BODY);

@@ -715,10 +715,7 @@ fn topology_hover_chain_highlight_and_linear_flow_advancement() {
 
     // Verify advancement system
     let mut app = headless_app();
-    let plate_entity = app
-        .world_mut()
-        .spawn(TopologyPlate(hovered_spec))
-        .id();
+    let plate_entity = app.world_mut().spawn(TopologyPlate(hovered_spec)).id();
 
     // Advance time across updates
     app.update();

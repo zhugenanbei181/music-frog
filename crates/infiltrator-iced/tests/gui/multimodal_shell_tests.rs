@@ -477,11 +477,20 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
     assert_eq!(theme::R_MODAL, radius::MODAL);
     assert_eq!(theme::R_PILL, radius::PILL);
     assert_eq!(theme::R_CHIP, radius::PILL);
-    assert_eq!(theme::type_scale::DISPLAY, design_tokens::type_scale::DISPLAY);
+    assert_eq!(
+        theme::type_scale::DISPLAY,
+        design_tokens::type_scale::DISPLAY
+    );
     assert_eq!(theme::type_scale::TITLE, design_tokens::type_scale::TITLE);
-    assert_eq!(theme::type_scale::HEADING, design_tokens::type_scale::HEADING);
+    assert_eq!(
+        theme::type_scale::HEADING,
+        design_tokens::type_scale::HEADING
+    );
     assert_eq!(theme::type_scale::BODY, design_tokens::type_scale::BODY);
-    assert_eq!(theme::type_scale::CAPTION, design_tokens::type_scale::CAPTION);
+    assert_eq!(
+        theme::type_scale::CAPTION,
+        design_tokens::type_scale::CAPTION
+    );
     assert_eq!(theme::type_scale::TAG, design_tokens::type_scale::TAG);
     assert_eq!(theme::type_scale::MONO, design_tokens::type_scale::MONO);
     // The hairline is a real token, not a page-local 1.0 literal: every Iced

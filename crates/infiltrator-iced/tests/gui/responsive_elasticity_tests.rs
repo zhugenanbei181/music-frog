@@ -285,7 +285,15 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes() {
 
     let viewports = [
         // Compact (<600px): extreme mobile (360px) & standard mobile
-        (360.0, 640.0, ViewportTier::Compact, 16, 1usize, 2usize, None),
+        (
+            360.0,
+            640.0,
+            ViewportTier::Compact,
+            16,
+            1usize,
+            2usize,
+            None,
+        ),
         (414.0, 896.0, ViewportTier::Compact, 16, 1, 2, None),
         (599.0, 800.0, ViewportTier::Compact, 16, 1, 2, None),
         // Medium (600..840px): small tablet / foldables (64px rail)
@@ -302,12 +310,20 @@ fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes() {
         (2560.0, 1440.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
     ];
 
-    for (w, h, expected_tier, expected_pad, expected_proxies, expected_metrics, expected_sidebar) in viewports {
+    for (w, h, expected_tier, expected_pad, expected_proxies, expected_metrics, expected_sidebar) in
+        viewports
+    {
         let _ = state.update(Message::WindowResized(w, h));
 
-        assert_eq!(state.shell.viewport.tier, expected_tier, "tier mismatch at {w}x{h}");
+        assert_eq!(
+            state.shell.viewport.tier, expected_tier,
+            "tier mismatch at {w}x{h}"
+        );
         assert_eq!(state.shell.viewport.tier.content_padding_px(), expected_pad);
-        assert_eq!(state.shell.viewport.tier.proxy_grid_columns(false), expected_proxies);
+        assert_eq!(
+            state.shell.viewport.tier.proxy_grid_columns(false),
+            expected_proxies
+        );
         assert_eq!(state.shell.viewport.metrics_columns, expected_metrics);
 
         let form = sidebar_form_for_width(w);

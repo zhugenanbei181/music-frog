@@ -1003,12 +1003,8 @@ fn overview_traffic_chart_crosshair_hover_activation() {
         .expect("crosshair should snap to nearest sample point");
 
     // Compute instantaneous rates from snapped sample index
-    let instant = compute_instant_rates(
-        &plate_hovered.0.up,
-        &plate_hovered.0.down,
-        snapped_idx,
-    )
-    .expect("must extract valid instant rates");
+    let instant = compute_instant_rates(&plate_hovered.0.up, &plate_hovered.0.down, snapped_idx)
+        .expect("must extract valid instant rates");
     assert!(instant.upload_bps >= 0.0);
     assert!(instant.download_bps >= 0.0);
 
@@ -1562,7 +1558,9 @@ fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
 
     {
         let world = app.world_mut();
-        let plate = world.get::<TopologyPlate>(plate_entity).expect("plate survives");
+        let plate = world
+            .get::<TopologyPlate>(plate_entity)
+            .expect("plate survives");
         assert_eq!(plate.0.hovered_stage.as_deref(), Some("rule_set"));
     }
 
@@ -1574,14 +1572,16 @@ fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
 
     {
         let world = app.world_mut();
-        let plate = world.get::<TopologyPlate>(plate_entity).expect("plate survives");
+        let plate = world
+            .get::<TopologyPlate>(plate_entity)
+            .expect("plate survives");
         assert_eq!(plate.0.hovered_stage, None);
     }
 
     // 5. Activate the RuleSet button and verify drilldown navigation and filter injection.
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: ruleset_button_entity });
+    app.world_mut().commands().trigger(Activate {
+        entity: ruleset_button_entity,
+    });
     app.update();
 
     // Verify navigation landed on Rules page
@@ -1592,7 +1592,6 @@ fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
     assert_eq!(drilldown.stage, Some(TrafficTopologyStage::RuleSet));
     assert_eq!(drilldown.filter_query.as_deref(), Some("MRS / GeoIP"));
 }
-
 
 #[test]
 fn test_overview_master_switches_and_exit_node_cards() {

@@ -56,7 +56,7 @@ pub(super) fn kernel_management_card<'a>(
         pick_list(
             CORE_LOG_LEVEL_OPTIONS,
             selected_log_level,
-            |choice: SettingsChoice| { Message::SetCoreLogLevel(choice.value.to_owned()) },
+            |choice: SettingsChoice| Message::SetCoreLogLevel(choice.value.to_owned()),
         )
         .width(if state.shell.viewport.tier.is_compact() {
             Length::Fill

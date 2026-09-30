@@ -510,14 +510,12 @@ impl Default for ChartCrosshairTracked {
 
 /// Drive chart crosshair and hover HUD state from pointer interaction.
 pub fn sync_chart_crosshair_tracking(
-    mut charts: Query<
-        (
-            Entity,
-            &mut ChartPlate,
-            &ChartCrosshairTracked,
-            Option<&PickingInteraction>,
-        ),
-    >,
+    mut charts: Query<(
+        Entity,
+        &mut ChartPlate,
+        &ChartCrosshairTracked,
+        Option<&PickingInteraction>,
+    )>,
 ) {
     for (_entity, mut plate, tracked, interaction) in &mut charts {
         if !tracked.0 {

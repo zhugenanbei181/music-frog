@@ -4,7 +4,20 @@
 
 > 状态依据当前工作树的代码盘点。`已补齐` 只表示入口或主要实现已经出现，不等于完成了跨平台行为、真实 mihomo 和发布验证。
 
-## 2026-09-08 主线稳定检查点
+## 2026-09-30 主线全量收官与体验重构检查点
+
+本节记录本次主线全量收官与双端现代 UI/UX 体验重构交付的实测事实：
+
+- `bash scripts/test.sh`：3,399/3,399 通过，0 跳过（涵盖 Iced、Bevy、Core、Desktop、Admin 及全量 Mock/Headless 业务测试）。
+- `cargo fmt --all -- --check`：通过。
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过（0 warning, 0 error）。
+- 质量守卫全量通过：`line-guard`（单文件 ≤800 行）violations=0，`test-layout-guard` violations=0，`import-guard` violations=0，`bevy_bsn_guard` violations=0，`core-boundary-guard` violations=0，`parity-guard` violations=0，`i18n-quality-guard` violations=0，`visual-regression-guard` violations=0，`verify-packaging` 17/17 通过。
+- 结构债务清零：超 800 行文件与生产代码测试遗留结构性债务全部清零。
+- 双端 Parity 225 项总账：223 项已达 `parity-ready` 或 `host-verified`（达成率 99.1%），仅保留 2 项外部边界（13-04 内核未暴露阶段耗时，15-10 Iced 0.14 生态缺 AccessKit）。
+- 现代双端 UI/UX 体验重构（UI-01 至 UI-04）：25 项优化任务全量闭环，四阶流体栅格、SDF 超椭圆连续曲率着色器、阻尼弹簧微动效、触控手势状态机与跨分辨率视觉回归流水线已全量交付。
+- 仍需真实平台环境验证事项（已登记于 `TODO.md` 诚实遗留清单）：Windows/macOS 真机行为取证、TUN 真实 root 网络冒烟、安装包代码签名。
+
+## 2026-09-08 主线稳定检查点（历史基线）
 
 本节记录本次主线收口的实测事实，优先于下方尚未重新审计的历史差距条目：
 

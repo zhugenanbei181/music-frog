@@ -3,7 +3,9 @@
 use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, HAIRLINE, MONO, R_CONTROL, R_PILL, R_XS, SP_MD, SP_SM, tokens};
+use crate::view::theme::{
+    FONT_MEDIUM, FONT_SEMIBOLD, HAIRLINE, MONO, R_CONTROL, R_PILL, R_XS, SP_MD, SP_SM, tokens,
+};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};

@@ -162,6 +162,7 @@ fn test_card_primitives_and_dual_shadow_surfaces() {
     // Verify constructor widgets compile and build elements
     let _card_elem: Element<'_, TestMsg> = card(Some("Title".to_string()), text("Content"));
     let _clipped_elem: Element<'_, TestMsg> = clipped_card(None, text("No title clipped"));
-    let _dual_card: Element<'_, TestMsg> = dual_shadow_card(Some("Dual".to_string()), text("Dual shadow body"));
+    let _dual_card: Element<'_, TestMsg> =
+        dual_shadow_card(Some("Dual".to_string()), text("Dual shadow body"));
     let _floating_card: Element<'_, TestMsg> = floating_dual_shadow_card(text("Floating body"));
 }

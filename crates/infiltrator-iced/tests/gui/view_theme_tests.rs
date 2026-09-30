@@ -115,16 +115,28 @@ fn test_floating_shadows() {
 fn test_dual_layer_shadows() {
     for tokens in [&LIGHT, &DARK, &FOREST, &AMOLED] {
         // Ambient shadow has larger blur than key shadow for diffuse aura
-        assert!(tokens.card_dual_shadow.ambient.blur_radius > tokens.card_dual_shadow.key.blur_radius);
-        assert!(tokens.floating_dual_shadow.ambient.blur_radius > tokens.floating_dual_shadow.key.blur_radius);
+        assert!(
+            tokens.card_dual_shadow.ambient.blur_radius > tokens.card_dual_shadow.key.blur_radius
+        );
+        assert!(
+            tokens.floating_dual_shadow.ambient.blur_radius
+                > tokens.floating_dual_shadow.key.blur_radius
+        );
 
         // Key light shadow has smaller y-offset than ambient shadow
         assert!(tokens.card_dual_shadow.ambient.offset.y >= tokens.card_dual_shadow.key.offset.y);
-        assert!(tokens.floating_dual_shadow.ambient.offset.y > tokens.floating_dual_shadow.key.offset.y);
+        assert!(
+            tokens.floating_dual_shadow.ambient.offset.y > tokens.floating_dual_shadow.key.offset.y
+        );
 
         // Floating elevation has larger blur than card elevation
-        assert!(tokens.floating_dual_shadow.ambient.blur_radius > tokens.card_dual_shadow.ambient.blur_radius);
-        assert!(tokens.floating_dual_shadow.key.blur_radius > tokens.card_dual_shadow.key.blur_radius);
+        assert!(
+            tokens.floating_dual_shadow.ambient.blur_radius
+                > tokens.card_dual_shadow.ambient.blur_radius
+        );
+        assert!(
+            tokens.floating_dual_shadow.key.blur_radius > tokens.card_dual_shadow.key.blur_radius
+        );
     }
 }
 

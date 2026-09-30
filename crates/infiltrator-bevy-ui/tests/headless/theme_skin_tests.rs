@@ -161,4 +161,3 @@ fn amoled_pitch_black_contrast_and_translucent_backdrop_adaptation() {
     let vibrancy_srgba = vibrancy_palette.window_clear.to_srgba();
     assert!((vibrancy_srgba.alpha - 0.75).abs() < 1e-4);
 }
-

@@ -211,10 +211,7 @@ pub fn form_input_style(
     }
 }
 
-pub fn form_pick_style(
-    t: &Theme,
-    status: pick_list::Status,
-) -> pick_list::Style {
+pub fn form_pick_style(t: &Theme, status: pick_list::Status) -> pick_list::Style {
     let tk = theme::tokens(t);
     let (border_color, border_width) = match status {
         pick_list::Status::Opened { .. } => (tk.focus_ring, 2.0),
@@ -294,9 +291,7 @@ pub fn responsive_form_row<'a, Message: 'a + Clone>(
         let desc_text = text(desc.into()).size(11).style(|t: &Theme| text::Style {
             color: Some(theme::tokens(t).text_secondary),
         });
-        column![label_text, desc_text]
-            .spacing(theme::SP_XS)
-            .into()
+        column![label_text, desc_text].spacing(theme::SP_XS).into()
     } else {
         label_text.into()
     };
