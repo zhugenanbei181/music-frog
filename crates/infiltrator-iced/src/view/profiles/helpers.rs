@@ -298,7 +298,7 @@ pub(super) fn traffic_row<'a>(
                     background: tk.control_bg.into(),
                     bar: bar_color.into(),
                     border: Border {
-                        radius: border::Radius::from(3.0),
+                        radius: border::Radius::from(theme::R_XS),
                         ..Default::default()
                     },
                 }

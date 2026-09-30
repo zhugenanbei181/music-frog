@@ -362,7 +362,7 @@ fn legend_indicator<'a>(
         container(Space::new().width(8).height(8)).style(move |_t: &Theme| container::Style {
             background: Some(color.into()),
             border: Border {
-                radius: border::Radius::from(4.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()
@@ -648,7 +648,7 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
                     container::Style {
                         background: Some(tk.accent.into()),
                         border: Border {
-                            radius: border::Radius::from(2.0),
+                            radius: border::Radius::from(theme::R_PILL),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -673,7 +673,7 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
         container::Style {
             background: Some(tk.chip_bg.into()),
             border: Border {
-                radius: border::Radius::from(2.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()

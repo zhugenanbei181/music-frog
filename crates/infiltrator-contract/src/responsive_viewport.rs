@@ -70,6 +70,11 @@ impl ViewportTier {
         matches!(self, Self::Compact | Self::Medium)
     }
 
+    /// Whether this tier is Compact (< 600px width).
+    pub const fn is_compact(self) -> bool {
+        matches!(self, Self::Compact)
+    }
+
     /// Number of grid columns recommended for Overview cards in this tier.
     pub const fn overview_card_columns(self) -> usize {
         match self {
@@ -269,6 +274,11 @@ mod tests {
         assert!(ViewportTier::Medium.is_narrow());
         assert!(!ViewportTier::Expanded.is_narrow());
         assert!(!ViewportTier::Ultra.is_narrow());
+
+        assert!(ViewportTier::Compact.is_compact());
+        assert!(!ViewportTier::Medium.is_compact());
+        assert!(!ViewportTier::Expanded.is_compact());
+        assert!(!ViewportTier::Ultra.is_compact());
     }
 
     #[test]

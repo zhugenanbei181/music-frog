@@ -76,6 +76,7 @@ use infiltrator_bevy_ui::pages::rules_view::{
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::gesture::SwipeToActionItem;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
@@ -330,6 +331,46 @@ fn test_proxies_select_node_submits_command() {
             group: "节点选择 (PROXIES)".to_owned(),
             node: "🇯🇵 日本东京 02 · 极速".to_owned(),
         }]
+    );
+}
+
+#[test]
+fn test_proxies_swipe_action_drawer_triggers_favorite_and_test_group() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Proxies);
+
+    let item_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .iter(app.world())
+        .next()
+        .expect("proxy card swipe item exists");
+
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .open_leading();
+
+    for _ in 0..15 {
+        app.update();
+    }
+
+    let mut pin_query = app.world_mut().query::<(Entity, &NodePinButton)>();
+    let (pin_entity, pin_btn) = pin_query
+        .iter(app.world())
+        .next()
+        .expect("node pin button");
+    let target_node_name = pin_btn.node_name.clone();
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: pin_entity });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::ToggleFavoriteProxy(target_node_name)]
     );
 }
 
@@ -830,6 +871,47 @@ fn test_connections_close_single_submits_command() {
         .iter(app.world())
         .find(|(_, btn)| btn.connection_id == "c-1")
         .expect("c-1 close button");
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: btn_entity });
+    app.update();
+
+    assert_eq!(
+        sink.submitted(),
+        vec![UiCommand::CloseConnection {
+            id: "c-1".to_owned(),
+        }]
+    );
+}
+
+#[test]
+fn test_connections_swipe_action_drawer_triggers_close_connection() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(Arc::clone(&sink));
+    navigate_to(&mut app, Route::Connections);
+
+    let item_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .iter(app.world())
+        .next()
+        .expect("connection row swipe item exists");
+
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .open_leading();
+
+    for _ in 0..15 {
+        app.update();
+    }
+
+    let mut query = app.world_mut().query::<(Entity, &CloseConnectionButton)>();
+    let (btn_entity, _) = query
+        .iter(app.world())
+        .find(|(_, btn)| btn.connection_idx == 0)
+        .expect("connection 0 close button");
 
     app.world_mut()
         .commands()

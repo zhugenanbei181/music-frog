@@ -46,3 +46,42 @@ pub fn value_node(node: ShellA11yNode, value: &str) -> AccessibilityNode {
     a11y.set_label(format!("{}: {value}", node.label_zh()));
     AccessibilityNode(a11y)
 }
+
+pub fn window_semantic_node(title: &str) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Window);
+    a11y.set_label(title);
+    AccessibilityNode(a11y)
+}
+
+pub fn header_semantic_node(title: &str) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Header);
+    a11y.set_label(title);
+    AccessibilityNode(a11y)
+}
+
+pub fn toggle_semantic_node(label: &str) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Switch);
+    a11y.set_label(label);
+    AccessibilityNode(a11y)
+}
+
+pub fn button_semantic_node(label: &str) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Button);
+    a11y.set_label(label);
+    AccessibilityNode(a11y)
+}
+
+pub fn nav_semantic_node(label: &str, disabled: bool) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Button);
+    a11y.set_label(label);
+    if disabled {
+        a11y.set_disabled();
+    }
+    AccessibilityNode(a11y)
+}
+
+pub fn region_semantic_node(label: &str) -> AccessibilityNode {
+    let mut a11y = accesskit::Node::new(accesskit::Role::Region);
+    a11y.set_label(label);
+    AccessibilityNode(a11y)
+}

@@ -36,36 +36,71 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let busy = doctor.is_running || doctor.is_fixing || doctor.is_bootstrapping;
 
-    let actions = row![
-        button(
-            text(lang.tr("doctor_btn_check").to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
-        )
-        .padding([7, 14])
-        .style(button::primary)
-        .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
-        Space::new().width(theme::SP_SM),
-        button(
-            text(lang.tr("doctor_btn_fix").to_string())
-                .size(12)
-                .font(FONT_MEDIUM)
-        )
-        .padding([7, 14])
-        .style(button::secondary)
-        .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
-        Space::new().width(theme::SP_SM),
-        button(
-            text(lang.tr("doctor_btn_bootstrap").to_string())
-                .size(12)
-                .font(FONT_MEDIUM),
-        )
-        .padding([7, 14])
-        .style(button::secondary)
-        .on_press_maybe((!doctor.is_bootstrapping && !busy).then_some(Message::RunBootstrap)),
-    ]
-    .spacing(0)
-    .align_y(Alignment::Center);
+    let actions: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
+        column![
+            button(
+                text(lang.tr("doctor_btn_check").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .width(Length::Fill)
+            .padding([7, 14])
+            .style(button::primary)
+            .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
+            button(
+                text(lang.tr("doctor_btn_fix").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .width(Length::Fill)
+            .padding([7, 14])
+            .style(button::secondary)
+            .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
+            button(
+                text(lang.tr("doctor_btn_bootstrap").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .width(Length::Fill)
+            .padding([7, 14])
+            .style(button::secondary)
+            .on_press_maybe((!doctor.is_bootstrapping && !busy).then_some(Message::RunBootstrap)),
+        ]
+        .spacing(theme::SP_SM)
+        .into()
+    } else {
+        row![
+            button(
+                text(lang.tr("doctor_btn_check").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .padding([7, 14])
+            .style(button::primary)
+            .on_press_maybe((!doctor.is_running && !busy).then_some(Message::RunDoctor)),
+            Space::new().width(theme::SP_SM),
+            button(
+                text(lang.tr("doctor_btn_fix").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .padding([7, 14])
+            .style(button::secondary)
+            .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
+            Space::new().width(theme::SP_SM),
+            button(
+                text(lang.tr("doctor_btn_bootstrap").to_string())
+                    .size(12)
+                    .font(FONT_MEDIUM),
+            )
+            .padding([7, 14])
+            .style(button::secondary)
+            .on_press_maybe((!doctor.is_bootstrapping && !busy).then_some(Message::RunBootstrap)),
+        ]
+        .spacing(0)
+        .align_y(Alignment::Center)
+        .into()
+    };
 
     let mut body = column![].spacing(theme::SP_SM);
 

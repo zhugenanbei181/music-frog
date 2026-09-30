@@ -3,8 +3,10 @@
 use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::components::{BadgeKind, badge, chip};
+use crate::view::theme::{HAIRLINE, MONO, R_CHIP, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
 use iced::widget::{Space, button, column, container, row, scrollable, text};
-use iced::{Alignment, Border, Color, Element, Length, Theme};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn rule_provider_diff_modal<'a>(
@@ -16,21 +18,21 @@ pub fn rule_provider_diff_modal<'a>(
     let mut diff_items = column![].spacing(6);
 
     let chips_row = row![
-        crate::view::components::chip(format!(
+        chip(format!(
             "{}: {} {}",
             lang.tr("modal_local"),
             diff.local_count,
             lang.tr("modal_items_count")
         )),
-        Space::new().width(crate::view::theme::SP_XS),
-        crate::view::components::chip(format!(
+        Space::new().width(SP_XS),
+        chip(format!(
             "{}: {} {}",
             lang.tr("modal_remote"),
             diff.remote_count,
             lang.tr("modal_items_count")
         )),
-        Space::new().width(crate::view::theme::SP_XS),
-        crate::view::components::chip(format!(
+        Space::new().width(SP_XS),
+        chip(format!(
             "{}: {}",
             lang.tr("modal_unchanged"),
             diff.unchanged_count
@@ -61,7 +63,7 @@ pub fn rule_provider_diff_modal<'a>(
                     .size(11)
                     .font(crate::view::theme::MONO)
                     .style(|t: &Theme| text::Style {
-                        color: Some(crate::view::theme::tokens(t).text_primary),
+                        color: Some(tokens(t).text_primary),
                     }),
             ]
             .align_y(Alignment::Center);
@@ -71,12 +73,12 @@ pub fn rule_provider_diff_modal<'a>(
                     .padding([6, 10])
                     .width(Length::Fill)
                     .style(|t: &Theme| {
-                        let tk = crate::view::theme::tokens(t);
+                        let tk = tokens(t);
                         container::Style {
                             background: Some(tk.control_bg.into()),
                             border: Border {
-                                radius: 6.0.into(),
-                                width: crate::view::theme::HAIRLINE,
+                                radius: border::Radius::from(R_CHIP),
+                                width: HAIRLINE,
                                 color: Color {
                                     a: 0.15,
                                     ..tk.success
@@ -89,13 +91,13 @@ pub fn rule_provider_diff_modal<'a>(
         }
         for removed in &diff.removed_rules {
             let row_item = row![
-                crate::view::components::badge("- Del", crate::view::components::BadgeKind::Danger),
-                Space::new().width(crate::view::theme::SP_SM),
+                badge("- Del", BadgeKind::Danger),
+                Space::new().width(SP_SM),
                 text(removed.clone())
                     .size(11)
-                    .font(crate::view::theme::MONO)
+                    .font(MONO)
                     .style(|t: &Theme| text::Style {
-                        color: Some(crate::view::theme::tokens(t).text_primary),
+                        color: Some(tokens(t).text_primary),
                     }),
             ]
             .align_y(Alignment::Center);
@@ -105,12 +107,12 @@ pub fn rule_provider_diff_modal<'a>(
                     .padding([6, 10])
                     .width(Length::Fill)
                     .style(|t: &Theme| {
-                        let tk = crate::view::theme::tokens(t);
+                        let tk = tokens(t);
                         container::Style {
                             background: Some(tk.control_bg.into()),
                             border: Border {
-                                radius: 6.0.into(),
-                                width: crate::view::theme::HAIRLINE,
+                                radius: border::Radius::from(R_CHIP),
+                                width: HAIRLINE,
                                 color: Color {
                                     a: 0.15,
                                     ..tk.danger
@@ -176,25 +178,25 @@ pub fn rule_provider_diff_modal<'a>(
 
     let form = column![
         header,
-        Space::new().height(crate::view::theme::SP_SM),
+        Space::new().height(SP_SM),
         chips_row,
-        Space::new().height(crate::view::theme::SP_SM),
+        Space::new().height(SP_SM),
         container(diff_scrollable)
             .padding(8)
             .width(Length::Fill)
             .style(|t: &Theme| {
-                let tk = crate::view::theme::tokens(t);
+                let tk = tokens(t);
                 container::Style {
                     background: Some(tk.control_bg.into()),
                     border: Border {
-                        radius: 10.0.into(),
-                        width: crate::view::theme::HAIRLINE,
+                        radius: border::Radius::from(R_CONTROL),
+                        width: HAIRLINE,
                         color: tk.card_border,
                     },
                     ..Default::default()
                 }
             }),
-        Space::new().height(crate::view::theme::SP_MD),
+        Space::new().height(SP_MD),
         actions,
     ]
     .spacing(6);

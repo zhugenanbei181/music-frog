@@ -691,7 +691,7 @@ fn high_throughput_pulse<'a>(label: String, intensity: f32) -> Element<'a, Messa
                         .into(),
                     ),
                     border: Border {
-                        radius: 4.0.into(),
+                        radius: theme::R_XS.into(),
                         width: theme::HAIRLINE,
                         color: Color {
                             a: intensity,
@@ -716,7 +716,7 @@ fn high_throughput_pulse<'a>(label: String, intensity: f32) -> Element<'a, Messa
             .into(),
         ),
         border: Border {
-            radius: 999.0.into(),
+            radius: theme::R_PILL.into(),
             width: theme::HAIRLINE,
             color: Color {
                 a: intensity,

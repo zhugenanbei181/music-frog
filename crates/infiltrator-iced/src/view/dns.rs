@@ -5,7 +5,8 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view::component_forms::{
     banner_alert, editor_frame_surface, form_field_label, form_input_style, form_pick_style,
-    form_toggle_row, row_card_surface, style_accent, style_ghost, text_btn,
+    form_toggle_row, responsive_form_row, responsive_form_toggle_row, row_card_surface,
+    style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{
     BadgeKind, badge, card, empty_state, icon_button, modern_scrollable, section_header,
@@ -327,18 +328,17 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             )
         ),
         Space::new().height(theme::SP_MD),
-        form_toggle_row(
+        responsive_form_toggle_row(
+            state.shell.viewport.tier,
             "enable",
+            None::<&str>,
             state.editor.tun_form.enable,
-            Message::UpdateTunFormEnable
+            Message::UpdateTunFormEnable,
         ),
-        row![
-            text("stack")
-                .size(13)
-                .width(Length::Fixed(150.0))
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary)
-                }),
+        responsive_form_row(
+            state.shell.viewport.tier,
+            "stack",
+            None::<&str>,
             pick_list(
                 &["gvisor", "system", "mixed"][..],
                 if ["gvisor", "system", "mixed"].contains(&state.editor.tun_form.stack.as_str()) {
@@ -346,12 +346,15 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
                 } else {
                     None
                 },
-                |v| Message::UpdateTunFormStack(v.to_string())
+                |v| Message::UpdateTunFormStack(v.to_string()),
             )
-            .width(Length::Fixed(180.0))
+            .width(if state.shell.viewport.tier.is_compact() {
+                Length::Fill
+            } else {
+                Length::Shrink
+            })
             .style(form_pick_style),
-        ]
-        .align_y(Alignment::Center),
+        ),
         form_field_label("mtu".to_string()),
         text_input("1500", &state.editor.tun_form.mtu)
             .on_input(Message::UpdateTunFormMtu)
@@ -365,20 +368,26 @@ fn tun_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
             .padding([8, 12])
             .size(12)
             .style(form_input_style),
-        form_toggle_row(
+        responsive_form_toggle_row(
+            state.shell.viewport.tier,
             "auto_route",
+            None::<&str>,
             state.editor.tun_form.auto_route,
-            Message::UpdateTunFormAutoRoute
+            Message::UpdateTunFormAutoRoute,
         ),
-        form_toggle_row(
+        responsive_form_toggle_row(
+            state.shell.viewport.tier,
             "auto_detect_interface",
+            None::<&str>,
             state.editor.tun_form.auto_detect_interface,
-            Message::UpdateTunFormAutoDetectInterface
+            Message::UpdateTunFormAutoDetectInterface,
         ),
-        form_toggle_row(
+        responsive_form_toggle_row(
+            state.shell.viewport.tier,
             "strict_route",
+            None::<&str>,
             state.editor.tun_form.strict_route,
-            Message::UpdateTunFormStrictRoute
+            Message::UpdateTunFormStrictRoute,
         ),
     ]
     .spacing(theme::SP_SM);

@@ -10,11 +10,14 @@ use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, UiRect, Val, percent, px,
+    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::gesture::{
+    SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
+};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -445,11 +448,9 @@ pub fn proxy_node_scene(
         Node {
             width: percent(31),
             min_height: px(58.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
             border: UiRect::all(border_width),
             border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            overflow: Overflow::clip(),
         }
         BackgroundColor({ bg })
         BorderColor {
@@ -466,84 +467,125 @@ pub fn proxy_node_scene(
             node_name: { node.name.clone() },
         }
         Button
+        SwipeToActionItem {
+            offset_x: 0.0,
+            max_action_width: 88.0,
+        }
+        SwipeToActionSpring::default()
         Children [
             (
                 Node {
+                    width: percent(100),
+                    min_height: px(58.0),
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    flex_grow: 1.0,
-                    overflow: Overflow::clip(),
+                    justify_content: JustifyContent::SpaceBetween,
+                    padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
                 }
+                SwipeContentContainer
                 Children [
                     (
-                        Text({ star.to_owned() })
-                        TextRole(Role::BodyStrong)
-                        TextColor({ star_color })
-                    ),
-                    (
-                        Text({ "📌".to_owned() })
-                        NodePinButton {
-                            group_idx: g_idx,
-                            node_idx: n_idx,
-                            node_name: { name.clone() },
-                        }
-                        TextRole(Role::Caption)
-                        TextColor({ if node.favorite { palette.warning } else { palette.ink_dim } })
-                    ),
-                    (
-                        Text({ "ℹ️".to_owned() })
-                        NodeDetailButton {
-                            group_idx: g_idx,
-                            node_idx: n_idx,
-                            node_name: { name.clone() },
-                        }
-                        Button
-                        TextRole(Role::Caption)
-                        TextColor({ palette.ink_dim })
-                    ),
-                    (
-                        Text({ flag.to_owned() })
-                        NodeFlagText { group_idx: g_idx, node_idx: n_idx }
-                        TextRole(Role::BodyStrong)
-                    ),
-                    (
                         Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S2),
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                            flex_grow: 1.0,
                             overflow: Overflow::clip(),
                         }
                         Children [
                             (
-                                Text(name)
-                                NodeNameText { group_idx: g_idx, node_idx: n_idx }
+                                Text({ star.to_owned() })
+                                TextRole(Role::BodyStrong)
+                                TextColor({ star_color })
+                            ),
+                            (
+                                Text({ "📌".to_owned() })
+                                NodePinButton {
+                                    group_idx: g_idx,
+                                    node_idx: n_idx,
+                                    node_name: { name.clone() },
+                                }
+                                TextRole(Role::Caption)
+                                TextColor({ if node.favorite { palette.warning } else { palette.ink_dim } })
+                            ),
+                            (
+                                Text({ "ℹ️".to_owned() })
+                                NodeDetailButton {
+                                    group_idx: g_idx,
+                                    node_idx: n_idx,
+                                    node_name: { name.clone() },
+                                }
+                                Button
+                                TextRole(Role::Caption)
+                                TextColor({ palette.ink_dim })
+                            ),
+                            (
+                                Text({ flag.to_owned() })
+                                NodeFlagText { group_idx: g_idx, node_idx: n_idx }
                                 TextRole(Role::BodyStrong)
                             ),
                             (
                                 Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S4),
-                                    flex_wrap: FlexWrap::Wrap,
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S2),
+                                    overflow: Overflow::clip(),
                                 }
                                 Children [
                                     (
+                                        Text({ name.clone() })
+                                        NodeNameText { group_idx: g_idx, node_idx: n_idx }
+                                        TextRole(Role::BodyStrong)
+                                    ),
+                                    (
                                         Node {
-                                            padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
-                                            border_radius: BorderRadius::all(Val::Px(4.0)),
                                             align_items: AlignItems::Center,
-                                            justify_content: JustifyContent::Center,
+                                            column_gap: Val::Px(space::S4),
+                                            flex_wrap: FlexWrap::Wrap,
                                         }
-                                        BackgroundColor({ palette.surface })
                                         Children [
                                             (
-                                                Text(proto_tag)
-                                                NodeProtoText { group_idx: g_idx, node_idx: n_idx }
-                                                TextRole(Role::Caption)
+                                                Node {
+                                                    padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                                    align_items: AlignItems::Center,
+                                                    justify_content: JustifyContent::Center,
+                                                }
+                                                BackgroundColor({ palette.surface })
+                                                Children [
+                                                    (
+                                                        Text(proto_tag)
+                                                        NodeProtoText { group_idx: g_idx, node_idx: n_idx }
+                                                        TextRole(Role::Caption)
+                                                    ),
+                                                ]
                                             ),
+                                            { udp_chip },
+                                            { feature_chips },
                                         ]
                                     ),
-                                    { udp_chip },
-                                    { feature_chips },
                                 ]
+                            ),
+                        ]
+                    ),
+                    (
+                        Node {
+                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: Val::Px(space::S4),
+                        }
+                        BackgroundColor({ palette.surface })
+                        LatencySkeletonPulse { group_idx: g_idx, node_idx: n_idx }
+                        Children [
+                            (
+                                Text({ "📈".to_owned() })
+                                LatencyTrendIcon { group_idx: g_idx, node_idx: n_idx }
+                                TextRole(Role::Caption)
+                            ),
+                            (
+                                Text(delay_str)
+                                LatencyText { group_idx: g_idx, node_idx: n_idx }
+                                TextRole(Role::Mono)
+                                TextColor(delay_color_val)
                             ),
                         ]
                     ),
@@ -551,25 +593,53 @@ pub fn proxy_node_scene(
             ),
             (
                 Node {
-                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    position_type: PositionType::Absolute,
+                    right: px(0.0),
+                    top: px(0.0),
+                    bottom: px(0.0),
+                    width: px(88.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     column_gap: Val::Px(space::S4),
+                    display: Display::None,
                 }
-                BackgroundColor({ palette.surface })
-                LatencySkeletonPulse { group_idx: g_idx, node_idx: n_idx }
+                SwipeActionDrawer
+                BackgroundColor({ palette.surface_elevated })
                 Children [
                     (
-                        Text({ "📈".to_owned() })
-                        LatencyTrendIcon { group_idx: g_idx, node_idx: n_idx }
-                        TextRole(Role::Caption)
+                        Node {
+                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                        }
+                        BackgroundColor({ palette.warning })
+                        Button
+                        NodePinButton {
+                            group_idx: g_idx,
+                            node_idx: n_idx,
+                            node_name: { name },
+                        }
+                        Children [
+                            ( Text({ "★".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.surface }) ),
+                        ]
                     ),
                     (
-                        Text(delay_str)
-                        LatencyText { group_idx: g_idx, node_idx: n_idx }
-                        TextRole(Role::Mono)
-                        TextColor(delay_color_val)
+                        Node {
+                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                        }
+                        BackgroundColor({ palette.accent })
+                        Button
+                        TestProxyGroupButton {
+                            group_idx: { g_idx },
+                            group_name: { group_name.to_owned() },
+                        }
+                        Children [
+                            ( Text({ "⚡".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.surface }) ),
+                        ]
                     ),
                 ]
             ),

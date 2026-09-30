@@ -1,7 +1,13 @@
 //! Custom shader effects, analytical SDF box shadows, Kawase blur metrics, and OKLCH color science.
 
-use bevy::color::Color;
+use bevy::app::{App, Plugin};
+use bevy::asset::{Asset, AssetApp, embedded_asset};
+use bevy::color::{Color, LinearRgba};
 use bevy::math::Vec2;
+use bevy::reflect::TypePath;
+use bevy::render::render_resource::{AsBindGroup, ShaderType};
+use bevy::shader::{Shader, ShaderRef};
+use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
 
 /// Fallback mode for shader effects on low-power or non-shader targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -44,6 +50,63 @@ impl SdfRoundedBox {
     pub fn coverage_at(&self, point: Vec2, pixel_scale: f32) -> f32 {
         let dist = self.distance_at(point);
         (1.0 - dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0)
+    }
+}
+
+/// G2 continuous curvature superellipse (Squircle) Signed Distance Field.
+///
+/// Implements superellipse formula `(|x|/a)^p + (|y|/b)^p = 1` where
+/// `p = 2.0 + 3.0 * smoothing`. When `smoothing = 0.0` (p = 2.0), this reduces
+/// to a standard G1 circular fillet. When `smoothing = 1.0` (p = 5.0), it forms
+/// a G2 continuous squircle with no sharp curvature jump at the corner seam.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SdfSquircle {
+    pub size: Vec2,
+    pub radius: f32,
+    pub smoothing: f32,
+    pub border_width: f32,
+}
+
+impl SdfSquircle {
+    pub fn new(size: Vec2, radius: f32, smoothing: f32, border_width: f32) -> Self {
+        Self {
+            size,
+            radius,
+            smoothing: smoothing.clamp(0.0, 1.0),
+            border_width,
+        }
+    }
+
+    /// Exact signed distance from a 2D point relative to the squircle center.
+    /// Negative inside the shape, 0 on the boundary, positive outside.
+    pub fn distance_at(&self, point: Vec2) -> f32 {
+        let half_size = self.size * 0.5;
+        let safe_r = self.radius.clamp(0.0, half_size.x.min(half_size.y));
+        let q = point.abs() - (half_size - Vec2::splat(safe_r));
+        let p_exp = 2.0 + 3.0 * self.smoothing;
+
+        if q.x > 0.0 && q.y > 0.0 {
+            (q.x.powf(p_exp) + q.y.powf(p_exp)).powf(1.0 / p_exp) - safe_r
+        } else {
+            q.x.max(q.y) - safe_r
+        }
+    }
+
+    /// Evaluates coverage factor [0.0, 1.0] for anti-aliasing given pixel scale.
+    pub fn coverage_at(&self, point: Vec2, pixel_scale: f32) -> f32 {
+        let dist = self.distance_at(point);
+        (1.0 - dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0)
+    }
+
+    /// Evaluates border band coverage factor [0.0, 1.0].
+    pub fn border_coverage_at(&self, point: Vec2, pixel_scale: f32) -> f32 {
+        if self.border_width <= 0.0 {
+            return 0.0;
+        }
+        let outer_cov = self.coverage_at(point, pixel_scale);
+        let inner_dist = self.distance_at(point) + self.border_width;
+        let inner_cov = (1.0 - inner_dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0);
+        (outer_cov - inner_cov).clamp(0.0, 1.0)
     }
 }
 
@@ -282,9 +345,119 @@ impl GlowSpec {
     }
 }
 
+/// Multi-tier analytical elevation levels for cards, modals, and tooltips.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ModernSurfaceElevation {
+    #[default]
+    None,
+    Low,
+    Medium,
+    High,
+}
+
+impl ModernSurfaceElevation {
+    /// Return physical parameters: (offset_y, blur_radius, spread, ambient_alpha, key_alpha).
+    pub const fn params(&self) -> (f32, f32, f32, f32, f32) {
+        match self {
+            Self::None => (0.0, 0.0, 0.0, 0.0, 0.0),
+            Self::Low => (2.0, 4.0, 0.0, 0.04, 0.08),
+            Self::Medium => (6.0, 12.0, 1.0, 0.06, 0.12),
+            Self::High => (16.0, 32.0, 2.0, 0.08, 0.20),
+        }
+    }
+}
+
+/// Uniform data transmitted to the `modern_surface.wgsl` shader.
+#[derive(ShaderType, Clone, Copy, Debug, PartialEq)]
+pub struct ModernSurfaceUniform {
+    pub color: LinearRgba,
+    pub border_color: LinearRgba,
+    pub shadow_color: LinearRgba,
+    pub dimensions: Vec2,
+    pub radius: f32,
+    pub border_width: f32,
+    pub smoothing: f32,
+    pub shadow_offset: Vec2,
+    pub shadow_blur: f32,
+    pub shadow_spread: f32,
+    pub ambient_alpha: f32,
+    pub key_alpha: f32,
+}
+
+/// GPU UI material rendering G2 continuous squircle surfaces and analytical drop shadows.
+#[derive(AsBindGroup, Asset, TypePath, Debug, Clone, PartialEq)]
+pub struct ModernSurfaceMaterial {
+    #[uniform(0)]
+    pub uniform: ModernSurfaceUniform,
+}
+
+impl UiMaterial for ModernSurfaceMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "embedded://infiltrator_bevy_widgets/modern_surface.wgsl".into()
+    }
+}
+
+impl ModernSurfaceMaterial {
+    /// Create a modern surface card with G2 curvature, border, and analytical shadow.
+    pub fn card(
+        dimensions: Vec2,
+        radius: f32,
+        smoothing: f32,
+        fill: Color,
+        border: Color,
+        border_width: f32,
+        elevation: ModernSurfaceElevation,
+    ) -> Self {
+        let (offset_y, blur, spread, ambient_alpha, key_alpha) = elevation.params();
+        Self {
+            uniform: ModernSurfaceUniform {
+                color: LinearRgba::from(fill),
+                border_color: LinearRgba::from(border),
+                shadow_color: LinearRgba::BLACK,
+                dimensions,
+                radius,
+                border_width,
+                smoothing: smoothing.clamp(0.0, 1.0),
+                shadow_offset: Vec2::new(0.0, offset_y),
+                shadow_blur: blur,
+                shadow_spread: spread,
+                ambient_alpha,
+                key_alpha,
+            },
+        }
+    }
+
+    /// Create a simple squircle with fill and optional border, no shadow.
+    pub fn squircle(dimensions: Vec2, radius: f32, smoothing: f32, fill: Color) -> Self {
+        Self::card(
+            dimensions,
+            radius,
+            smoothing,
+            fill,
+            Color::NONE,
+            0.0,
+            ModernSurfaceElevation::None,
+        )
+    }
+}
+
+/// Plugin registering modern surface squircle and shadow assets and shaders.
+#[derive(Default)]
+pub struct ModernSurfacePlugin;
+
+impl Plugin for ModernSurfacePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_asset::<Shader>();
+        embedded_asset!(app, "modern_surface.wgsl");
+        app.add_plugins(UiMaterialPlugin::<ModernSurfaceMaterial>::default());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::MinimalPlugins;
+    use bevy::asset::{AssetPlugin, Assets};
 
     #[test]
     fn test_sdf_rounded_box_distance_and_coverage() {
@@ -318,5 +491,99 @@ mod tests {
 
         let a_max = glow.current_alpha(0.25); // sin(pi/2)=1 -> 1.0 -> max_alpha
         assert!((a_max - glow.max_alpha).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_sdf_squircle_distance_and_curvature() {
+        let size = Vec2::new(120.0, 80.0);
+        let radius = 16.0;
+
+        let circular = SdfSquircle::new(size, radius, 0.0, 2.0);
+        let superellipse = SdfSquircle::new(size, radius, 1.0, 2.0);
+
+        // Center must be strictly inside (negative distance)
+        assert!(circular.distance_at(Vec2::ZERO) < 0.0);
+        assert!(superellipse.distance_at(Vec2::ZERO) < 0.0);
+
+        // Far outside must be positive distance
+        assert!(circular.distance_at(Vec2::new(200.0, 200.0)) > 0.0);
+        assert!(superellipse.distance_at(Vec2::new(200.0, 200.0)) > 0.0);
+
+        // At corner diagonal: (half_size - radius + radius * cos(45deg))
+        // Superellipse with p=5.0 fills corner more than circle with p=2.0
+        let corner_pt = (size * 0.5) - Vec2::splat(radius)
+            + Vec2::splat(radius * std::f32::consts::FRAC_1_SQRT_2);
+        let d_circ = circular.distance_at(corner_pt);
+        let d_super = superellipse.distance_at(corner_pt);
+        assert!(
+            d_super < d_circ,
+            "superellipse must fill corner more fully than circular arc (d_super={d_super}, d_circ={d_circ})"
+        );
+
+        // Anti-aliasing coverage
+        assert_eq!(superellipse.coverage_at(Vec2::ZERO, 1.0), 1.0);
+        assert_eq!(superellipse.coverage_at(Vec2::new(300.0, 300.0), 1.0), 0.0);
+
+        // Border coverage
+        let edge_pt = Vec2::new(size.x * 0.5 - 1.0, 0.0);
+        let b_cov = superellipse.border_coverage_at(edge_pt, 1.0);
+        assert!(b_cov > 0.0 && b_cov <= 1.0);
+    }
+
+    #[test]
+    fn test_modern_surface_elevation_params() {
+        let none = ModernSurfaceElevation::None.params();
+        let low = ModernSurfaceElevation::Low.params();
+        let medium = ModernSurfaceElevation::Medium.params();
+        let high = ModernSurfaceElevation::High.params();
+
+        assert_eq!(none.1, 0.0); // blur_radius
+        assert!(low.1 < medium.1);
+        assert!(medium.1 < high.1);
+        assert!(low.3 < medium.3); // ambient_alpha
+        assert!(medium.3 < high.3);
+        assert!(low.4 < medium.4); // key_alpha
+        assert!(medium.4 < high.4);
+    }
+
+    #[test]
+    fn test_modern_surface_material_construction() {
+        let card = ModernSurfaceMaterial::card(
+            Vec2::new(280.0, 160.0),
+            16.0,
+            0.8,
+            Color::srgba(0.1, 0.1, 0.1, 1.0),
+            Color::srgba(0.3, 0.3, 0.3, 1.0),
+            1.5,
+            ModernSurfaceElevation::Medium,
+        );
+
+        assert_eq!(card.uniform.dimensions, Vec2::new(280.0, 160.0));
+        assert_eq!(card.uniform.radius, 16.0);
+        assert_eq!(card.uniform.smoothing, 0.8);
+        assert_eq!(card.uniform.border_width, 1.5);
+        assert_eq!(card.uniform.shadow_offset, Vec2::new(0.0, 6.0));
+        assert_eq!(card.uniform.shadow_blur, 12.0);
+        assert_eq!(card.uniform.shadow_spread, 1.0);
+
+        let squircle =
+            ModernSurfaceMaterial::squircle(Vec2::new(100.0, 100.0), 20.0, 0.5, Color::WHITE);
+        assert_eq!(squircle.uniform.dimensions, Vec2::new(100.0, 100.0));
+        assert_eq!(squircle.uniform.shadow_blur, 0.0);
+    }
+
+    #[test]
+    fn test_modern_surface_plugin_registration() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.add_plugins(ModernSurfacePlugin);
+
+        // Assets<ModernSurfaceMaterial> must exist and be accessible
+        let assets = app.world().get_resource::<Assets<ModernSurfaceMaterial>>();
+        assert!(
+            assets.is_some(),
+            "ModernSurfaceMaterial assets must be initialized by plugin"
+        );
     }
 }

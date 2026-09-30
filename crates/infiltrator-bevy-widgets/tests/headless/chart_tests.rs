@@ -11,6 +11,7 @@ use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Commands;
 use bevy::image::Image;
+use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -26,8 +27,8 @@ use infiltrator_bevy_widgets::chart::histogram::{
     tier_to_rgba,
 };
 use infiltrator_bevy_widgets::chart::interaction::{
-    CrosshairState, TimeRangeZoom, apply_zoom_pan, decimate_lttb, decimate_min_max,
-    find_nearest_sample_index,
+    CrosshairState, TimeRangeZoom, apply_zoom_pan, compute_chart_hud_rect, compute_instant_rates,
+    decimate_lttb, decimate_min_max, find_nearest_sample_index,
 };
 use infiltrator_bevy_widgets::chart::mesh::{
     build_curve_area_mesh, build_curve_ribbon_mesh, build_donut_sector_mesh,
@@ -39,8 +40,8 @@ use infiltrator_bevy_widgets::chart::topology::{
     TopologyLink, TopologyNode, TopologyPlate, TopologySpec, rasterize_topology, topology_scene,
 };
 use infiltrator_bevy_widgets::chart::{
-    ChartLayer, ChartPlate, ChartSpec, Grid, chart_scene, polyline, rasterize, sparkline_image,
-    to_rgba8,
+    ChartCrosshairTracked, ChartLayer, ChartPlate, ChartSpec, Grid, chart_scene, polyline,
+    rasterize, sparkline_image, to_rgba8,
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
@@ -490,6 +491,94 @@ fn interactive_crosshair_and_nearest_sample_snapping() {
 }
 
 #[test]
+fn micro_hud_tooltip_geometry_and_instant_rates() {
+    let up = vec![100.0, 200.0, 300.0, 400.0, 500.0];
+    let down = vec![50.0, 150.0, 250.0, 350.0, 450.0];
+
+    // Inspect at sample index 2 (middle): relative time is 2 - (5 - 1) = -2s
+    let rates = compute_instant_rates(&up, &down, 2).expect("rates exist");
+    assert_eq!(rates.index, 2);
+    assert_eq!(rates.upload_bps, 300.0);
+    assert_eq!(rates.download_bps, 250.0);
+    assert_eq!(rates.relative_time_secs, -2);
+
+    // Latest sample (index 4): relative time is 0s
+    let latest = compute_instant_rates(&up, &down, 4).expect("latest exists");
+    assert_eq!(latest.relative_time_secs, 0);
+
+    // Geometry clamping:
+    // Left/middle cursor: HUD placed to the right of cursor
+    let (hx1, hy1) = compute_chart_hud_rect(100.0, 50.0, 500.0, 200.0, 80.0, 30.0);
+    assert_eq!(hx1, 106.0); // 100 + 6
+    assert_eq!(hy1, 35.0); // 50 - 15
+
+    // Right-edge cursor: HUD automatically flips to the left to prevent overflow
+    let (hx2, _hy2) = compute_chart_hud_rect(480.0, 50.0, 500.0, 200.0, 80.0, 30.0);
+    assert!(hx2 < 480.0, "must flip left of cursor");
+    assert_eq!(hx2, 480.0 - 6.0 - 80.0);
+
+    // Top-edge cursor: HUD clamped to top margin (6.0)
+    let (_hx3, hy3) = compute_chart_hud_rect(100.0, 5.0, 500.0, 200.0, 80.0, 30.0);
+    assert!(hy3 >= 6.0);
+}
+
+#[test]
+fn chart_crosshair_hover_tracking_system() {
+    let mut app = headless_app();
+    let chart_entity = app
+        .world_mut()
+        .spawn((
+            ChartPlate(ChartSpec::new(
+                vec![10.0, 20.0, 30.0],
+                vec![5.0, 15.0, 25.0],
+                300,
+                100,
+            )),
+            ChartCrosshairTracked(true),
+            PickingInteraction::None,
+        ))
+        .id();
+
+    app.update();
+
+    // 1. Unhovered: crosshair is None
+    {
+        let plate = app.world().get::<ChartPlate>(chart_entity).unwrap();
+        assert!(plate.0.crosshair.is_none());
+    }
+
+    // 2. Hovered: crosshair becomes active with instant rate snapping
+    app.world_mut()
+        .entity_mut(chart_entity)
+        .insert(PickingInteraction::Hovered);
+    app.update();
+
+    {
+        let plate = app.world().get::<ChartPlate>(chart_entity).unwrap();
+        let crosshair = plate
+            .0
+            .crosshair
+            .as_ref()
+            .expect("crosshair activated on hover");
+        assert!(crosshair.active);
+        assert!(crosshair.up_value.is_some());
+        assert!(crosshair.down_value.is_some());
+        assert!(crosshair.snapped_index.is_some());
+    }
+
+    // 3. Unhovered: crosshair deactivated
+    app.world_mut()
+        .entity_mut(chart_entity)
+        .insert(PickingInteraction::None);
+    app.update();
+
+    {
+        let plate = app.world().get::<ChartPlate>(chart_entity).unwrap();
+        assert!(plate.0.crosshair.is_none());
+    }
+}
+
+#[test]
 fn time_range_zoom_and_lttb_decimation() {
     let samples: Vec<f32> = (0..100).map(|i| (i as f32 * 0.1).sin()).collect();
 
@@ -577,4 +666,68 @@ fn test_radar_geometry_and_composite_health_scoring() {
     let mut detector = BandwidthSaturationDetector::new(50_000_000);
     detector.update(46_000_000, 2_000_000);
     assert_eq!(detector.alert_level(40_000_000), SaturationLevel::Saturated);
+}
+
+#[test]
+fn topology_hover_chain_highlight_and_linear_flow_advancement() {
+    let nodes = vec![
+        TopologyNode::new(
+            "inbound",
+            "Inbound",
+            infiltrator_bevy_widgets::chart::topology::NodeCategory::Inbound,
+            0.1,
+            0.5,
+        ),
+        TopologyNode::new(
+            "ruleset",
+            "RuleSet",
+            infiltrator_bevy_widgets::chart::topology::NodeCategory::Rule,
+            0.5,
+            0.5,
+        ),
+        TopologyNode::new(
+            "outbound",
+            "Outbound",
+            infiltrator_bevy_widgets::chart::topology::NodeCategory::Outbound,
+            0.9,
+            0.5,
+        ),
+    ];
+    let links = vec![
+        TopologyLink::new("inbound", "ruleset", 5_000_000.0),
+        TopologyLink::new("ruleset", "outbound", 4_500_000.0),
+    ];
+    let normal_spec = TopologySpec::new(nodes.clone(), links.clone(), 200, 100).with_flow(0.0, 1.5);
+    let hovered_spec = TopologySpec::new(nodes, links, 200, 100)
+        .with_flow(0.0, 1.5)
+        .with_hovered_stage(Some("ruleset".to_string()));
+
+    let palette = UiPalette::new(&Theme::dark());
+    let normal_pixels = rasterize_topology(&normal_spec, &palette);
+    let hovered_pixels = rasterize_topology(&hovered_spec, &palette);
+
+    assert_eq!(normal_pixels.len(), hovered_pixels.len());
+    // Hovering a node highlights the entire chain, causing pixel buffer divergence
+    assert_ne!(
+        normal_pixels, hovered_pixels,
+        "hovering node must alter rasterized highlights"
+    );
+
+    // Verify advancement system
+    let mut app = headless_app();
+    let plate_entity = app
+        .world_mut()
+        .spawn(TopologyPlate(hovered_spec))
+        .id();
+
+    // Advance time across updates
+    app.update();
+    std::thread::sleep(std::time::Duration::from_millis(25));
+    app.update();
+
+    let plate = app.world().get::<TopologyPlate>(plate_entity).unwrap();
+    assert!(
+        plate.0.flow_phase > 0.0,
+        "flow phase must advance under active hovered topology"
+    );
 }

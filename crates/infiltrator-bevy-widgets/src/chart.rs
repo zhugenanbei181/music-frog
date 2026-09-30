@@ -46,6 +46,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
+use bevy::picking::hover::PickingInteraction;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, Overflow, percent, px};
@@ -463,6 +464,7 @@ pub fn chart_scene_with_scale(
             overflow: Overflow::clip(),
         }
         ChartPlate({ spec })
+        ChartCrosshairTracked(true)
     }
 }
 
@@ -492,6 +494,60 @@ pub fn sync_charts(
                     ..ImageNode::default()
                 });
             }
+        }
+    }
+}
+
+/// Marker component on a chart entity to enable interactive crosshair tracking and HUD inspection (UI-04-04).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChartCrosshairTracked(pub bool);
+
+impl Default for ChartCrosshairTracked {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
+/// Drive chart crosshair and hover HUD state from pointer interaction.
+pub fn sync_chart_crosshair_tracking(
+    mut charts: Query<
+        (
+            Entity,
+            &mut ChartPlate,
+            &ChartCrosshairTracked,
+            Option<&PickingInteraction>,
+        ),
+    >,
+) {
+    for (_entity, mut plate, tracked, interaction) in &mut charts {
+        if !tracked.0 {
+            if plate.0.crosshair.is_some() {
+                plate.0.crosshair = None;
+            }
+            continue;
+        }
+        let is_hovered = matches!(
+            interaction,
+            Some(PickingInteraction::Hovered | PickingInteraction::Pressed)
+        );
+        if is_hovered {
+            if plate.0.crosshair.is_none() {
+                let default_x = plate.0.width as f32 * 0.75;
+                let default_y = plate.0.height as f32 * 0.5;
+                let mut state = CrosshairState::new(default_x, default_y);
+                if let Some(snapped) = find_nearest_sample_index(
+                    plate.0.up.len().max(plate.0.down.len()),
+                    plate.0.width as f32,
+                    default_x,
+                ) {
+                    let up_val = plate.0.up.get(snapped).copied().unwrap_or(0.0);
+                    let down_val = plate.0.down.get(snapped).copied().unwrap_or(0.0);
+                    state = state.with_values(up_val, down_val, default_x, snapped);
+                }
+                plate.0.crosshair = Some(state);
+            }
+        } else if plate.0.crosshair.is_some() {
+            plate.0.crosshair = None;
         }
     }
 }

@@ -42,4 +42,4 @@
 - [docs/MIHOMO_CORE.md](docs/MIHOMO_CORE.md) — Rust ↔ mihomo 的生命周期、控制与发布契约。
 - [docs/UPSTREAM.md](docs/UPSTREAM.md) — 上游依赖版本与升级流程。
 
-构建、测试与代码规范属于工程侧约定，单独维护；本 README 只描述产品本身。
+构建、测试与代码规范属于工程侧约定，单独维护；本 README 只描述产品本身。工程总纲与项目地图入口见 [AGENTS.md](AGENTS.md)。

@@ -196,14 +196,104 @@ pub mod space {
 
 /// Corner radius ladder (logical pixels).
 pub mod radius {
-    pub const CARD: f32 = 16.0;
+    /// Micro tag, compact tooltip bubble (4px).
+    pub const XS: f32 = 4.0;
+    /// Secondary button, input inner chip, segmented control pill (8px).
+    pub const SM: f32 = 8.0;
+    /// Standard control, text input, primary button (10px).
     pub const CONTROL: f32 = 10.0;
+    /// Standard card container, sheet top edge (16px).
+    pub const CARD: f32 = 16.0;
+    /// Centered modal dialog, command palette (24px).
+    pub const MODAL: f32 = 24.0;
+    /// Fully-rounded pill capsule, status chip (999px).
+    pub const PILL: f32 = 999.0;
+}
+
+/// Continuous curvature / superellipse specification (Squircle / G2 continuity).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CornerCurvature {
+    pub radius_px: f32,
+    /// Curvature smoothing: 0.0 = classic arc (G1), 0.6 = standard squircle, 1.0 = full superellipse (G2).
+    pub smoothing: f32,
+}
+
+impl CornerCurvature {
+    pub const fn new(radius_px: f32, smoothing: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing,
+        }
+    }
+
+    pub const fn circular(radius_px: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing: 0.0,
+        }
+    }
+
+    pub const fn squircle(radius_px: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing: 0.6,
+        }
+    }
+}
+
+/// Shared typography scale (logical pixels).
+pub mod type_scale {
+    pub const DISPLAY: f32 = 22.0;
+    pub const TITLE: f32 = 20.0;
+    pub const HEADING: f32 = 20.0;
+    pub const BODY: f32 = 15.0;
+    pub const CAPTION: f32 = 12.0;
+    pub const TAG: f32 = 10.0;
+    pub const MONO: f32 = 13.0;
+}
+
+/// Two-layer elevation shadow specification (logical pixels & alphas).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ElevationToken {
+    pub offset_y: f32,
+    pub blur_radius: f32,
+    pub spread: f32,
+    pub ambient_alpha: f32,
+    pub key_alpha: f32,
+}
+
+pub mod elevation {
+    use super::ElevationToken;
+
+    pub const LOW: ElevationToken = ElevationToken {
+        offset_y: 2.0,
+        blur_radius: 4.0,
+        spread: 0.0,
+        ambient_alpha: 0.04,
+        key_alpha: 0.08,
+    };
+    pub const MEDIUM: ElevationToken = ElevationToken {
+        offset_y: 6.0,
+        blur_radius: 12.0,
+        spread: 1.0,
+        ambient_alpha: 0.06,
+        key_alpha: 0.12,
+    };
+    pub const HIGH: ElevationToken = ElevationToken {
+        offset_y: 16.0,
+        blur_radius: 32.0,
+        spread: 2.0,
+        ambient_alpha: 0.08,
+        key_alpha: 0.20,
+    };
 }
 
 /// Shared control metrics (logical pixels).
 pub mod metrics {
     /// Hairline border width.
     pub const HAIRLINE: f32 = 1.0;
+    /// Minimum mobile touch target dimension (px) for touch accessibility (WCAG 2.5.5 / Android HIG).
+    pub const MIN_TOUCH_TARGET: f32 = 48.0;
 }
 
 #[cfg(test)]
@@ -299,8 +389,41 @@ mod tests {
         assert!(ladder.windows(2).all(|pair| pair[0] < pair[1]));
         // The ladders are const-folded product numbers; the relations are
         // checked once at compile time so the runtime test stays honest.
-        const _: () = assert!(radius::CONTROL > 0.0);
+        const _: () = assert!(radius::XS > 0.0);
+        const _: () = assert!(radius::SM > radius::XS);
+        const _: () = assert!(radius::CONTROL > radius::SM);
         const _: () = assert!(radius::CARD > radius::CONTROL);
+        const _: () = assert!(radius::MODAL > radius::CARD);
+        const _: () = assert!(radius::PILL > radius::MODAL);
         const _: () = assert!(metrics::HAIRLINE > 0.0);
+    }
+
+    #[test]
+    fn corner_curvature_constructors_are_valid() {
+        let circ = CornerCurvature::circular(16.0);
+        assert_eq!(circ.radius_px, 16.0);
+        assert_eq!(circ.smoothing, 0.0);
+
+        let squircle = CornerCurvature::squircle(16.0);
+        assert_eq!(squircle.radius_px, 16.0);
+        assert_eq!(squircle.smoothing, 0.6);
+
+        let custom = CornerCurvature::new(24.0, 1.0);
+        assert_eq!(custom.radius_px, 24.0);
+        assert_eq!(custom.smoothing, 1.0);
+    }
+
+    #[test]
+    fn typography_scale_and_elevation_are_valid() {
+        assert!(type_scale::TAG < type_scale::CAPTION);
+        assert!(type_scale::CAPTION < type_scale::BODY);
+        assert!(type_scale::BODY < type_scale::HEADING);
+        assert!(type_scale::HEADING <= type_scale::TITLE);
+        assert!(type_scale::TITLE < type_scale::DISPLAY);
+
+        assert!(elevation::LOW.blur_radius < elevation::MEDIUM.blur_radius);
+        assert!(elevation::MEDIUM.blur_radius < elevation::HIGH.blur_radius);
+        assert!(elevation::LOW.key_alpha <= elevation::MEDIUM.key_alpha);
+        assert!(elevation::MEDIUM.key_alpha <= elevation::HIGH.key_alpha);
     }
 }

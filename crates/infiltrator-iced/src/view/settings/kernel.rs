@@ -7,7 +7,7 @@ use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::view::component_forms::{
-    form_pick_style, row_card_surface, style_accent, style_ghost, text_btn,
+    form_pick_style, responsive_form_row, row_card_surface, style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{BadgeKind, badge, card, icon_button, section_header};
 use crate::view::svg_icons::Icon;
@@ -49,20 +49,22 @@ pub(super) fn kernel_management_card<'a>(
         "Core resources: {}",
         format_core_resources(&state.runtime.core_resources)
     )));
-    kernel_rows = kernel_rows.push(
-        row![
-            text("Core log level").size(13),
-            Space::new().width(Length::Fill),
-            pick_list(
-                CORE_LOG_LEVEL_OPTIONS,
-                selected_log_level,
-                |choice: SettingsChoice| { Message::SetCoreLogLevel(choice.value.to_owned()) }
-            )
-            .width(Length::Fixed(120.0))
-            .style(form_pick_style),
-        ]
-        .align_y(Alignment::Center),
-    );
+    kernel_rows = kernel_rows.push(responsive_form_row(
+        state.shell.viewport.tier,
+        "Core log level",
+        None::<&str>,
+        pick_list(
+            CORE_LOG_LEVEL_OPTIONS,
+            selected_log_level,
+            |choice: SettingsChoice| { Message::SetCoreLogLevel(choice.value.to_owned()) },
+        )
+        .width(if state.shell.viewport.tier.is_compact() {
+            Length::Fill
+        } else {
+            Length::Shrink
+        })
+        .style(form_pick_style),
+    ));
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
     kernel_rows = kernel_rows.push(secondary_text(rollback_target.as_deref().map_or_else(
         || "Rollback: no previous runnable core".to_owned(),
@@ -220,7 +222,7 @@ pub(super) fn kernel_management_card<'a>(
                                 choice.value.to_string()
                             )
                         )
-                        .width(Length::Fixed(110.0))
+                        .width(Length::Shrink)
                         .style(form_pick_style),
                         Space::new().width(theme::SP_SM),
                         if state.runtime.is_checking_update {

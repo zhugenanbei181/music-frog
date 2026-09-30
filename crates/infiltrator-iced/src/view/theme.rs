@@ -19,7 +19,8 @@
 
 use iced::{Color, Shadow, Theme, Vector};
 use infiltrator_contract::design_tokens::{
-    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
+    RgbaToken, SkinCorePalette, SkinInteractionPalette, metrics, radius, skin_core,
+    skin_interaction, space,
 };
 use infiltrator_contract::theme::ThemeSkin;
 
@@ -45,24 +46,40 @@ const AMOLED_INTERACTION: SkinInteractionPalette = skin_interaction(ThemeSkin::A
 
 /// Spacing scale (logical pixels), from the shared contract ladder. Use these
 /// instead of raw numbers so rhythm stays consistent across pages.
-pub const SP_XS: f32 = infiltrator_contract::design_tokens::space::XS;
-pub const SP_SM: f32 = infiltrator_contract::design_tokens::space::SM;
-pub const SP_MD: f32 = infiltrator_contract::design_tokens::space::MD;
-pub const SP_LG: f32 = infiltrator_contract::design_tokens::space::LG;
-pub const SP_XL: f32 = infiltrator_contract::design_tokens::space::XL;
-pub const SP_XXL: f32 = infiltrator_contract::design_tokens::space::XXL;
+pub const SP_XS: f32 = space::XS;
+pub const SP_SM: f32 = space::SM;
+pub const SP_MD: f32 = space::MD;
+pub const SP_LG: f32 = space::LG;
+pub const SP_XL: f32 = space::XL;
+pub const SP_XXL: f32 = space::XXL;
 
-/// Corner radius scale (logical pixels). [`R_CHIP`] is a "fully rounded"
-/// pill: any value ≥ half the chip height renders as a capsule.
-pub const R_CARD: f32 = infiltrator_contract::design_tokens::radius::CARD;
-pub const R_CONTROL: f32 = infiltrator_contract::design_tokens::radius::CONTROL;
-pub const R_CHIP: f32 = 999.0;
+/// Corner radius scale (logical pixels), mirroring the shared contract ladder.
+pub const R_XS: f32 = radius::XS;
+pub const R_SM: f32 = radius::SM;
+pub const R_CONTROL: f32 = radius::CONTROL;
+pub const R_CARD: f32 = radius::CARD;
+pub const R_MODAL: f32 = radius::MODAL;
+pub const R_PILL: f32 = radius::PILL;
+/// Alias for [`R_PILL`]: fully rounded pill capsule.
+pub const R_CHIP: f32 = R_PILL;
 
 /// Hairline border width (logical pixels), from the shared contract metrics
-/// (`infiltrator_contract::design_tokens::metrics::HAIRLINE`). Every 1px
-/// border in the shell draws with this constant so the Iced hairline and the
-/// Bevy widget mirror can never drift.
-pub const HAIRLINE: f32 = infiltrator_contract::design_tokens::metrics::HAIRLINE;
+/// (`metrics::HAIRLINE`). Every 1px border in the shell draws with this
+/// constant so the Iced hairline and the Bevy widget mirror can never drift.
+pub const HAIRLINE: f32 = metrics::HAIRLINE;
+
+/// Shared typography scale (logical pixels), mirroring `design_tokens::type_scale`.
+pub mod type_scale {
+    use infiltrator_contract::design_tokens::type_scale;
+
+    pub const DISPLAY: f32 = type_scale::DISPLAY;
+    pub const TITLE: f32 = type_scale::TITLE;
+    pub const HEADING: f32 = type_scale::HEADING;
+    pub const BODY: f32 = type_scale::BODY;
+    pub const CAPTION: f32 = type_scale::CAPTION;
+    pub const TAG: f32 = type_scale::TAG;
+    pub const MONO: f32 = type_scale::MONO;
+}
 
 /// Font used for latency / bytes / speed numerals. JetBrains Mono has
 /// tabular (monospaced) digits by default, so live-updating values do not
@@ -85,6 +102,21 @@ pub const FONT_MEDIUM: iced::Font = iced::Font {
     ..iced::Font::DEFAULT
 };
 
+/// Dual-layer physical shadow: key light (contact crisp shadow) + ambient light (soft diffuse aura).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DualShadow {
+    /// Contact key light: crisp silhouette, small blur, tight offset.
+    pub key: Shadow,
+    /// Ambient diffuse light: wide blur, subtle alpha, soft ambient falloff.
+    pub ambient: Shadow,
+}
+
+impl DualShadow {
+    pub const fn new(key: Shadow, ambient: Shadow) -> Self {
+        Self { key, ambient }
+    }
+}
+
 /// Semantic color roles for one appearance (light, dark, forest, or amoled).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tokens {
@@ -100,6 +132,10 @@ pub struct Tokens {
     pub card_shadow: Shadow,
     /// Elevated drop shadow for floating popovers, menus, and modal dialogs.
     pub floating_shadow: Shadow,
+    /// Dual-layer composite shadow for cards (Key Light + Ambient Light).
+    pub card_dual_shadow: DualShadow,
+    /// Dual-layer composite shadow for floating modals & dialogs (Key Light + Ambient Light).
+    pub floating_dual_shadow: DualShadow,
     /// Interactive tint of `accent` (e.g. selected nav row, soft badges).
     pub accent: Color,
     pub accent_soft: Color,
@@ -164,6 +200,42 @@ pub const LIGHT: Tokens = Tokens {
         },
         offset: Vector::new(0.0, 4.0),
         blur_radius: 12.0,
+    },
+    card_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.04,
+                ..Color::from_rgb(0.08, 0.12, 0.10)
+            },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 2.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.03,
+                ..Color::from_rgb(0.08, 0.12, 0.10)
+            },
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 8.0,
+        },
+    },
+    floating_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.08,
+                ..Color::from_rgb(0.08, 0.12, 0.10)
+            },
+            offset: Vector::new(0.0, 2.0),
+            blur_radius: 4.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.10,
+                ..Color::from_rgb(0.08, 0.12, 0.10)
+            },
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 20.0,
+        },
     },
     accent: token_color(LIGHT_CORE.accent),
     accent_soft: Color {
@@ -238,6 +310,42 @@ pub const DARK: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 14.0,
     },
+    card_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.25,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 2.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.15,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 10.0,
+        },
+    },
+    floating_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.40,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 3.0),
+            blur_radius: 6.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.30,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 10.0),
+            blur_radius: 24.0,
+        },
+    },
     accent: token_color(DARK_CORE.accent),
     accent_soft: Color {
         a: 0.16,
@@ -311,6 +419,42 @@ pub const FOREST: Tokens = Tokens {
         offset: Vector::new(0.0, 4.0),
         blur_radius: 12.0,
     },
+    card_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.05,
+                ..Color::from_rgb(0.12, 0.21, 0.14)
+            },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 2.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.04,
+                ..Color::from_rgb(0.12, 0.21, 0.14)
+            },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 8.0,
+        },
+    },
+    floating_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.10,
+                ..Color::from_rgb(0.12, 0.21, 0.14)
+            },
+            offset: Vector::new(0.0, 2.0),
+            blur_radius: 4.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.12,
+                ..Color::from_rgb(0.12, 0.21, 0.14)
+            },
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 20.0,
+        },
+    },
     accent: token_color(FOREST_CORE.accent),
     accent_soft: Color {
         a: 0.14,
@@ -383,6 +527,42 @@ pub const AMOLED: Tokens = Tokens {
         },
         offset: Vector::new(0.0, 4.0),
         blur_radius: 16.0,
+    },
+    card_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.35,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 1.0),
+            blur_radius: 2.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.25,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 8.0,
+        },
+    },
+    floating_dual_shadow: DualShadow {
+        key: Shadow {
+            color: Color {
+                a: 0.50,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 2.0),
+            blur_radius: 4.0,
+        },
+        ambient: Shadow {
+            color: Color {
+                a: 0.60,
+                ..Color::BLACK
+            },
+            offset: Vector::new(0.0, 8.0),
+            blur_radius: 24.0,
+        },
     },
     accent: token_color(AMOLED_CORE.accent),
     accent_soft: Color {

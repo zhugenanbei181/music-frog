@@ -1,7 +1,6 @@
 # 字体资产
 
-本目录四张 OFL face 由 `src/fonts.rs` 以 `include_bytes!` 编译期嵌入，属于源资源，
-必须随仓库跟踪。许可证全文随目录分发（OFL 要求）。
+本目录随仓库跟踪四张 TTF 与两份许可证全文（`Inter-OFL.txt`、`JetBrainsMono-OFL.txt`）；四张 face 由 `src/fonts.rs` 以 `include_bytes!` 编译期嵌入，属于源资源，必须随仓库跟踪。许可证全文随目录分发（OFL 要求）。
 
 | 文件 | 字体 | 版本 | 来源 | 许可 |
 |---|---|---|---|---|

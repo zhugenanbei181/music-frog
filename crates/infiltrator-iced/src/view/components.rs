@@ -62,9 +62,98 @@ pub fn card_surface(t: &Theme) -> container::Style {
     }
 }
 
-/// The canonical card. `title` renders as a semibold header above the
-/// content (pass `None` for borderless-of-text cards). Layout: 24px padding,
-/// full width.
+/// Card surface with hover lift state: when hovered, slightly elevates background
+/// brightness (+3%) and upgrades shadow from low to floating elevation.
+pub fn hover_lift_card_surface(t: &Theme, hovered: bool) -> container::Style {
+    let tk = theme::tokens(t);
+    if hovered {
+        let base_bg = tk.card_bg;
+        let lifted_bg = Color {
+            r: (base_bg.r + 0.03).min(1.0),
+            g: (base_bg.g + 0.03).min(1.0),
+            b: (base_bg.b + 0.03).min(1.0),
+            a: base_bg.a,
+        };
+        container::Style {
+            background: Some(lifted_bg.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CARD),
+                width: theme::HAIRLINE,
+                color: Color {
+                    a: (tk.card_border.a + 0.15).min(1.0),
+                    ..tk.card_border
+                },
+            },
+            shadow: tk.floating_shadow,
+            ..Default::default()
+        }
+    } else {
+        card_surface(t)
+    }
+}
+
+/// Outer ambient shadow surface for dual-layer physical elevation rendering.
+pub fn card_ambient_surface(t: &Theme) -> container::Style {
+    let tk = theme::tokens(t);
+    container::Style {
+        background: Some(tk.card_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CARD),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: tk.card_dual_shadow.ambient,
+        ..Default::default()
+    }
+}
+
+/// Inner key-light surface for dual-layer physical elevation rendering.
+pub fn card_key_surface(t: &Theme) -> container::Style {
+    let tk = theme::tokens(t);
+    container::Style {
+        background: Some(tk.card_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CARD),
+            width: theme::HAIRLINE,
+            color: tk.card_border,
+        },
+        shadow: tk.card_dual_shadow.key,
+        ..Default::default()
+    }
+}
+
+/// Outer ambient shadow surface for floating elements.
+pub fn floating_ambient_surface(t: &Theme) -> container::Style {
+    let tk = theme::tokens(t);
+    container::Style {
+        background: Some(tk.card_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CARD),
+            width: 0.0,
+            color: Color::TRANSPARENT,
+        },
+        shadow: tk.floating_dual_shadow.ambient,
+        ..Default::default()
+    }
+}
+
+/// Inner key-light surface for floating elements.
+pub fn floating_key_surface(t: &Theme) -> container::Style {
+    let tk = theme::tokens(t);
+    container::Style {
+        background: Some(tk.card_bg.into()),
+        border: Border {
+            radius: border::Radius::from(theme::R_CARD),
+            width: theme::HAIRLINE,
+            color: tk.card_border,
+        },
+        shadow: tk.floating_dual_shadow.key,
+        ..Default::default()
+    }
+}
+
+/// The canonical card with hardware scissor clipping enabled (`clip(true)`),
+/// preventing overflowing child elements from piercing the rounded card boundary.
 pub fn card<'a, Message: 'a>(
     title: Option<String>,
     content: impl Into<Element<'a, Message>>,
@@ -89,6 +178,65 @@ pub fn card<'a, Message: 'a>(
         .width(Length::Fill)
         .padding(theme::SP_XXL)
         .style(card_surface)
+        .clip(true)
+        .into()
+}
+
+/// Explicit scissor-clipped card container wrapper.
+pub fn clipped_card<'a, Message: 'a>(
+    title: Option<String>,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    card(title, content)
+}
+
+/// Dual-shadow composite card combining directional Key Light contact shadow
+/// and diffuse Ambient Light shadow with hardware scissor clipping.
+pub fn dual_shadow_card<'a, Message: 'a>(
+    title: Option<String>,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let content = content.into();
+    let body = match title {
+        Some(title) => {
+            let header = text(title)
+                .size(14)
+                .font(theme::FONT_SEMIBOLD)
+                .style(|t: &Theme| text::Style {
+                    color: Some(theme::tokens(t).text_primary),
+                });
+            column![header, content]
+                .spacing(theme::SP_MD)
+                .width(Length::Fill)
+                .into()
+        }
+        None => content,
+    };
+    let inner = container(body)
+        .width(Length::Fill)
+        .padding(theme::SP_XXL)
+        .style(card_key_surface)
+        .clip(true);
+
+    container(inner)
+        .width(Length::Fill)
+        .style(card_ambient_surface)
+        .into()
+}
+
+/// Floating dual-shadow composite card for high-elevation floating modals and popups.
+pub fn floating_dual_shadow_card<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let inner = container(content.into())
+        .width(Length::Fill)
+        .padding(theme::SP_XXL)
+        .style(floating_key_surface)
+        .clip(true);
+
+    container(inner)
+        .width(Length::Fill)
+        .style(floating_ambient_surface)
         .into()
 }
 
@@ -224,24 +372,92 @@ pub fn empty_state<'a, Message: 'a>(icon: Icon, title: &str, hint: &str) -> Elem
     .into()
 }
 
-/// Placeholder container with rounded corners and control background for loading states.
+/// Canvas-based shimmer wave skeleton widget providing a 45-degree diagonal
+/// moving specular light gradient across rounded boxes during data loading.
+#[derive(Debug, Clone, Copy)]
+pub struct ShimmerSkeleton {
+    pub radius: f32,
+    pub phase: f32,
+}
+
+impl ShimmerSkeleton {
+    pub fn new(radius: f32, phase: f32) -> Self {
+        Self { radius, phase }
+    }
+}
+
+impl<Message> canvas::Program<Message> for ShimmerSkeleton {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        theme: &Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let tk = theme::tokens(theme);
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let rect = canvas::Path::rounded_rectangle(
+            Point::ORIGIN,
+            bounds.size(),
+            border::Radius::from(self.radius),
+        );
+
+        // 1. Base control background
+        frame.fill(&rect, tk.control_bg);
+
+        // 2. 45-degree diagonal shimmer gradient wave
+        let w = bounds.width;
+        let h = bounds.height;
+        let span = w + h;
+        if span > 0.0 {
+            let center = self.phase.fract() * span;
+            let band_width = 80.0_f32.min(span * 0.5);
+
+            let start = Point::new(center - band_width, 0.0);
+            let end = Point::new(center + band_width, h.min(band_width));
+
+            let highlight = Color {
+                a: 0.16,
+                ..Color::WHITE
+            };
+            let transparent = Color {
+                a: 0.0,
+                ..Color::WHITE
+            };
+
+            let gradient = canvas::gradient::Linear::new(start, end)
+                .add_stop(0.0, transparent)
+                .add_stop(0.5, highlight)
+                .add_stop(1.0, transparent);
+
+            frame.fill(&rect, gradient);
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+
+/// Shimmer skeleton box with custom radius and animated phase.
+pub fn shimmer_box<'a, Message: 'a>(
+    width: impl Into<Length>,
+    height: impl Into<Length>,
+    phase: f32,
+) -> Element<'a, Message> {
+    canvas(ShimmerSkeleton::new(theme::R_CONTROL, phase))
+        .width(width)
+        .height(height)
+        .into()
+}
+
+/// Dynamic shimmer wave skeleton screen box providing fluid gradient loading aesthetics.
 pub fn skeleton_box<'a, Message: 'a>(
     width: impl Into<Length>,
     height: impl Into<Length>,
 ) -> Element<'a, Message> {
-    container(Space::new().width(width).height(height))
-        .style(|t: &Theme| {
-            let tk = theme::tokens(t);
-            container::Style {
-                background: Some(tk.control_bg.into()),
-                border: Border {
-                    radius: border::Radius::from(theme::R_CONTROL),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }
-        })
-        .into()
+    shimmer_box(width, height, 0.5)
 }
 
 // ---------------------------------------------------------------------------
@@ -325,7 +541,7 @@ pub fn kbd_badge<'a, Message: 'a>(key: impl Into<String>) -> Element<'a, Message
         container::Style {
             background: Some(tk.control_bg.into()),
             border: Border {
-                radius: border::Radius::from(4.0),
+                radius: border::Radius::from(theme::R_XS),
                 width: theme::HAIRLINE,
                 color: tk.card_border,
             },
@@ -362,7 +578,7 @@ pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
         .style(move |t: &Theme| container::Style {
             background: Some(color(t).into()),
             border: Border {
-                radius: border::Radius::from(5.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()
@@ -598,7 +814,7 @@ pub fn nav_button<'a>(label: String, route: Route, current_route: &Route) -> Ele
                 None
             },
             border: Border {
-                radius: border::Radius::from(2.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()

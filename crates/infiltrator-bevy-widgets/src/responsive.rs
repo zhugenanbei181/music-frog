@@ -5,11 +5,15 @@
 //! density modes (Compact/Comfortable), orientations, adaptive sidebar/nav modes,
 //! master-detail coordination models, and modal-to-actionsheet transformations.
 
+use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ui::prelude::{Node, UiRect, Val};
+use bevy::ui_widgets::Button;
 use bevy::window::{PrimaryWindow, Window};
 
 use crate::theme::Breakpoint;
@@ -124,7 +128,7 @@ impl SidebarMode {
     pub fn width_px(&self) -> Option<f32> {
         match self {
             SidebarMode::BottomNav => None,
-            SidebarMode::Rail => Some(72.0),
+            SidebarMode::Rail => Some(64.0),
             SidebarMode::Standard => Some(240.0),
             SidebarMode::Wide => Some(280.0),
         }
@@ -378,9 +382,6 @@ pub fn sync_responsive_context_from_window(
     }
 }
 
-use bevy::ui::UiRect;
-use bevy::ui::Val;
-
 /// Platform edge-to-edge safe area insets (status bar, gesture pill, camera cutouts).
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Default)]
 pub struct SafeAreaInsets {
@@ -447,5 +448,120 @@ impl TouchTargetPolicy {
                 Density::Comfortable => 36.0,
             }
         }
+    }
+}
+
+/// Minimum touch target hitbox constraint component (UI-04-03).
+///
+/// In Compact mode (< 600px width), interactive controls carry this component to
+/// guarantee a minimum picking target size (default 48.0 x 48.0 px, matching
+/// [`TouchTargetPolicy::min_dimension`]) without distorting desktop or comfortable layouts.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct TouchHitbox {
+    /// Minimum required width and height in Compact mode (default 48.0 px).
+    pub min_target_px: f32,
+    /// Saved original `min_width` value before compact expansion.
+    pub original_min_width: Option<Val>,
+    /// Saved original `min_height` value before compact expansion.
+    pub original_min_height: Option<Val>,
+    /// Saved original `height` value before compact expansion.
+    pub original_height: Option<Val>,
+    /// Whether the hitbox is currently expanded to touch target minimums.
+    pub is_expanded: bool,
+}
+
+impl Default for TouchHitbox {
+    fn default() -> Self {
+        Self {
+            min_target_px: crate::theme::metrics::MIN_TOUCH_TARGET,
+            original_min_width: None,
+            original_min_height: None,
+            original_height: None,
+            is_expanded: false,
+        }
+    }
+}
+
+impl TouchHitbox {
+    /// Construct a new `TouchHitbox` with custom minimum target dimension.
+    pub fn new(min_target_px: f32) -> Self {
+        Self {
+            min_target_px,
+            original_min_width: None,
+            original_min_height: None,
+            original_height: None,
+            is_expanded: false,
+        }
+    }
+
+    /// Calculate effective dimension for a given base dimension and compact state.
+    pub fn effective_dimension(&self, is_compact: bool, base_px: f32) -> f32 {
+        if is_compact {
+            base_px.max(self.min_target_px)
+        } else {
+            base_px
+        }
+    }
+}
+
+/// System to sync interactive node picking hitboxes with responsive compact state.
+pub fn sync_touch_hitboxes(
+    ctx: Option<Res<ResponsiveContext>>,
+    mut query: Query<(&mut Node, &mut TouchHitbox)>,
+) {
+    let is_compact = ctx.as_ref().map(|c| c.is_compact()).unwrap_or(false);
+
+    for (mut node, mut hitbox) in &mut query {
+        if is_compact {
+            if !hitbox.is_expanded {
+                hitbox.original_min_width = Some(node.min_width);
+                hitbox.original_min_height = Some(node.min_height);
+                hitbox.original_height = Some(node.height);
+                hitbox.is_expanded = true;
+            }
+            let target = hitbox.min_target_px;
+            let needs_min_w = match node.min_width {
+                Val::Px(w) => w < target,
+                Val::Auto => true,
+                _ => false,
+            };
+            if needs_min_w {
+                node.min_width = Val::Px(target);
+            }
+            let needs_min_h = match node.min_height {
+                Val::Px(h) => h < target,
+                Val::Auto => true,
+                _ => false,
+            };
+            if needs_min_h {
+                node.min_height = Val::Px(target);
+            }
+            if let Val::Px(h) = node.height
+                && h < target
+            {
+                node.height = Val::Px(target);
+            }
+        } else if hitbox.is_expanded {
+            if let Some(w) = hitbox.original_min_width.take() {
+                node.min_width = w;
+            }
+            if let Some(h) = hitbox.original_min_height.take() {
+                node.min_height = h;
+            }
+            if let Some(h) = hitbox.original_height.take() {
+                node.height = h;
+            }
+            hitbox.is_expanded = false;
+        }
+    }
+}
+
+/// Auto-mount [`TouchHitbox`] on all entities with `Button` that do not already have one.
+pub fn auto_insert_touch_hitboxes(
+    mut commands: Commands,
+    buttons: Query<Entity, (With<Button>, Without<TouchHitbox>)>,
+) {
+    for entity in &buttons {
+        commands.entity(entity).insert(TouchHitbox::default());
     }
 }

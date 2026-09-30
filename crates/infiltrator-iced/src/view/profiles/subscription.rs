@@ -4,7 +4,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
 use crate::view::component_forms::{
-    form_input_style, form_pick_style, form_toggle_row, style_accent, style_ghost, text_btn,
+    form_input_style, form_pick_style, form_toggle_row, responsive_form_row,
+    responsive_form_toggle_row, style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{card, segmented_control};
 use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
@@ -227,27 +228,37 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                 Element::from(Space::new().width(0))
             },
             Space::new().height(theme::SP_MD),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("profiles_auto_update").to_string(),
+                None::<&str>,
                 state.profile.subscription_auto_update_enabled,
-                Message::UpdateSubscriptionAutoUpdate
+                Message::UpdateSubscriptionAutoUpdate,
             ),
             Space::new().height(theme::SP_SM),
-            row![
-                pick_list(
-                    interval_options,
-                    selected_interval.clone(),
-                    Message::UpdateSubscriptionInterval
-                )
-                .placeholder(lang.tr("profiles_update_interval").as_ref())
-                .text_size(13)
-                .width(Length::Fixed(180.0))
-                .style(form_pick_style),
-                Space::new().width(theme::SP_MD),
-                interval_control,
-                Space::new().width(Length::Fill),
-            ]
-            .align_y(Alignment::Center),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                lang.tr("profiles_update_interval").to_string(),
+                None::<&str>,
+                row![
+                    pick_list(
+                        interval_options,
+                        selected_interval.clone(),
+                        Message::UpdateSubscriptionInterval,
+                    )
+                    .placeholder(lang.tr("profiles_update_interval").as_ref())
+                    .text_size(13)
+                    .width(if state.shell.viewport.tier.is_compact() {
+                        Length::FillPortion(1)
+                    } else {
+                        Length::Shrink
+                    })
+                    .style(form_pick_style),
+                    Space::new().width(theme::SP_MD),
+                    interval_control,
+                ]
+                .align_y(Alignment::Center),
+            ),
             Space::new().height(theme::SP_XS),
             text_input(
                 lang.tr("profiles_cron_placeholder").as_ref(),

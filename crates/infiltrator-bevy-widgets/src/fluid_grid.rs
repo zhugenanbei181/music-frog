@@ -12,7 +12,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{FlexDirection, FlexWrap, Node, Val, percent, px};
+use bevy::ui::prelude::{ComputedNode, FlexDirection, FlexWrap, Node, Val, percent, px};
 
 /// Configuration for a fluid card grid.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -143,6 +143,7 @@ pub fn fluid_card_grid_scene(
 }
 
 /// System to sync child card flex basis and gaps based on breakpoint and density.
+#[allow(clippy::type_complexity)]
 pub fn sync_fluid_grid_layout(
     ctx: Option<Res<ResponsiveContext>>,
     mut grids: Query<
@@ -151,6 +152,7 @@ pub fn sync_fluid_grid_layout(
             Option<&FluidGridTierColumns>,
             &Children,
             &mut Node,
+            Option<&ComputedNode>,
         ),
         With<FluidCardGrid>,
     >,
@@ -162,7 +164,7 @@ pub fn sync_fluid_grid_layout(
         .unwrap_or(Breakpoint::Expanded);
     let density = ctx.as_ref().map(|c| c.density).unwrap_or_default();
 
-    for (config, tier_columns, children, mut grid_node) in &mut grids {
+    for (config, tier_columns, children, mut grid_node, computed_node) in &mut grids {
         let gap = density.gap(config.gap_px);
         let row_gap = density.gap(config.row_gap_px);
 
@@ -185,7 +187,20 @@ pub fn sync_fluid_grid_layout(
                 Breakpoint::Ultra => config.max_columns.max(1),
             }
         };
-        let target_basis = percent(FluidCardGrid::wrapped_item_percent(columns));
+        let fallback_basis = percent(FluidCardGrid::wrapped_item_percent(columns));
+
+        let target_basis = if let Some(computed) = computed_node {
+            let measured_w = computed.size().x * computed.inverse_scale_factor();
+            if measured_w > 100.0 {
+                let layout =
+                    compute_ideal_column_layout(measured_w, config.min_card_width_px, gap, columns);
+                Val::Px(layout.item_width_px)
+            } else {
+                fallback_basis
+            }
+        } else {
+            fallback_basis
+        };
 
         for child in children.iter() {
             if let Ok(mut item_node) = items.get_mut(*child)

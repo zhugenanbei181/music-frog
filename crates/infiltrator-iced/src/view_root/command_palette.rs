@@ -140,8 +140,8 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 background: Some(tk.control_bg.into()),
                 border: Border {
                     radius: border::Radius {
-                        top_left: 12.0,
-                        top_right: 12.0,
+                        top_left: theme::R_CARD,
+                        top_right: theme::R_CARD,
                         bottom_right: 0.0,
                         bottom_left: 0.0,
                     },
@@ -247,8 +247,8 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                     button::Style {
                         background: Some(bg.into()),
                         border: Border {
-                            radius: 8.0.into(),
-                            width: if is_selected { 1.0 } else { 0.0 },
+                            radius: border::Radius::from(theme::R_SM),
+                            width: if is_selected { theme::HAIRLINE } else { 0.0 },
                             color: if is_selected {
                                 Color {
                                     a: 0.35,
@@ -320,8 +320,8 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                     radius: border::Radius {
                         top_left: 0.0,
                         top_right: 0.0,
-                        bottom_right: 12.0,
-                        bottom_left: 12.0,
+                        bottom_right: theme::R_CARD,
+                        bottom_left: theme::R_CARD,
                     },
                     width: 0.0,
                     color: Color::TRANSPARENT,
@@ -345,7 +345,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             container::Style {
                 background: Some(tk.card_bg.into()),
                 border: Border {
-                    radius: 12.0.into(),
+                    radius: border::Radius::from(theme::R_CARD),
                     width: theme::HAIRLINE,
                     color: tk.card_border,
                 },

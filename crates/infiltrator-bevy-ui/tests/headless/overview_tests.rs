@@ -15,6 +15,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::world::World;
 use bevy::image::Image;
+use bevy::picking::hover::PickingInteraction;
 use bevy::scene::ScenePlugin;
 use bevy::text::TextColor;
 use bevy::ui::BackgroundColor;
@@ -41,7 +42,7 @@ use infiltrator_bevy_ui::pages::overview_restamp::{
     ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, SubscriptionQuotaCard,
 };
 use infiltrator_bevy_ui::pages::overview_topology::{
-    TopologyChainCard, TopologyStageButton, TopologyText, TopologyTextKind,
+    TopologyChainCard, TopologyDrilldownFilter, TopologyStageButton, TopologyText, TopologyTextKind,
 };
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
@@ -49,7 +50,9 @@ use infiltrator_bevy_ui::projection::{
 };
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::chart::ChartPlate;
+use infiltrator_bevy_widgets::chart::interaction::compute_instant_rates;
+use infiltrator_bevy_widgets::chart::topology::TopologyPlate;
+use infiltrator_bevy_widgets::chart::{ChartCrosshairTracked, ChartPlate};
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
@@ -60,6 +63,7 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 
 /// The demo core's unavailability reason (projection.rs fixture).
@@ -964,6 +968,63 @@ fn theme_flip_rerasterizes_the_chart_in_place() {
     assert_ne!(data_before, data_after, "the chart inks follow the theme");
 }
 
+/// Hovering the traffic chart activates interactive crosshair inspection
+/// with snapped sample instantaneous rates (UI-04-04).
+#[test]
+fn overview_traffic_chart_crosshair_hover_activation() {
+    let mut app = mounted_default();
+    let (plate_id, _) = chart_plate(app.world_mut());
+
+    // Verify ChartCrosshairTracked is attached on the chart entity
+    assert!(
+        app.world().get::<ChartCrosshairTracked>(plate_id).is_some(),
+        "chart node must have ChartCrosshairTracked"
+    );
+
+    // Initial state: crosshair is None
+    let plate_before = app.world().get::<ChartPlate>(plate_id).unwrap();
+    assert!(plate_before.0.crosshair.is_none());
+
+    // Simulate Hovered pointer interaction
+    app.world_mut()
+        .entity_mut(plate_id)
+        .insert(PickingInteraction::Hovered);
+    app.update();
+
+    let plate_hovered = app.world().get::<ChartPlate>(plate_id).unwrap();
+    let crosshair = plate_hovered
+        .0
+        .crosshair
+        .as_ref()
+        .expect("hovering the chart must activate crosshair inspection");
+    assert!(crosshair.active);
+    let snapped_idx = crosshair
+        .snapped_index
+        .expect("crosshair should snap to nearest sample point");
+
+    // Compute instantaneous rates from snapped sample index
+    let instant = compute_instant_rates(
+        &plate_hovered.0.up,
+        &plate_hovered.0.down,
+        snapped_idx,
+    )
+    .expect("must extract valid instant rates");
+    assert!(instant.upload_bps >= 0.0);
+    assert!(instant.download_bps >= 0.0);
+
+    // Simulate pointer leaving (None interaction)
+    app.world_mut()
+        .entity_mut(plate_id)
+        .insert(PickingInteraction::None);
+    app.update();
+
+    let plate_after = app.world().get::<ChartPlate>(plate_id).unwrap();
+    assert!(
+        plate_after.0.crosshair.is_none(),
+        "leaving hover must dismiss crosshair"
+    );
+}
+
 // ---- the sidebar foot (source kind) ------------------------------------------
 
 /// The sidebar foot caption text.
@@ -1466,6 +1527,72 @@ fn test_subscription_quota_card_mounts_with_progress_bar() {
     let palette = UiPalette::new(&Theme::dark());
     let _scene = subscription_quota_scene(&palette);
 }
+
+/// UI-04-05: Overview topology hover activates full-chain highlight and
+/// activation penetrates with filter query down to target page.
+#[test]
+fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
+    let mut app = mounted_default();
+
+    // 1. Verify TopologyPlate is mounted and initially has no hovered stage.
+    let plate_entity = {
+        let world = app.world_mut();
+        let mut plates = world.query::<(Entity, &TopologyPlate)>();
+        let (entity, plate) = plates.single(world).expect("mounted topology plate");
+        assert_eq!(plate.0.hovered_stage, None);
+        entity
+    };
+
+    // 2. Find RuleSet stage button.
+    let ruleset_button_entity = {
+        let world = app.world_mut();
+        let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
+        buttons
+            .iter(world)
+            .find(|(_, btn)| btn.stage == TrafficTopologyStage::RuleSet && btn.enabled)
+            .expect("enabled ruleset stage button")
+            .0
+    };
+
+    // 3. Hover the RuleSet button and verify plate hovered_stage is updated.
+    app.world_mut()
+        .entity_mut(ruleset_button_entity)
+        .insert(PickingInteraction::Hovered);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let plate = world.get::<TopologyPlate>(plate_entity).expect("plate survives");
+        assert_eq!(plate.0.hovered_stage.as_deref(), Some("rule_set"));
+    }
+
+    // 4. Unhover and verify plate hovered_stage returns to None.
+    app.world_mut()
+        .entity_mut(ruleset_button_entity)
+        .insert(PickingInteraction::None);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let plate = world.get::<TopologyPlate>(plate_entity).expect("plate survives");
+        assert_eq!(plate.0.hovered_stage, None);
+    }
+
+    // 5. Activate the RuleSet button and verify drilldown navigation and filter injection.
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: ruleset_button_entity });
+    app.update();
+
+    // Verify navigation landed on Rules page
+    assert_eq!(page_root(app.world_mut()).1, Route::Rules);
+
+    // Verify TopologyDrilldownFilter resource contains RuleSet stage and demo detail query
+    let drilldown = app.world().resource::<TopologyDrilldownFilter>();
+    assert_eq!(drilldown.stage, Some(TrafficTopologyStage::RuleSet));
+    assert_eq!(drilldown.filter_query.as_deref(), Some("MRS / GeoIP"));
+}
+
 
 #[test]
 fn test_overview_master_switches_and_exit_node_cards() {

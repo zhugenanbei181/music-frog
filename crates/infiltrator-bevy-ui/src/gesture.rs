@@ -26,22 +26,31 @@
 use std::collections::BTreeMap;
 
 use bevy::app::{App, Plugin, Update};
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::MessageReader;
+use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Res, ResMut};
+use bevy::ecs::system::{Local, Query, Res, ResMut};
 use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
 use bevy::time::Time;
+use bevy::ui::prelude::{Display, Node, Val};
+use bevy::ui::widget::Text;
 
 use infiltrator_bevy_widgets::gesture;
 use infiltrator_bevy_widgets::gesture::{
-    GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshState, SwipeToActionItem,
+    GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshIndicator,
+    PullToRefreshSpring, PullToRefreshState, PullToRefreshText, SwipeActionDrawer,
+    SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, SafeAreaInsets,
     TouchGestureSupport,
 };
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::route::{ActiveRoute, Route};
 
 /// Maximum simultaneous touches tracked; extra fingers are ignored so the
 /// active set can never grow without bound.
@@ -116,6 +125,16 @@ impl ShellGestureState {
     pub fn pinch(&self) -> &PinchZoomController {
         &self.pinch
     }
+
+    /// The widget pull-to-refresh state this shell drives.
+    pub fn pull(&self) -> &PullToRefreshState {
+        &self.pull
+    }
+
+    /// Mutable pull-to-refresh state.
+    pub fn pull_mut(&mut self) -> &mut PullToRefreshState {
+        &mut self.pull
+    }
 }
 
 /// The bounded shared snapshot as a Bevy resource.
@@ -158,7 +177,13 @@ impl Plugin for ShellGesturePlugin {
             .insert_resource(ShellGestureSnapshot(GestureSnapshot::new(touch_support())))
             .add_systems(
                 Update,
-                (consume_touch_input, sync_gesture_capability).chain(),
+                (
+                    consume_touch_input,
+                    sync_gesture_capability,
+                    sync_pull_to_refresh_indicators,
+                    sync_swipe_to_action_items,
+                )
+                    .chain(),
             );
     }
 }
@@ -415,5 +440,143 @@ fn sync_gesture_capability(
         snapshot
             .0
             .apply(GestureSemanticEvent::SafeAreaInsets(report.insets));
+    }
+}
+
+/// Synchronize pull-to-refresh indicators with the live gesture state using spring physics.
+#[allow(clippy::too_many_arguments)]
+pub fn sync_pull_to_refresh_indicators(
+    time: Option<Res<Time>>,
+    gesture_state: Res<ShellGestureState>,
+    _snapshot: Res<ShellGestureSnapshot>,
+    active_route: Option<Res<ActiveRoute>>,
+    command_sink: Option<Res<CommandSinkHandle>>,
+    mut last_refreshing: Local<bool>,
+    mut indicators: Query<
+        (&mut Node, &mut PullToRefreshSpring, &Children),
+        With<PullToRefreshIndicator>,
+    >,
+    mut texts: Query<&mut Text, With<PullToRefreshText>>,
+) {
+    let dt = time
+        .as_ref()
+        .map(|t| t.delta_secs())
+        .filter(|&dt| dt > 0.001)
+        .unwrap_or(1.0 / 60.0);
+    let pull = &gesture_state.pull;
+    let is_refreshing = pull.is_refreshing;
+
+    // Trigger command when entering refreshing state
+    if is_refreshing
+        && !*last_refreshing
+        && let Some(sink) = command_sink.as_ref()
+    {
+        let route = active_route
+            .as_ref()
+            .and_then(|r| r.0)
+            .unwrap_or(Route::Overview);
+        match route {
+            Route::Proxies => {
+                sink.submit(UiCommand::TestAllProxyGroups);
+            }
+            Route::Rules => {
+                sink.submit(UiCommand::RefreshRuleProviders);
+            }
+            Route::Profiles => {
+                sink.submit(UiCommand::UpdateAllSubscriptions);
+            }
+            _ => {}
+        }
+    }
+    *last_refreshing = is_refreshing;
+
+    // Spring target height calculation
+    let target_height = if is_refreshing {
+        pull.threshold
+    } else if gesture_state.mode == GestureMode::Pull {
+        pull.pull_offset.min(pull.threshold * 1.5)
+    } else {
+        0.0
+    };
+
+    let label = if is_refreshing {
+        "正在更新..."
+    } else if pull.pull_offset >= pull.threshold {
+        "释放以刷新"
+    } else {
+        "下拉刷新"
+    };
+
+    for (mut node, mut spring_tracker, children) in &mut indicators {
+        spring_tracker.spring.target = target_height;
+        let current_height = spring_tracker.spring.step(dt);
+        let display_height = if current_height <= 0.2 && target_height == 0.0 {
+            0.0
+        } else {
+            current_height.max(0.0)
+        };
+        node.height = Val::Px(display_height);
+
+        for child in children.iter() {
+            if let Ok(mut text) = texts.get_mut(*child)
+                && text.0 != label
+            {
+                text.0 = label.to_owned();
+            }
+        }
+    }
+}
+
+/// Synchronize swipe-to-action item displacement using spring dynamics.
+#[allow(clippy::type_complexity)]
+pub fn sync_swipe_to_action_items(
+    time: Option<Res<Time>>,
+    gesture_state: Res<ShellGestureState>,
+    mut swipe_items: Query<(
+        &mut SwipeToActionItem,
+        &mut SwipeToActionSpring,
+        &Children,
+    )>,
+    mut swipe_contents: Query<&mut Node, With<SwipeContentContainer>>,
+    mut swipe_drawers: Query<&mut Node, (With<SwipeActionDrawer>, Without<SwipeContentContainer>)>,
+) {
+    let dt = time
+        .as_ref()
+        .map(|t| t.delta_secs())
+        .filter(|&dt| dt > 0.001)
+        .unwrap_or(1.0 / 60.0);
+    let active_swipe_offset = if gesture_state.mode == GestureMode::Swipe {
+        Some(gesture_state.swipe.offset_x)
+    } else {
+        None
+    };
+
+    for (mut item, mut spring_tracker, children) in &mut swipe_items {
+        if let Some(offset) = active_swipe_offset {
+            item.offset_x = offset.clamp(-item.max_action_width, item.max_action_width);
+        }
+        spring_tracker.spring.target = item.offset_x;
+        let current_x = spring_tracker.spring.step(dt);
+        let display_x = if current_x.abs() <= 0.2 && item.offset_x == 0.0 {
+            0.0
+        } else {
+            current_x
+        };
+
+        for child in children.iter() {
+            if let Ok(mut node) = swipe_contents.get_mut(*child) {
+                node.left = Val::Px(display_x);
+            }
+            if let Ok(mut drawer_node) = swipe_drawers.get_mut(*child) {
+                let drawer_display = if display_x.abs() > 0.5 {
+                    Display::Flex
+                } else {
+                    Display::None
+                };
+                if drawer_node.display != drawer_display {
+                    drawer_node.display = drawer_display;
+                }
+            }
+        }
     }
 }

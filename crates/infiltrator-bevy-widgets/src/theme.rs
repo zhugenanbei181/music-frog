@@ -278,12 +278,94 @@ pub mod space {
     pub const S32: f32 = 32.0;
 }
 
-/// Corner radius scale (px), mirroring `design_tokens::radius`
-/// (CARD=16, CONTROL=10). [`SHEET_TOP`] is the surface-only sheet radius.
+/// Corner radius scale (px), mirroring `design_tokens::radius`.
+/// [`SHEET_TOP`] is the surface-only sheet radius.
 pub mod radius {
-    pub const CARD: f32 = 16.0;
+    pub const XS: f32 = 4.0;
+    pub const SM: f32 = 8.0;
     pub const CONTROL: f32 = 10.0;
+    pub const CARD: f32 = 16.0;
+    pub const MODAL: f32 = 24.0;
+    pub const PILL: f32 = 999.0;
     pub const SHEET_TOP: f32 = 16.0;
+}
+
+/// Continuous curvature / superellipse specification (Squircle / G2 continuity).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CornerCurvature {
+    pub radius_px: f32,
+    /// Curvature smoothing: 0.0 = classic arc (G1), 0.6 = standard squircle, 1.0 = full superellipse (G2).
+    pub smoothing: f32,
+}
+
+impl CornerCurvature {
+    pub const fn new(radius_px: f32, smoothing: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing,
+        }
+    }
+
+    pub const fn circular(radius_px: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing: 0.0,
+        }
+    }
+
+    pub const fn squircle(radius_px: f32) -> Self {
+        Self {
+            radius_px,
+            smoothing: 0.6,
+        }
+    }
+}
+
+/// Shared typography scale (px), mirroring `design_tokens::type_scale`.
+pub mod type_scale {
+    pub const DISPLAY: f32 = 22.0;
+    pub const TITLE: f32 = 20.0;
+    pub const HEADING: f32 = 20.0;
+    pub const BODY: f32 = 15.0;
+    pub const CAPTION: f32 = 12.0;
+    pub const TAG: f32 = 10.0;
+    pub const MONO: f32 = 13.0;
+}
+
+/// Two-layer elevation shadow specification (px & alphas), mirroring `design_tokens::elevation`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ElevationToken {
+    pub offset_y: f32,
+    pub blur_radius: f32,
+    pub spread: f32,
+    pub ambient_alpha: f32,
+    pub key_alpha: f32,
+}
+
+pub mod elevation {
+    use super::ElevationToken;
+
+    pub const LOW: ElevationToken = ElevationToken {
+        offset_y: 2.0,
+        blur_radius: 4.0,
+        spread: 0.0,
+        ambient_alpha: 0.04,
+        key_alpha: 0.08,
+    };
+    pub const MEDIUM: ElevationToken = ElevationToken {
+        offset_y: 6.0,
+        blur_radius: 12.0,
+        spread: 1.0,
+        ambient_alpha: 0.06,
+        key_alpha: 0.12,
+    };
+    pub const HIGH: ElevationToken = ElevationToken {
+        offset_y: 16.0,
+        blur_radius: 32.0,
+        spread: 2.0,
+        ambient_alpha: 0.08,
+        key_alpha: 0.20,
+    };
 }
 
 /// Control metrics (px).
@@ -420,13 +502,13 @@ impl Breakpoint {
 
     /// Recommended sidebar width in pixels for this breakpoint.
     /// Returns `None` for compact mode (sidebar collapsed into bottom nav),
-    /// `Some(72.0)` for medium (slim rail mode),
+    /// `Some(64.0)` for medium (slim rail mode),
     /// `Some(240.0)` for expanded (standard sidebar),
     /// and `Some(280.0)` for ultra (wide sidebar).
     pub fn sidebar_width_px(&self) -> Option<f32> {
         match self {
             Breakpoint::Compact => None,
-            Breakpoint::Medium => Some(72.0),
+            Breakpoint::Medium => Some(64.0),
             Breakpoint::Expanded => Some(240.0),
             Breakpoint::Ultra => Some(280.0),
         }
@@ -448,19 +530,6 @@ pub mod timing {
     /// Text-field caret blink half-period: the caret is shown for this long,
     /// hidden for this long. The classic terminal cadence.
     pub const CARET_BLINK_SECS: f32 = 0.53;
-}
-
-/// Type scale (px font sizes). The faces themselves are embedded OFL fonts
-/// served by [`crate::fonts`].
-pub mod type_scale {
-    /// One step above [`HEADING`]: the Overview banner's state word (the
-    /// iced reference draws it larger than a panel title). Adding a rung
-    /// keeps the page titles at 20 — global rescales are off the table.
-    pub const DISPLAY: f32 = 22.0;
-    pub const HEADING: f32 = 20.0;
-    pub const BODY: f32 = 15.0;
-    pub const CAPTION: f32 = 12.0;
-    pub const MONO: f32 = 13.0;
 }
 
 /// WCAG 2.1 relative luminance and color contrast ratio calculations.

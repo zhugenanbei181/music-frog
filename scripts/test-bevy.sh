@@ -4,24 +4,30 @@ set -euo pipefail
 # Bevy UI 战略线的验证入口。
 #
 # infiltrator-bevy-widgets 与 infiltrator-bevy-ui 已纳入主 workspace，
-# 本脚本对两个 crate 运行行为测试与 lint，并追加 bsn! 场景法机械守卫。
+# 本脚本对两个 crate 运行行为测试与 lint，并追加质量守卫。
+# 本文件的守卫清单与 scripts/test.sh 同为唯一权威注册表：CI 工作流只调用
+# 本脚本（--guards-only 快速失败），不得复制内联守卫步骤。
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--guards-only" ) ]]; then
+  echo "usage: bash scripts/test-bevy.sh [--guards-only]" >&2
+  exit 2
+fi
+guards_only=false
+if [[ $# -eq 1 && "$1" == "--guards-only" ]]; then
+  guards_only=true
+fi
 
 crates=(
   "infiltrator-bevy-widgets"
   "infiltrator-bevy-ui"
 )
 
-for crate_name in "${crates[@]}"; do
-  echo "== bevy line: $crate_name =="
-  cargo nextest run -p "$crate_name" --build-jobs 4 --test-threads 4
-  cargo clippy -p "$crate_name" --all-targets -- -D warnings
-  cargo fmt -p "$crate_name" --check
-done
-
-python3 "$repo_root/scripts/quality/bevy_bsn_guard.py" --mode enforce
-python3 "$repo_root/scripts/quality/parity-guard.py" --mode enforce
+run_guards() {
+  python3 "$repo_root/scripts/quality/core-boundary-guard.py" --mode enforce
+  python3 "$repo_root/scripts/quality/bevy_bsn_guard.py" --mode enforce
+  python3 "$repo_root/scripts/quality/parity-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/session-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/hot-reload-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/crash-watchdog-guard.py" --mode enforce
@@ -99,4 +105,19 @@ python3 "$repo_root/scripts/quality/yaml-diff-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/multimodal-shell-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/protocol-ecosystem-guard.py" --mode enforce
 python3 "$repo_root/scripts/quality/notification-timeout-guard.py" --mode enforce
-python3 "$repo_root/scripts/quality/scripting-sandbox-guard.py" --mode enforce
+  python3 "$repo_root/scripts/quality/scripting-sandbox-guard.py" --mode enforce
+}
+
+if [[ "$guards_only" == true ]]; then
+  run_guards
+  exit 0
+fi
+
+for crate_name in "${crates[@]}"; do
+  echo "== bevy line: $crate_name =="
+  cargo nextest run -p "$crate_name" --build-jobs 4 --test-threads 4
+  cargo clippy -p "$crate_name" --all-targets -- -D warnings
+  cargo fmt -p "$crate_name" --check
+done
+
+run_guards

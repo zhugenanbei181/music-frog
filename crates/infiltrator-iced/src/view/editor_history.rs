@@ -217,7 +217,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                     container::Style {
                         background: Some(tk.control_bg.into()),
                         border: Border {
-                            radius: border::Radius::from(4.0),
+                            radius: border::Radius::from(theme::R_XS),
                             width: theme::HAIRLINE,
                             color: tk.card_border,
                         },

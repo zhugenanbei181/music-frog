@@ -15,7 +15,7 @@ use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, MONO, tokens};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::dns::{DnsHostsIssue, FakeIpMappingSource};
+use infiltrator_contract::dns::{DnsHostsIssue, FakeIpMappingSource, validate_hosts};
 use infiltrator_contract::dns_latency::{DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome};
 use infiltrator_contract::dns_self_heal::{DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -199,11 +199,13 @@ pub(crate) fn self_heal_panel<'a>(
         let mut row_content = row![
             text(self_heal_kind_label(check.kind, lang))
                 .size(12)
-                .width(Length::Fixed(150.0)),
+                .width(Length::Shrink),
+            Space::new().width(theme::SP_SM),
             badge(label, kind),
             Space::new().width(theme::SP_SM),
             text(check.detail.clone())
                 .size(11)
+                .width(Length::Fill)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
@@ -303,10 +305,12 @@ pub(crate) fn fake_ip_pool_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> El
                         text(entry.address.clone())
                             .size(12)
                             .font(MONO)
-                            .width(Length::Fixed(150.0)),
+                            .width(Length::FillPortion(2)),
                         text("↔").size(12),
                         Space::new().width(theme::SP_SM),
-                        text(entry.domain.clone()).size(12),
+                        text(entry.domain.clone())
+                            .size(12)
+                            .width(Length::FillPortion(3)),
                     ]
                     .align_y(Alignment::Center),
                 )
@@ -393,10 +397,12 @@ pub(crate) fn hosts_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'
                         text(entry.address.clone())
                             .size(12)
                             .font(MONO)
-                            .width(Length::Fixed(150.0)),
-                        text(entry.domain.clone()).size(12),
+                            .width(Length::FillPortion(2)),
+                        text(entry.domain.clone())
+                            .size(12)
+                            .width(Length::FillPortion(3)),
                         Space::new().width(Length::Fill),
-                        icon_button(Icon::Trash2, 12.0, Message::RemoveDnsHostRow(index),),
+                        icon_button(Icon::Trash2, 12.0, Message::RemoveDnsHostRow(index)),
                     ]
                     .align_y(Alignment::Center),
                 )
@@ -407,7 +413,7 @@ pub(crate) fn hosts_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'
         body = body.push(rows);
     }
 
-    for issue in infiltrator_contract::dns::validate_hosts(&state.editor.dns_hosts) {
+    for issue in validate_hosts(&state.editor.dns_hosts) {
         body = body.push(hosts_issue_line(&issue, lang));
     }
 

@@ -224,12 +224,51 @@ impl SwipeToActionItem {
             self.offset_x = 0.0;
         }
     }
+
+    pub fn open_leading(&mut self) {
+        self.offset_x = -self.max_action_width;
+    }
+
+    pub fn open_trailing(&mut self) {
+        self.offset_x = self.max_action_width;
+    }
+
+    pub fn close(&mut self) {
+        self.offset_x = 0.0;
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.offset_x.abs() >= self.max_action_width * 0.9
+    }
 }
+
+/// Spring dynamics driving swipe-to-action content displacement rebound.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct SwipeToActionSpring {
+    pub spring: Spring,
+}
+
+impl Default for SwipeToActionSpring {
+    fn default() -> Self {
+        Self {
+            spring: Spring::new(0.0, 260.0, 24.0),
+        }
+    }
+}
+
+/// Component tracking the sliding inner content inside a SwipeToActionItem container.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct SwipeContentContainer;
+
+/// Component tracking the revealed action drawer behind or beside the content.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct SwipeActionDrawer;
 
 /// Gesture event dispatched to Bevy observers.
 #[derive(Event, Clone, Debug, PartialEq)]
 pub struct GestureEvent(pub GestureOutcome);
 
+use crate::motion::Spring;
 use crate::palette::UiPalette;
 use crate::text::{Role, TextRole};
 use bevy::ecs::hierarchy::Children;
@@ -240,6 +279,24 @@ use bevy::ui::widget::Text;
 /// Component tracking pull-to-refresh UI container.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct PullToRefreshIndicator;
+
+/// Component tracking pull-to-refresh text label.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct PullToRefreshText;
+
+/// Spring dynamics driving pull-to-refresh indicator height rebound.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct PullToRefreshSpring {
+    pub spring: Spring,
+}
+
+impl Default for PullToRefreshSpring {
+    fn default() -> Self {
+        Self {
+            spring: Spring::new(0.0, 240.0, 22.0),
+        }
+    }
+}
 
 /// Construct a pull-to-refresh header indicator scene.
 pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -> Box<dyn Scene> {
@@ -252,6 +309,8 @@ pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -
         "下拉刷新"
     };
 
+    let spring = Spring::new(height, 240.0, 22.0);
+
     Box::new(bsn! {
         Node {
             width: percent(100),
@@ -261,10 +320,12 @@ pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -
             overflow: Overflow::clip(),
         }
         PullToRefreshIndicator
+        PullToRefreshSpring { spring }
         Children [
             (
                 Text({ label.to_owned() })
                 TextRole(Role::Caption)
+                PullToRefreshText
             ),
         ]
     })

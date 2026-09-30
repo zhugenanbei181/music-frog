@@ -232,7 +232,7 @@ pub fn delay_status_dot<'a, Message: 'a>(delay: Option<u32>) -> Element<'a, Mess
             container::Style {
                 background: Some(color.into()),
                 border: Border {
-                    radius: border::Radius::from(4.0),
+                    radius: border::Radius::from(theme::R_XS),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -261,7 +261,7 @@ pub fn latency_bar<'a, Message: 'a>(delay: Option<u32>) -> Element<'a, Message> 
             container::Style {
                 background: Some(color.into()),
                 border: Border {
-                    radius: border::Radius::from(2.0),
+                    radius: border::Radius::from(theme::R_PILL),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -284,7 +284,7 @@ pub fn latency_bar<'a, Message: 'a>(delay: Option<u32>) -> Element<'a, Message> 
         container::Style {
             background: Some(tk.chip_bg.into()),
             border: Border {
-                radius: border::Radius::from(2.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()

@@ -7,8 +7,9 @@ use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use crate::view::component_forms::{
-    form_field_label, form_input_style, form_pick_style, form_toggle_row, row_card_surface,
-    style_accent, style_danger, style_ghost, text_btn,
+    form_field_label, form_input_style, form_pick_style, form_toggle_row, responsive_form_row,
+    responsive_form_toggle_row, row_card_surface, style_accent, style_danger, style_ghost,
+    text_btn,
 };
 use crate::view::components::{BadgeKind, badge, card, kbd_badge, segmented_control, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
@@ -301,48 +302,50 @@ pub(super) fn system_integration_card<'a>(
     card(
         Some(lang.tr("settings_system_integration").to_string()),
         column![
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("autostart").to_string(),
+                None::<&str>,
                 state.runtime.autostart_enabled,
-                Message::SetAutostart
+                Message::SetAutostart,
             ),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("settings_close_to_tray").to_string(),
+                None::<&str>,
                 state.shell.close_to_tray,
-                Message::UpdateCloseToTray
+                Message::UpdateCloseToTray,
             ),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("settings_notifications").to_string(),
+                None::<&str>,
                 state.shell.notifications_enabled,
-                Message::UpdateNotificationsEnabled
+                Message::UpdateNotificationsEnabled,
             ),
             Space::new().height(theme::SP_XS),
-            row![
-                text(lang.tr("theme").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(theme::SP_MD),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                lang.tr("theme").to_string(),
+                None::<&str>,
                 theme_selector,
-            ]
-            .align_y(Alignment::Center),
-            row![
-                text(lang.tr("settings_lang_label").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(Length::Fill),
+            ),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                lang.tr("settings_lang_label").to_string(),
+                None::<&str>,
                 pick_list(
                     LANGUAGE_OPTIONS,
                     selected_language,
-                    |choice: SettingsChoice| Message::SetLanguage(choice.value.to_string())
+                    |choice: SettingsChoice| Message::SetLanguage(choice.value.to_string()),
                 )
-                .width(Length::Fixed(120.0))
+                .width(if state.shell.viewport.tier.is_compact() {
+                    Length::Fill
+                } else {
+                    Length::Shrink
+                })
                 .style(form_pick_style),
-            ]
-            .align_y(Alignment::Center),
+            ),
             Space::new().height(theme::SP_SM),
             row![
                 text_btn(

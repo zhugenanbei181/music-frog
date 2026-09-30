@@ -25,6 +25,7 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -364,6 +365,7 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         PageRoot(Route::Profiles)
         ProfilesPageRoot
         Children [
+            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
             ( { header_card_scene(summary, auto_update, palette) } ),
             ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
             ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),

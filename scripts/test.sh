@@ -4,9 +4,14 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" ) ]]; then
-  echo "usage: bash scripts/test.sh [--no-run]" >&2
+# --guards-only：只跑质量守卫（秒级），CI 在安装缓存/依赖前用它快速失败。
+guards_only=false
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" && "$1" != "--guards-only" ) ]]; then
+  echo "usage: bash scripts/test.sh [--no-run|--guards-only]" >&2
   exit 2
+fi
+if [[ $# -eq 1 && "$1" == "--guards-only" ]]; then
+  guards_only=true
 fi
 
 # The single supported test runner + guard-registration policy. Kept first so a
@@ -17,6 +22,8 @@ bash scripts/check-test-policy.sh
 # how an import-alias regression reached main. Run them here so local == CI.
 python3 scripts/quality/import-guard.py --mode enforce
 python3 scripts/quality/core-boundary-guard.py --mode enforce
+# bevy crate 已是 workspace 成员，全量门同样要守 bsn! 场景法（与 test-bevy.sh 同源）。
+python3 scripts/quality/bevy_bsn_guard.py --mode enforce
 python3 scripts/quality/line-guard.py --mode enforce
 python3 scripts/quality/test-layout-guard.py --mode enforce
 python3 scripts/quality/verify-packaging.py
@@ -102,8 +109,12 @@ python3 scripts/quality/protocol-ecosystem-guard.py --mode enforce
 python3 scripts/quality/notification-timeout-guard.py --mode enforce
 python3 scripts/quality/scripting-sandbox-guard.py --mode enforce
 
+if [[ "$guards_only" == true ]]; then
+  exit 0
+fi
+
 nextest_mode=()
-if [[ $# -eq 1 ]]; then
+if [[ $# -eq 1 && "$1" == "--no-run" ]]; then
   nextest_mode+=("--no-run")
 fi
 

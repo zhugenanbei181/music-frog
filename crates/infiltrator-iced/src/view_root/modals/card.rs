@@ -1,8 +1,9 @@
 //! Shared modal chrome: the scrim backdrop and the floating card surface.
 
 use crate::types::message::Message;
+use crate::view::theme::{HAIRLINE, R_CARD, tokens};
 use iced::widget::container;
-use iced::{Border, Element, Length, Theme};
+use iced::{Border, Element, Length, Theme, border};
 
 pub(in crate::view_root) fn modal_backdrop<'a>(
     dialog: Element<'a, Message>,
@@ -15,7 +16,7 @@ pub(in crate::view_root) fn modal_backdrop<'a>(
     .width(Length::Fill)
     .height(Length::Fill)
     .style(|t: &Theme| container::Style {
-        background: Some(crate::view::theme::tokens(t).scrim.into()),
+        background: Some(tokens(t).scrim.into()),
         ..Default::default()
     })
     .into()
@@ -29,16 +30,16 @@ pub(in crate::view_root) fn modal_card<'a>(
         .width(Length::Fixed(width))
         .padding(24)
         .style(|theme: &Theme| {
-            let tokens = crate::view::theme::tokens(theme);
+            let tk = tokens(theme);
             container::Style {
-                background: Some(tokens.card_bg.into()),
+                background: Some(tk.card_bg.into()),
                 border: Border {
-                    radius: 16.0.into(),
-                    width: crate::view::theme::HAIRLINE,
-                    color: tokens.card_border,
+                    radius: border::Radius::from(R_CARD),
+                    width: HAIRLINE,
+                    color: tk.card_border,
                 },
-                shadow: tokens.floating_shadow,
-                text_color: Some(tokens.text_primary),
+                shadow: tk.floating_shadow,
+                text_color: Some(tk.text_primary),
                 ..Default::default()
             }
         })

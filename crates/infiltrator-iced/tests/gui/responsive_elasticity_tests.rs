@@ -201,3 +201,124 @@ fn overview_card_order_follows_shared_layout_moves() {
         OverviewCardKind::DEFAULT_ORDER.to_vec()
     );
 }
+
+#[test]
+fn responsive_form_row_adapts_to_viewport_tier() {
+    use crate::view::component_forms::{responsive_form_row, responsive_form_toggle_row};
+    use iced::widget::text;
+
+    let compact_row = responsive_form_row::<Message>(
+        ViewportTier::Compact,
+        "System Proxy",
+        Some("Direct outbound traffic through TUN interface"),
+        text("Control"),
+    );
+    let _ = compact_row;
+
+    let expanded_row = responsive_form_row::<Message>(
+        ViewportTier::Expanded,
+        "System Proxy",
+        Some("Direct outbound traffic through TUN interface"),
+        text("Control"),
+    );
+    let _ = expanded_row;
+
+    let toggle_compact = responsive_form_toggle_row(
+        ViewportTier::Compact,
+        "Allow LAN",
+        Some("Share proxy service with local network"),
+        true,
+        |_| Message::Noop,
+    );
+    let _ = toggle_compact;
+
+    let toggle_expanded = responsive_form_toggle_row(
+        ViewportTier::Expanded,
+        "Allow LAN",
+        Some("Share proxy service with local network"),
+        true,
+        |_| Message::Noop,
+    );
+    let _ = toggle_expanded;
+}
+
+#[test]
+fn overview_topology_pipeline_adapts_to_viewport_tier() {
+    use crate::view::overview_topology::topology_card;
+    use infiltrator_shared::locales::Lang;
+
+    let (mut state, _) = AppState::new();
+    let lang = Lang("en-US");
+
+    // Compact viewport: folds vertically
+    let _ = state.update(Message::WindowResized(390.0, 844.0));
+    assert_eq!(state.shell.viewport.tier, ViewportTier::Compact);
+    let compact_card = topology_card(&state, &lang, true);
+    drop(compact_card);
+
+    // Expanded viewport: wide horizontal flow
+    let _ = state.update(Message::WindowResized(1000.0, 780.0));
+    assert_eq!(state.shell.viewport.tier, ViewportTier::Expanded);
+    let expanded_card = topology_card(&state, &lang, true);
+    drop(expanded_card);
+}
+
+#[test]
+fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes() {
+    use crate::types::app::Route;
+
+    let (mut state, _) = AppState::new();
+
+    let routes = [
+        Route::Overview,
+        Route::Profiles,
+        Route::Proxies,
+        Route::Runtime,
+        Route::Rules,
+        Route::Dns,
+        Route::Sync,
+        Route::Editor,
+        Route::Settings,
+        Route::AppRouting,
+        Route::Doctor,
+    ];
+
+    let viewports = [
+        // Compact (<600px): extreme mobile (360px) & standard mobile
+        (360.0, 640.0, ViewportTier::Compact, 16, 1usize, 2usize, None),
+        (414.0, 896.0, ViewportTier::Compact, 16, 1, 2, None),
+        (599.0, 800.0, ViewportTier::Compact, 16, 1, 2, None),
+        // Medium (600..840px): small tablet / foldables (64px rail)
+        (600.0, 900.0, ViewportTier::Medium, 24, 2, 3, Some(64u16)),
+        (768.0, 1024.0, ViewportTier::Medium, 24, 2, 3, Some(64)),
+        (839.0, 1000.0, ViewportTier::Medium, 24, 2, 3, Some(64)),
+        // Expanded (840..1200px): laptops & standard desktops (240px sidebar)
+        (840.0, 700.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
+        (1024.0, 768.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
+        (1199.0, 800.0, ViewportTier::Expanded, 40, 3, 6, Some(240)),
+        // Ultra (>=1200px): wide monitors & 4K displays (280px wide sidebar)
+        (1200.0, 900.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
+        (1920.0, 1080.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
+        (2560.0, 1440.0, ViewportTier::Ultra, 48, 4, 6, Some(280)),
+    ];
+
+    for (w, h, expected_tier, expected_pad, expected_proxies, expected_metrics, expected_sidebar) in viewports {
+        let _ = state.update(Message::WindowResized(w, h));
+
+        assert_eq!(state.shell.viewport.tier, expected_tier, "tier mismatch at {w}x{h}");
+        assert_eq!(state.shell.viewport.tier.content_padding_px(), expected_pad);
+        assert_eq!(state.shell.viewport.tier.proxy_grid_columns(false), expected_proxies);
+        assert_eq!(state.shell.viewport.metrics_columns, expected_metrics);
+
+        let form = sidebar_form_for_width(w);
+        assert_eq!(form.width_px(), expected_sidebar);
+
+        // Render every single route under this viewport to guarantee zero crash and zero unhandled bounds
+        for route in routes {
+            let _ = state.update(Message::Navigate(route));
+            assert_eq!(state.shell.current_route, route);
+            let view_element = state.view();
+            drop(view_element);
+        }
+    }
+}

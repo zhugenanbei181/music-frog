@@ -16,8 +16,9 @@ use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::view;
+use crate::view::theme::{HAIRLINE, R_CHIP, R_CONTROL};
 use iced::widget::{Space, button, column, container, row, stack, text};
-use iced::{Alignment, Border, Color, Element, Length, Theme};
+use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::Localizer;
 use std::time::Instant;
 
@@ -124,8 +125,8 @@ impl AppState {
                         container::Style {
                             background: Some(tokens.overlay.into()),
                             border: Border {
-                                radius: 12.0.into(),
-                                width: crate::view::theme::HAIRLINE,
+                                radius: border::Radius::from(R_CONTROL),
+                                width: HAIRLINE,
                                 color: color(theme),
                             },
                             shadow: tokens.floating_shadow,
@@ -270,8 +271,8 @@ impl AppState {
                             container::Style {
                                 background: Some(tokens.overlay.into()),
                                 border: Border {
-                                    radius: crate::view::theme::R_CHIP.into(),
-                                    width: crate::view::theme::HAIRLINE,
+                                    radius: border::Radius::from(R_CHIP),
+                                    width: HAIRLINE,
                                     color: color(theme),
                                 },
                                 shadow: tokens.floating_shadow,
@@ -375,8 +376,8 @@ impl AppState {
                         container::Style {
                             background: Some(tokens.overlay.into()),
                             border: Border {
-                                radius: 10.0.into(),
-                                width: crate::view::theme::HAIRLINE,
+                                radius: border::Radius::from(R_CONTROL),
+                                width: HAIRLINE,
                                 color: tokens.overlay_border,
                             },
                             shadow: tokens.floating_shadow,

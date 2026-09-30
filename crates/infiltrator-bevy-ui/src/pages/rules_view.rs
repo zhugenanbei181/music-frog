@@ -28,7 +28,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_domain::rules::view::{self, RuleView};
 
+use crate::pages::overview_topology::TopologyDrilldownFilter;
 use crate::pages::rules::{LastRulesProjection, RuleItem, RulesProjection, rule_row_scene};
+use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 
 /// Marker on a rule row root; the payload is the row index into the last
 /// projection. Rows outside the shared window are not spawned at all.
@@ -181,20 +183,29 @@ fn refilter(view: &mut RulesViewState, projection: &RulesProjection, query: &str
     view.filtered_for = Some(filtered_for);
 }
 
-/// DUAL-11-13: react to a new projection or an edited keyword by recomputing
-/// the shared filter result. The window rebuild is owned by
-/// [`sync_rules_window`], which the route chains after this system.
+/// DUAL-11-13: react to a new projection, an edited keyword, or a topology
+/// drilldown filter (UI-04-05) by recomputing the shared filter result.
 pub(crate) fn sync_rules_view(
     search_fields: Query<&Children, With<RuleSearchField>>,
     text_fields: Query<&TextField, Changed<TextField>>,
     view: Option<ResMut<RulesViewState>>,
     last: Option<Res<LastRulesProjection>>,
+    drilldown: Option<Res<TopologyDrilldownFilter>>,
 ) {
     let Some(mut view) = view else {
         return;
     };
     let projection_changed = last.as_ref().is_some_and(|last| last.is_changed());
-    if !projection_changed && text_fields.iter().next().is_none() {
+    let drilldown_query = drilldown.as_ref().and_then(|d| {
+        if d.is_changed() && d.stage == Some(TrafficTopologyStage::RuleSet) {
+            d.filter_query.clone()
+        } else {
+            None
+        }
+    });
+    let drilldown_active = drilldown_query.is_some();
+
+    if !projection_changed && !drilldown_active && text_fields.iter().next().is_none() {
         return;
     }
     let Some(projection) = last.and_then(|last| last.0.clone()) else {
@@ -203,7 +214,11 @@ pub(crate) fn sync_rules_view(
     if projection_changed {
         view.projection_generation = view.projection_generation.wrapping_add(1);
     }
-    let query = search_field_text(&search_fields, &text_fields).unwrap_or_default();
+    let query = if let Some(dq) = drilldown_query {
+        dq
+    } else {
+        search_field_text(&search_fields, &text_fields).unwrap_or_default()
+    };
     refilter(&mut view, &projection, &query);
 }
 

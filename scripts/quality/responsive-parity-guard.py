@@ -37,7 +37,11 @@ ICED_ROOT = "crates/infiltrator-iced/src/view_root.rs"
 ICED_OVERVIEW_STATS = "crates/infiltrator-iced/src/view/overview_stats.rs"
 ICED_PROXIES = "crates/infiltrator-iced/src/view/proxies.rs"
 ICED_DRAWER = "crates/infiltrator-iced/src/view_root/connection_drawer.rs"
+ICED_COMPONENTS_FORMS = "crates/infiltrator-iced/src/view/component_forms.rs"
 BEVY_WIDGETS_LIB = "crates/infiltrator-bevy-widgets/src/lib.rs"
+BEVY_FLUID_GRID = "crates/infiltrator-bevy-widgets/src/fluid_grid.rs"
+BEVY_APP = "crates/infiltrator-bevy-ui/src/app.rs"
+BEVY_SHELL_SCENE = "crates/infiltrator-bevy-ui/src/shell_scene.rs"
 BEVY_OVERVIEW = "crates/infiltrator-bevy-ui/src/pages/overview.rs"
 BEVY_PROXIES = "crates/infiltrator-bevy-ui/src/pages/proxies.rs"
 LEDGER = "docs/RESPONSIVE_PARITY_LEDGER.md"
@@ -65,6 +69,32 @@ def require(violations: list[str], path: str, *markers: str) -> None:
     for marker in markers:
         if marker not in text:
             violations.append(f"{path} missing {marker!r}")
+
+
+def forbid(violations: list[str], path: str, *markers: str) -> None:
+    text = read(path)
+    for marker in markers:
+        if marker in text:
+            violations.append(f"{path} still contains forbidden marker {marker!r}")
+
+
+def forbid_inline_paths(violations: list[str], path: str, *prefixes: str) -> None:
+    text = read(path)
+    for line_num, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if (
+            stripped.startswith("use ")
+            or stripped.startswith("pub use ")
+            or stripped.startswith("//")
+            or stripped.startswith("///")
+            or stripped.startswith("*")
+        ):
+            continue
+        for prefix in prefixes:
+            if prefix in line:
+                violations.append(
+                    f"{path}:{line_num} contains forbidden inline path {prefix!r} (use `use` import instead)"
+                )
 
 
 def main() -> int:
@@ -101,15 +131,96 @@ def main() -> int:
     require(violations, ICED_OVERVIEW_STATS, "metrics_grid_columns")
     require(violations, ICED_PROXIES, "proxy_grid_columns")
     require(violations, ICED_ROOT, "content_padding_px")
-    require(violations, BEVY_OVERVIEW, "sync_overview_metrics_columns")
-    require(violations, BEVY_PROXIES, "sync_proxies_node_columns")
+    require(
+        violations,
+        BEVY_OVERVIEW,
+        "sync_overview_metrics_columns",
+        "compute_ideal_column_layout",
+    )
+    require(
+        violations,
+        BEVY_PROXIES,
+        "sync_proxies_node_columns",
+        "compute_ideal_column_layout",
+    )
+    forbid_inline_paths(
+        violations,
+        BEVY_OVERVIEW,
+        "infiltrator_bevy_widgets::",
+        "infiltrator_contract::",
+    )
+    forbid_inline_paths(
+        violations,
+        BEVY_PROXIES,
+        "infiltrator_bevy_widgets::",
+        "infiltrator_contract::",
+    )
 
     # 3c. Paginated lists and side panels scale with the window tier.
     require(violations, ICED_UPDATE, "list_page_rows")
     require(violations, ICED_DRAWER, "detail_panel_width_px")
 
-    # 4. Bevy fluid grid engine stays registered.
+    # 3d. Responsive form row adapts to Compact tier without rigid side-by-side.
+    require(
+        violations,
+        ICED_COMPONENTS_FORMS,
+        "use infiltrator_contract::responsive_viewport::ViewportTier;",
+        "pub fn responsive_form_row<",
+        "pub fn responsive_form_toggle_row<",
+    )
+    forbid_inline_paths(
+        violations,
+        ICED_COMPONENTS_FORMS,
+        "infiltrator_contract::responsive_viewport::",
+    )
+
+    # 4. Bevy fluid grid engine stays registered and contract-derived.
     require(violations, BEVY_WIDGETS_LIB, "sync_fluid_grid_layout")
+    require(
+        violations,
+        BEVY_FLUID_GRID,
+        "compute_ideal_column_layout",
+        "FluidGridConfig",
+        "FluidGridTierColumns",
+        "FluidCardGrid",
+        "FluidGridItem",
+    )
+    forbid_inline_paths(
+        violations,
+        BEVY_FLUID_GRID,
+        "infiltrator_contract::",
+        "infiltrator_bevy_widgets::",
+    )
+
+    # 4b. Bevy shell morphology, rail mode, and dynamic safe area adaptation.
+    require(
+        violations,
+        BEVY_APP,
+        "sync_safe_area_insets",
+        "BOTTOM_NAV_HEIGHT_PX",
+        "SIDEBAR_RAIL_WIDTH_PX",
+        "use infiltrator_bevy_widgets::responsive::SafeAreaInsets;",
+        "SidebarToggleProjection(pub SystemToggleSnapshot)",
+    )
+    require(
+        violations,
+        BEVY_SHELL_SCENE,
+        "BottomNavBar",
+        "RailNavTooltip",
+        "BOTTOM_NAV_HEIGHT_PX",
+    )
+    forbid_inline_paths(
+        violations,
+        BEVY_APP,
+        "infiltrator_contract::",
+        "infiltrator_bevy_widgets::",
+    )
+    forbid_inline_paths(
+        violations,
+        BEVY_SHELL_SCENE,
+        "infiltrator_contract::",
+        "infiltrator_bevy_widgets::",
+    )
 
     # 5. Ledger + dual-surface tests exist.
     require(
@@ -126,6 +237,14 @@ def main() -> int:
     )
     if not iced_tests.is_file():
         violations.append(f"missing Iced responsive test: {iced_tests}")
+    else:
+        require(
+            violations,
+            "crates/infiltrator-iced/tests/gui/responsive_elasticity_tests.rs",
+            "fn responsive_form_row_adapts_to_viewport_tier()",
+            "fn overview_topology_pipeline_adapts_to_viewport_tier()",
+            "fn full_spectrum_elasticity_across_all_four_tiers_and_eleven_routes()",
+        )
     if not bevy_tests.is_file():
         violations.append(f"missing Bevy responsive test: {bevy_tests}")
     else:
@@ -133,6 +252,8 @@ def main() -> int:
             violations,
             "crates/infiltrator-bevy-ui/tests/headless/responsive_ui_tests.rs",
             "test_bevy_breakpoint_mirrors_shared_contract_at_boundaries",
+            "test_sidebar_rail_morphology_and_floating_tooltips",
+            "test_safe_area_insets_android_and_ios_adaptation",
         )
 
     if violations:

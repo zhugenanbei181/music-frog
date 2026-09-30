@@ -313,10 +313,10 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
                 background: Some(tk.card_bg.into()),
                 border: Border {
                     radius: border::Radius {
-                        top_left: 16.0,
+                        top_left: theme::R_CARD,
                         top_right: 0.0,
                         bottom_right: 0.0,
-                        bottom_left: 16.0,
+                        bottom_left: theme::R_CARD,
                     },
                     width: theme::HAIRLINE,
                     color: tk.card_border,
@@ -376,7 +376,7 @@ fn stat_card<'a, Message: 'a>(
         container::Style {
             background: Some(tk.control_bg.into()),
             border: Border {
-                radius: 8.0.into(),
+                radius: border::Radius::from(theme::R_SM),
                 width: theme::HAIRLINE,
                 color: tk.card_border,
             },

@@ -100,6 +100,8 @@ pub struct TopologySpec {
     /// Adapter-supplied phase speed. Generic widget code does not infer
     /// network semantics from the link values.
     pub flow_speed: f32,
+    /// Stage ID of currently hovered node, highlighting the entire routing flow chain (UI-04-05).
+    pub hovered_stage: Option<String>,
 }
 
 impl Default for TopologySpec {
@@ -111,6 +113,7 @@ impl Default for TopologySpec {
             height: 140,
             flow_phase: 0.0,
             flow_speed: 1.0,
+            hovered_stage: None,
         }
     }
 }
@@ -129,12 +132,18 @@ impl TopologySpec {
             height,
             flow_phase: 0.0,
             flow_speed: 1.0,
+            hovered_stage: None,
         }
     }
 
     pub fn with_flow(mut self, phase: f32, speed: f32) -> Self {
         self.flow_phase = phase.fract();
         self.flow_speed = speed.max(0.0);
+        self
+    }
+
+    pub fn with_hovered_stage(mut self, hovered_stage: Option<String>) -> Self {
+        self.hovered_stage = hovered_stage;
         self
     }
 }
@@ -214,7 +223,10 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
             let segment = CubicBezierSegment::new(p0, c1, c2, p1);
             let points = segment.sample_points(24);
 
-            let link_color = if link.highlighted {
+            let is_full_chain_hovered = spec.hovered_stage.is_some();
+            let is_highlighted = link.highlighted || is_full_chain_hovered;
+
+            let link_color = if is_highlighted {
                 crate::chart::to_rgba8(palette.accent)
             } else {
                 crate::chart::to_rgba8(palette.border)
@@ -222,7 +234,7 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
 
             let thickness = if link.bandwidth_bps > 10_000_000.0 {
                 3
-            } else if link.bandwidth_bps > 1_000_000.0 {
+            } else if link.bandwidth_bps > 1_000_000.0 || is_full_chain_hovered {
                 2
             } else {
                 1
@@ -248,28 +260,45 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
     }
 
     // 2. Draw node pill cards
-    let card_w = 20;
-    let card_h = 10;
     for node in &spec.nodes {
+        let is_node_hovered = spec
+            .hovered_stage
+            .as_ref()
+            .is_some_and(|stage_id| stage_id == &node.id);
+        let card_w = if is_node_hovered { 24 } else { 20 };
+        let card_h = if is_node_hovered { 12 } else { 10 };
         let cx = (node.x_fraction * width as f32).round() as i32;
         let cy = (node.y_fraction * height as f32).round() as i32;
-        let color = category_to_rgba(node.category, palette);
+        let color = if is_node_hovered {
+            crate::chart::to_rgba8(palette.accent)
+        } else {
+            category_to_rgba(node.category, palette)
+        };
 
         for dy in -card_h / 2..=card_h / 2 {
             for dx in -card_w / 2..=card_w / 2 {
                 let is_border =
                     dx == -card_w / 2 || dx == card_w / 2 || dy == -card_h / 2 || dy == card_h / 2;
-                let alpha = if is_border { 1.0 } else { 0.75 };
+                let alpha = if is_border {
+                    1.0
+                } else if is_node_hovered {
+                    0.95
+                } else {
+                    0.75
+                };
                 blend_pixel(&mut pixels, width, cx + dx, cy + dy, color, alpha);
             }
         }
     }
 
-    // 3. Draw moving particles only for links with an observed active flow.
+    // 3. Draw moving particles only for links with an observed active flow or when chain is hovered.
     // The animation is a visual hint over the shared aggregate rate; it is
     // never emitted for an empty or unavailable topology.
     for (link_index, link) in spec.links.iter().enumerate() {
-        if !link.highlighted || !link.bandwidth_bps.is_finite() || link.bandwidth_bps <= 0.0 {
+        let is_active_flow = (link.highlighted || spec.hovered_stage.is_some())
+            && link.bandwidth_bps.is_finite()
+            && (link.bandwidth_bps > 0.0 || spec.hovered_stage.is_some());
+        if !is_active_flow {
             continue;
         }
         let (Some(src), Some(dst)) = (
@@ -450,11 +479,13 @@ pub fn advance_topology_flow(time: Res<Time>, mut charts: Query<&mut TopologyPla
         return;
     }
     for mut plate in &mut charts {
-        if plate
-            .0
-            .links
-            .iter()
-            .any(|link| link.highlighted && link.bandwidth_bps > 0.0)
+        if plate.0.flow_speed > 0.0
+            && (plate
+                .0
+                .links
+                .iter()
+                .any(|link| link.highlighted && link.bandwidth_bps > 0.0)
+                || plate.0.hovered_stage.is_some())
         {
             plate.0.flow_phase = (plate.0.flow_phase + dt * plate.0.flow_speed).fract();
         }

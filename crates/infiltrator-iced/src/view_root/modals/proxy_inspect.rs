@@ -3,6 +3,7 @@
 use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, HAIRLINE, MONO, R_CONTROL, R_PILL, R_XS, SP_MD, SP_SM, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -82,7 +83,7 @@ fn waterfall_metric<'a>(
     let dot = container(Space::new().width(6).height(6)).style(move |_| container::Style {
         background: Some(color.into()),
         border: Border {
-            radius: 3.0.into(),
+            radius: border::Radius::from(R_PILL),
             ..Default::default()
         },
         ..Default::default()
@@ -93,25 +94,25 @@ fn waterfall_metric<'a>(
             Space::new().width(4.0),
             text(name)
                 .size(11)
-                .font(crate::view::theme::FONT_MEDIUM)
+                .font(FONT_MEDIUM)
                 .style(|t: &Theme| text::Style {
-                    color: Some(crate::view::theme::tokens(t).text_secondary),
+                    color: Some(tokens(t).text_secondary),
                 }),
         ]
         .align_y(Alignment::Center),
         row![
             text(format!("{ms}ms"))
                 .size(12)
-                .font(crate::view::theme::MONO)
+                .font(MONO)
                 .style(|t: &Theme| text::Style {
-                    color: Some(crate::view::theme::tokens(t).text_primary),
+                    color: Some(tokens(t).text_primary),
                 }),
             Space::new().width(3.0),
             text(format!("({pct}%)"))
                 .size(10)
-                .font(crate::view::theme::MONO)
+                .font(MONO)
                 .style(|t: &Theme| text::Style {
-                    color: Some(crate::view::theme::tokens(t).text_tertiary),
+                    color: Some(tokens(t).text_tertiary),
                 }),
         ]
         .align_y(Alignment::Center),
@@ -146,10 +147,10 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
                         background: Some(dns_color.into()),
                         border: Border {
                             radius: border::Radius {
-                                top_left: 4.0,
-                                bottom_left: 4.0,
+                                top_left: R_XS,
+                                bottom_left: R_XS,
                                 top_right: 0.0,
-                                bottom_right: 0.0
+                                bottom_right: 0.0,
                             },
                             ..Default::default()
                         },
@@ -178,8 +179,8 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
                             radius: border::Radius {
                                 top_left: 0.0,
                                 bottom_left: 0.0,
-                                top_right: 4.0,
-                                bottom_right: 4.0
+                                top_right: R_XS,
+                                bottom_right: R_XS,
                             },
                             ..Default::default()
                         },
@@ -209,11 +210,11 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
         _ => {
             let empty_bar =
                 container(Space::new().width(Length::Fill).height(8.0)).style(|t: &Theme| {
-                    let tk = crate::view::theme::tokens(t);
+                    let tk = tokens(t);
                     container::Style {
                         background: Some(tk.control_bg.into()),
                         border: Border {
-                            radius: 4.0.into(),
+                            radius: border::Radius::from(R_XS),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -222,7 +223,7 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
             let hint = text(lang.tr("modal_latency_untested").to_string())
                 .size(11)
                 .style(|t: &Theme| text::Style {
-                    color: Some(crate::view::theme::tokens(t).text_tertiary),
+                    color: Some(tokens(t).text_tertiary),
                 });
             (
                 lang.tr("modal_latency_waterfall").to_string(),
@@ -248,12 +249,12 @@ fn latency_waterfall_section<'a>(delay: Option<u32>, lang: &Lang<'_>) -> Element
         .padding([12, 14])
         .width(Length::Fill)
         .style(|t: &Theme| {
-            let tk = crate::view::theme::tokens(t);
+            let tk = tokens(t);
             container::Style {
                 background: Some(tk.control_bg.into()),
                 border: Border {
-                    radius: 12.0.into(),
-                    width: crate::view::theme::HAIRLINE,
+                    radius: border::Radius::from(R_CONTROL),
+                    width: HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -270,10 +271,10 @@ fn meta_card<'a>(
 ) -> Element<'a, Message> {
     let label_s = label.into();
     let mut val_text = text(val).size(12).style(|t: &Theme| text::Style {
-        color: Some(crate::view::theme::tokens(t).text_primary),
+        color: Some(tokens(t).text_primary),
     });
     if mono {
-        val_text = val_text.font(crate::view::theme::MONO);
+        val_text = val_text.font(MONO);
     }
     let mut val_row = row![val_text].align_y(Alignment::Center).spacing(6);
     if let Some(b) = badge {
@@ -281,20 +282,20 @@ fn meta_card<'a>(
     }
     let label_text = text(label_s)
         .size(10)
-        .font(crate::view::theme::FONT_MEDIUM)
+        .font(FONT_MEDIUM)
         .style(|t: &Theme| text::Style {
-            color: Some(crate::view::theme::tokens(t).text_secondary),
+            color: Some(tokens(t).text_secondary),
         });
     container(column![label_text, Space::new().height(2.0), val_row].spacing(2))
         .padding([8, 12])
         .width(Length::FillPortion(1))
         .style(|t: &Theme| {
-            let tk = crate::view::theme::tokens(t);
+            let tk = tokens(t);
             container::Style {
                 background: Some(tk.control_bg.into()),
                 border: Border {
-                    radius: 10.0.into(),
-                    width: crate::view::theme::HAIRLINE,
+                    radius: border::Radius::from(R_CONTROL),
+                    width: HAIRLINE,
                     color: tk.card_border,
                 },
                 ..Default::default()
@@ -361,20 +362,20 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
 
     let header = row![
         text(flag).size(20),
-        Space::new().width(crate::view::theme::SP_SM),
+        Space::new().width(SP_SM),
         text(proxy_name.to_string())
             .size(16)
-            .font(crate::view::theme::FONT_SEMIBOLD)
+            .font(FONT_SEMIBOLD)
             .style(|theme: &Theme| text::Style {
-                color: Some(crate::view::theme::tokens(theme).text_primary),
+                color: Some(tokens(theme).text_primary),
             }),
-        Space::new().width(crate::view::theme::SP_SM),
+        Space::new().width(SP_SM),
         crate::view::components::badge(p_type, crate::view::components::BadgeKind::Accent),
         Space::new().width(Length::Fill),
         button(crate::view::svg_icons::icon_themed(
             crate::view::svg_icons::Icon::X,
             14.0,
-            |t: &Theme| crate::view::theme::tokens(t).text_secondary
+            |t: &Theme| tokens(t).text_secondary,
         ))
         .padding(4)
         .style(crate::view::component_forms::style_ghost)
@@ -405,11 +406,11 @@ pub fn inspect_proxy_modal<'a>(state: &'a AppState, proxy_name: &str) -> Element
 
     let dialog_content = column![
         header,
-        Space::new().height(crate::view::theme::SP_SM),
+        Space::new().height(SP_SM),
         latency_waterfall_section(delay, &lang),
-        Space::new().height(crate::view::theme::SP_SM),
+        Space::new().height(SP_SM),
         meta_grid,
-        Space::new().height(crate::view::theme::SP_MD),
+        Space::new().height(SP_MD),
         actions,
     ]
     .spacing(4);

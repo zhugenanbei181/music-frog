@@ -6,8 +6,9 @@
 use crate::view::components::{BadgeKind, icon_button, toggle_switch};
 use crate::view::svg_icons::{self, Icon};
 use crate::view::theme;
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::responsive_viewport::ViewportTier;
 
 /// Search input field with leading magnifying glass icon and trailing clear button.
 pub fn search_input<'a, Message: 'a + Clone>(
@@ -190,7 +191,7 @@ pub fn form_input_style(
 ) -> iced::widget::text_input::Style {
     let tk = theme::tokens(t);
     let (border_color, border_width) = match status {
-        iced::widget::text_input::Status::Focused { .. } => (tk.focus_ring, 1.5),
+        iced::widget::text_input::Status::Focused { .. } => (tk.focus_ring, 2.0),
         _ => (tk.card_border, 1.0),
     };
     iced::widget::text_input::Style {
@@ -212,19 +213,42 @@ pub fn form_input_style(
 
 pub fn form_pick_style(
     t: &Theme,
-    _status: iced::widget::pick_list::Status,
-) -> iced::widget::pick_list::Style {
+    status: pick_list::Status,
+) -> pick_list::Style {
     let tk = theme::tokens(t);
-    iced::widget::pick_list::Style {
+    let (border_color, border_width) = match status {
+        pick_list::Status::Opened { .. } => (tk.focus_ring, 2.0),
+        pick_list::Status::Hovered => (tk.accent, 1.0),
+        pick_list::Status::Active => (tk.card_border, theme::HAIRLINE),
+    };
+    pick_list::Style {
         text_color: tk.text_primary,
         placeholder_color: tk.text_tertiary,
         handle_color: tk.text_secondary,
         background: tk.control_bg.into(),
         border: Border {
             radius: border::Radius::from(theme::R_CONTROL),
+            width: border_width,
+            color: border_color,
+        },
+    }
+}
+
+/// Helper providing the standard 2px glowing focus ring border.
+pub fn style_focus_ring(t: &Theme, is_focused: bool) -> Border {
+    let tk = theme::tokens(t);
+    if is_focused {
+        Border {
+            radius: border::Radius::from(theme::R_CONTROL),
+            width: 2.0,
+            color: tk.focus_ring,
+        }
+    } else {
+        Border {
+            radius: border::Radius::from(theme::R_CONTROL),
             width: theme::HAIRLINE,
             color: tk.card_border,
-        },
+        }
     }
 }
 
@@ -249,6 +273,60 @@ pub fn form_toggle_row<'a, Message: 'a + Clone>(
     .align_y(iced::Alignment::Center)
     .width(Length::Fill)
     .into()
+}
+
+/// Responsive form row that wraps labels and controls based on viewport tier.
+///
+/// In [`ViewportTier::Compact`], the label and control are stacked vertically
+/// with full width to maximize touch target and prevent text overflow.
+/// In wider tiers, they are rendered horizontally side-by-side with elastic fill.
+pub fn responsive_form_row<'a, Message: 'a + Clone>(
+    tier: ViewportTier,
+    label: impl Into<String>,
+    description: Option<impl Into<String>>,
+    control: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let label_text = text(label.into()).size(13).style(|t: &Theme| text::Style {
+        color: Some(theme::tokens(t).text_primary),
+    });
+
+    let header: Element<'a, Message> = if let Some(desc) = description {
+        let desc_text = text(desc.into()).size(11).style(|t: &Theme| text::Style {
+            color: Some(theme::tokens(t).text_secondary),
+        });
+        column![label_text, desc_text]
+            .spacing(theme::SP_XS)
+            .into()
+    } else {
+        label_text.into()
+    };
+
+    let control_el = control.into();
+
+    if tier.is_compact() {
+        column![header, control_el]
+            .spacing(theme::SP_SM)
+            .width(Length::Fill)
+            .into()
+    } else {
+        row![header, Space::new().width(Length::Fill), control_el]
+            .spacing(theme::SP_MD)
+            .align_y(iced::Alignment::Center)
+            .width(Length::Fill)
+            .into()
+    }
+}
+
+/// Responsive toggle row that collapses description and switch gracefully in compact viewports.
+pub fn responsive_form_toggle_row<'a, Message: 'a + Clone>(
+    tier: ViewportTier,
+    label: impl Into<String>,
+    description: Option<impl Into<String>>,
+    value: bool,
+    on_change: impl Fn(bool) -> Message + 'a,
+) -> Element<'a, Message> {
+    let switch = toggle_switch(value, on_change);
+    responsive_form_row(tier, label, description, switch)
 }
 
 /// Inline notification alert banner for section headers and forms.

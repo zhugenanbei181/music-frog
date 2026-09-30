@@ -5,10 +5,10 @@
 use std::sync::{Mutex, mpsc::Receiver};
 use std::time::Instant;
 
-use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::camera::Camera2d;
 use bevy::camera::ClearColor;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -16,34 +16,46 @@ use bevy::ecs::message::MessageWriter;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::scene::{CommandsSceneExt, Scene};
-use bevy::text::TextColor;
-use bevy::ui::prelude::{BackgroundColor, BorderColor, Display, Node, UiRect, Val, px};
+use bevy::scene::CommandsSceneExt;
+use bevy::ui::prelude::{BackgroundColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
-use infiltrator_bevy_widgets::icon::IconTint;
-use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::responsive::SafeAreaInsets;
 use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveContext};
-use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
-use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_contract::shell_gesture;
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 
+use crate::chrome::ChromeDragBar;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::controller::FailureDwell;
+use crate::gesture::GestureHostReport;
 use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated};
 use crate::projection::OverviewState;
 use crate::route::{ActiveRoute, OverviewSourceHandle, Route, RouteChanged};
+use crate::shell_rail::{
+    sync_bottom_nav_visuals, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
+    sync_sidebar_rail_morphology,
+};
 
 /// Sidebar rail standard width (px).
 pub const SIDEBAR_WIDTH_PX: f32 = 240.0;
+/// Sidebar rail mode slim width (px).
+pub const SIDEBAR_RAIL_WIDTH_PX: f32 = 64.0;
+/// Sidebar wide mode width (px).
+pub const SIDEBAR_WIDE_WIDTH_PX: f32 = 280.0;
 /// Identity tile edge (px).
 pub const IDENTITY_TILE_PX: f32 = 40.0;
+/// Standard height of the bottom navigation bar in Compact mode (px).
+pub const BOTTOM_NAV_HEIGHT_PX: f32 = 58.0;
 
 /// Shell layout mode corresponding to responsive breakpoints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -129,7 +141,7 @@ impl Default for ShellLayoutState {
 /// PagesPlugin replaces it from each accepted SurfaceSnapshot; ShellPlugin
 /// alone starts in `Unknown` and therefore renders non-actionable controls.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
-pub struct SidebarToggleProjection(pub infiltrator_contract::system_toggle::SystemToggleSnapshot);
+pub struct SidebarToggleProjection(pub SystemToggleSnapshot);
 
 /// Marker for the content region product pages mount into.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -235,6 +247,30 @@ pub struct BottomNavActive(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarFoot;
 
+/// Marker on the sidebar identity text block ("MusicFrog" + version), hidden in rail mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarIdentityText;
+
+/// Marker on the sidebar proxy mode segmented control, hidden in rail mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarModeSegment;
+
+/// Marker on the sidebar bottom footer row, hidden in rail mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarFooterRow;
+
+/// Marker on the sidebar nav item spacer between icon and label, hidden in rail mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NavSpacer;
+
+/// Marker on floating rail navigation tooltip bubble.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RailNavTooltip(pub Route);
+
+/// Marker on sidebar elements that are only visible in Expanded/Wide mode and collapsed in Rail mode.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SidebarExpandedOnly;
+
 /// Latch for a proxy-mode command in flight.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ModeCommandInFlight(pub bool);
@@ -242,39 +278,6 @@ pub struct ModeCommandInFlight(pub bool);
 /// The receipt channel of the in-flight mode command.
 #[derive(Resource, Debug, Default)]
 pub struct PendingModeAck(pub Option<Mutex<Receiver<Result<(), String>>>>);
-
-pub fn window_semantic_node(title: &str) -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Window);
-    node.set_label(title);
-    AccessibilityNode(node)
-}
-
-pub fn header_semantic_node(title: &str) -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Header);
-    node.set_label(title);
-    AccessibilityNode(node)
-}
-
-pub fn toggle_semantic_node(label: &str) -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Button);
-    node.set_label(label);
-    AccessibilityNode(node)
-}
-
-pub fn nav_semantic_node(label: &str, disabled: bool) -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Button);
-    node.set_label(label);
-    if disabled {
-        node.set_disabled();
-    }
-    AccessibilityNode(node)
-}
-
-pub fn region_semantic_node(label: &str) -> AccessibilityNode {
-    let mut node = accesskit::Node::new(accesskit::Role::Region);
-    node.set_label(label);
-    AccessibilityNode(node)
-}
 
 /// Density toggle observer.
 fn on_density_pill_activated(
@@ -539,6 +542,7 @@ impl Plugin for ShellPlugin {
         app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
         app.init_resource::<SidebarToggleProjection>();
+        app.init_resource::<SafeAreaInsets>();
         app.add_observer(crate::appearance::on_theme_pill_activated);
         app.add_observer(on_density_pill_activated);
         app.add_observer(on_mode_pill_activated);
@@ -560,6 +564,9 @@ impl Plugin for ShellPlugin {
                 sync_sidebar_nav_visuals,
                 sync_bottom_nav_visuals,
                 sync_responsive_shell,
+                sync_sidebar_rail_morphology,
+                sync_rail_nav_tooltips,
+                sync_safe_area_insets.after(sync_responsive_shell),
                 sync_window_clear,
                 crate::appearance::sync_system_appearance,
                 drain_mode_ack,
@@ -655,92 +662,6 @@ fn sync_content_title(
     }
 }
 
-/// Sync sidebar navigation items with the active route and live palette.
-fn sync_sidebar_nav_visuals(
-    palette: Res<UiPalette>,
-    active_route: Option<Res<ActiveRoute>>,
-    mut items: Query<(Entity, &SidebarNavItem, &mut NavActive, &Children)>,
-    mut bgs: Query<&mut BackgroundColor>,
-    mut texts: Query<(&NavLabel, &mut TextColor, Option<&mut TextRole>)>,
-) {
-    let current = active_route
-        .as_ref()
-        .and_then(|r| r.0)
-        .unwrap_or(Route::Overview);
-    for (entity, item, mut active_marker, children) in &mut items {
-        let is_active = item.0 == current;
-        if active_marker.0 != is_active {
-            active_marker.0 = is_active;
-        }
-        let target_fill = nav_fill(is_active, &palette);
-        if let Ok(mut bg) = bgs.get_mut(entity)
-            && bg.0 != target_fill
-        {
-            bg.0 = target_fill;
-        }
-        let target_ink = nav_label_ink(is_active, &palette);
-        let target_role = if is_active {
-            Role::BodyStrong
-        } else {
-            Role::Body
-        };
-        for child in children.iter() {
-            if let Ok((_, mut text_color, text_role)) = texts.get_mut(*child) {
-                if text_color.0 != target_ink {
-                    text_color.0 = target_ink;
-                }
-                if let Some(mut role) = text_role
-                    && role.0 != target_role
-                {
-                    role.0 = target_role;
-                }
-            }
-        }
-    }
-}
-
-/// Repaint bottom navigation bar and sync active states with ActiveRoute.
-fn sync_bottom_nav_visuals(
-    palette: Res<UiPalette>,
-    active_route: Option<Res<ActiveRoute>>,
-    mut bars: Query<(&mut BackgroundColor, &mut BorderColor), With<BottomNavBar>>,
-    mut items: Query<(&BottomNavItem, &mut BottomNavActive, &Children)>,
-    mut icons: Query<&mut IconTint>,
-) {
-    let edge = palette.border;
-    for (mut fill, mut border) in &mut bars {
-        if fill.0 != palette.sidebar {
-            fill.0 = palette.sidebar;
-        }
-        if border.top != edge {
-            border.top = edge;
-        }
-    }
-
-    let current = active_route
-        .as_ref()
-        .and_then(|r| r.0)
-        .unwrap_or(Route::Overview);
-    for (item, mut active_marker, children) in &mut items {
-        let is_active = item.0 == current;
-        if active_marker.0 != is_active {
-            active_marker.0 = is_active;
-        }
-        let target_ink = if is_active {
-            palette.accent
-        } else {
-            palette.ink_dim
-        };
-        for child in children.iter() {
-            if let Ok(mut tint) = icons.get_mut(*child)
-                && tint.0 != target_ink
-            {
-                tint.0 = target_ink;
-            }
-        }
-    }
-}
-
 type ContentColFilter = (
     With<ContentColumn>,
     Without<SidebarPanel>,
@@ -781,6 +702,7 @@ fn sync_responsive_shell(
     }
 
     let is_compact = layout.mode == LayoutMode::BottomNav;
+    let is_rail = layout.mode == LayoutMode::Rail;
     for mut node in &mut sidebars {
         if is_compact {
             if node.display != Display::None {
@@ -791,13 +713,21 @@ fn sync_responsive_shell(
                 node.display = Display::Flex;
             }
             let target_w = match layout.mode {
-                LayoutMode::Rail => px(72.0),
+                LayoutMode::Rail => px(SIDEBAR_RAIL_WIDTH_PX),
                 LayoutMode::Sidebar => px(SIDEBAR_WIDTH_PX),
-                LayoutMode::Wide => px(280.0),
+                LayoutMode::Wide => px(SIDEBAR_WIDE_WIDTH_PX),
                 LayoutMode::BottomNav => px(0.0),
             };
             if node.width != target_w {
                 node.width = target_w;
+            }
+            let target_padding = if is_rail {
+                UiRect::all(Val::Px(space::S8))
+            } else {
+                UiRect::all(Val::Px(space::S12))
+            };
+            if node.padding != target_padding {
+                node.padding = target_padding;
             }
         }
     }
@@ -844,6 +774,169 @@ fn sync_responsive_shell(
     }
 }
 
+/// Synchronize safe-area insets (status bar, gesture navigation bar, camera cutouts)
+/// across ShellRoot, ChromeDragBar, and BottomNavBar.
+#[allow(clippy::type_complexity)]
+pub fn sync_safe_area_insets(
+    mut safe_insets: Option<ResMut<SafeAreaInsets>>,
+    mut host_report: Option<ResMut<GestureHostReport>>,
+    layout: Res<ShellLayoutState>,
+    mut shell_roots: Query<
+        &mut Node,
+        (
+            With<ShellRoot>,
+            Without<BottomNavBar>,
+            Without<ChromeDragBar>,
+        ),
+    >,
+    mut bottom_navs: Query<
+        &mut Node,
+        (
+            With<BottomNavBar>,
+            Without<ShellRoot>,
+            Without<ChromeDragBar>,
+        ),
+    >,
+    mut chrome_bars: Query<
+        &mut Node,
+        (
+            With<ChromeDragBar>,
+            Without<ShellRoot>,
+            Without<BottomNavBar>,
+        ),
+    >,
+) {
+    let host_changed = host_report.as_ref().is_some_and(|r| r.is_changed());
+    let widget_changed = safe_insets.as_ref().is_some_and(|w| w.is_changed());
+
+    let (insets_top, insets_bottom, insets_left, insets_right) = if widget_changed && !host_changed
+    {
+        let w = safe_insets.as_ref().unwrap();
+        (w.top_px, w.bottom_px, w.left_px, w.right_px)
+    } else if host_changed && !widget_changed {
+        let r = host_report.as_ref().unwrap();
+        (r.insets.top, r.insets.bottom, r.insets.left, r.insets.right)
+    } else {
+        let r_top = host_report.as_ref().map_or(0.0, |r| r.insets.top);
+        let r_bottom = host_report.as_ref().map_or(0.0, |r| r.insets.bottom);
+        let r_left = host_report.as_ref().map_or(0.0, |r| r.insets.left);
+        let r_right = host_report.as_ref().map_or(0.0, |r| r.insets.right);
+
+        let w_top = safe_insets.as_ref().map_or(0.0, |w| w.top_px);
+        let w_bottom = safe_insets.as_ref().map_or(0.0, |w| w.bottom_px);
+        let w_left = safe_insets.as_ref().map_or(0.0, |w| w.left_px);
+        let w_right = safe_insets.as_ref().map_or(0.0, |w| w.right_px);
+
+        if w_top > 0.0 || w_bottom > 0.0 || w_left > 0.0 || w_right > 0.0 {
+            (w_top, w_bottom, w_left, w_right)
+        } else {
+            (r_top, r_bottom, r_left, r_right)
+        }
+    };
+
+    // Bidirectional sync between widget SafeAreaInsets and contract GestureHostReport
+    if let Some(ref mut widget_insets) = safe_insets
+        && ((widget_insets.top_px - insets_top).abs() > 0.001
+            || (widget_insets.bottom_px - insets_bottom).abs() > 0.001
+            || (widget_insets.left_px - insets_left).abs() > 0.001
+            || (widget_insets.right_px - insets_right).abs() > 0.001)
+    {
+        widget_insets.top_px = insets_top;
+        widget_insets.bottom_px = insets_bottom;
+        widget_insets.left_px = insets_left;
+        widget_insets.right_px = insets_right;
+    }
+    if let Some(ref mut report) = host_report
+        && ((report.insets.top - insets_top).abs() > 0.001
+            || (report.insets.bottom - insets_bottom).abs() > 0.001
+            || (report.insets.left - insets_left).abs() > 0.001
+            || (report.insets.right - insets_right).abs() > 0.001)
+    {
+        report.insets = shell_gesture::SafeAreaInsets::new(
+            insets_top,
+            insets_right,
+            insets_bottom,
+            insets_left,
+        );
+    }
+
+    // 1. Bottom Navigation Bar safe area avoidance (bottom gesture bar)
+    let bottom_nav_height = Val::Px(BOTTOM_NAV_HEIGHT_PX + insets_bottom);
+    let bottom_nav_padding = if insets_bottom > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
+        UiRect::new(
+            Val::Px(insets_left),
+            Val::Px(insets_right),
+            Val::Px(0.0),
+            Val::Px(space::S6 + insets_bottom),
+        )
+    } else {
+        UiRect::bottom(Val::Px(space::S6))
+    };
+
+    for mut node in &mut bottom_navs {
+        if node.height != bottom_nav_height {
+            node.height = bottom_nav_height;
+        }
+        if node.min_height != bottom_nav_height {
+            node.min_height = bottom_nav_height;
+        }
+        if node.padding != bottom_nav_padding {
+            node.padding = bottom_nav_padding;
+        }
+    }
+
+    // 2. Chrome Drag Bar safe area avoidance (status bar / notch)
+    let chrome_height = Val::Px(CHROME_DRAG_STRIP_HEIGHT_PX as f32 + insets_top);
+    let chrome_padding = if insets_top > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
+        UiRect::new(
+            Val::Px(space::S12 + insets_left),
+            Val::Px(space::S12 + insets_right),
+            Val::Px(insets_top),
+            Val::Px(0.0),
+        )
+    } else {
+        UiRect::horizontal(Val::Px(space::S12))
+    };
+
+    let chrome_bar_count = chrome_bars.iter().count();
+    for mut node in &mut chrome_bars {
+        if node.height != chrome_height {
+            node.height = chrome_height;
+        }
+        if node.min_height != chrome_height {
+            node.min_height = chrome_height;
+        }
+        if node.padding != chrome_padding {
+            node.padding = chrome_padding;
+        }
+    }
+
+    // 3. Shell Root horizontal & fallback bottom/top safe area avoidance
+    let is_compact = layout.mode == LayoutMode::BottomNav;
+    let root_bottom_pad = if !is_compact && insets_bottom > 0.0 {
+        insets_bottom
+    } else {
+        0.0
+    };
+    let root_top_pad = if chrome_bar_count == 0 && insets_top > 0.0 {
+        insets_top
+    } else {
+        0.0
+    };
+    let root_padding = UiRect::new(
+        Val::Px(insets_left),
+        Val::Px(insets_right),
+        Val::Px(root_top_pad),
+        Val::Px(root_bottom_pad),
+    );
+
+    for mut node in &mut shell_roots {
+        if node.padding != root_padding {
+            node.padding = root_padding;
+        }
+    }
+}
+
 /// Repaint window canvas clear color.
 fn sync_window_clear(palette: Res<UiPalette>, mut clear: Option<ResMut<ClearColor>>) {
     let Some(clear) = clear.as_deref_mut() else {
@@ -852,14 +945,4 @@ fn sync_window_clear(palette: Res<UiPalette>, mut clear: Option<ResMut<ClearColo
     if clear.0 != palette.window_clear {
         clear.0 = palette.window_clear;
     }
-}
-
-/// The root shell scene.
-pub fn shell_scene(title: String, palette: &UiPalette) -> impl Scene + use<> {
-    crate::shell_scene::shell_scene(title, palette)
-}
-
-/// The bottom navigation bar for Compact mode (<600px).
-pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
-    crate::shell_scene::bottom_nav_scene(palette)
 }

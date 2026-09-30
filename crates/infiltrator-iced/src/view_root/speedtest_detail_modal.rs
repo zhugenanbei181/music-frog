@@ -8,9 +8,9 @@ use super::modals::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge};
-use crate::view::theme::{MONO, tokens};
+use crate::view::theme::{HAIRLINE, MONO, R_SM, tokens};
 use iced::widget::{Space, button, column, container, row, scrollable, text};
-use iced::{Alignment, Element, Length, Theme};
+use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_contract::speedtest::{EgressCountryMatch, NodeSpeedtestResult, SpeedtestSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -100,9 +100,9 @@ fn node_row(node: &NodeSpeedtestResult, lang: &Lang<'_>) -> Element<'static, Mes
     .width(Length::Fill)
     .style(|theme: &Theme| container::Style {
         background: Some(tokens(theme).card_bg.into()),
-        border: iced::Border {
-            radius: 8.0.into(),
-            width: crate::view::theme::HAIRLINE,
+        border: Border {
+            radius: border::Radius::from(R_SM),
+            width: HAIRLINE,
             color: tokens(theme).card_border,
         },
         ..Default::default()

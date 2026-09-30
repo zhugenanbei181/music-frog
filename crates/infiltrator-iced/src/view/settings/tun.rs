@@ -2,7 +2,10 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::{form_input_style, form_toggle_row, style_ghost, text_btn};
+use crate::view::component_forms::{
+    form_input_style, form_toggle_row, responsive_form_row, responsive_form_toggle_row,
+    style_ghost, text_btn,
+};
 use crate::view::components::{BadgeKind, badge, card, icon_button, segmented_control};
 use crate::view::svg_icons::Icon;
 use crate::view::theme::{self, MONO, tokens};
@@ -128,46 +131,49 @@ pub(super) fn tun_card<'a>(
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
-            row![
-                text(lang.tr("tun_stack").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(Length::Fill),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                lang.tr("tun_stack").to_string(),
+                None::<&str>,
                 tun_stack_selector,
-            ]
-            .align_y(Alignment::Center),
-            row![
-                text("MTU").size(13).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary)
-                }),
-                Space::new().width(Length::Fill),
+            ),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                "MTU",
+                None::<&str>,
                 text_input("1500", &state.editor.tun_form.mtu)
                     .on_input(Message::UpdateTunFormMtu)
-                    .width(Length::Fixed(120.0))
+                    .width(if state.shell.viewport.tier.is_compact() {
+                        Length::Fill
+                    } else {
+                        Length::Fixed(120.0)
+                    })
                     .padding([6, 10])
                     .size(12)
                     .font(MONO)
                     .style(form_input_style),
-            ]
-            .align_y(Alignment::Center),
-            form_toggle_row(
+            ),
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("tun_auto_route").to_string(),
+                None::<&str>,
                 auto_route,
-                Message::SetTunAutoRoute
+                Message::SetTunAutoRoute,
             ),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("tun_strict_route").to_string(),
+                None::<&str>,
                 strict_route,
-                Message::SetTunStrictRoute
+                Message::SetTunStrictRoute,
             ),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("settings_ipv6_routing").to_string(),
+                Some(lang.tr("settings_ipv6_routing_desc").to_string()),
                 state.runtime.ipv6_routing.enabled,
                 Message::SetIpv6Routing,
             ),
-            secondary_text(lang.tr("settings_ipv6_routing_desc").to_string()),
             form_toggle_row(
                 lang.tr("settings_dns_hijack").to_string(),
                 dns_hijack_active,

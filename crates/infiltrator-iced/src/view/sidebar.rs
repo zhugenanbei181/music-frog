@@ -19,6 +19,8 @@ use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTR
 use crate::view::waveform::mini_waveform;
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::responsive_viewport::{SidebarForm, ViewportTier};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Standard labelled sidebar width. Mirrors
@@ -39,10 +41,7 @@ fn mode_ids(state: &AppState) -> Vec<&'static str> {
 /// Full labelled sidebar at the default expanded width. Kept as a stable
 /// entry point for callers that do not have a tier (tests, mini HUD shell).
 pub fn sidebar(state: &AppState) -> Element<'_, Message> {
-    sidebar_with_form(
-        state,
-        infiltrator_contract::responsive_viewport::SidebarForm::Standard,
-    )
+    sidebar_with_form(state, SidebarForm::Standard)
 }
 
 /// Sidebar content column (header, mode control, toggles, nav shortcuts).
@@ -158,10 +157,8 @@ pub const RAIL_WIDTH: f32 = 64.0;
 
 /// Pure tier → navigation-form mapping shared with tests. Keeps the dropdown
 /// width and the rendered widget in sync from one decision point.
-pub fn sidebar_form_for_width(
-    width_px: f32,
-) -> infiltrator_contract::responsive_viewport::SidebarForm {
-    infiltrator_contract::responsive_viewport::ViewportTier::from_width(width_px).sidebar_form()
+pub fn sidebar_form_for_width(width_px: f32) -> SidebarForm {
+    ViewportTier::from_width(width_px).sidebar_form()
 }
 
 /// Select and render the sidebar form for the shell's current responsive tier.
@@ -169,8 +166,6 @@ pub fn sidebar_form_for_width(
 /// This is the single entry point the view root uses, so window-resize tier
 /// changes actually re-lay out navigation instead of leaving a static sidebar.
 pub fn sidebar_for_tier(state: &AppState) -> Element<'_, Message> {
-    use infiltrator_contract::responsive_viewport::ViewportTier;
-
     match state.shell.viewport.tier {
         ViewportTier::Compact => sidebar_bottom_nav(state),
         ViewportTier::Medium => sidebar_rail(state),
@@ -182,10 +177,7 @@ pub fn sidebar_for_tier(state: &AppState) -> Element<'_, Message> {
 }
 
 /// Standard / wide labelled sidebar; width is taken from the shared tier form.
-fn sidebar_with_form(
-    state: &AppState,
-    form: infiltrator_contract::responsive_viewport::SidebarForm,
-) -> Element<'_, Message> {
+fn sidebar_with_form(state: &AppState, form: SidebarForm) -> Element<'_, Message> {
     let width = form.width_px().map(f32::from).unwrap_or(SIDEBAR_WIDTH);
     let inner = sidebar_inner(state);
     container(inner)
@@ -331,7 +323,7 @@ fn header(state: &AppState) -> Element<'_, Message> {
         container::Style {
             background: Some(col.into()),
             border: Border {
-                radius: border::Radius::from(4.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()
@@ -344,7 +336,7 @@ fn header(state: &AppState) -> Element<'_, Message> {
         // semantic label is surfaced as a real hover tooltip (Iced has no
         // AccessKit tree to attach it to).
         crate::accessibility::labelled(
-            infiltrator_contract::a11y::ShellA11yNode::GlobalStatusDot,
+            ShellA11yNode::GlobalStatusDot,
             &state.shell.lang,
             status_dot.into(),
         ),
@@ -422,7 +414,7 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     // as real hover tooltips, the visible affordance Iced can offer in place
     // of the AccessKit switch nodes Bevy mounts.
     let system_proxy = crate::accessibility::labelled(
-        infiltrator_contract::a11y::ShellA11yNode::SystemProxySwitch,
+        ShellA11yNode::SystemProxySwitch,
         &state.shell.lang,
         toggle_card(
             Icon::Wifi,
@@ -432,7 +424,7 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         ),
     );
     let tun = crate::accessibility::labelled(
-        infiltrator_contract::a11y::ShellA11yNode::TunSwitch,
+        ShellA11yNode::TunSwitch,
         &state.shell.lang,
         toggle_card(
             Icon::Zap,
@@ -772,7 +764,7 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
     // DUAL-15-10: the live rate readout carries the shared semantic label as a
     // tooltip, since Iced cannot publish an AccessKit status node.
     crate::accessibility::labelled(
-        infiltrator_contract::a11y::ShellA11yNode::TrafficReadout,
+        ShellA11yNode::TrafficReadout,
         &state.shell.lang,
         container(content)
             .width(Length::Fill)

@@ -22,13 +22,19 @@ use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    BackgroundColor, BorderColor, Display, FlexDirection, Node, Overflow, Val, percent, px,
+    BackgroundColor, BorderColor, ComputedNode, Display, FlexDirection, Node, Overflow, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
+use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::responsive::ResponsiveContext;
+use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
+use infiltrator_contract::proxies::{ProxyGroupClassification, ProxySortOrder};
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::route::{PageRoot, Route};
@@ -149,7 +155,7 @@ pub enum ProxySortMode {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProxySortPill(pub ProxySortMode);
 
-impl From<ProxySortMode> for infiltrator_contract::proxies::ProxySortOrder {
+impl From<ProxySortMode> for ProxySortOrder {
     fn from(mode: ProxySortMode) -> Self {
         match mode {
             ProxySortMode::LatencyAsc => Self::LatencyAsc,
@@ -279,7 +285,7 @@ pub struct ProxyNode {
 pub struct ProxyGroup {
     pub name: String,
     pub group_type: String,
-    pub classification: infiltrator_contract::proxies::ProxyGroupClassification,
+    pub classification: ProxyGroupClassification,
     pub current: String,
     pub expanded: bool,
     pub proxies: Vec<ProxyNode>,
@@ -293,7 +299,7 @@ pub struct ProxiesProjection {
     pub active_exit: String,
     /// DUAL-05: the shared custom-node protocol studio. Both surfaces render
     /// this single projection; Bevy keeps no second protocol fact source.
-    pub custom_node: infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot,
+    pub custom_node: ProtocolStudioSnapshot,
 }
 
 impl ProxiesProjection {
@@ -307,8 +313,7 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "节点选择 (PROXIES)".to_owned(),
                     group_type: "Selector".to_owned(),
-                    classification:
-                        infiltrator_contract::proxies::ProxyGroupClassification::Selector,
+                    classification: ProxyGroupClassification::Selector,
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                     expanded: true,
                     proxies: vec![
@@ -349,8 +354,7 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "自动选择 (AUTO)".to_owned(),
                     group_type: "URLTest".to_owned(),
-                    classification:
-                        infiltrator_contract::proxies::ProxyGroupClassification::UrlTest,
+                    classification: ProxyGroupClassification::UrlTest,
                     current: "🇭🇰 香港 01 · BGP 专线".to_owned(),
                     expanded: true,
                     proxies: vec![
@@ -375,8 +379,7 @@ impl ProxiesProjection {
                 ProxyGroup {
                     name: "国外媒体 (STREAMING)".to_owned(),
                     group_type: "Selector".to_owned(),
-                    classification:
-                        infiltrator_contract::proxies::ProxyGroupClassification::Selector,
+                    classification: ProxyGroupClassification::Selector,
                     current: "🇸🇬 新加坡 01 · Anycast".to_owned(),
                     expanded: true,
                     proxies: vec![
@@ -453,6 +456,7 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         PageRoot(Route::Proxies)
         ProxiesPageRoot
         Children [
+            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
             ( { header_card_scene(summary, active_exit, test_status, palette) } ),
             ( { search_bar_card_scene(palette) } ),
             ( { crate::pages::proxies_custom::custom_node_scene(&projection.custom_node, palette) } ),
@@ -509,27 +513,53 @@ fn bind_proxies_page(mut world: DeferredWorld<'_>, _context: HookContext) {
 }
 
 /// Reflow proxy node cards to the shared tier column count (1 / 2 / 3 / 4).
-/// The column count comes from the same authoritative operator Iced uses; the
-/// responsive parity guard keeps both surfaces in step.
+/// When container dimensions are measured via [`ComputedNode`], the exact card
+/// width is computed via [`compute_ideal_column_layout`] to fill 100% of the
+/// container width symmetrically. Otherwise, it falls back to the authoritative
+/// percentage basis.
 pub fn sync_proxies_node_columns(
-    ctx: Option<Res<infiltrator_bevy_widgets::responsive::ResponsiveContext>>,
+    ctx: Option<Res<ResponsiveContext>>,
+    containers: Query<(Option<&ComputedNode>, &Children), With<GroupNodesContainer>>,
     mut nodes: Query<&mut Node, With<ProxyNodeButton>>,
 ) {
     let Some(ctx) = ctx else {
         return;
     };
     let columns = match ctx.breakpoint {
-        infiltrator_bevy_widgets::theme::Breakpoint::Compact => 1,
-        infiltrator_bevy_widgets::theme::Breakpoint::Medium => 2,
-        infiltrator_bevy_widgets::theme::Breakpoint::Expanded => 3,
-        infiltrator_bevy_widgets::theme::Breakpoint::Ultra => 4,
+        Breakpoint::Compact => 1,
+        Breakpoint::Medium => 2,
+        Breakpoint::Expanded => 3,
+        Breakpoint::Ultra => 4,
     };
-    let target = Val::Percent(
-        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(columns),
-    );
-    for mut node in &mut nodes {
-        if node.width != target {
-            node.width = target;
+    let fallback_width = Val::Percent(FluidCardGrid::wrapped_item_percent(columns));
+
+    if containers.is_empty() {
+        for mut node in &mut nodes {
+            if node.width != fallback_width {
+                node.width = fallback_width;
+            }
+        }
+    } else {
+        for (computed, children) in &containers {
+            let target_width = if let Some(computed) = computed {
+                let measured_w = computed.size().x * computed.inverse_scale_factor();
+                if measured_w > 100.0 {
+                    let layout = compute_ideal_column_layout(measured_w, 220.0, space::S8, columns);
+                    Val::Px(layout.item_width_px)
+                } else {
+                    fallback_width
+                }
+            } else {
+                fallback_width
+            };
+
+            for child in children.iter() {
+                if let Ok(mut node) = nodes.get_mut(*child)
+                    && node.width != target_width
+                {
+                    node.width = target_width;
+                }
+            }
         }
     }
 }

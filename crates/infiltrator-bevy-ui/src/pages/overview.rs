@@ -51,20 +51,24 @@ use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
-    Node, Overflow, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, ComputedNode, Display, FlexDirection, FlexWrap,
+    JustifyContent, Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
+use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::stat_chip::stat_chip_scene;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::history::{TrafficHistory, chart_inputs};
@@ -171,7 +175,7 @@ pub struct OverviewStatusCard;
 
 /// Marker on a reorderable card slot on the Overview page (DUAL-03-12).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OverviewCardSlot(pub infiltrator_contract::overview_layout::OverviewCardKind);
+pub struct OverviewCardSlot(pub OverviewCardKind);
 
 /// Marker on the reload / reconnect graceful degradation overlay mask (DUAL-03-13).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -183,11 +187,15 @@ pub struct OverviewReloadMaskText;
 
 /// Reorder button action on an Overview card slot (Move Up).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OverviewCardMoveUpButton(pub infiltrator_contract::overview_layout::OverviewCardKind);
+pub struct OverviewCardMoveUpButton(pub OverviewCardKind);
 
 /// Reorder button action on an Overview card slot (Move Down).
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OverviewCardMoveDownButton(pub infiltrator_contract::overview_layout::OverviewCardKind);
+pub struct OverviewCardMoveDownButton(pub OverviewCardKind);
+
+/// Marker for the Overview metrics chip band container.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewMetricsBand;
 
 /// Marker on nodes filled with the `surface_elevated` token.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -674,9 +682,7 @@ fn rates_row_scene(upload: String, download: String) -> impl Scene + use<> {
     }
 }
 
-fn scale_line_scene(
-    scale: &infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
-) -> impl Scene + use<> {
+fn scale_line_scene(scale: &TrafficScaleSnapshot) -> impl Scene + use<> {
     let label = format_scale(scale);
     bsn! {
         Node {
@@ -689,9 +695,7 @@ fn scale_line_scene(
     }
 }
 
-pub(crate) fn format_scale(
-    scale: &infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
-) -> String {
+pub(crate) fn format_scale(scale: &TrafficScaleSnapshot) -> String {
     format!(
         "scale max={} · ticks={}",
         scale.format_max(),
@@ -776,6 +780,7 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
             column_gap: Val::Px(space::S12),
             row_gap: Val::Px(space::S12),
         }
+        OverviewMetricsBand
         Children [
             (
                 { stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections).to_owned(), connections, palette) }
@@ -870,25 +875,38 @@ pub(crate) fn on_overview_card_move_down_activated(
 }
 
 /// Pin the Overview metrics chip band to the shared tier column count
-/// (2 / 3 / 6 / 6) so the six tiles reflow on narrow windows. Column count is
-/// read from the same authoritative table the Iced surface uses; the responsive
-/// parity guard keeps the two in step.
+/// (2 / 3 / 6 / 6) so the six tiles reflow on narrow windows.
+/// When container dimensions are measured via [`ComputedNode`], the exact chip
+/// width is computed via [`compute_ideal_column_layout`] to fill 100% of the
+/// container width symmetrically. Otherwise, it falls back to the authoritative
+/// percentage basis.
 pub fn sync_overview_metrics_columns(
-    ctx: Option<Res<infiltrator_bevy_widgets::responsive::ResponsiveContext>>,
+    ctx: Option<Res<ResponsiveContext>>,
+    band_container: Query<Option<&ComputedNode>, With<OverviewMetricsBand>>,
     mut chips: Query<&mut Node, With<OverviewChip>>,
 ) {
     let Some(ctx) = ctx else {
         return;
     };
     let columns = match ctx.breakpoint {
-        infiltrator_bevy_widgets::theme::Breakpoint::Compact => 2,
-        infiltrator_bevy_widgets::theme::Breakpoint::Medium => 3,
-        infiltrator_bevy_widgets::theme::Breakpoint::Expanded
-        | infiltrator_bevy_widgets::theme::Breakpoint::Ultra => 6,
+        Breakpoint::Compact => 2,
+        Breakpoint::Medium => 3,
+        Breakpoint::Expanded | Breakpoint::Ultra => 6,
     };
-    let basis = Val::Percent(
-        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(columns),
-    );
+    let fallback_basis = Val::Percent(FluidCardGrid::wrapped_item_percent(columns));
+
+    let basis = if let Some(Some(computed)) = band_container.iter().next() {
+        let measured_w = computed.size().x * computed.inverse_scale_factor();
+        if measured_w > 100.0 {
+            let layout = compute_ideal_column_layout(measured_w, 140.0, space::S12, columns);
+            Val::Px(layout.item_width_px)
+        } else {
+            fallback_basis
+        }
+    } else {
+        fallback_basis
+    };
+
     for mut node in &mut chips {
         if node.flex_basis != basis {
             node.flex_basis = basis;

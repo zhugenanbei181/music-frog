@@ -624,7 +624,7 @@ fn responsive_four_tier_sidebar_morphology() {
         assert_eq!(sidebars.single(world).unwrap().0.display, Display::None);
     }
 
-    // 2. Medium: 768px -> Rail (72px)
+    // 2. Medium: 768px -> Rail (64px)
     app.world_mut()
         .resource_mut::<ShellLayoutState>()
         .set_width(768.0);
@@ -634,7 +634,7 @@ fn responsive_four_tier_sidebar_morphology() {
         let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(72.0));
+        assert_eq!(node.width, px(64.0));
     }
 
     // 3. Expanded: 1000px -> Sidebar (240px)

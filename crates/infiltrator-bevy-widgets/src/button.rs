@@ -22,6 +22,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 
 use crate::palette::UiPalette;
+use crate::responsive::TouchHitbox;
 use crate::text::{Role, TextRole};
 use crate::theme::{metrics, space};
 
@@ -238,6 +239,7 @@ pub fn button_sized_scene(
         ButtonLoading(false)
         ButtonDisabled(false)
         Button
+        TouchHitbox::default()
         Children [
             ( Text(label) TextRole(role) ButtonLabel ),
         ]
@@ -285,6 +287,7 @@ pub fn loading_button_scene(
         ButtonLoading(loading)
         ButtonDisabled(loading)
         Button
+        TouchHitbox::default()
         Children [
             ( Text(display_text) TextRole(Role::Body) ButtonLabel ),
         ]
@@ -309,6 +312,7 @@ pub fn pill_scene(label: String, selected: bool, palette: &UiPalette) -> impl Sc
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         ControlVisual(selected)
         Button
+        TouchHitbox::default()
         Children [
             ( Text(label) TextRole(Role::Body) PillLabel ),
         ]
@@ -335,6 +339,7 @@ pub fn pill_caption_scene(
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         ControlVisual(selected)
         Button
+        TouchHitbox::default()
         Children [
             ( Text(label) TextRole(Role::Caption) PillLabel ),
         ]

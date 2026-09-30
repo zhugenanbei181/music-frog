@@ -156,7 +156,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             Message::SetProxyMode(mode.value.to_string())
         })
         .text_size(12)
-        .width(Length::Fixed(110.0))
+        .width(Length::Shrink)
         .style(form_pick_style),
         Space::new().width(theme::SP_LG),
         text(lang.tr("runtime_auto_refresh").to_string())
@@ -188,8 +188,45 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         apply_proxy_enabled.then_some(Message::ApplyRuntimeSelectedProxy),
     );
 
-    let runtime_proxy_selector = card(
-        None,
+    let selector_body: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
+        column![
+            column![
+                text(lang.tr("runtime_proxy_group").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+                Space::new().height(theme::SP_XS),
+                pick_list(
+                    runtime_group_options,
+                    selected_runtime_group,
+                    Message::UpdateRuntimeSelectedGroup,
+                )
+                .width(Length::Fill)
+                .text_size(12)
+                .style(form_pick_style),
+            ],
+            column![
+                text(lang.tr("runtime_proxy_node").to_string())
+                    .size(11)
+                    .style(|t: &Theme| text::Style {
+                        color: Some(tokens(t).text_secondary),
+                    }),
+                Space::new().height(theme::SP_XS),
+                pick_list(
+                    runtime_proxy_options,
+                    selected_runtime_proxy,
+                    Message::UpdateRuntimeSelectedProxy,
+                )
+                .width(Length::Fill)
+                .text_size(12)
+                .style(form_pick_style),
+            ],
+            container(apply_proxy_btn).width(Length::Fill),
+        ]
+        .spacing(theme::SP_SM)
+        .into()
+    } else {
         row![
             column![
                 text(lang.tr("runtime_proxy_group").to_string())
@@ -201,13 +238,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 pick_list(
                     runtime_group_options,
                     selected_runtime_group,
-                    Message::UpdateRuntimeSelectedGroup
+                    Message::UpdateRuntimeSelectedGroup,
                 )
-                .width(Length::Fixed(180.0))
+                .width(Length::FillPortion(1))
                 .text_size(12)
                 .style(form_pick_style),
-            ],
-            Space::new().width(theme::SP_XL),
+            ]
+            .width(Length::FillPortion(1)),
+            Space::new().width(theme::SP_MD),
             column![
                 text(lang.tr("runtime_proxy_node").to_string())
                     .size(11)
@@ -218,17 +256,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 pick_list(
                     runtime_proxy_options,
                     selected_runtime_proxy,
-                    Message::UpdateRuntimeSelectedProxy
+                    Message::UpdateRuntimeSelectedProxy,
                 )
-                .width(Length::Fixed(220.0))
+                .width(Length::FillPortion(1))
                 .text_size(12)
                 .style(form_pick_style),
-            ],
-            Space::new().width(theme::SP_XL),
+            ]
+            .width(Length::FillPortion(1)),
+            Space::new().width(theme::SP_MD),
             container(apply_proxy_btn).align_y(Alignment::Center),
         ]
-        .align_y(Alignment::Center),
-    );
+        .align_y(Alignment::Center)
+        .into()
+    };
+    let runtime_proxy_selector = card(None, selector_body);
 
     let content = column![
         header,

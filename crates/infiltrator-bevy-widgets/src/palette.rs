@@ -116,6 +116,13 @@ impl UiPalette {
     /// The caret blink half-period, carried here so systems never reach into
     /// the token modules directly for timing.
     pub const CARET_BLINK_SECS: f32 = timing::CARET_BLINK_SECS;
+
+    /// Create a palette variation suited for translucent desktop backdrops (Mica / Acrylic / Vibrancy).
+    pub fn with_translucent_window_clear(&self, alpha: f32) -> Self {
+        let mut copy = *self;
+        copy.window_clear = copy.window_clear.with_alpha(alpha.clamp(0.0, 1.0));
+        copy
+    }
 }
 
 /// Calculate relative luminance of a color according to WCAG 2.1 standard.

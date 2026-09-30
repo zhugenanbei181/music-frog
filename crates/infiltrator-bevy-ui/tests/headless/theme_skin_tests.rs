@@ -130,3 +130,35 @@ fn a_pinned_skin_ignores_os_appearance_changes() {
         "a pinned skin must not be repainted by the OS"
     );
 }
+
+/// UI-04-06: Verify AMOLED pitch-black HDR contrast characteristics and
+/// translucent window backdrop adaptation for Win11 Mica and macOS Vibrancy.
+#[test]
+fn amoled_pitch_black_contrast_and_translucent_backdrop_adaptation() {
+    let amoled_theme = Theme::amoled();
+    let palette = UiPalette::new(&amoled_theme);
+
+    // 1. Amoled background is true pitch black #000000 (OLED zero-power emit)
+    let clear_srgba = palette.window_clear.to_srgba();
+    assert_eq!(clear_srgba.red, 0.0);
+    assert_eq!(clear_srgba.green, 0.0);
+    assert_eq!(clear_srgba.blue, 0.0);
+    assert_eq!(clear_srgba.alpha, 1.0);
+
+    // 2. High-contrast border against pitch black
+    let border_srgba = palette.border.to_srgba();
+    assert!(border_srgba.alpha >= 0.10);
+
+    // 3. Desktop translucent backdrop adaptation (Windows 11 Mica 0.78, macOS Vibrancy 0.75)
+    let mica_palette = palette.with_translucent_window_clear(0.78);
+    let mica_srgba = mica_palette.window_clear.to_srgba();
+    assert!((mica_srgba.alpha - 0.78).abs() < 1e-4);
+    assert_eq!(mica_srgba.red, 0.0);
+    assert_eq!(mica_srgba.green, 0.0);
+    assert_eq!(mica_srgba.blue, 0.0);
+
+    let vibrancy_palette = palette.with_translucent_window_clear(0.75);
+    let vibrancy_srgba = vibrancy_palette.window_clear.to_srgba();
+    assert!((vibrancy_srgba.alpha - 0.75).abs() < 1e-4);
+}
+

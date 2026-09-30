@@ -706,7 +706,8 @@ def main() -> int:
     require(
         violations,
         BEVY_PAGE,
-        "pub custom_node: infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot",
+        "use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;",
+        "pub custom_node: ProtocolStudioSnapshot",
         "custom_node_scene(&projection.custom_node, palette)",
         "on_custom_node_action_activated",
         "sync_custom_node_studio",

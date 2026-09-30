@@ -25,6 +25,7 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -189,6 +190,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         // itself; the list partition owns a nested scroll area of its own.
         ScrollArea
         Children [
+            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
             ( { header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) } ),
             ( { crate::pages::rules_tabs::rules_tabs_scene(palette) } ),
             (

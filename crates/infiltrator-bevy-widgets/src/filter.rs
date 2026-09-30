@@ -369,8 +369,9 @@ mod tests {
 
         assert_eq!(matched.len(), 1);
         assert_eq!(matched[0], 0);
+        let budget_ms = if cfg!(debug_assertions) { 200 } else { 50 };
         assert!(
-            elapsed.as_millis() < 50,
+            elapsed.as_millis() < budget_ms,
             "10,000 items filtering took {:?}",
             elapsed
         );

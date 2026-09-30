@@ -199,6 +199,7 @@ impl Plugin for WidgetsPlugin {
                 list::sync_list_visuals,
                 list::advance_virtual_lists,
                 list::sync_list_selection.before(nav::sync_nav_visuals),
+                chart::sync_chart_crosshair_tracking,
                 chart::sync_charts,
                 chart::donut::sync_donut_charts,
                 chart::histogram::sync_histogram_charts,
@@ -221,6 +222,8 @@ impl Plugin for WidgetsPlugin {
                 smart_truncate::sync_smart_truncate_text,
                 adaptive_modal::sync_adaptive_modal_morphology,
                 density::sync_adaptive_density_styles,
+                responsive::sync_touch_hitboxes,
+                responsive::auto_insert_touch_hitboxes,
             ),
         );
 
@@ -249,5 +252,7 @@ impl Plugin for WidgetsPlugin {
             Update,
             (splitter::advance_splitters, splitter::sync_splitter_visuals).chain(),
         );
+
+        app.add_plugins(motion::SpringAnimationPlugin);
     }
 }

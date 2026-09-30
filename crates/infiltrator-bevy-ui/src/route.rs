@@ -28,6 +28,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene};
 use bevy::ui::widget::Text;
+use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::surface_snapshot::PageStatus;
 
@@ -46,7 +47,9 @@ use crate::pages::overview_restamp::reskin_overview_tokens;
 use crate::pages::overview_speedtest::{
     sync_overview_speedtest_button, sync_overview_speedtest_detail,
 };
-use crate::pages::overview_topology::sync_overview_responsive;
+use crate::pages::overview_topology::{
+    sync_overview_responsive, sync_topology_hover_highlight, TopologyDrilldownFilter,
+};
 use crate::pages::profiles::{ProfilesProjectionUpdated, profiles_page};
 use crate::pages::proxies::{ProxiesProjectionUpdated, proxies_page, sync_proxies_node_columns};
 use crate::pages::rules::{RulesProjectionUpdated, rules_page};
@@ -122,6 +125,23 @@ impl Route {
             Self::AppRouting => "应用分流",
             Self::Sync => "数据同步",
             Self::Settings => "系统设置",
+        }
+    }
+
+    /// Semantic icon id for each route.
+    pub const fn icon(&self) -> IconId {
+        match self {
+            Self::Overview => IconId::Activity,
+            Self::Proxies => IconId::Globe,
+            Self::Profiles => IconId::FileText,
+            Self::Rules => IconId::Network,
+            Self::Connections => IconId::Zap,
+            Self::Logs => IconId::FileText,
+            Self::Dns => IconId::Globe,
+            Self::Doctor => IconId::Activity,
+            Self::AppRouting => IconId::Network,
+            Self::Sync => IconId::Settings,
+            Self::Settings => IconId::Settings,
         }
     }
 
@@ -320,6 +340,7 @@ impl Plugin for PagesPlugin {
         app.init_resource::<ActiveRoute>();
         app.init_resource::<RouteHistory>();
         app.init_resource::<LastOverviewProjection>();
+        app.init_resource::<TopologyDrilldownFilter>();
         app.init_resource::<crate::pages::dns::LastDnsProjection>();
         app.init_resource::<crate::pages::dns_edit::DnsFormState>();
         app.init_resource::<crate::pages::dns_hosts::DnsHostsEditorState>();
@@ -371,6 +392,7 @@ impl Plugin for PagesPlugin {
             (
                 sync_sidebar_foot,
                 sync_overview_responsive,
+                sync_topology_hover_highlight,
                 sync_overview_metrics_columns,
                 sync_overview_speedtest_button,
                 sync_overview_speedtest_detail,

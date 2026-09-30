@@ -20,6 +20,10 @@ default = ["script-engine-boa"]
 # Force the muda/tray-icon backend everywhere (including Linux, where ksni is
 # the default) so both tray backends stay compilable and checkable on this OS.
 native-tray-backend = []
+# Release Linux builds vendor and statically link OpenSSL (openssl-src) so the
+# artifact carries no libssl soname dependency and can be produced against a
+# pinned old glibc via cargo-zigbuild; see the release.yml Linux build leg.
+static-openssl = ["dep:openssl", "openssl/vendored"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]
@@ -70,6 +74,12 @@ rfd = "0.17"
 # target-gated and never enters their build graphs.
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 notify-rust = { workspace = true }
+
+# TLS 经 reqwest/tokio-tungstenite 的 native-tls 进入依赖闭包。这里声明
+# openssl crate（Linux 限定、可选）不是为直接使用，而是让 static-openssl
+# feature 能打开它的 vendored 开关，把 OpenSSL 静态编进发布产物。
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", optional = true }
 
 # Test-only dependencies (business_flow journeys):
 # - axum: minimal local WebDAV stub (127.0.0.1:0, zero external network) that

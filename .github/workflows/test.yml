@@ -27,7 +27,7 @@ env:
 jobs:
   version-gate:
     # 免 checkout 的 10 秒门卫：不带版本号的 PR 在这里即被跳过，不进编译队列。
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       run: ${{ steps.decide.outputs.run }}
@@ -52,12 +52,27 @@ jobs:
     needs: version-gate
     if: needs.version-gate.outputs.run == 'true'
     name: nextest (network-isolated, 4 threads)
-    runs-on: ubuntu-latest
+    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      # 守卫脚本需要 Python 3.11+ 的 tomllib；显式钉版本，不赌 runner 镜像默认值。
+      - name: Setup Python for quality guards
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      # 廉价守卫前置（秒级）：在任何工具链安装、缓存与编译之前失败，尽早退出。
+      # 守卫清单的唯一权威是 scripts/test.sh 本身，这里只调用、不复述清单。
+      - name: Verify test policy
+        run: bash scripts/check-test-policy.sh
+
+      - name: Enforce quality guards (fail fast)
+        run: bash scripts/test.sh --guards-only
 
       # 每次运行都解析为最新 stable 工具链（rust-toolchain.toml channel=stable 同轨）。
       - name: Setup Rust toolchain
@@ -71,207 +86,6 @@ jobs:
       # 缓存 registry/git/ target 三层；key 随 Cargo.lock 自动变化。
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
-
-      # 廉价守卫前置（秒级）：在安装系统依赖与编译之前失败，尽早退出。
-      - name: Verify test policy
-        run: bash scripts/check-test-policy.sh
-
-      - name: Enforce source line budget
-        run: python3 scripts/quality/line-guard.py --mode enforce
-
-      # Iced test layout: production `src/` carries only path-mounted test
-      # module declarations, the bodies live under `tests/`.
-      - name: Enforce iced test layout
-        run: python3 scripts/quality/test-layout-guard.py --mode enforce
-
-      # i18n 质量守卫：100% 词条抽离与中英对等校验，UI 层零硬编码中文字面量。
-      - name: Enforce i18n copy parity and zero raw literals
-        run: python3 scripts/quality/i18n-guard.py --mode enforce
-
-      # 导入卫生守卫：全仓禁止 `use ... as 别名` 与一切 re-export（pub use /
-      # pub(crate) use 转发层）。规则与白名单见 docs/ARCHITECTURE.md 导入规范。
-      - name: Enforce import hygiene (no `as` aliases, no re-exports)
-        run: python3 scripts/quality/import-guard.py --mode enforce
-
-      # 0.30 layer guard: pure contracts/ports/application and the Bevy
-      # surface must not reacquire concrete transport or executor dependencies.
-      - name: Enforce 0.30 core boundaries
-        run: python3 scripts/quality/core-boundary-guard.py --mode enforce
-
-      # 双 UI 架构前置守卫：页面、intent、共享投影、demo 泄漏和交付模板
-      # 任一不完整都 fail closed。
-      - name: Enforce dual-surface parity
-        run: python3 scripts/quality/parity-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-01 session semantics
-        run: python3 scripts/quality/session-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-02 hot reload semantics
-        run: python3 scripts/quality/hot-reload-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-03 crash watchdog semantics
-        run: python3 scripts/quality/crash-watchdog-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-04 core channel semantics
-        run: python3 scripts/quality/core-channel-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-05 kernel integrity semantics
-        run: python3 scripts/quality/kernel-integrity-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-06 kernel rollback semantics
-        run: python3 scripts/quality/kernel-rollback-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-07 controller auth semantics
-        run: python3 scripts/quality/controller-auth-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-08 live core log-level semantics
-        run: python3 scripts/quality/core-log-level-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-09 service-mode semantics
-        run: python3 scripts/quality/service-mode-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-10 process-exit cleanup semantics
-        run: python3 scripts/quality/process-exit-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-11 port-conflict semantics
-        run: python3 scripts/quality/port-conflict-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-12 core resource quota semantics
-        run: python3 scripts/quality/core-resource-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-13 offline-first startup semantics
-        run: python3 scripts/quality/offline-startup-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-14 lifecycle synchronization semantics
-        run: python3 scripts/quality/lifecycle-sync-guard.py --mode enforce
-
-      - name: Enforce DUAL-01-15 lifecycle matrix semantics
-        run: python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-01 TUN stack semantics
-        run: python3 scripts/quality/tun-stack-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-02 adaptive MTU semantics
-        run: python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-03 strict-route semantics
-        run: python3 scripts/quality/tun-routing-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-04 system proxy semantics
-        run: python3 scripts/quality/system-proxy-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-05 system proxy watchdog semantics
-        run: python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-06 system proxy recovery semantics
-        run: python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-07 LAN sharing semantics
-        run: python3 scripts/quality/lan-sharing-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-08 LAN security semantics
-        run: python3 scripts/quality/lan-security-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-09 IPv6 routing semantics
-        run: python3 scripts/quality/ipv6-routing-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-10 UWP loopback semantics
-        run: python3 scripts/quality/uwp-loopback-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-11 PAC service semantics
-        run: python3 scripts/quality/pac-service-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-12 network roaming semantics
-        run: python3 scripts/quality/network-roaming-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-13 Android VpnService semantics
-        run: python3 scripts/quality/vpn-service-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-14 system toggle parity
-        run: python3 scripts/quality/system-toggle-guard.py --mode enforce
-
-      - name: Enforce DUAL-02-15 privileged network regression
-        run: python3 scripts/quality/privileged-network-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-01 traffic waveform parity
-        run: python3 scripts/quality/traffic-waveform-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-02 traffic scale parity
-        run: python3 scripts/quality/traffic-scale-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-03 traffic topology parity
-        run: python3 scripts/quality/traffic-topology-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-04 topology drill-down navigation parity
-        run: python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-05 active exit card parity
-        run: python3 scripts/quality/active-exit-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-06 subscription quota parity
-        run: python3 scripts/quality/subscription-quota-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-07 Overview master switch parity
-        run: python3 scripts/quality/overview-master-switch-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-08 Overview proxy mode segment parity
-        run: python3 scripts/quality/proxy-mode-segment-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-09 Overview speedtest button parity
-        run: python3 scripts/quality/overview-speedtest-guard.py --mode enforce
-
-      - name: Enforce DUAL-03-10 Overview metrics grid parity
-        run: python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
-      - name: Run Overview Public IP Probe Guard
-        run: python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
-      - name: Run Overview Card Reorder Guard
-        run: python3 scripts/quality/overview-card-reorder-guard.py --mode enforce
-      - name: Run Overview Reconnect Mask Guard
-        run: python3 scripts/quality/overview-reconnect-mask-guard.py --mode enforce
-      - name: Run Overview Responsive Viewport Guard
-        run: python3 scripts/quality/overview-responsive-viewport-guard.py --mode enforce
-      - name: Run Overview Regression Matrix Guard
-        run: python3 scripts/quality/overview-regression-matrix-guard.py --mode enforce
-      - name: Run Proxies Five Group Guard
-        run: python3 scripts/quality/proxies-five-group-guard.py --mode enforce
-      - name: Run Proxies Group Collapse Guard
-        run: python3 scripts/quality/proxies-group-collapse-guard.py --mode enforce
-      - name: Run Proxies Node Selection Guard
-        run: python3 scripts/quality/proxies-node-selection-guard.py --mode enforce
-      - name: Run Proxies Filter Alive Guard
-        run: python3 scripts/quality/proxies-filter-alive-guard.py --mode enforce
-      - name: Run Proxies Sorting Guard
-        run: python3 scripts/quality/proxies-sorting-guard.py --mode enforce
-      - name: Run Proxies Favorite Pin Guard
-        run: python3 scripts/quality/proxies-favorite-pin-guard.py --mode enforce
-      - name: Run Proxies Protocol Chips Guard
-        run: python3 scripts/quality/proxies-protocol-chips-guard.py --mode enforce
-      - name: Run Proxies Latency Colors Guard
-        run: python3 scripts/quality/proxies-latency-colors-guard.py --mode enforce
-      - name: Run Proxies Sparkline Guard
-        run: python3 scripts/quality/proxies-sparkline-guard.py --mode enforce
-      - name: Run Proxies Fuzzy Filter Guard
-        run: python3 scripts/quality/proxies-fuzzy-filter-guard.py --mode enforce
-      - name: Run Proxies Node Detail Drawer Guard
-        run: python3 scripts/quality/proxies-node-detail-drawer-guard.py --mode enforce
-      - name: Run Proxies Group Reorder Guard
-        run: python3 scripts/quality/proxies-group-reorder-guard.py --mode enforce
-      - name: Run Proxies Compact View Guard
-        run: python3 scripts/quality/proxies-compact-view-guard.py --mode enforce
-      - name: Run Proxies Skeleton Pulse Guard
-        run: python3 scripts/quality/proxies-skeleton-pulse-guard.py --mode enforce
-      - name: Run Proxies Regression Matrix Guard
-        run: python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
-
-      # Bevy UI bsn! 场景法守卫（BEVY-004）：两个 bevy crate 的生产代码里 UI 树
-      # 只能在 bsn! 场景内声明并经 spawn_scene 挂载；豁免（Camera2d/Observer）
-      # 与规则明细见 scripts/quality/bevy_bsn_guard.py 与 docs/BEVY_UI_FRONTEND.md。
-      - name: Enforce bevy UI bsn!-only scene authoring
-        run: python3 scripts/quality/bevy_bsn_guard.py --mode enforce
-
-      # 打包模版与发布清单生成器前置守卫：秒级验证全平台打包模版、脚本与清单生成器
-      - name: Verify packaging templates and manifest generator
-        run: python3 scripts/quality/verify-packaging.py
 
       # 编译工作空间所需的系统依赖（--no-install-recommends 精简安装）：
       # - iced/gtk/wayland: libgtk-3-dev libglib2.0-dev libxkbcommon-dev libwayland-dev
@@ -292,6 +106,8 @@ jobs:
 
       # 第一步：在有网络的环境中预编译全部测试目标（此时仅解析/下载依赖并编译，
       # mockito 等 mock server 尚未启动，不会有任何真实请求发出）。
+      # scripts/test.sh 的守卫段会在编译前先行执行（--guards-only 已跑过，此处
+      # 属全量脚本自身流程的一部分）。
       - name: Pre-compile tests (network allowed)
         run: bash scripts/test.sh --no-run
 

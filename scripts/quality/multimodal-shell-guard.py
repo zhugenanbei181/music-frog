@@ -157,6 +157,24 @@ def forbid(violations: list[str], path: str, *markers: str) -> None:
             violations.append(f"{path} still contains forbidden marker {marker!r}")
 
 
+def forbid_inline_paths(violations: list[str], path: str, *prefixes: str) -> None:
+    text = read(path)
+    for line_num, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if (
+            stripped.startswith("use ")
+            or stripped.startswith("//")
+            or stripped.startswith("///")
+            or stripped.startswith("*")
+        ):
+            continue
+        for prefix in prefixes:
+            if prefix in line:
+                violations.append(
+                    f"{path}:{line_num} contains forbidden inline path {prefix!r} (use `use` import instead)"
+                )
+
+
 def skin_settings(path: str) -> set[str]:
     """Extract the quoted skin setting names from one `as_setting` arm."""
     text = read(path)
@@ -470,19 +488,40 @@ def check_design_token_mirrors(violations: list[str]) -> None:
                 )
 
     # The hairline is part of the claimed shared scope: Iced must consume the
-    # contract metric by name, and the whole Iced shell must have exactly one
-    # spelling of a 1px border (the token).
-    if (
-        "pub const HAIRLINE: f32 = "
-        "infiltrator_contract::design_tokens::metrics::HAIRLINE;" not in iced_text
-    ):
+    # contract metric via `metrics::HAIRLINE` (imported via `use`), and the whole
+    # Iced shell must have exactly one spelling of a 1px border (the token).
+    if "pub const HAIRLINE: f32 = metrics::HAIRLINE;" not in iced_text:
         violations.append(
-            f"{ICED_THEME} HAIRLINE must consume the shared contract metric"
+            f"{ICED_THEME} HAIRLINE must consume the shared contract metric via use"
         )
     check_no_raw_hairlines(violations)
+    check_no_raw_radii(violations)
 
-    # Structural ladders: contract numbers, Iced by-name consumption, Bevy
-    # numeric mirror.
+    # Architectural invariant: use `use` imports instead of inline fully-qualified paths.
+    forbid_inline_paths(
+        violations,
+        ICED_THEME,
+        "infiltrator_contract::design_tokens::space::",
+        "infiltrator_contract::design_tokens::radius::",
+        "infiltrator_contract::design_tokens::metrics::",
+        "infiltrator_contract::design_tokens::type_scale::",
+    )
+    for path in (
+        "crates/infiltrator-bevy-ui/tests/headless/design_token_tests.rs",
+        "crates/infiltrator-iced/tests/gui/multimodal_shell_tests.rs",
+        "crates/infiltrator-iced/tests/gui/view_theme_tests.rs",
+    ):
+        forbid_inline_paths(
+            violations,
+            path,
+            "infiltrator_contract::design_tokens::space::",
+            "infiltrator_contract::design_tokens::radius::",
+            "infiltrator_contract::design_tokens::metrics::",
+            "infiltrator_contract::design_tokens::type_scale::",
+        )
+
+    # Structural ladders: contract numbers, Iced by-name consumption via use,
+    # Bevy numeric mirror.
     contract_text = read(DESIGN_TOKENS)
     expected_space = {
         "XS": 4.0,
@@ -498,19 +537,27 @@ def check_design_token_mirrors(violations: list[str]) -> None:
             violations.append(
                 f"{DESIGN_TOKENS} space::{name}={contract_value!r}, expected {expected}"
             )
-        if f"pub const SP_{name}: f32 = infiltrator_contract::design_tokens::space::{name};" not in iced_text:
+        if f"pub const SP_{name}: f32 = space::{name};" not in iced_text:
             violations.append(
-                f"{ICED_THEME} SP_{name} must consume the shared spacing ladder"
+                f"{ICED_THEME} SP_{name} must consume space::{name} via use"
             )
-    for name, expected in {"CARD": 16.0, "CONTROL": 10.0}.items():
+    expected_radius = {
+        "XS": 4.0,
+        "SM": 8.0,
+        "CONTROL": 10.0,
+        "CARD": 16.0,
+        "MODAL": 24.0,
+        "PILL": 999.0,
+    }
+    for name, expected in expected_radius.items():
         contract_value = number_const(contract_text, name)
         if contract_value != expected:
             violations.append(
                 f"{DESIGN_TOKENS} radius::{name}={contract_value!r}, expected {expected}"
             )
-        if f"pub const R_{name}: f32 = infiltrator_contract::design_tokens::radius::{name};" not in iced_text:
+        if f"pub const R_{name}: f32 = radius::{name};" not in iced_text:
             violations.append(
-                f"{ICED_THEME} R_{name} must consume the shared radius ladder"
+                f"{ICED_THEME} R_{name} must consume radius::{name} via use"
             )
 
     bevy_text = read(BEVY_THEME)
@@ -530,11 +577,33 @@ def check_design_token_mirrors(violations: list[str]) -> None:
                 f"{BEVY_THEME} space::{bevy_name}={bevy_value!r} must mirror "
                 f"contract space::{contract_name}={expected}"
             )
-    for name, expected in {"CARD": 16.0, "CONTROL": 10.0}.items():
+    for name, expected in expected_radius.items():
         bevy_value = number_const(bevy_text, name)
         if bevy_value != expected:
             violations.append(
                 f"{BEVY_THEME} radius::{name}={bevy_value!r} must mirror contract {expected}"
+            )
+
+    # Type scale mirror
+    expected_type_scale = {
+        "DISPLAY": 22.0,
+        "TITLE": 20.0,
+        "HEADING": 20.0,
+        "BODY": 15.0,
+        "CAPTION": 12.0,
+        "TAG": 10.0,
+        "MONO": 13.0,
+    }
+    for name, expected in expected_type_scale.items():
+        contract_value = number_const(contract_text, name)
+        if contract_value != expected:
+            violations.append(
+                f"{DESIGN_TOKENS} type_scale::{name}={contract_value!r}, expected {expected}"
+            )
+        bevy_value = number_const(bevy_text, name)
+        if bevy_value != expected:
+            violations.append(
+                f"{BEVY_THEME} type_scale::{name}={bevy_value!r} must mirror contract {expected}"
             )
     bevy_hairline = number_const(bevy_text, "HAIRLINE")
     contract_hairline = number_const(contract_text, "HAIRLINE")
@@ -567,6 +636,39 @@ def check_no_raw_hairlines(violations: list[str]) -> None:
                     violations.append(
                         f"{relative}:{number} hardcodes a 1px border width; "
                         "use theme::HAIRLINE (DUAL-15-14)"
+                    )
+
+
+def check_no_raw_radii(violations: list[str]) -> None:
+    """Fail closed if an Iced border uses a raw numeric corner radius.
+
+    The design token system mandates that all corner radii come from canonical
+    tokens (`R_XS`, `R_SM`, `R_CONTROL`, `R_CARD`, `R_MODAL`, `R_PILL`, `R_CHIP`).
+    Raw numeric literals break the single source of truth design token contract.
+    """
+    roots = [
+        ROOT / "crates/infiltrator-iced/src/view",
+        ROOT / "crates/infiltrator-iced/src/view_root.rs",
+        ROOT / "crates/infiltrator-iced/src/view_root",
+    ]
+    raw_radius_re = re.compile(
+        r"(?:Radius::from\(\s*[0-9]|radius:\s*(?:[0-9]+(?:\.[0-9]+)?\.into\(\)|[0-9]+(?:\.[0-9]+)?\s*,)|(?:top_left|top_right|bottom_left|bottom_right):\s*[1-9])"
+    )
+    for root in roots:
+        files = [root] if root.is_file() else sorted(root.rglob("*.rs"))
+        for path in files:
+            relative = path.relative_to(ROOT).as_posix()
+            if relative.endswith("view/theme.rs"):
+                continue
+            for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if "blur_radius" in line:
+                    continue
+                if raw_radius_re.search(line):
+                    violations.append(
+                        f"{relative}:{number} hardcodes a numeric corner radius; "
+                        "use canonical tokens like theme::R_CONTROL, theme::R_CARD, etc."
                     )
 
 
@@ -1862,8 +1964,7 @@ def main() -> int:
     require(
         violations,
         ICED_THEME,
-        "pub const HAIRLINE: f32 = "
-        "infiltrator_contract::design_tokens::metrics::HAIRLINE;",
+        "pub const HAIRLINE: f32 = metrics::HAIRLINE;",
     )
 
     # Bevy: the business-agnostic sparkline seam and the mounted HUD slots.

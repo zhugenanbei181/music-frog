@@ -64,16 +64,21 @@ jobs:
             binary_name: infiltrator-iced
             pkg_format: dmg
             artifact_name: Infiltrator-macOS-x86_64
-          # Linux x64
-          - os: ubuntu-22.04
+          # Linux x64 —— cargo-zigbuild 把 glibc 下限定桩在 2.17（CentOS 7 /
+          # Debian 9 级别），产物兼容性不随构建机系统漂移，runner 始终跟最新
+          # LTS；OpenSSL 经 static-openssl feature 静态内联，产物不依赖用户机
+          # libssl（deb control 的 Depends 已同步）。
+          - os: ubuntu-26.04
             target: x86_64-unknown-linux-gnu
+            zig_target: x86_64-unknown-linux-gnu.2.17
+            tool: zigbuild
             binary_name: infiltrator-iced
             pkg_format: linux-all
             artifact_name: Infiltrator-Linux-x86_64
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -84,6 +89,19 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}-release
+
+      - name: Install cargo-zigbuild
+        if: matrix.tool == 'zigbuild'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
+      - name: Setup zig
+        if: matrix.tool == 'zigbuild'
+        uses: mlugg/setup-zig@v2
+        with:
+          # 与本地验证过的构建保持同一 zig 版本（GLIBC 2.17 定桩已实测）。
+          version: 0.14.1
 
       - name: Install NSIS
         if: runner.os == 'Windows' && matrix.pkg_format == 'nsis'
@@ -108,7 +126,16 @@ jobs:
             file \
             dpkg-dev
 
+      # zigbuild 对 .2.17 定桩目标会把产物写进 base triple 的目录
+      # （target/x86_64-unknown-linux-gnu/release，已实测），与普通构建一致。
+      - name: Build Release Binary (zig-pinned glibc floor)
+        if: matrix.tool == 'zigbuild'
+        run: >
+          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          -p infiltrator-iced --features static-openssl --bin infiltrator-iced
+
       - name: Build Release Binary
+        if: matrix.tool != 'zigbuild'
         run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-iced
 
       - name: Package Windows Artifacts (NSIS & ZIP)
@@ -179,7 +206,7 @@ jobs:
           find dist -maxdepth 1 -type f -size +0c -print
 
       - name: Upload Desktop Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/
@@ -190,20 +217,21 @@ jobs:
   build-android:
     needs: test-gate
     name: Build Android APKs
-    runs-on: ubuntu-latest
+    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Java JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -233,7 +261,7 @@ jobs:
           find dist-android -type f -name '*.apk' -size +0c -print
 
       - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Infiltrator-Android-APKs
           path: dist-android/
@@ -244,14 +272,15 @@ jobs:
   publish-release:
     name: Generate Manifest & Publish Release
     needs: [build-desktop, build-android]
-    runs-on: ubuntu-latest
+    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: all-artifacts/
 
@@ -310,7 +339,7 @@ jobs:
           PY
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false

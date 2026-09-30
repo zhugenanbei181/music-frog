@@ -85,10 +85,8 @@ fn the_interaction_tokens_resolve_the_shared_contract() {
 /// DUAL-15-14: the hairline is a consumed shared token, not a page-local 1.0.
 #[test]
 fn theme_hairline_consumes_the_shared_contract_metric() {
-    assert_eq!(
-        HAIRLINE,
-        infiltrator_contract::design_tokens::metrics::HAIRLINE
-    );
+    use infiltrator_contract::design_tokens::metrics;
+    assert_eq!(HAIRLINE, metrics::HAIRLINE);
     // A hairline is thin, non-zero and sub-pixel-safe; the relation is
     // constant-folded so it is checked at compile time, not at runtime.
     const {
@@ -110,6 +108,23 @@ fn test_floating_shadows() {
         assert!(DARK.floating_shadow.color.a > DARK.card_shadow.color.a);
         assert!(FOREST.floating_shadow.color.a > FOREST.card_shadow.color.a);
         assert!(AMOLED.floating_shadow.color.a > AMOLED.card_shadow.color.a);
+    }
+}
+
+#[test]
+fn test_dual_layer_shadows() {
+    for tokens in [&LIGHT, &DARK, &FOREST, &AMOLED] {
+        // Ambient shadow has larger blur than key shadow for diffuse aura
+        assert!(tokens.card_dual_shadow.ambient.blur_radius > tokens.card_dual_shadow.key.blur_radius);
+        assert!(tokens.floating_dual_shadow.ambient.blur_radius > tokens.floating_dual_shadow.key.blur_radius);
+
+        // Key light shadow has smaller y-offset than ambient shadow
+        assert!(tokens.card_dual_shadow.ambient.offset.y >= tokens.card_dual_shadow.key.offset.y);
+        assert!(tokens.floating_dual_shadow.ambient.offset.y > tokens.floating_dual_shadow.key.offset.y);
+
+        // Floating elevation has larger blur than card elevation
+        assert!(tokens.floating_dual_shadow.ambient.blur_radius > tokens.card_dual_shadow.ambient.blur_radius);
+        assert!(tokens.floating_dual_shadow.key.blur_radius > tokens.card_dual_shadow.key.blur_radius);
     }
 }
 

@@ -3,19 +3,38 @@
 //! snapshot. No device is involved — the same real recognition path a mobile
 //! host would feed is exercised deterministically.
 
+use std::sync::Arc;
+use std::time::Duration;
+
 use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
 use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
-use bevy::scene::ScenePlugin;
+use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::time::Time;
+use bevy::ui::Node;
+use bevy::ui::prelude::{Display, Val};
+use bevy::ui::widget::Text;
+
 use infiltrator_bevy_ui::app::ShellPlugin;
+use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::gesture::{
     GestureHostReport, ShellGesturePlugin, ShellGestureSnapshot, shared_outcome, shared_phase,
     touch_support,
 };
-use infiltrator_bevy_widgets::gesture::GestureOutcome;
+use infiltrator_bevy_ui::pages::connections::ConnectionItem;
+use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;
+use infiltrator_bevy_ui::pages::proxies::ProxyNode;
+use infiltrator_bevy_ui::pages::proxies_card::proxy_node_scene;
+use infiltrator_bevy_ui::route::{ActiveRoute, Route};
+use infiltrator_bevy_widgets::gesture::{
+    GestureOutcome, PullToRefreshIndicator, PullToRefreshState, PullToRefreshText,
+    SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, pull_to_refresh_scene,
+};
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureTouchPhase, PullPhase, SafeAreaInsets,
     SwipeDirection,
@@ -258,3 +277,269 @@ fn the_mounted_shell_consumes_touch_through_the_shared_recognizer() {
         "the mounted shell publishes the shared semantic event"
     );
 }
+
+#[test]
+fn a_pull_to_refresh_under_threshold_smoothly_rebounds_with_spring() {
+    let mut app = gesture_app();
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    let scene = pull_to_refresh_scene(
+        &PullToRefreshState::default(),
+        &UiPalette::new(&Theme::dark()),
+    );
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+
+    // Pull downward by 40px (threshold is 80px)
+    send(&mut app, 1, TouchPhase::Started, 10.0, 10.0);
+    send(&mut app, 1, TouchPhase::Moved, 10.0, 50.0);
+    app.update();
+
+    assert_eq!(snapshot(&app).0.pull.phase, PullPhase::Pulling);
+
+    // Verify indicator height expands and label shows "下拉刷新"
+    let mut node_q = app.world_mut().query::<(&PullToRefreshIndicator, &Node)>();
+    let (_, node) = node_q.iter(app.world()).next().expect("indicator exists");
+    if let Val::Px(height) = node.height {
+        assert!(height > 0.0, "indicator expanded on pull: {height}");
+    } else {
+        panic!("unexpected height value");
+    }
+
+    let mut text_q = app.world_mut().query::<(&PullToRefreshText, &Text)>();
+    let (_, text) = text_q.iter(app.world()).next().expect("text exists");
+    assert_eq!(text.0, "下拉刷新");
+
+    // Release under threshold
+    send(&mut app, 1, TouchPhase::Ended, 10.0, 50.0);
+    app.update();
+
+    // Multiple updates should simulate spring damping rebound towards 0.0
+    for _ in 0..10 {
+        app.update();
+    }
+
+    let (_, node_after) = node_q.iter(app.world()).next().expect("indicator exists");
+    if let Val::Px(h) = node_after.height {
+        assert!(
+            h <= 1.0,
+            "indicator height smoothly rebounded to near 0: {h}"
+        );
+    }
+}
+
+#[test]
+fn a_pull_to_refresh_over_threshold_arms_and_triggers_route_refresh_command() {
+    let routes_and_commands = [
+        (Route::Proxies, UiCommand::TestAllProxyGroups),
+        (Route::Rules, UiCommand::RefreshRuleProviders),
+        (Route::Profiles, UiCommand::UpdateAllSubscriptions),
+    ];
+
+    for (route, expected_cmd) in routes_and_commands {
+        let mut app = gesture_app();
+        app.add_plugins((AssetPlugin::default(), ScenePlugin));
+        let sink = Arc::new(DemoCommandSink::accepting());
+        app.insert_resource(CommandSinkHandle(sink.clone()));
+        app.insert_resource(ActiveRoute(Some(route)));
+
+        let scene = pull_to_refresh_scene(
+            &PullToRefreshState::default(),
+            &UiPalette::new(&Theme::dark()),
+        );
+        app.world_mut().commands().spawn_scene(scene);
+        app.update();
+
+        // Downward drag by 90px (>= 80px threshold)
+        send(&mut app, 1, TouchPhase::Started, 10.0, 10.0);
+        send(&mut app, 1, TouchPhase::Moved, 10.0, 100.0);
+        app.update();
+
+        assert_eq!(snapshot(&app).0.pull.phase, PullPhase::Armed);
+
+        let mut text_q = app.world_mut().query::<(&PullToRefreshText, &Text)>();
+        let (_, text) = text_q.iter(app.world()).next().expect("text exists");
+        assert_eq!(text.0, "释放以刷新");
+
+        // Release to trigger refresh
+        send(&mut app, 1, TouchPhase::Ended, 10.0, 100.0);
+        app.update();
+
+        assert_eq!(snapshot(&app).0.pull.phase, PullPhase::Refreshing);
+
+        // Check indicator label changed to "正在更新..."
+        let (_, text_refreshing) = text_q.iter(app.world()).next().expect("text exists");
+        assert_eq!(text_refreshing.0, "正在更新...");
+
+        // Assert command sink received the route-specific command
+        let submitted = sink.submitted();
+        assert!(
+            submitted.contains(&expected_cmd),
+            "expected route {route:?} to dispatch {expected_cmd:?}, but got {submitted:?}"
+        );
+    }
+}
+
+#[test]
+fn test_proxy_card_swipe_to_action_spring_slides_content_and_reveals_drawer() {
+    let mut app = gesture_app();
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    let palette = UiPalette::new(&Theme::dark());
+
+    let node = ProxyNode {
+        name: "HK-01".to_owned(),
+        node_type: "Shadowsocks".to_owned(),
+        delay_ms: Some(45),
+        selected: true,
+        favorite: false,
+        features: vec!["udp".to_owned()],
+    };
+    let scene = proxy_node_scene(0, 0, "DefaultGroup", &node, &palette);
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+
+    let mut item_q = app.world_mut().query::<&SwipeToActionItem>();
+    let item = item_q.iter(app.world()).next().expect("swipe item exists");
+    assert_eq!(item.offset_x, 0.0);
+    assert!(!item.is_open());
+
+    let mut drawer_q = app.world_mut().query::<(&SwipeActionDrawer, &Node)>();
+    let (_, drawer_node) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_node.display, Display::None);
+
+    let mut content_q = app.world_mut().query::<(&SwipeContentContainer, &Node)>();
+    let (_, content_node) = content_q.iter(app.world()).next().expect("content exists");
+    assert_eq!(content_node.left, Val::Px(0.0));
+
+    let item_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .single(app.world())
+        .expect("swipe item entity");
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .open_leading();
+
+    for _ in 0..15 {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_millis(20));
+        app.update();
+    }
+
+    let item_after = app.world().get::<SwipeToActionItem>(item_entity).unwrap();
+    assert!(item_after.is_open());
+    assert_eq!(item_after.offset_x, -88.0);
+
+    let (_, content_after) = content_q.iter(app.world()).next().expect("content exists");
+    if let Val::Px(x) = content_after.left {
+        assert!(x < -70.0, "content slid left to reveal drawer, x = {x}");
+    } else {
+        panic!("expected Val::Px for left");
+    }
+
+    let (_, drawer_after) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_after.display, Display::Flex);
+
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .close();
+
+    for _ in 0..25 {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_millis(20));
+        app.update();
+    }
+
+    let (_, content_closed) = content_q.iter(app.world()).next().expect("content exists");
+    if let Val::Px(x) = content_closed.left {
+        assert!(x.abs() < 1.0, "content rebounded to origin, x = {x}");
+    }
+
+    let (_, drawer_closed) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_closed.display, Display::None);
+}
+
+#[test]
+fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer() {
+    let mut app = gesture_app();
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    let palette = UiPalette::new(&Theme::dark());
+
+    let conn = ConnectionItem {
+        id: "conn-999".to_owned(),
+        host: "api.github.com:443".to_owned(),
+        process: "curl".to_owned(),
+        rule: "Proxy".to_owned(),
+        rule_payload: "DOMAIN-SUFFIX".to_owned(),
+        chain: "Proxy -> HK-01".to_owned(),
+        chains: vec!["Proxy".to_owned(), "HK-01".to_owned()],
+        network: "tcp".to_owned(),
+        source_ip: "127.0.0.1".to_owned(),
+        source_port: "54321".to_owned(),
+        destination_ip: "140.82.121.4".to_owned(),
+        destination_port: "443".to_owned(),
+        destination_geo_ip: None,
+        destination_ip_asn: String::new(),
+        upload_bps: 1024.0,
+        download_bps: 4096.0,
+        upload_total: 10000,
+        download_total: 50000,
+    };
+
+    let scene = connection_row_scene(0, &conn, &palette);
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+
+    let item_entity = app
+        .world_mut()
+        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .single(app.world())
+        .expect("connection row swipe item");
+
+    let mut drawer_q = app.world_mut().query::<(&SwipeActionDrawer, &Node)>();
+    let (_, drawer_node) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_node.display, Display::None);
+
+    let mut content_q = app.world_mut().query::<(&SwipeContentContainer, &Node)>();
+    let (_, content_node) = content_q.iter(app.world()).next().expect("content exists");
+    assert_eq!(content_node.left, Val::Px(0.0));
+
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .open_leading();
+
+    for _ in 0..15 {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_millis(20));
+        app.update();
+    }
+
+    let (_, content_after) = content_q.iter(app.world()).next().expect("content exists");
+    if let Val::Px(x) = content_after.left {
+        assert!(x < -70.0, "content slid left to reveal drawer, x = {x}");
+    }
+
+    let (_, drawer_after) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_after.display, Display::Flex);
+
+    app.world_mut()
+        .get_mut::<SwipeToActionItem>(item_entity)
+        .expect("swipe item")
+        .close();
+
+    for _ in 0..25 {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_millis(20));
+        app.update();
+    }
+
+    let (_, drawer_closed) = drawer_q.iter(app.world()).next().expect("drawer exists");
+    assert_eq!(drawer_closed.display, Display::None);
+}
+

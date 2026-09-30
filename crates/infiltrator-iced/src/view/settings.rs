@@ -4,7 +4,8 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{
-    banner_alert, form_input_style, form_toggle_row, style_accent, style_ghost, text_btn,
+    banner_alert, form_input_style, form_toggle_row, responsive_form_row,
+    responsive_form_toggle_row, style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{BadgeKind, card, modern_scrollable, segmented_control, status_dot};
 use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
@@ -163,34 +164,38 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         Some(lang.tr("settings_admin_web").to_string()),
         column![
             secondary_text(lang.tr("settings_admin_desc")),
-            form_toggle_row(
+            responsive_form_toggle_row(
+                state.shell.viewport.tier,
                 lang.tr("settings_admin_enable").to_string(),
+                None::<&str>,
                 state.shell.admin_enabled,
-                Message::SetAdminEnabled
+                Message::SetAdminEnabled,
             ),
-            row![
-                text(lang.tr("settings_admin_port").to_string())
-                    .size(13)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(theme::SP_MD),
-                text_input("25210", &state.shell.admin_port_input)
-                    .on_input(Message::UpdateAdminPort)
-                    .width(Length::Fixed(120.0))
-                    .padding([8, 12])
-                    .size(13)
-                    .font(MONO)
-                    .style(form_input_style),
-                Space::new().width(theme::SP_MD),
-                text_btn(
-                    lang.tr("settings_admin_apply"),
-                    style_ghost,
-                    Some(Message::ApplyAdminSettings)
-                ),
-                Space::new().width(Length::Fill),
-            ]
-            .align_y(Alignment::Center),
+            responsive_form_row(
+                state.shell.viewport.tier,
+                lang.tr("settings_admin_port").to_string(),
+                None::<&str>,
+                row![
+                    text_input("25210", &state.shell.admin_port_input)
+                        .on_input(Message::UpdateAdminPort)
+                        .width(if state.shell.viewport.tier.is_compact() {
+                            Length::FillPortion(2)
+                        } else {
+                            Length::Fixed(120.0)
+                        })
+                        .padding([8, 12])
+                        .size(13)
+                        .font(MONO)
+                        .style(form_input_style),
+                    Space::new().width(theme::SP_MD),
+                    text_btn(
+                        lang.tr("settings_admin_apply"),
+                        style_ghost,
+                        Some(Message::ApplyAdminSettings),
+                    ),
+                ]
+                .align_y(Alignment::Center),
+            ),
             row![
                 status_dot(admin_running),
                 Space::new().width(theme::SP_SM),

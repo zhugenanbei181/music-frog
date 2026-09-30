@@ -10,20 +10,34 @@
 use std::sync::Arc;
 
 use bevy::app::App;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
+use bevy::picking::hover::PickingInteraction;
 use bevy::scene::CommandsSceneExt;
-use bevy::ui::prelude::{Display, JustifyContent, Node, px};
+use bevy::ui::prelude::{Display, JustifyContent, Node, UiRect, Val, px};
 use infiltrator_bevy_ui::app::{
-    BottomNavBar, LayoutMode, ShellLayoutState, ShellPlugin, SidebarPanel,
+    BOTTOM_NAV_HEIGHT_PX, BottomNavBar, LayoutMode, NavSpacer, RailNavTooltip,
+    SIDEBAR_RAIL_WIDTH_PX, SIDEBAR_WIDTH_PX, ShellLayoutState, ShellPlugin, ShellRoot,
+    SidebarActiveProfileCard, SidebarFooterRow, SidebarIdentityText, SidebarModeSegment,
+    SidebarNavItem, SidebarPanel, SidebarShortcutMatrix, SidebarSpeedFooter,
+    SidebarSystemProxyCard, SidebarTunCard,
 };
+use infiltrator_bevy_ui::chrome::ChromeDragBar;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommandSink};
+use infiltrator_bevy_ui::gesture::GestureHostReport;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{ActiveRoute, PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, CloseModal, OpenModal};
+use infiltrator_bevy_widgets::nav::NavLabel;
 use infiltrator_bevy_widgets::responsive::{
-    Density, DensitySwitch, MasterDetailMode, ModalForm, ResponsiveContext, SidebarMode,
+    Density, DensitySwitch, MasterDetailMode, ModalForm, ResponsiveContext, SafeAreaInsets,
+    SidebarMode, TouchHitbox,
 };
 use infiltrator_bevy_widgets::smart_truncate::{truncate_adaptive, truncate_middle, truncate_tail};
-use infiltrator_bevy_widgets::theme::Breakpoint;
+use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_contract::shell_gesture;
+use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
 
 use crate::support::*;
 
@@ -256,7 +270,7 @@ fn test_polymorphic_navigation_switching_and_route_preservation() {
         assert_eq!(world.resource::<ActiveRoute>().0, Some(Route::Proxies));
     }
 
-    // Switch to Medium (768px): Rail mode (width 72px)
+    // Switch to Medium (768px): Rail mode (width 64px)
     app.world_mut()
         .resource_mut::<ShellLayoutState>()
         .set_width(768.0);
@@ -272,7 +286,7 @@ fn test_polymorphic_navigation_switching_and_route_preservation() {
 
         let (node, _) = sidebars.single(world).unwrap();
         assert_eq!(node.display, Display::Flex);
-        assert_eq!(node.width, px(72.0));
+        assert_eq!(node.width, px(64.0));
         assert_eq!(bottom_navs.single(world).unwrap().0.display, Display::None);
     }
 }
@@ -431,5 +445,376 @@ fn test_dialog_to_actionsheet_morphology_transitions() {
         let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
         let root = roots.iter(world).next().expect("modal root mounted");
         assert_eq!(root.display, Display::None);
+    }
+}
+
+#[test]
+fn test_sidebar_rail_morphology_and_floating_tooltips() {
+    let mut app = setup_responsive_app(1180.0);
+    app.update();
+
+    // 1. Initial Expanded mode (1180px): standard sidebar 240px
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        let (sidebar_node, _) = sidebars.single(world).unwrap();
+        assert_eq!(sidebar_node.display, Display::Flex);
+        assert_eq!(sidebar_node.width, px(SIDEBAR_WIDTH_PX));
+
+        // Nav items have FlexStart alignment and visible labels
+        let mut nav_items = world.query_filtered::<&Node, With<SidebarNavItem>>();
+        for node in nav_items.iter(world) {
+            assert_eq!(node.justify_content, JustifyContent::FlexStart);
+        }
+
+        let mut nav_labels = world.query_filtered::<&Node, With<NavLabel>>();
+        assert!(nav_labels.iter(world).count() > 0);
+        for node in nav_labels.iter(world) {
+            assert_eq!(node.display, Display::Flex);
+        }
+
+        let mut nav_spacers = world.query_filtered::<&Node, With<NavSpacer>>();
+        for node in nav_spacers.iter(world) {
+            assert_eq!(node.display, Display::Flex);
+        }
+
+        // Identity text and mode segment are visible in Expanded
+        let mut identity_texts = world.query_filtered::<&Node, With<SidebarIdentityText>>();
+        for node in identity_texts.iter(world) {
+            assert_eq!(node.display, Display::Flex);
+        }
+
+        let mut mode_segments = world.query_filtered::<&Node, With<SidebarModeSegment>>();
+        for node in mode_segments.iter(world) {
+            assert_eq!(node.display, Display::Flex);
+        }
+
+        // Floating tooltips are hidden in Expanded mode
+        let mut tooltips = world.query_filtered::<&Node, With<RailNavTooltip>>();
+        assert!(tooltips.iter(world).count() > 0);
+        for node in tooltips.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+    }
+
+    // 2. Switch to Medium mode (768px): Rail mode (64px)
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(768.0);
+    app.world_mut()
+        .resource_mut::<ResponsiveContext>()
+        .set_dimensions(768.0, 1024.0);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut sidebars = world.query::<(&Node, &SidebarPanel)>();
+        let (sidebar_node, _) = sidebars.single(world).unwrap();
+        assert_eq!(sidebar_node.display, Display::Flex);
+        assert_eq!(sidebar_node.width, px(SIDEBAR_RAIL_WIDTH_PX));
+
+        // Nav items are centered in Rail mode
+        let mut nav_items = world.query_filtered::<&Node, With<SidebarNavItem>>();
+        for node in nav_items.iter(world) {
+            assert_eq!(node.justify_content, JustifyContent::Center);
+        }
+
+        // Labels, spacers, identity text, and mode segment hidden in Rail mode
+        let mut nav_labels = world.query_filtered::<&Node, With<NavLabel>>();
+        for node in nav_labels.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut nav_spacers = world.query_filtered::<&Node, With<NavSpacer>>();
+        for node in nav_spacers.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut identity_texts = world.query_filtered::<&Node, With<SidebarIdentityText>>();
+        for node in identity_texts.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut mode_segments = world.query_filtered::<&Node, With<SidebarModeSegment>>();
+        for node in mode_segments.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut system_proxies = world.query_filtered::<&Node, With<SidebarSystemProxyCard>>();
+        for node in system_proxies.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut tun_cards = world.query_filtered::<&Node, With<SidebarTunCard>>();
+        for node in tun_cards.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut active_profiles = world.query_filtered::<&Node, With<SidebarActiveProfileCard>>();
+        for node in active_profiles.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut shortcuts = world.query_filtered::<&Node, With<SidebarShortcutMatrix>>();
+        for node in shortcuts.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut speed_footers = world.query_filtered::<&Node, With<SidebarSpeedFooter>>();
+        for node in speed_footers.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        let mut footer_rows = world.query_filtered::<&Node, With<SidebarFooterRow>>();
+        for node in footer_rows.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+
+        // When unhovered, floating tooltips are hidden
+        let mut tooltips = world.query_filtered::<&Node, With<RailNavTooltip>>();
+        for node in tooltips.iter(world) {
+            assert_eq!(node.display, Display::None);
+        }
+    }
+
+    // 3. Hover a navigation item in Rail mode: Tooltip pops out!
+    let target_nav_entity = {
+        let world = app.world_mut();
+        let mut items = world.query_filtered::<Entity, With<SidebarNavItem>>();
+        items.iter(world).next().expect("sidebar nav item exists")
+    };
+
+    app.world_mut()
+        .entity_mut(target_nav_entity)
+        .insert(PickingInteraction::Hovered);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let child_entities: Vec<Entity> = world
+            .get::<Children>(target_nav_entity)
+            .expect("has children")
+            .iter()
+            .copied()
+            .collect();
+        let mut tooltip_found = false;
+        let mut tooltip_query = world.query::<(&RailNavTooltip, &Node)>();
+        for child in child_entities {
+            if let Ok((_tooltip, node)) = tooltip_query.get(world, child) {
+                assert_eq!(
+                    node.display,
+                    Display::Flex,
+                    "hovered item tooltip must be visible in rail mode"
+                );
+                tooltip_found = true;
+            }
+        }
+        assert!(
+            tooltip_found,
+            "target nav item must contain RailNavTooltip child"
+        );
+    }
+
+    // 4. Unhover: Tooltip disappears
+    app.world_mut()
+        .entity_mut(target_nav_entity)
+        .insert(PickingInteraction::None);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let child_entities: Vec<Entity> = world
+            .get::<Children>(target_nav_entity)
+            .expect("has children")
+            .iter()
+            .copied()
+            .collect();
+        let mut tooltip_query = world.query::<(&RailNavTooltip, &Node)>();
+        for child in child_entities {
+            if let Ok((_tooltip, node)) = tooltip_query.get(world, child) {
+                assert_eq!(
+                    node.display,
+                    Display::None,
+                    "unhovered item tooltip must be hidden"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_safe_area_insets_android_and_ios_adaptation() {
+    let mut app = setup_responsive_app(375.0);
+    app.update();
+
+    // 1. Default zero insets in Compact mode (375px mobile portrait)
+    {
+        let world = app.world_mut();
+        let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+        let (nav_node, _) = bottom_navs.single(world).unwrap();
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX));
+        assert_eq!(nav_node.min_height, px(BOTTOM_NAV_HEIGHT_PX));
+        assert_eq!(nav_node.padding, UiRect::bottom(Val::Px(space::S6)));
+
+        let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
+        let (chrome_node, _) = chrome_bars.single(world).unwrap();
+        assert_eq!(chrome_node.height, px(CHROME_DRAG_STRIP_HEIGHT_PX as f32));
+        assert_eq!(
+            chrome_node.min_height,
+            px(CHROME_DRAG_STRIP_HEIGHT_PX as f32)
+        );
+        assert_eq!(chrome_node.padding, UiRect::horizontal(Val::Px(space::S12)));
+
+        let safe_insets = world.resource::<SafeAreaInsets>();
+        assert_eq!(safe_insets.top_px, 0.0);
+        assert_eq!(safe_insets.bottom_px, 0.0);
+    }
+
+    // 2. Android default insets (24px status bar, 16px bottom gesture pill)
+    app.world_mut()
+        .insert_resource(SafeAreaInsets::android_default());
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+        let (nav_node, _) = bottom_navs.single(world).unwrap();
+        // Height = 58 + 16 = 74.0px, padding.bottom = 6 + 16 = 22.0px
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 16.0));
+        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 16.0));
+
+        let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
+        let (chrome_node, _) = chrome_bars.single(world).unwrap();
+        // Height = 38 + 24 = 62.0px, padding.top = 24.0px
+        assert_eq!(
+            chrome_node.height,
+            px(CHROME_DRAG_STRIP_HEIGHT_PX as f32 + 24.0)
+        );
+        assert_eq!(chrome_node.padding.top, Val::Px(24.0));
+
+        // Contract GestureHostReport must be kept in bidirectional sync
+        let host_report = world.resource::<GestureHostReport>();
+        assert_eq!(host_report.insets.top, 24.0);
+        assert_eq!(host_report.insets.bottom, 16.0);
+    }
+
+    // 3. iOS default insets with Dynamic Island (48px status bar, 34px home indicator)
+    app.world_mut()
+        .insert_resource(SafeAreaInsets::ios_default());
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+        let (nav_node, _) = bottom_navs.single(world).unwrap();
+        // Height = 58 + 34 = 92.0px, padding.bottom = 6 + 34 = 40.0px
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 34.0));
+        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
+
+        let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
+        let (chrome_node, _) = chrome_bars.single(world).unwrap();
+        // Height = 38 + 48 = 86.0px, padding.top = 48.0px
+        assert_eq!(
+            chrome_node.height,
+            px(CHROME_DRAG_STRIP_HEIGHT_PX as f32 + 48.0)
+        );
+        assert_eq!(chrome_node.padding.top, Val::Px(48.0));
+
+        let host_report = world.resource::<GestureHostReport>();
+        assert_eq!(host_report.insets.top, 48.0);
+        assert_eq!(host_report.insets.bottom, 34.0);
+    }
+
+    // 4. Inset injection directly through GestureHostReport (contract port seam) with horizontal notch
+    {
+        let mut host_report = app.world_mut().resource_mut::<GestureHostReport>();
+        host_report.insets = shell_gesture::SafeAreaInsets::new(44.0, 12.0, 34.0, 12.0);
+    }
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let safe_insets = world.resource::<SafeAreaInsets>();
+        assert_eq!(safe_insets.top_px, 44.0);
+        assert_eq!(safe_insets.bottom_px, 34.0);
+        assert_eq!(safe_insets.left_px, 12.0);
+        assert_eq!(safe_insets.right_px, 12.0);
+
+        let mut bottom_navs = world.query::<(&Node, &BottomNavBar)>();
+        let (nav_node, _) = bottom_navs.single(world).unwrap();
+        assert_eq!(nav_node.height, px(BOTTOM_NAV_HEIGHT_PX + 34.0));
+        assert_eq!(nav_node.padding.bottom, Val::Px(space::S6 + 34.0));
+        assert_eq!(nav_node.padding.left, Val::Px(12.0));
+        assert_eq!(nav_node.padding.right, Val::Px(12.0));
+
+        let mut chrome_bars = world.query::<(&Node, &ChromeDragBar)>();
+        let (chrome_node, _) = chrome_bars.single(world).unwrap();
+        assert_eq!(
+            chrome_node.height,
+            px(CHROME_DRAG_STRIP_HEIGHT_PX as f32 + 44.0)
+        );
+        assert_eq!(chrome_node.padding.top, Val::Px(44.0));
+        assert_eq!(chrome_node.padding.left, Val::Px(space::S12 + 12.0));
+        assert_eq!(chrome_node.padding.right, Val::Px(space::S12 + 12.0));
+    }
+
+    // 5. Expand to desktop (1180px): BottomNav hidden, ShellRoot absorbs fallback bottom safe padding
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(1180.0);
+    app.world_mut()
+        .resource_mut::<ResponsiveContext>()
+        .set_dimensions(1180.0, 760.0);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut shell_roots = world.query::<(&Node, &ShellRoot)>();
+        let (root_node, _) = shell_roots.single(world).unwrap();
+        assert_eq!(root_node.padding.bottom, Val::Px(34.0));
+        assert_eq!(root_node.padding.left, Val::Px(12.0));
+        assert_eq!(root_node.padding.right, Val::Px(12.0));
+    }
+}
+
+#[test]
+fn test_compact_mobile_touch_hitbox_expansion_and_restoration() {
+    let mut app = setup_responsive_app(375.0);
+    app.update();
+
+    // 1. In Compact mode (375px), every interactive button with a TouchHitbox
+    // must expand its min_width and min_height to at least 48.0px (WCAG 2.5.5 / Android HIG).
+    {
+        let world = app.world_mut();
+        let mut hitboxes = world.query::<(&Node, &TouchHitbox)>();
+        let mut found_hitbox = false;
+        for (node, hitbox) in hitboxes.iter(world) {
+            found_hitbox = true;
+            assert!(hitbox.is_expanded);
+            if let Val::Px(min_w) = node.min_width {
+                assert!(min_w >= 48.0, "min_width {min_w} should be >= 48.0");
+            }
+            if let Val::Px(min_h) = node.min_height {
+                assert!(min_h >= 48.0, "min_height {min_h} should be >= 48.0");
+            }
+        }
+        assert!(found_hitbox, "at least one TouchHitbox must exist in the app");
+    }
+
+    // 2. Expand to desktop (1200px): TouchHitbox restores to desktop compact size
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(1200.0);
+    app.world_mut()
+        .resource_mut::<ResponsiveContext>()
+        .set_dimensions(1200.0, 800.0);
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut hitboxes = world.query::<(&Node, &TouchHitbox)>();
+        for (_node, hitbox) in hitboxes.iter(world) {
+            assert!(!hitbox.is_expanded);
+        }
     }
 }

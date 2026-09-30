@@ -9,26 +9,30 @@ use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, UiRect, Val, percent, px,
+    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::button::pill_caption_scene;
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill};
+use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill, nav_label_ink};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
+use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 
+use crate::a11y::{button_semantic_node, nav_semantic_node, toggle_semantic_node};
 use crate::a11y::{semantic_node, switch_node};
 use crate::app::{
-    BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot, ContentTitleLabel,
-    DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton, HistoryForwardButton,
-    IDENTITY_TILE_PX, SIDEBAR_WIDTH_PX, ShellHeader, ShellRoot, SidebarActiveProfileCard,
-    SidebarFoot, SidebarNavItem, SidebarPanel, SidebarScriptModePill, SidebarShortcutMatrix,
-    SidebarShortcutTile, SidebarSpeedFooter, SidebarSystemProxyCard, SidebarSystemProxyToggle,
-    SidebarTunCard, SidebarTunToggle, ThemeToggle, nav_semantic_node, toggle_semantic_node,
+    BOTTOM_NAV_HEIGHT_PX, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot,
+    ContentTitleLabel, DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton,
+    HistoryForwardButton, IDENTITY_TILE_PX, NavSpacer, RailNavTooltip, SIDEBAR_WIDTH_PX,
+    ShellHeader, ShellRoot, SidebarActiveProfileCard, SidebarExpandedOnly, SidebarFoot,
+    SidebarFooterRow, SidebarIdentityText, SidebarModeSegment, SidebarNavItem, SidebarPanel,
+    SidebarScriptModePill, SidebarShortcutMatrix, SidebarShortcutTile, SidebarSpeedFooter,
+    SidebarSystemProxyCard, SidebarSystemProxyToggle, SidebarTunCard, SidebarTunToggle,
+    ThemeToggle,
 };
 use crate::pages::overview::{OverviewModePill, mode_label};
 use crate::route::Route;
@@ -123,8 +127,8 @@ pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
         Node {
             width: percent(100),
-            height: px(58.0),
-            min_height: px(58.0),
+            height: px(BOTTOM_NAV_HEIGHT_PX),
+            min_height: px(BOTTOM_NAV_HEIGHT_PX),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
@@ -261,7 +265,7 @@ pub fn sidebar_scene_with_toggles(
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(Val::Px(space::S12)),
             row_gap: Val::Px(space::S8),
-            overflow: Overflow::clip(),
+            overflow: Overflow::visible(),
         }
         BackgroundColor({ palette.sidebar })
         SidebarPanel
@@ -280,6 +284,8 @@ pub fn sidebar_scene_with_toggles(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                 }
+                SidebarFooterRow
+                SidebarExpandedOnly
                 Children [
                     (
                         Text({ "0.30 demo".to_owned() }) TextRole(Role::Caption)
@@ -322,6 +328,8 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Node {
                     flex_direction: FlexDirection::Column,
                 }
+                SidebarIdentityText
+                SidebarExpandedOnly
                 Children [
                     ( Text({ "MusicFrog".to_owned() }) TextRole(Role::BodyStrong) ),
                     ( Text({ "v0.20.0".to_owned() }) TextRole(Role::Caption) ),
@@ -334,15 +342,17 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
 /// Proxy-mode segment control pills (Rule, Global, Direct, Script).
 pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + use<> {
     let segment_node = semantic_node(ShellA11yNode::ModeSegment);
-    let rule_node = toggle_semantic_node(mode_label(ProxyMode::Rule));
-    let global_node = toggle_semantic_node(mode_label(ProxyMode::Global));
-    let direct_node = toggle_semantic_node(mode_label(ProxyMode::Direct));
-    let script_node = toggle_semantic_node("脚本模式");
+    let rule_node = button_semantic_node(mode_label(ProxyMode::Rule));
+    let global_node = button_semantic_node(mode_label(ProxyMode::Global));
+    let direct_node = button_semantic_node(mode_label(ProxyMode::Direct));
+    let script_node = button_semantic_node("脚本模式");
     bsn! {
         Node {
             align_items: AlignItems::Center,
             column_gap: Val::Px(space::S4),
         }
+        SidebarModeSegment
+        SidebarExpandedOnly
         template_value(segment_node)
         Children [
             (
@@ -401,6 +411,7 @@ pub fn sidebar_system_toggles_scene(
                 BackgroundColor({ palette.surface_elevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 SidebarSystemProxyCard
+                SidebarExpandedOnly
                 Children [
                     (
                         Node {
@@ -437,6 +448,7 @@ pub fn sidebar_system_toggles_scene(
                 BackgroundColor({ palette.surface_elevated })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 SidebarTunCard
+                SidebarExpandedOnly
                 Children [
                     (
                         Node {
@@ -479,6 +491,7 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
         BackgroundColor({ palette.surface_elevated })
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         SidebarActiveProfileCard
+        SidebarExpandedOnly
         Children [
             (
                 Node {
@@ -551,6 +564,7 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
             row_gap: Val::Px(space::S6),
         }
         SidebarShortcutMatrix
+        SidebarExpandedOnly
         Children [
             (
                 Node {
@@ -650,6 +664,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
         BackgroundColor({ palette.surface_elevated })
         BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         SidebarSpeedFooter
+        SidebarExpandedOnly
         template_value(rate_node)
         Children [
             (
@@ -711,13 +726,17 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
 /// Sidebar navigation item scene.
 pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -> Box<dyn Scene> {
     let semantic = nav_semantic_node(route.label(), false);
+    let ink = nav_label_ink(active, palette);
+    let edge = palette.border;
     Box::new(bsn! {
         Node {
             width: percent(100),
             min_height: px(palette.control_height_px),
             align_items: AlignItems::Center,
+            justify_content: JustifyContent::FlexStart,
             padding: UiRect::horizontal(Val::Px(space::S12)),
             border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            position_type: PositionType::Relative,
         }
         BackgroundColor({ nav_fill(active, palette) })
         Button
@@ -726,6 +745,8 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
         NavActive(active)
         template_value(semantic)
         Children [
+            ( { icon_scene(route.icon(), 18.0, ink) } ),
+            ( Node { width: px(space::S8) } NavSpacer SidebarExpandedOnly ),
             (
                 Text({ route.label().to_owned() })
                 TextRole({
@@ -736,6 +757,26 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
                     }
                 })
                 NavLabel
+                SidebarExpandedOnly
+            ),
+            (
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: px(68.0),
+                    display: Display::None,
+                    padding: UiRect::new(Val::Px(space::S8), Val::Px(space::S8), Val::Px(space::S4), Val::Px(space::S4)),
+                    border: UiRect::all(Val::Px(palette.hairline_px)),
+                    border_radius: BorderRadius::all(Val::Px(radius::XS)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                }
+                BackgroundColor({ palette.surface_elevated })
+                BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+                TooltipBubble
+                RailNavTooltip(route)
+                Children [
+                    ( Text({ route.label().to_owned() }) TextRole(Role::Caption) ),
+                ]
             ),
         ]
     })

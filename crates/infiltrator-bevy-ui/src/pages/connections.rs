@@ -6,6 +6,10 @@
 //! [`ConnChainHopText`],
 //! [`CloseConnectionButton`]). The page self-registers [`apply_connections_projection`]
 //! and action observers once per world via [`ConnectionsPageRoot`].
+//!
+//! Row-level rendering ([`connection_chain_scenes`], [`connection_pulse_scene`])
+//! and route chain derivation ([`connection_view::route_chain`]) are organized
+//! under `connections_row` to support swipe-to-action within the line budget.
 
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
@@ -38,6 +42,7 @@ use infiltrator_domain::connection_view::ConnectionGroupingMode;
 
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::connections_idle::{ConnectionsIdleState, current_unix_secs};
+use crate::pages::connections_row::connection_row_scene;
 use crate::pages::connections_view::{
     CloseAllConnectionsLabel, CloseFilteredConnectionsButton, ConnAggregationSummary,
     ConnAggregationSummaryContainer, ConnRowsContainer, ConnSearchField, ConnSortPill,
@@ -424,134 +429,6 @@ fn connections_table_scene(
         ],
         palette,
     )
-}
-
-fn connection_row_scene(
-    idx: usize,
-    conn: &ConnectionItem,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let host = conn.host.clone();
-    let process_info = format!("{} · {}", conn.process, conn.rule);
-    let chain_scenes = connection_chain_scenes(idx, conn);
-    let speed_info = format!(
-        "↑ {}  ↓ {}",
-        format_rate(conn.upload_bps),
-        format_rate(conn.download_bps)
-    );
-    let conn_btn = CloseConnectionButton {
-        connection_id: conn.id.clone(),
-        connection_idx: idx,
-    };
-    let inspect_btn = ConnInspectButton(idx);
-
-    surface_scene(
-        vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-            }
-            ConnectionRow(idx)
-            Children [
-                (
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
-                    }
-                    Children [
-                        (
-                            Node {
-                                align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                            }
-                            Children [
-                                ( Text(host) ConnHostText(idx) TextRole(Role::BodyStrong) ),
-                                ( Text(process_info) ConnProcessText(idx) TextRole(Role::Caption) ),
-                            ]
-                        ),
-                        (
-                            Node {
-                                align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                { chain_scenes },
-                            ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
-                    }
-                    Children [
-                        ( Text(speed_info) ConnSpeedText(idx) TextRole(Role::Mono) ),
-                        ( { crate::pages::connections_pulse::connection_pulse_scene(idx, conn, palette) } ),
-                        (
-                            Node {
-                                min_height: px(palette.control_height_px * 0.8),
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            Button
-                            template_value(inspect_btn)
-                            Children [
-                                ( Text({ "详情".to_owned() }) TextRole(Role::Caption) ),
-                            ]
-                        ),
-                        (
-                            Node {
-                                min_height: px(palette.control_height_px * 0.8),
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            Button
-                            template_value(conn_btn)
-                            Children [
-                                ( Text({ "断开".to_owned() }) TextRole(Role::Caption) ),
-                            ]
-                        ),
-                    ]
-                ),
-            ]
-        })],
-        palette,
-    )
-}
-
-/// DUAL-13-06: render one flat row's route chain as one text per hop, through
-/// the shared parsed chain model (no pre-joined string).
-fn connection_chain_scenes(idx: usize, conn: &ConnectionItem) -> Vec<Box<dyn Scene>> {
-    let chain = connection_view::route_chain(conn);
-    let mut scenes: Vec<Box<dyn Scene>> = vec![Box::new(bsn! {
-        ( Text({ "链路: ".to_owned() }) TextRole(Role::Caption) )
-    }) as Box<dyn Scene>];
-    if chain.is_empty() {
-        scenes.push(Box::new(bsn! {
-            ( Text({ "DIRECT".to_owned() }) TextRole(Role::Caption) )
-        }) as Box<dyn Scene>);
-        return scenes;
-    }
-    for (hop, label) in chain.hops().iter().enumerate() {
-        if hop > 0 {
-            scenes.push(Box::new(bsn! {
-                ( Text({ "→".to_owned() }) TextRole(Role::Caption) )
-            }) as Box<dyn Scene>);
-        }
-        let hop_label = label.clone();
-        scenes.push(Box::new(bsn! {
-            ( Text(hop_label) template_value(ConnChainHopText { row: idx, hop }) TextRole(Role::Caption) )
-        }) as Box<dyn Scene>);
-    }
-    scenes
 }
 
 // ---- Observer & Update Hook -----------------------------------------------

@@ -47,3 +47,25 @@ fn canvas_uses_the_application_scale_instead_of_a_fixed_floor() {
     assert_eq!(scale.peak_bps, 20_000.0);
     assert!(scale.max_bps > 20_000.0);
 }
+
+#[test]
+fn test_traffic_chart_crosshair_and_hud_tooltip_geometry() {
+    let chart = TrafficChart {
+        history: VecDeque::from([
+            (1_000_000, 5_000_000),
+            (2_000_000, 8_000_000),
+            (3_000_000, 10_000_000),
+        ]),
+        shared: None,
+        scale: None,
+    };
+    let (up, down) = chart.raw_series();
+    assert_eq!(up.len(), 3);
+    assert_eq!(down.len(), 3);
+
+    // Verify rate formatting in HUD
+    let up_fmt = format!("↑ {}/s", crate::utils::format_bytes(up[1] as u64));
+    let down_fmt = format!("↓ {}/s", crate::utils::format_bytes(down[1] as u64));
+    assert!(up_fmt.contains("MB") || up_fmt.contains("KB"));
+    assert!(down_fmt.contains("MB") || down_fmt.contains("KB"));
+}

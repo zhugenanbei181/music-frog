@@ -14,7 +14,7 @@ use crate::types::runtime::RuntimeStreamState;
 use crate::view::component_forms::{form_input_style, form_pick_style, style_accent};
 use crate::view::components::{BadgeKind, badge, chip, icon_button, section_header};
 use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, MONO, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
+use crate::view::theme::{self, MONO, R_CONTROL, R_XS, SP_MD, SP_SM, SP_XS, tokens};
 
 /// Fixed right padding so log text does not sit under the scrollbar.
 const SCROLL_PAD: f32 = 16.0;
@@ -238,7 +238,7 @@ fn render_log_line<'a>(raw_line: &str, theme: &Theme) -> Element<'a, Message> {
                     .style(move |_t: &Theme| container::Style {
                         background: Some(tk.chip_bg.into()),
                         border: Border {
-                            radius: border::Radius::from(4.0),
+                            radius: border::Radius::from(R_XS),
                             ..Default::default()
                         },
                         ..Default::default()

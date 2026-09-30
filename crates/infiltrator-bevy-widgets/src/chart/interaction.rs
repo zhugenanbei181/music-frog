@@ -28,6 +28,14 @@ impl CrosshairState {
             down_value: None,
         }
     }
+
+    pub fn with_values(mut self, up: f32, down: f32, sample_x: f32, snapped_idx: usize) -> Self {
+        self.up_value = Some(up);
+        self.down_value = Some(down);
+        self.sample_x = Some(sample_x);
+        self.snapped_index = Some(snapped_idx);
+        self
+    }
 }
 
 /// Configuration for crosshair guidelines and indicators.
@@ -307,4 +315,98 @@ pub fn draw_crosshair_overlay(
             }
         }
     }
+
+    // Micro HUD Tooltip badge overlay (UI-04-04)
+    let hud_w = 40.0;
+    let hud_h = 24.0;
+    let (hx, hy) = compute_chart_hud_rect(
+        x_target as f32,
+        y_target as f32,
+        width as f32,
+        height as f32,
+        hud_w,
+        hud_h,
+    );
+    let hx_start = hx.round() as i32;
+    let hy_start = hy.round() as i32;
+    let hx_end = (hx + hud_w).round() as i32;
+    let hy_end = (hy + hud_h).round() as i32;
+    let bg_ink = crate::chart::to_rgba8(palette.surface_elevated);
+    let border_ink = crate::chart::to_rgba8(palette.border);
+
+    for y in hy_start..hy_end {
+        for x in hx_start..hx_end {
+            let is_border = x == hx_start || x == hx_end - 1 || y == hy_start || y == hy_end - 1;
+            if is_border {
+                blend_pixel(pixels, width, x, y, border_ink, 0.7);
+            } else {
+                blend_pixel(pixels, width, x, y, bg_ink, 0.85);
+            }
+        }
+    }
+
+    // Draw uplink / downlink mini color bars inside HUD badge
+    let bar_top_y = hy_start + 6;
+    let bar_bot_y = hy_start + 14;
+    for x in (hx_start + 6)..(hx_start + 18).min(hx_end - 4) {
+        blend_pixel(pixels, width, x, bar_top_y, accent_ink, 1.0);
+        blend_pixel(pixels, width, x, bar_top_y + 1, accent_ink, 1.0);
+        blend_pixel(pixels, width, x, bar_bot_y, success_ink, 1.0);
+        blend_pixel(pixels, width, x, bar_bot_y + 1, success_ink, 1.0);
+    }
+}
+
+/// Instantaneous rates at a crosshair inspection sample point (UI-04-04).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct InstantRates {
+    pub index: usize,
+    pub upload_bps: f32,
+    pub download_bps: f32,
+    pub relative_time_secs: i32,
+}
+
+/// Compute instantaneous rates and relative time offset for an inspected sample.
+pub fn compute_instant_rates(
+    up_samples: &[f32],
+    down_samples: &[f32],
+    sample_idx: usize,
+) -> Option<InstantRates> {
+    let total = up_samples.len().max(down_samples.len());
+    if total == 0 || sample_idx >= total {
+        return None;
+    }
+    let upload_bps = up_samples.get(sample_idx).copied().unwrap_or(0.0);
+    let download_bps = down_samples.get(sample_idx).copied().unwrap_or(0.0);
+    let relative_time_secs = (sample_idx as i32) - (total as i32 - 1);
+    Some(InstantRates {
+        index: sample_idx,
+        upload_bps,
+        download_bps,
+        relative_time_secs,
+    })
+}
+
+/// Compute boundary-clamped placement coordinates for the micro HUD tooltip (UI-04-04).
+///
+/// Automatically flips from the right of the crosshair to the left when approaching
+/// the right edge of the chart to prevent clipping.
+pub fn compute_chart_hud_rect(
+    cursor_x: f32,
+    cursor_y: f32,
+    chart_width: f32,
+    chart_height: f32,
+    hud_width: f32,
+    hud_height: f32,
+) -> (f32, f32) {
+    let margin = 6.0;
+    // Default: place on the right of the vertical crosshair
+    let mut x = cursor_x + margin;
+    if x + hud_width > chart_width - margin {
+        // Flip to the left of the crosshair
+        x = (cursor_x - margin - hud_width).max(margin);
+    }
+    // Vertically center on cursor, clamped within chart bounds
+    let mut y = cursor_y - hud_height * 0.5;
+    y = y.clamp(margin, (chart_height - hud_height - margin).max(margin));
+    (x, y)
 }

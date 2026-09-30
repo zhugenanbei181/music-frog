@@ -1,7 +1,7 @@
 //! Canvas-based waveform and traffic charts for the Infiltrator UI.
 
 use iced::widget::canvas;
-use iced::{Color, Element, Point, Rectangle, Renderer, Theme, mouse};
+use iced::{Color, Element, Point, Rectangle, Renderer, Theme, border, mouse};
 use std::collections::VecDeque;
 
 use crate::view::theme;
@@ -140,9 +140,10 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                 .with_width(2.0),
         );
 
-        // 4. Interactive cursor tracking crosshair
+        // 4. Interactive cursor tracking crosshair with Micro HUD Tooltip (UI-04-04)
         if let Some(cursor_pos) = cursor.position_in(bounds) {
             let scan_x = cursor_pos.x.clamp(0.0, width);
+            let scan_y = cursor_pos.y.clamp(0.0, height);
             let raw_x_step = width / (upload_raw.len() - 1) as f32;
             let sample_idx =
                 ((scan_x / raw_x_step).round() as usize).min(upload_raw.len().saturating_sub(1));
@@ -150,7 +151,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             if let (Some(&up_val), Some(&down_val)) =
                 (upload_raw.get(sample_idx), download_raw.get(sample_idx))
             {
-                // Vertical scan line
+                // Vertical time scan line
                 let scan_line =
                     canvas::Path::line(Point::new(scan_x, 0.0), Point::new(scan_x, height));
                 frame.stroke(
@@ -163,12 +164,109 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                         .with_width(1.0),
                 );
 
-                // Highlight points on curves
+                // Horizontal value scan line
+                let horiz_line =
+                    canvas::Path::line(Point::new(0.0, scan_y), Point::new(width, scan_y));
+                frame.stroke(
+                    &horiz_line,
+                    canvas::Stroke::default()
+                        .with_color(Color {
+                            a: 0.18,
+                            ..tk.text_secondary
+                        })
+                        .with_width(1.0),
+                );
+
+                // Highlight points on curves with halos
                 let down_pt = Point::new(sample_idx as f32 * raw_x_step, scale(down_val));
                 let up_pt = Point::new(sample_idx as f32 * raw_x_step, scale(up_val));
 
-                frame.fill(&canvas::Path::circle(down_pt, 4.0), accent);
-                frame.fill(&canvas::Path::circle(up_pt, 3.5), success);
+                frame.fill(
+                    &canvas::Path::circle(down_pt, 6.0),
+                    Color {
+                        a: 0.25,
+                        ..accent
+                    },
+                );
+                frame.fill(&canvas::Path::circle(down_pt, 3.5), accent);
+
+                frame.fill(
+                    &canvas::Path::circle(up_pt, 5.5),
+                    Color {
+                        a: 0.25,
+                        ..success
+                    },
+                );
+                frame.fill(&canvas::Path::circle(up_pt, 3.0), success);
+
+                // Micro HUD Tooltip badge overlay
+                let hud_w = 112.0;
+                let hud_h = 44.0;
+                let mut hud_x = scan_x + 8.0;
+                if hud_x + hud_w > width - 6.0 {
+                    hud_x = (scan_x - 8.0 - hud_w).max(6.0);
+                }
+                let hud_y = (scan_y - hud_h * 0.5).clamp(6.0, (height - hud_h - 6.0).max(6.0));
+
+                let hud_box = canvas::Path::rounded_rectangle(
+                    Point::new(hud_x, hud_y),
+                    iced::Size::new(hud_w, hud_h),
+                    border::Radius::from(theme::R_XS),
+                );
+                frame.fill(
+                    &hud_box,
+                    Color {
+                        a: 0.88,
+                        ..tk.card_bg
+                    },
+                );
+                frame.stroke(
+                    &hud_box,
+                    canvas::Stroke::default()
+                        .with_color(Color {
+                            a: 0.40,
+                            ..tk.card_border
+                        })
+                        .with_width(1.0),
+                );
+
+                let up_text = format!("↑ {}/s", crate::utils::format_bytes(up_val as u64));
+                frame.fill_text(canvas::Text {
+                    content: up_text,
+                    position: Point::new(hud_x + 8.0, hud_y + 8.0),
+                    color: success,
+                    size: iced::Pixels(11.0),
+                    font: theme::MONO,
+                    ..canvas::Text::default()
+                });
+
+                let down_text = format!("↓ {}/s", crate::utils::format_bytes(down_val as u64));
+                frame.fill_text(canvas::Text {
+                    content: down_text,
+                    position: Point::new(hud_x + 8.0, hud_y + 24.0),
+                    color: accent,
+                    size: iced::Pixels(11.0),
+                    font: theme::MONO,
+                    ..canvas::Text::default()
+                });
+
+                let delta_s = upload_raw.len().saturating_sub(1) - sample_idx;
+                let time_text = if delta_s == 0 {
+                    "0s".to_string()
+                } else {
+                    format!("-{delta_s}s")
+                };
+                frame.fill_text(canvas::Text {
+                    content: time_text,
+                    position: Point::new(hud_x + hud_w - 24.0, hud_y + 8.0),
+                    color: Color {
+                        a: 0.55,
+                        ..tk.text_secondary
+                    },
+                    size: iced::Pixels(9.0),
+                    font: theme::MONO,
+                    ..canvas::Text::default()
+                });
             }
         }
 

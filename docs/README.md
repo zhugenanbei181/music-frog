@@ -11,11 +11,12 @@
 5. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
 6. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
 7. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
-8. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 多模态外壳的可机检无头回归矩阵（逐项绑定 `路径::测试名`，守卫逐条校验）。
-9. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
-10. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
-11. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
-12. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
+8. [DUAL_SURFACE_UI_UX_ROADMAP.md](DUAL_SURFACE_UI_UX_ROADMAP.md)：**【体验演进总纲】**双端 UI/UX 体验演进与视觉系统主控台账（响应式布局、连续曲率圆角 Squircle、着色器动效与按图索骥推进清单）。
+9. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 多模态外壳的可机检无头回归矩阵（逐项绑定 `路径::测试名`，守卫逐条校验）。
+10. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
+11. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
+12. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
+13. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
 
 ## 文档与待办的权威关系
 
@@ -28,19 +29,24 @@
 | 功能归属 | `docs/FUNCTIONAL_MAP.md` | 一项功能只指定一个逻辑 owner |
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
 | 双端多尺寸弹性 | `docs/RESPONSIVE_PARITY_LEDGER.md` | 断点单一事实源、四阶形态规范与逐页弹性收口；`DUAL-03-14`/`DUAL-15-01` 的权威验收台账 |
+| 双端 UI/UX 与视觉演进 | `docs/DUAL_SURFACE_UI_UX_ROADMAP.md` | 双端 UI/UX 体验、全流体响应式、设计令牌、连续曲率圆角与微交互的权威实施台账 |
 | 多模态外壳回归矩阵 | `docs/MULTIMODAL_SHELL_MATRIX.md` | 组 15 逐项状态与双侧证据；证据标记由 `scripts/quality/multimodal-shell-guard.py` 逐条校验 |
 | Iced 落地台账 | `docs/ICED_CORE_MATURITY_GAPS.md` | Iced 端 4 维度与各 Wave 落地状态及测试证据 |
 | Bevy UI 落地台账 | `docs/BEVY_CORE_MATURITY_GAPS.md` | Bevy UI 端 10 维度 150 项工程缺口落地状态及无头测试证据 |
 | 核心协议与 AST 台账 | `docs/MATURITY_GAP_ANALYSIS.md` | 核心层与协议层 10×10 成熟度全景差距台账 |
+| mihomo-rs 对标 | `docs/PARITY_MIHOMO_RS.md` | mihomo-rs v2.2 对标与差距补齐记录 |
+| 平台交互动词契约 | `docs/PLATFORM_CONTRACTS.md` | 0.30 平台交互动词契约：每类 OS 交互动词一个统一 Rust trait，不支持组合显式 `Unsupported` |
 | 上游依赖 | `docs/UPSTREAM.md` | 版本真相来自 manifest/lockfile/脚本，不在多个文档手抄 |
 | 回归证据 | `docs/TEST_MATRIX.md` + `TESTING.md` | 测试命令和测试覆盖矩阵分开维护 |
 | 工作台账 | 本地 `TODO.md` | 被 `.gitignore` 忽略，按任务 ID 与验收条件维护 |
 | 缺陷视图 | `DEFECTS.md` | 只描述差距和证据，具体执行顺序回指 `TODO.md` |
 | 用户使用说明 | `USAGE_SPEC.md` | 只描述已经存在或明确承诺的用户操作 |
 | 测试执行规则 | `TESTING.md` | 记录命令、隔离策略和回归入口 |
+| 桌面冒烟验证 | `docs/DESKTOP_SMOKE.md` | 桌面真实行为隔离冒烟验证（SNI 托盘、通知与 XDG/dconf 副作用） |
 
 ## 维护规则
 
+0. `README.md`（根与各 crate）面向人类，只描述产品/模块本身；项目地图以顶层 [AGENTS.md](../AGENTS.md) 为最高入口，逐层细化到本页与其登记的各 canonical 文档。README 不承担导航、索引或任务路由。
 1. 一个事实只有一个权威来源，其他文档只链接，不复制完整表格。
 2. 架构文档写稳定边界；临时方案、实验结果和未决事项写入本地 `TODO.md`。
 3. TODO 只有在代码、行为测试和适用的平台/打包证据都具备时才能标记 `DONE`。

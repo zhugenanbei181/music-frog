@@ -152,7 +152,7 @@ fn usage_bar<'a>(snapshot: &SubscriptionQuotaSnapshot) -> Element<'a, Message> {
             .style(|t: &Theme| container::Style {
                 background: Some(tokens(t).accent.into()),
                 border: Border {
-                    radius: border::Radius::from(4.0),
+                    radius: border::Radius::from(theme::R_XS),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -173,7 +173,7 @@ fn usage_bar<'a>(snapshot: &SubscriptionQuotaSnapshot) -> Element<'a, Message> {
                 .into(),
             ),
             border: Border {
-                radius: border::Radius::from(4.0),
+                radius: border::Radius::from(theme::R_XS),
                 ..Default::default()
             },
             ..Default::default()

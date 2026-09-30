@@ -102,7 +102,7 @@ fn latency_comparison_bar<'a>(name: &'static str, ms: u32, max_ms: f32) -> Eleme
                 container::Style {
                     background: Some(c.into()),
                     border: Border {
-                        radius: border::Radius::from(3.0),
+                        radius: border::Radius::from(theme::R_PILL),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -120,7 +120,7 @@ fn latency_comparison_bar<'a>(name: &'static str, ms: u32, max_ms: f32) -> Eleme
         container::Style {
             background: Some(tk.control_bg.into()),
             border: Border {
-                radius: border::Radius::from(3.0),
+                radius: border::Radius::from(theme::R_PILL),
                 ..Default::default()
             },
             ..Default::default()

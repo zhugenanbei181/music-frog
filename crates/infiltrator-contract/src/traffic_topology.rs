@@ -235,14 +235,35 @@ impl TrafficTopologySnapshot {
             .find(|link| link.from == from && link.to == to)
     }
 
-    /// A bounded animation speed derived from aggregate observed traffic.
-    /// It is a visual adapter input, not a claim about packet latency.
-    pub fn flow_speed_hz(&self) -> f32 {
+    /// A bounded animation speed derived from aggregate observed traffic,
+    /// linearly scaled with throughput bandwidth (UI-04-05).
+    pub fn linear_flow_speed_hz(&self) -> f32 {
         if !self.is_flowing() {
             return 0.0;
         }
-        (0.55 + self.flow_bps.max(1.0).log10() as f32 * 0.08).clamp(0.55, 1.6)
+        compute_linear_topology_speed(self.flow_bps)
     }
+
+    /// Legacy alias forwarding to [`linear_flow_speed_hz`].
+    pub fn flow_speed_hz(&self) -> f32 {
+        self.linear_flow_speed_hz()
+    }
+}
+
+/// Compute animation flow frequency linearly scaled with throughput bandwidth (UI-04-05).
+///
+/// Bounded between `0.6` Hz (gentle idle flow) and `2.8` Hz (saturated high-speed pipe),
+/// scaling linearly across reference bandwidth up to 100 Mbps (12.5 MB/s).
+pub fn compute_linear_topology_speed(bandwidth_bps: f64) -> f32 {
+    if !bandwidth_bps.is_finite() || bandwidth_bps <= 0.0 {
+        return 0.0;
+    }
+    const MIN_SPEED_HZ: f32 = 0.6;
+    const MAX_SPEED_HZ: f32 = 2.8;
+    const REF_BANDWIDTH_BPS: f64 = 100_000_000.0; // 100 Mbps
+
+    let ratio = (bandwidth_bps / REF_BANDWIDTH_BPS).clamp(0.0, 1.0) as f32;
+    MIN_SPEED_HZ + ratio * (MAX_SPEED_HZ - MIN_SPEED_HZ)
 }
 
 fn node(
@@ -323,8 +344,26 @@ mod tests {
     fn animation_speed_is_bounded_and_uses_only_live_flow() {
         let mut snapshot = TrafficTopologySnapshot::demo_fixture();
         let speed = snapshot.flow_speed_hz();
-        assert!((0.55..=1.6).contains(&speed));
+        assert!((0.6..=2.8).contains(&speed));
         snapshot.flow_bps = f64::NAN;
         assert_eq!(snapshot.flow_speed_hz(), 0.0);
+    }
+
+    #[test]
+    fn linear_bandwidth_flow_speed_scaling() {
+        assert_eq!(compute_linear_topology_speed(0.0), 0.0);
+        assert_eq!(compute_linear_topology_speed(-100.0), 0.0);
+        assert_eq!(compute_linear_topology_speed(f64::NAN), 0.0);
+
+        let speed_low = compute_linear_topology_speed(1_000_000.0); // 1 Mbps
+        let speed_mid = compute_linear_topology_speed(50_000_000.0); // 50 Mbps
+        let speed_high = compute_linear_topology_speed(100_000_000.0); // 100 Mbps
+        let speed_saturated = compute_linear_topology_speed(1_000_000_000.0); // 1 Gbps
+
+        assert!(speed_low < speed_mid);
+        assert!(speed_mid < speed_high);
+        assert!((speed_high - 2.8).abs() < 1e-5);
+        assert!((speed_saturated - 2.8).abs() < 1e-5);
+        assert!((speed_mid - 1.7).abs() < 0.01);
     }
 }

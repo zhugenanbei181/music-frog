@@ -7,11 +7,14 @@ use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, Scene, ScenePlugin, bsn};
 use bevy::ui::prelude::{Display, FlexDirection, JustifyContent, Node, Val, percent, px};
 use bevy::ui::widget::Text;
+use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::adaptive_modal::{
     AdaptiveModalRoot, CloseModal, ModalCard, OpenModal, adaptive_modal_scene,
 };
-use infiltrator_bevy_widgets::fluid_grid::{FluidGridConfig, FluidGridItem, fluid_card_grid_scene};
+use infiltrator_bevy_widgets::fluid_grid::{
+    FluidCardGrid, FluidGridConfig, FluidGridItem, fluid_card_grid_scene, sync_fluid_grid_layout,
+};
 use infiltrator_bevy_widgets::master_detail::{
     DetailPane, MasterDetailState, MasterDetailView, MasterItemButton, MasterItemSelected,
     MasterPane, master_back_button_scene, master_detail_scene,
@@ -19,7 +22,7 @@ use infiltrator_bevy_widgets::master_detail::{
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{
     Density, DensitySwitch, MasterDetailMode, ModalForm, Orientation, ResponsiveContext,
-    SidebarMode,
+    SafeAreaInsets, SidebarMode, TouchHitbox, TouchTargetPolicy,
 };
 use infiltrator_bevy_widgets::smart_truncate::{
     SmartTruncateText, truncate_adaptive, truncate_adaptive_middle, truncate_middle, truncate_tail,
@@ -58,7 +61,7 @@ fn four_tier_breakpoint_classification() {
     assert!(!bp_medium.is_compact());
     assert!(!bp_medium.is_expanded());
     assert!(!bp_medium.is_ultra());
-    assert_eq!(bp_medium.sidebar_width_px(), Some(72.0));
+    assert_eq!(bp_medium.sidebar_width_px(), Some(64.0));
     assert_eq!(bp_medium.default_grid_columns(), 2);
 
     let bp_medium_edge = Breakpoint::from_width(839.9);
@@ -517,7 +520,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
 #[test]
 fn test_safe_area_insets_and_touch_target_policy() {
-    let android_insets = infiltrator_bevy_widgets::responsive::SafeAreaInsets::android_default();
+    let android_insets = SafeAreaInsets::android_default();
     assert_eq!(android_insets.top_px, 24.0);
     assert_eq!(android_insets.bottom_px, 16.0);
 
@@ -529,31 +532,134 @@ fn test_safe_area_insets_and_touch_target_policy() {
 
     // Touch target policy: compact mobile always guarantees 48px
     assert_eq!(
-        infiltrator_bevy_widgets::responsive::TouchTargetPolicy::min_dimension(
-            Density::Comfortable,
-            true
-        ),
+        TouchTargetPolicy::min_dimension(Density::Comfortable, true),
         48.0
     );
     assert_eq!(
-        infiltrator_bevy_widgets::responsive::TouchTargetPolicy::min_dimension(
-            Density::Compact,
-            true
-        ),
+        TouchTargetPolicy::min_dimension(Density::Compact, true),
         48.0
     );
     assert_eq!(
-        infiltrator_bevy_widgets::responsive::TouchTargetPolicy::min_dimension(
-            Density::Comfortable,
-            false
-        ),
+        TouchTargetPolicy::min_dimension(Density::Comfortable, false),
         36.0
     );
     assert_eq!(
-        infiltrator_bevy_widgets::responsive::TouchTargetPolicy::min_dimension(
-            Density::Compact,
-            false
-        ),
+        TouchTargetPolicy::min_dimension(Density::Compact, false),
         28.0
     );
+}
+
+#[test]
+fn test_sync_fluid_grid_layout_measured_vs_fallback() {
+    let mut app = App::new();
+    let grid = app
+        .world_mut()
+        .spawn((
+            FluidCardGrid,
+            FluidGridConfig {
+                min_card_width_px: 260.0,
+                max_columns: 4,
+                gap_px: 16.0,
+                row_gap_px: 16.0,
+            },
+            Node::default(),
+        ))
+        .id();
+
+    let item = app.world_mut().spawn((FluidGridItem, Node::default())).id();
+    app.world_mut().entity_mut(grid).add_child(item);
+
+    app.add_systems(bevy::app::Update, sync_fluid_grid_layout);
+    app.update();
+
+    // Without ComputedNode, item gets fallback percent basis
+    let node = app.world().get::<Node>(item).unwrap();
+    assert_eq!(
+        node.flex_basis,
+        percent(FluidCardGrid::wrapped_item_percent(3))
+    );
+}
+
+#[test]
+fn touch_hitbox_compact_expansion_and_restoration() {
+    let mut app = headless_app();
+    app.world_mut()
+        .insert_resource(ResponsiveContext::new(1000.0, 800.0));
+
+    let entity = app
+        .world_mut()
+        .spawn((
+            Node {
+                min_width: px(30.0),
+                min_height: px(24.0),
+                height: px(28.8),
+                ..Default::default()
+            },
+            TouchHitbox::default(),
+        ))
+        .id();
+
+    app.update();
+
+    // 1. In Expanded desktop mode (1000px): dimensions remain compact
+    {
+        let node = app.world().get::<Node>(entity).unwrap();
+        let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
+        assert_eq!(node.min_width, px(30.0));
+        assert_eq!(node.min_height, px(24.0));
+        assert_eq!(node.height, px(28.8));
+        assert!(!hitbox.is_expanded);
+    }
+
+    // 2. Resize to Compact mobile mode (375px): target expands to minimum 48px
+    app.world_mut()
+        .resource_mut::<ResponsiveContext>()
+        .set_dimensions(375.0, 667.0);
+    app.update();
+
+    {
+        let node = app.world().get::<Node>(entity).unwrap();
+        let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
+        assert_eq!(node.min_width, px(48.0));
+        assert_eq!(node.min_height, px(48.0));
+        assert_eq!(node.height, px(48.0));
+        assert!(hitbox.is_expanded);
+    }
+
+    // 3. Resize back to Expanded desktop mode (1000px): dimensions restored to original
+    app.world_mut()
+        .resource_mut::<ResponsiveContext>()
+        .set_dimensions(1000.0, 800.0);
+    app.update();
+
+    {
+        let node = app.world().get::<Node>(entity).unwrap();
+        let hitbox = app.world().get::<TouchHitbox>(entity).unwrap();
+        assert_eq!(node.min_width, px(30.0));
+        assert_eq!(node.min_height, px(24.0));
+        assert_eq!(node.height, px(28.8));
+        assert!(!hitbox.is_expanded);
+    }
+}
+
+#[test]
+fn touch_hitbox_auto_insert_on_buttons() {
+    let mut app = headless_app();
+    let entity = app
+        .world_mut()
+        .spawn((
+            Button,
+            Node {
+                min_width: px(20.0),
+                min_height: px(20.0),
+                ..Default::default()
+            },
+        ))
+        .id();
+
+    assert!(app.world().get::<TouchHitbox>(entity).is_none());
+
+    app.update();
+
+    assert!(app.world().get::<TouchHitbox>(entity).is_some());
 }

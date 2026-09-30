@@ -38,6 +38,7 @@ pub mod pages;
 pub mod pipeline;
 pub mod projection;
 pub mod route;
+pub mod shell_rail;
 pub mod shell_scene;
 pub mod shortcuts;
 pub mod surface;

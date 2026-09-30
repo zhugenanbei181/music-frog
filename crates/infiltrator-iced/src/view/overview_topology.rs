@@ -86,34 +86,54 @@ pub fn topology_card<'a>(
         |t| tokens(t).success,
     );
 
-    let flow_row = row![
-        node_inbound,
-        arrow_connector(),
-        node_sniffer,
-        arrow_connector(),
-        node_ruleset,
-        arrow_connector(),
-        node_group,
-        arrow_connector(),
-        node_outbound,
-    ]
-    .spacing(theme::SP_SM)
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
-
-    container(
+    let is_compact = state.shell.viewport.tier.is_compact();
+    let flow_layout: Element<'a, Message> = if is_compact {
         column![
-            card_header,
-            Space::new().height(theme::SP_SM),
-            topology_flow_canvas(topology, state.diag.topology_flow_phase),
-            flow_row,
+            node_inbound,
+            down_arrow_connector(),
+            node_sniffer,
+            down_arrow_connector(),
+            node_ruleset,
+            down_arrow_connector(),
+            node_group,
+            down_arrow_connector(),
+            node_outbound,
         ]
-        .spacing(theme::SP_XS),
-    )
-    .width(Length::Fill)
-    .padding(theme::SP_XXL)
-    .style(card_surface)
-    .into()
+        .spacing(theme::SP_XS)
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .into()
+    } else {
+        row![
+            node_inbound,
+            arrow_connector(),
+            node_sniffer,
+            arrow_connector(),
+            node_ruleset,
+            arrow_connector(),
+            node_group,
+            arrow_connector(),
+            node_outbound,
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center)
+        .width(Length::Fill)
+        .into()
+    };
+
+    let mut card_content = column![card_header].spacing(theme::SP_SM);
+    if !is_compact {
+        card_content = card_content
+            .push(topology_flow_canvas(topology, state.diag.topology_flow_phase))
+            .push(Space::new().height(theme::SP_XS));
+    }
+    card_content = card_content.push(flow_layout);
+
+    container(card_content)
+        .width(Length::Fill)
+        .padding(if is_compact { theme::SP_MD } else { theme::SP_XXL })
+        .style(card_surface)
+        .into()
 }
 
 fn topology_stage_node<'a>(
@@ -242,7 +262,7 @@ fn topology_node_box<'a>(
             .spacing(theme::SP_XS)
             .width(Length::Fill),
     )
-    .width(Length::FillPortion(1))
+    .width(Length::Fill)
     .padding(theme::SP_MD)
     .style(row_card_surface)
     .into()
@@ -278,6 +298,15 @@ fn colored_flow_chip<'a>(
 
 fn arrow_connector<'a>() -> Element<'a, Message> {
     container(icon_themed(Icon::ChevronRight, 16.0, |t: &Theme| {
+        tokens(t).text_tertiary
+    }))
+    .align_x(Alignment::Center)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+fn down_arrow_connector<'a>() -> Element<'a, Message> {
+    container(icon_themed(Icon::ChevronDown, 16.0, |t: &Theme| {
         tokens(t).text_tertiary
     }))
     .align_x(Alignment::Center)

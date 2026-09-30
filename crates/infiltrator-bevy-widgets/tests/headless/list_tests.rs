@@ -256,7 +256,7 @@ fn responsive_breakpoint_classification() {
     assert!(med_min.is_medium());
     assert!(med_min.is_tablet());
     assert!(!med_min.is_expanded());
-    assert_eq!(med_min.sidebar_width_px(), Some(72.0));
+    assert_eq!(med_min.sidebar_width_px(), Some(64.0));
 
     let med_mid = Breakpoint::from_width(768.0);
     assert_eq!(med_mid, Breakpoint::Medium);

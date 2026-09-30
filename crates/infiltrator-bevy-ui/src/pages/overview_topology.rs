@@ -8,7 +8,9 @@ use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn, template_value};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -19,7 +21,7 @@ use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
 use infiltrator_bevy_widgets::chart::topology::{
-    NodeCategory, TopologyLink, TopologyNode, TopologySpec, topology_scene,
+    NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, topology_scene,
 };
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -31,7 +33,7 @@ use infiltrator_contract::traffic_topology::{
     TrafficTopologyStatus,
 };
 
-use crate::pages::overview::{AccentContainerFill, SurfaceElevatedFill, SurfaceFill};
+use crate::pages::overview::{AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill};
 use crate::route::Route;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
@@ -171,7 +173,7 @@ pub(crate) fn topology_spec(snapshot: &TrafficTopologySnapshot) -> TopologySpec 
     } else {
         Vec::new()
     };
-    TopologySpec::new(nodes, links, 860, 52).with_flow(0.0, snapshot.flow_speed_hz())
+    TopologySpec::new(nodes, links, 860, 52).with_flow(0.0, snapshot.linear_flow_speed_hz())
 }
 
 fn topology_stage_chip_scene(
@@ -415,11 +417,40 @@ fn topology_stage_label(
     }
 }
 
+/// Global navigation filter intent injected during topology node drilldown (UI-04-05).
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct TopologyDrilldownFilter {
+    pub stage: Option<TrafficTopologyStage>,
+    pub filter_query: Option<String>,
+}
+
+/// Sync topology plate full-chain highlight when any stage card is hovered (UI-04-05).
+pub fn sync_topology_hover_highlight(
+    stage_buttons: Query<(&TopologyStageButton, Option<&PickingInteraction>)>,
+    mut plates: Query<&mut TopologyPlate>,
+) {
+    let hovered_stage = stage_buttons.iter().find_map(|(btn, interaction)| {
+        if matches!(interaction, Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) {
+            Some(btn.stage.as_str().to_string())
+        } else {
+            None
+        }
+    });
+
+    for mut plate in &mut plates {
+        if plate.0.hovered_stage != hovered_stage {
+            plate.0.hovered_stage = hovered_stage.clone();
+        }
+    }
+}
+
 /// Translate a Bevy `Activate` gesture through the shared application
-/// topology-navigation policy and into the shell's typed route event.
+/// topology-navigation policy, inject drilldown filtering, and trigger route event.
 pub(crate) fn on_topology_stage_activated(
     activate: On<Activate>,
     buttons: Query<&TopologyStageButton>,
+    last_overview: Option<Res<LastOverviewProjection>>,
+    mut drilldown: Option<ResMut<TopologyDrilldownFilter>>,
     mut commands: Commands,
 ) {
     let Ok(button) = buttons.get(activate.entity) else {
@@ -431,6 +462,31 @@ pub(crate) fn on_topology_stage_activated(
     let Some(page) = TrafficTopologyNavigationApplication::page_for_stage(button.stage) else {
         return;
     };
+
+    // Extract filter keyword from the topology stage node detail
+    let filter_query = last_overview
+        .as_ref()
+        .and_then(|lo| lo.0.as_ref())
+        .and_then(|proj| {
+            proj.traffic_topology.node(button.stage).and_then(|node| {
+                if node.detail.is_empty() {
+                    None
+                } else {
+                    Some(node.detail.clone())
+                }
+            })
+        });
+
+    if let Some(ref mut drilldown) = drilldown {
+        drilldown.stage = Some(button.stage);
+        drilldown.filter_query = filter_query;
+    } else {
+        commands.insert_resource(TopologyDrilldownFilter {
+            stage: Some(button.stage),
+            filter_query,
+        });
+    }
+
     let route = match page {
         infiltrator_contract::surface_snapshot::PageId::Settings => Route::Settings,
         infiltrator_contract::surface_snapshot::PageId::Rules => Route::Rules,
