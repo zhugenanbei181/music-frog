@@ -51,6 +51,7 @@ pub fn shell_scene_with_toggles(
     toggles: &SystemToggleSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let edge = palette.border;
     let window_node = semantic_node(ShellA11yNode::Window);
     let region_node = semantic_node(ShellA11yNode::ContentRegion);
     bsn! {
@@ -59,7 +60,10 @@ pub fn shell_scene_with_toggles(
             height: percent(100),
             flex_direction: FlexDirection::Column,
             overflow: Overflow::clip(),
+            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            border: UiRect::all(Val::Px(1.0)),
         }
+        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
         ShellRoot
         template_value(window_node)
         Children [

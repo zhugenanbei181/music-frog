@@ -86,6 +86,8 @@ pub enum WindowBackdropMaterial {
     Acrylic,
     /// macOS NSVisualEffectView native frosted glass Vibrancy.
     Vibrancy,
+    /// Linux Wayland compositor translucent background with dynamic blur & CSD curvature.
+    WaylandBlur,
 }
 
 /// Dynamic window backdrop appearance specification.
@@ -153,6 +155,13 @@ impl WindowBackdropSpec {
                     (WindowBackdropMaterial::Opaque, 1.0)
                 }
             }
+            WindowBackdropMaterial::WaylandBlur => {
+                if os.eq_ignore_ascii_case("linux") {
+                    (WindowBackdropMaterial::WaylandBlur, 0.82)
+                } else {
+                    (WindowBackdropMaterial::Opaque, 1.0)
+                }
+            }
         };
 
         Self {
@@ -161,6 +170,8 @@ impl WindowBackdropSpec {
             corner_radius: if os.eq_ignore_ascii_case("macos") || os.eq_ignore_ascii_case("darwin")
             {
                 10.0
+            } else if os.eq_ignore_ascii_case("linux") {
+                12.0
             } else {
                 8.0
             },
@@ -171,6 +182,48 @@ impl WindowBackdropSpec {
     /// Whether the resolved window backdrop requires semi-transparent rendering.
     pub fn is_translucent(&self) -> bool {
         self.material != WindowBackdropMaterial::Opaque && self.surface_alpha < 1.0
+    }
+
+    /// Whether the resolved window backdrop is active on a Linux Wayland environment.
+    pub fn is_wayland(&self) -> bool {
+        self.material == WindowBackdropMaterial::WaylandBlur
+    }
+
+    /// Automatically resolve the best matching window backdrop material for the active host environment.
+    pub fn resolve_for_host(dark_mode: bool) -> Self {
+        #[cfg(target_os = "windows")]
+        {
+            Self::for_platform(
+                WindowBackdropMaterial::Mica,
+                "windows",
+                Some(22000),
+                dark_mode,
+            )
+        }
+        #[cfg(target_os = "macos")]
+        {
+            Self::for_platform(WindowBackdropMaterial::Vibrancy, "macos", None, dark_mode)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let is_wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
+                || std::env::var_os("XDG_SESSION_TYPE")
+                    .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case("wayland"));
+            if is_wayland {
+                Self::for_platform(
+                    WindowBackdropMaterial::WaylandBlur,
+                    "linux",
+                    None,
+                    dark_mode,
+                )
+            } else {
+                Self::for_platform(WindowBackdropMaterial::Opaque, "linux", None, dark_mode)
+            }
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            Self::for_platform(WindowBackdropMaterial::Opaque, "unknown", None, dark_mode)
+        }
     }
 }
 
@@ -222,10 +275,27 @@ mod tests {
         assert_eq!(macos_vibrancy.corner_radius, 10.0);
         assert!(macos_vibrancy.is_translucent());
 
-        // Linux falls back to Opaque
+        // Linux WaylandBlur
+        let wayland_blur = WindowBackdropSpec::for_platform(
+            WindowBackdropMaterial::WaylandBlur,
+            "linux",
+            None,
+            true,
+        );
+        assert_eq!(wayland_blur.material, WindowBackdropMaterial::WaylandBlur);
+        assert_eq!(wayland_blur.corner_radius, 12.0);
+        assert!(wayland_blur.is_translucent());
+        assert!(wayland_blur.is_wayland());
+
+        // Linux falls back to Opaque for Windows-specific Mica
         let linux_fallback =
             WindowBackdropSpec::for_platform(WindowBackdropMaterial::Mica, "linux", None, true);
         assert_eq!(linux_fallback.material, WindowBackdropMaterial::Opaque);
         assert!(!linux_fallback.is_translucent());
+        assert!(!linux_fallback.is_wayland());
+
+        // Host resolution doesn't panic
+        let host_spec = WindowBackdropSpec::resolve_for_host(true);
+        assert!(host_spec.corner_radius >= 8.0);
     }
 }

@@ -404,6 +404,26 @@ impl AppState {
             self.write_capture_marker();
         }
 
-        stack(layers).into()
+        let root: Element<Message> = stack(layers).into();
+        if infiltrator_contract::window_chrome::WindowChrome::FRAMELESS.needs_custom_controls() {
+            container(root)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|theme: &Theme| {
+                    let tokens = crate::view::theme::tokens(theme);
+                    container::Style {
+                        background: Some(tokens.canvas.into()),
+                        border: Border {
+                            radius: border::Radius::from(crate::view::theme::R_CONTROL),
+                            width: HAIRLINE,
+                            color: tokens.overlay_border,
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into()
+        } else {
+            root
+        }
     }
 }

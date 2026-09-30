@@ -149,7 +149,7 @@ fn amoled_pitch_black_contrast_and_translucent_backdrop_adaptation() {
     let border_srgba = palette.border.to_srgba();
     assert!(border_srgba.alpha >= 0.10);
 
-    // 3. Desktop translucent backdrop adaptation (Windows 11 Mica 0.78, macOS Vibrancy 0.75)
+    // 3. Desktop translucent backdrop adaptation (Windows 11 Mica 0.78, macOS Vibrancy 0.75, Wayland 0.82)
     let mica_palette = palette.with_translucent_window_clear(0.78);
     let mica_srgba = mica_palette.window_clear.to_srgba();
     assert!((mica_srgba.alpha - 0.78).abs() < 1e-4);
@@ -160,4 +160,8 @@ fn amoled_pitch_black_contrast_and_translucent_backdrop_adaptation() {
     let vibrancy_palette = palette.with_translucent_window_clear(0.75);
     let vibrancy_srgba = vibrancy_palette.window_clear.to_srgba();
     assert!((vibrancy_srgba.alpha - 0.75).abs() < 1e-4);
+
+    let wayland_palette = palette.with_translucent_window_clear(0.82);
+    let wayland_srgba = wayland_palette.window_clear.to_srgba();
+    assert!((wayland_srgba.alpha - 0.82).abs() < 1e-4);
 }

@@ -156,6 +156,7 @@ fn run_with_command_sink_and_surface(
             // DUAL-15-13: the shell runs the shared frameless chrome shape;
             // the mounted chrome bar owns dragging and the window controls.
             decorations: chrome::chrome_shape().os_decorations(),
+            transparent: true,
             ..Window::default()
         }),
         exit_condition: ExitCondition::OnPrimaryClosed,

@@ -135,6 +135,11 @@ impl WindowChromeSupport {
             Self::Unsupported { reason } => Some(reason),
         }
     }
+
+    /// Whether the host supports client-side decoration (CSD) rounded window clipping on Wayland.
+    pub const fn supports_csd_rounding(self) -> bool {
+        self.is_hosted()
+    }
 }
 
 #[cfg(test)]
@@ -171,6 +176,7 @@ mod tests {
         assert!(hosted.is_hosted());
         assert!(hosted.drag());
         assert!(hosted.maximize());
+        assert!(hosted.supports_csd_rounding());
         assert_eq!(hosted.unsupported_reason(), None);
 
         let unsupported = WindowChromeSupport::Unsupported {
@@ -179,6 +185,7 @@ mod tests {
         assert!(!unsupported.is_hosted());
         assert!(!unsupported.drag());
         assert!(!unsupported.maximize());
+        assert!(!unsupported.supports_csd_rounding());
         assert_eq!(
             unsupported.unsupported_reason(),
             Some("host-keeps-system-decorations")

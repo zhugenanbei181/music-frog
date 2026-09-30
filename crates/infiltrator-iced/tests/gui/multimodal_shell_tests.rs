@@ -679,6 +679,7 @@ fn the_frameless_window_settings_consume_the_shared_chrome_contract() {
     let chrome = WindowChrome::FRAMELESS;
     let settings = crate::window_chrome::window_settings((1180.0, 780.0), (420.0, 560.0));
     assert!(!settings.decorations, "the host runs frameless");
+    assert!(settings.transparent, "Wayland transparent surface");
     assert_eq!(settings.decorations, chrome.os_decorations());
     assert!(chrome.needs_custom_controls());
     assert_eq!(

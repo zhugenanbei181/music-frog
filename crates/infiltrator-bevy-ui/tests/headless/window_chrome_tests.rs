@@ -96,6 +96,7 @@ fn the_host_applies_the_shared_frameless_shape_and_reports_it() {
     assert!(report.0.is_hosted());
     assert!(report.0.drag(), "the OS drag path is wired");
     assert!(report.0.maximize());
+    assert!(report.0.supports_csd_rounding());
     assert_eq!(report.0.unsupported_reason(), None);
 }
 

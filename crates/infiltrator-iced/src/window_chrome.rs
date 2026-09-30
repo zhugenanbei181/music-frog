@@ -76,6 +76,7 @@ pub fn window_settings(size: (f32, f32), min_size: (f32, f32)) -> window::Settin
         size: size.into(),
         min_size: Some(min_size.into()),
         decorations: chrome().os_decorations(),
+        transparent: true,
         exit_on_close_request: false,
         ..Default::default()
     }
