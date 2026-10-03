@@ -380,7 +380,10 @@ jobs:
           set -euo pipefail
           mkdir -p dist-android
           chmod +x android/gradlew
-          ./android/gradlew --no-daemon --stacktrace assembleRelease
+          # Gradle resolves the project from the CWD, so run inside android/;
+          # invoking ./android/gradlew from the repo root makes it look for a
+          # settings.gradle at the root and fail ("does not contain a Gradle build").
+          ( cd android && ./gradlew --no-daemon --stacktrace assembleRelease )
           find android/app/build/outputs/apk -type f -name '*-release.apk' \
             -exec cp {} dist-android/ \;
           test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
