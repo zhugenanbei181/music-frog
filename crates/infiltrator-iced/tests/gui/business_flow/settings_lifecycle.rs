@@ -192,9 +192,11 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     );
 
     // Startup path: the same file comes back through SettingsLoaded and
-    // mirrors onto every UI domain field.
+    // mirrors onto every UI domain field. Pin the pre-load language: a fresh
+    // state follows the host system locale (`get_system_language`), which is
+    // not deterministic across CI (C locale -> en-US) and dev machines.
     let mut state2 = fresh_state();
-    assert_eq!(state2.shell.lang, "zh-CN");
+    state2.shell.lang = "zh-CN".into();
     feed(&mut state2, Message::SettingsLoaded(Ok(saved)));
     assert_eq!(state2.shell.lang, "en-US");
     assert_eq!(state2.shell.theme, iced::Theme::Light);
