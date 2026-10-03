@@ -159,7 +159,7 @@ jobs:
         if: matrix.tool == 'zigbuild'
         run: >
           cargo zigbuild --release --target ${{ matrix.zig_target }}
-          -p infiltrator-bevy-ui --bin infiltrator-bevy-ui
+          -p infiltrator-bevy-ui --features static-openssl --bin infiltrator-bevy-ui
 
       - name: Build Bevy Release Binary
         if: matrix.tool != 'zigbuild'

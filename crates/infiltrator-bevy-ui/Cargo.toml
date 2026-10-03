@@ -13,6 +13,11 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: the strategic u
 # Bevy surface is built and tested against Boa unless defaults are disabled.
 default = ["script-engine-boa"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
+# Linux release: statically vendor OpenSSL so the artifact carries no libssl
+# soname dependency and can be produced against the pinned old glibc via
+# cargo-zigbuild (same contract as infiltrator-iced's identically named
+# feature; the TLS stack enters through reqwest / tokio-tungstenite native-tls).
+static-openssl = ["dep:openssl", "openssl/vendored"]
 
 [dependencies]
 infiltrator-bevy-widgets = { path = "../infiltrator-bevy-widgets" }
@@ -33,6 +38,13 @@ bevy = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# TLS enters through reqwest / tokio-tungstenite native-tls. The optional
+# openssl crate is declared (Linux only, unused directly) so the
+# `static-openssl` feature can turn on its vendored switch and statically link
+# OpenSSL into the Linux release artifact. Mirrors infiltrator-iced.
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", optional = true }
 
 [dev-dependencies]
 mockito = { workspace = true }
