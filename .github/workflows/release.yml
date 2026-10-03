@@ -183,7 +183,7 @@ jobs:
             makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
               -DOUTFILE="dist/Infiltrator-Setup-x86_64.exe" \
               -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
-              -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
+              -DBINARY_PATH="${{ github.workspace }}/${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
             test -s "dist/Infiltrator-Setup-x86_64.exe"
           fi
 
@@ -207,7 +207,7 @@ jobs:
             makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
               -DOUTFILE="dist/Infiltrator-Bevy-Setup-x86_64.exe" \
               -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
-              -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator-bevy.nsi
+              -DBINARY_PATH="${{ github.workspace }}/${BIN_PATH}" packaging/windows/nsis/infiltrator-bevy.nsi
             test -s "dist/Infiltrator-Bevy-Setup-x86_64.exe"
           fi
 
@@ -390,6 +390,25 @@ jobs:
             -exec cp {} dist-android/ \;
           test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
           find dist-android -type f -name '*.apk' -size +0c -print
+
+      # cargo-apk requires a release keystore. Use the standard Android debug
+      # keystore (the same debug key the iced gradle release signs with); the
+      # CARGO_APK_RELEASE_* env vars take precedence over the generated driver
+      # manifest, so no per-checkout keystore file is needed.
+      - name: Ensure Android debug keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$HOME/.android/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -v -keystore "$KEYSTORE" -alias androiddebugkey \
+              -storepass android -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          test -f "$KEYSTORE"
+          echo "CARGO_APK_RELEASE_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
 
       # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
       # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
