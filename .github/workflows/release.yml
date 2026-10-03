@@ -182,6 +182,7 @@ jobs:
             command -v makensis >/dev/null 2>&1
             makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
               -DOUTFILE="dist/Infiltrator-Setup-x86_64.exe" \
+              -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
               -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
             test -s "dist/Infiltrator-Setup-x86_64.exe"
           fi
@@ -205,6 +206,7 @@ jobs:
             command -v makensis >/dev/null 2>&1
             makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
               -DOUTFILE="dist/Infiltrator-Bevy-Setup-x86_64.exe" \
+              -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
               -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator-bevy.nsi
             test -s "dist/Infiltrator-Bevy-Setup-x86_64.exe"
           fi

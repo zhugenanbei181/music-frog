@@ -35,11 +35,14 @@ SetCompressor /SOLID lzma
 ; Interface Settings
 ; ---------------------------------------------------------------------------
 !define MUI_ABORTWARNING
-; ${__FILEDIR__} anchors the icon to this script's directory so the path is
-; correct regardless of the compiler's current working directory (NSIS resolves
-; MUI_ICON relative to the script, not the invocation CWD).
-!define MUI_ICON "${__FILEDIR__}\..\..\..\crates\infiltrator-iced\icons\icon.ico"
-!define MUI_UNICON "${__FILEDIR__}\..\..\..\crates\infiltrator-iced\icons\icon.ico"
+; NSIS resolves relative MUI_ICON paths against the *script* directory, so a
+; repo-root-relative literal would break. The workflow passes an absolute
+; -DICON_PATH; this default keeps a bare `makensis` invocation usable.
+!ifndef ICON_PATH
+  !define ICON_PATH "crates\infiltrator-iced\icons\icon.ico"
+!endif
+!define MUI_ICON "${ICON_PATH}"
+!define MUI_UNICON "${ICON_PATH}"
 
 !define MUI_HEADERIMAGE
 !define MUI_WELCOMEFINISHPAGE_BITMAP_NOSTRETCH
