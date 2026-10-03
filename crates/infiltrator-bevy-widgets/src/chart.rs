@@ -454,17 +454,17 @@ pub fn chart_scene_with_scale(
         spec = spec.with_scale_mode(ScaleMode::Fixed(max));
     }
     bsn! {
-        Node {
-            width: percent(100),
-            max_width: px(width_px),
-            min_width: px(0.0),
-            height: px(height_px),
-            min_height: px(height_px),
-            flex_shrink: 1.0,
-            overflow: Overflow::clip(),
-        }
-        ChartPlate({ spec })
-        ChartCrosshairTracked(true)
+            Node {
+                width: percent(100),
+                max_width: px(width_px),
+                min_width: px(0.0),
+                height: px(height_px),
+                min_height: px(height_px),
+                flex_shrink: 1.0,
+                overflow: Overflow::clip(),
+            }
+            ChartPlate({ spec })
+            ChartCrosshairTracked(true)
     }
 }
 

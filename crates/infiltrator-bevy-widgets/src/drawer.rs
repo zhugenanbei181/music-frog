@@ -150,10 +150,10 @@ pub fn drawer_scene(
                 Val::Auto,
                 Val::Auto,
                 BorderRadius {
-                    top_left: Val::Px(0.0),
-                    top_right: Val::Px(palette.card_radius_px),
-                    bottom_left: Val::Px(0.0),
-                    bottom_right: Val::Px(palette.card_radius_px),
+                    top_left: Val::Px(0.0).into(),
+                    top_right: Val::Px(palette.card_radius_px).into(),
+                    bottom_left: Val::Px(0.0).into(),
+                    bottom_right: Val::Px(palette.card_radius_px).into(),
                 },
             ),
             DrawerPlacement::Right => (
@@ -164,10 +164,10 @@ pub fn drawer_scene(
                 px(0.0),
                 Val::Auto,
                 BorderRadius {
-                    top_left: Val::Px(palette.card_radius_px),
-                    top_right: Val::Px(0.0),
-                    bottom_left: Val::Px(palette.card_radius_px),
-                    bottom_right: Val::Px(0.0),
+                    top_left: Val::Px(palette.card_radius_px).into(),
+                    top_right: Val::Px(0.0).into(),
+                    bottom_left: Val::Px(palette.card_radius_px).into(),
+                    bottom_right: Val::Px(0.0).into(),
                 },
             ),
             DrawerPlacement::Top => (
@@ -178,10 +178,10 @@ pub fn drawer_scene(
                 Val::Auto,
                 Val::Auto,
                 BorderRadius {
-                    top_left: Val::Px(0.0),
-                    top_right: Val::Px(0.0),
-                    bottom_left: Val::Px(palette.card_radius_px),
-                    bottom_right: Val::Px(palette.card_radius_px),
+                    top_left: Val::Px(0.0).into(),
+                    top_right: Val::Px(0.0).into(),
+                    bottom_left: Val::Px(palette.card_radius_px).into(),
+                    bottom_right: Val::Px(palette.card_radius_px).into(),
                 },
             ),
             DrawerPlacement::Bottom => (
@@ -192,25 +192,24 @@ pub fn drawer_scene(
                 Val::Auto,
                 px(0.0),
                 BorderRadius {
-                    top_left: Val::Px(palette.card_radius_px),
-                    top_right: Val::Px(palette.card_radius_px),
-                    bottom_left: Val::Px(0.0),
-                    bottom_right: Val::Px(0.0),
+                    top_left: Val::Px(palette.card_radius_px).into(),
+                    top_right: Val::Px(palette.card_radius_px).into(),
+                    bottom_left: Val::Px(0.0).into(),
+                    bottom_right: Val::Px(0.0).into(),
                 },
             ),
         };
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::FlexStart,
-        }
-        BackgroundColor({ palette.scrim })
-        DrawerScrim
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::FlexStart,
+            }
+            BackgroundColor({ palette.scrim })
+            DrawerScrim
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: left_val,
@@ -228,10 +227,9 @@ pub fn drawer_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 DrawerPanel(placement)
                 Children [
-                    ( { content } ),
+                    @{ content }
                 ]
-            ),
-        ]
+            ]
     }
 }
 

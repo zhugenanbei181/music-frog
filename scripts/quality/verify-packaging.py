@@ -220,9 +220,9 @@ def validate_appimage_files(appimage_dir: pathlib.Path) -> list[ValidationResult
             res_apprun.error("AppRun missing exec invocation")
     results.append(res_apprun)
 
-    # 3. .desktop
-    desktop_file = appimage_dir / "infiltrator.desktop"
-    results.append(validate_desktop_file(desktop_file))
+    # 3. .desktop — one per UI surface, equal treatment.
+    results.append(validate_desktop_file(appimage_dir / "infiltrator.desktop"))
+    results.append(validate_desktop_file(appimage_dir / "infiltrator-bevy.desktop"))
 
     return results
 
@@ -472,8 +472,9 @@ def main() -> int:
 
     results: list[ValidationResult] = []
 
-    # 1. Windows NSIS & WiX
+    # 1. Windows NSIS & WiX — one NSIS installer per UI surface.
     results.append(validate_nsis_script(REPO_ROOT / "packaging/windows/nsis/infiltrator.nsi"))
+    results.append(validate_nsis_script(REPO_ROOT / "packaging/windows/nsis/infiltrator-bevy.nsi"))
     results.append(validate_wix_package(REPO_ROOT / "packaging/windows/wix/Package.wxs"))
 
     # 2. Linux AppImage

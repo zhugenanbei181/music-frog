@@ -183,18 +183,17 @@ pub fn collapse_scene(
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        AccordionRoot
-        AccordionStateComp(AccordionState::new(vec![(title.clone(), is_expanded)], AccordionMode::Multiple))
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            AccordionRoot
+            AccordionStateComp(AccordionState::new(vec![(title.clone(), is_expanded)], AccordionMode::Multiple))
+            Children [
                 Node {
                     width: percent(100),
                     height: px(palette.control_height_px),
@@ -205,11 +204,11 @@ pub fn collapse_scene(
                 Button
                 AccordionHeader(0)
                 Children [
-                    ( Text(title) TextRole(Role::BodyStrong) ),
-                    ( { icon_tile_scene(IconId::ArrowDown, 16.0, palette) } ),
+                    Text(title) TextRole(Role::BodyStrong)
+                    --
+                    @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
                 ]
-            ),
-            (
+                --
                 Node {
                     width: percent(100),
                     padding: UiRect::all(Val::Px(space::S12)),
@@ -217,10 +216,9 @@ pub fn collapse_scene(
                 }
                 AccordionContent(0)
                 Children [
-                    ( { content } ),
+                    @{ content }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -246,63 +244,61 @@ pub fn accordion_scene(
             };
 
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    border: UiRect::bottom(Val::Px(palette.hairline_px)),
-                }
-                BorderColor {
-                    top: Color::NONE,
-                    right: Color::NONE,
-                    bottom: edge,
-                    left: Color::NONE,
-                }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                        }
-                        Button
-                        AccordionHeader(idx)
-                        Children [
-                            ( Text(title) TextRole(Role::BodyStrong) ),
-                            ( { icon_tile_scene(IconId::ArrowDown, 16.0, palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            padding: UiRect::all(Val::Px(space::S12)),
-                            display: body_display,
-                        }
-                        AccordionContent(idx)
-                        Children [
-                            ( { content } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                border: UiRect::bottom(Val::Px(palette.hairline_px)),
+                            }
+                            BorderColor {
+                                top: Color::NONE,
+                                right: Color::NONE,
+                                bottom: edge,
+                                left: Color::NONE,
+                            }
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                }
+                                Button
+                                AccordionHeader(idx)
+                                Children [
+                                    Text(title) TextRole(Role::BodyStrong)
+                                    --
+                                    @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    padding: UiRect::all(Val::Px(space::S12)),
+                                    display: body_display,
+                                }
+                                AccordionContent(idx)
+                                Children [
+                                    @{ content }
+                                ]
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        AccordionRoot
-        AccordionStateComp(AccordionState::new(state_seed, AccordionMode::Single))
-        Children [
-            { item_nodes },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            AccordionRoot
+            AccordionStateComp(AccordionState::new(state_seed, AccordionMode::Single))
+            Children [
+                { item_nodes }
+            ]
     }
 }
 

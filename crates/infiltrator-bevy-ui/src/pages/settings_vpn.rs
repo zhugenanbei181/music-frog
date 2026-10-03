@@ -47,65 +47,60 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     };
     Box::new(surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
-            }
-            Children [
-                ( Text({ "Android VpnService 与前台保活 (VPN)".to_owned() }) TextRole(Role::BodyStrong) ),
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::all(Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S6),
                     }
-                    BackgroundColor({ palette.surface_elevated })
                     Children [
-                        ( Text(format_status(snapshot)) VpnStatusLine TextRole(Role::Mono) ),
-                        (
+                        Text({ "Android VpnService 与前台保活 (VPN)".to_owned() }) TextRole(Role::BodyStrong)
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            Text(format_status(snapshot)) VpnStatusLine TextRole(Role::Mono)
+                            --
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S6),
                             }
                             Children [
-                                (
-                                    Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    }
-                                    BackgroundColor({ palette.accent })
-                                    VpnStartButton
-                                    Button
-                                    Children [
-                                        ( Text({ start_label.to_owned() }) TextRole(Role::BodyStrong) ),
-                                    ]
-                                ),
-                                (
-                                    Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    }
-                                    BackgroundColor({ palette.surface_elevated })
-                                    VpnStopButton
-                                    Button
-                                    Children [
-                                        ( Text({ stop_label.to_owned() }) TextRole(Role::Body) ),
-                                    ]
-                                ),
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                VpnStartButton
+                                Button
+                                Children [
+                                    Text({ start_label.to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                VpnStopButton
+                                Button
+                                Children [
+                                    Text({ stop_label.to_owned() }) TextRole(Role::Body)
+                                ]
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     ))

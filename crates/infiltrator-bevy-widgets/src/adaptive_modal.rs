@@ -86,18 +86,17 @@ pub fn adaptive_modal_scene(
     let edge = palette.border;
 
     Box::new(bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            display: Display::None,
-        }
-        AdaptiveModalRoot
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                display: Display::None,
+            }
+            AdaptiveModalRoot
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     width: percent(100),
@@ -106,8 +105,7 @@ pub fn adaptive_modal_scene(
                 BackgroundColor({ scrim_fill })
                 ModalScrim
                 Button
-            ),
-            (
+                --
                 Node {
                     flex_direction: FlexDirection::Column,
                     width: px(480.0),
@@ -121,42 +119,38 @@ pub fn adaptive_modal_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ModalCard
                 Children [
-                    (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        Text(title) TextRole(Role::Heading)
+                        --
                         Node {
-                            width: percent(100),
                             align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
+                            justify_content: JustifyContent::Center,
                         }
+                        Button
+                        ModalCloseButton
                         Children [
-                            ( Text(title) TextRole(Role::Heading) ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                }
-                                Button
-                                ModalCloseButton
-                                Children [
-                                    ( { icon_tile_scene(IconId::Trash, 20.0, palette) } ),
-                                ]
-                            ),
+                            @{ icon_tile_scene(IconId::Trash, 20.0, palette) }
                         ]
-                    ),
-                    ( { body } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            justify_content: JustifyContent::FlexEnd,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            { actions },
-                        ]
-                    ),
+                    ]
+                    --
+                    @{ body }
+                    --
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::FlexEnd,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        { actions }
+                    ]
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -225,10 +219,10 @@ pub fn sync_adaptive_modal_morphology(
                     card.max_width = percent(100);
                     card.padding = UiRect::all(Val::Px(space::S16));
                     card.border_radius = BorderRadius {
-                        top_left: Val::Px(radius::SHEET_TOP),
-                        top_right: Val::Px(radius::SHEET_TOP),
-                        bottom_left: Val::Px(0.0),
-                        bottom_right: Val::Px(0.0),
+                        top_left: Val::Px(radius::SHEET_TOP).into(),
+                        top_right: Val::Px(radius::SHEET_TOP).into(),
+                        bottom_left: Val::Px(0.0).into(),
+                        bottom_right: Val::Px(0.0).into(),
                     };
                 }
                 ModalForm::CenteredDialog => {

@@ -558,20 +558,20 @@ pub struct ListSelection(pub Option<usize>);
 pub fn list_row_scene(label: String, selected: bool, palette: &UiPalette) -> Box<dyn Scene> {
     let fill = nav_fill(selected, palette);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ fill })
-        NavItem
-        NavActive({ selected })
-        Children [
-            ( Text(label) TextRole(Role::Body) NavLabel ),
-        ]
+            Node {
+                width: percent(100),
+                min_height: px(palette.control_height_px),
+                flex_shrink: 0.0,
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ fill })
+            NavItem
+            NavActive({ selected })
+            Children [
+                Text(label) TextRole(Role::Body) NavLabel
+            ]
     })
 }
 
@@ -582,18 +582,18 @@ pub fn list_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-            overflow: Overflow::scroll_y(),
-        }
-        BackgroundColor({ palette.surface })
-        List
-        ListSelection({ selected })
-        Children [
-            { rows },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+                overflow: Overflow::scroll_y(),
+            }
+            BackgroundColor({ palette.surface })
+            List
+            ListSelection({ selected })
+            Children [
+                { rows }
+            ]
     }
 }
 

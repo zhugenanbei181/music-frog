@@ -92,67 +92,59 @@ pub fn dns_hosts_card_scene(projection: &DnsProjection, palette: &UiPalette) -> 
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text({ "自定义 Hosts 映射编辑 (DUAL-14-11)".to_owned() })
-                        TextRole(Role::BodyStrong)
-                    ),
-                    (
-                        Text(summary)
-                        DnsLine(DnsLineKind::HostsSummary)
-                        TextRole(Role::Caption)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "自定义 Hosts 映射编辑 (DUAL-14-11)".to_owned() })
+                                TextRole(Role::BodyStrong)
+                                --
+                                Text(summary)
+                                DnsLine(DnsLineKind::HostsSummary)
+                                TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                DnsHostsEditorField
-                Children [
-                    (
-                        { text_field_with_placeholder_scene(
-                            editor_text,
-                            "192.168.1.1 router.lan; 10.0.0.1 nas.lan".to_owned(),
-                            palette,
-                        ) }
-                    ),
-                ]
+                            Node { width: percent(100) }
+                            DnsHostsEditorField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        editor_text,
+                                        "192.168.1.1 router.lan; 10.0.0.1 nas.lan".to_owned(),
+                                        palette,
+                                ) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text({ "地址 域名，多行或分号分隔；留空可清空 dns.hosts".to_owned() })
-                        DnsHostsStatusLine
-                        TextRole(Role::Caption)
-                        TextColor({ palette.ink_dim })
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        DnsHostsApplyButton
-                        Button
-                        Children [
-                            ( Text({ "应用 Hosts 映射 (Apply)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "地址 域名，多行或分号分隔；留空可清空 dns.hosts".to_owned() })
+                                DnsHostsStatusLine
+                                TextRole(Role::Caption)
+                                TextColor({ palette.ink_dim })
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                DnsHostsApplyButton
+                                Button
+                                Children [
+                                    Text({ "应用 Hosts 映射 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
         ],
         palette,

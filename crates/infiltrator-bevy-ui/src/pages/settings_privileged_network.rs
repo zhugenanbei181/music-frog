@@ -30,41 +30,39 @@ pub struct PrivilegedNetworkStatusLine;
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ palette.surface_elevated })
-            Children [
-                (
                     Node {
-                        flex_direction: bevy::ui::prelude::FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
-                    }
-                    Children [
-                        ( Text({ "特权网络无头回归 (Privileged Network Regression)".to_owned() }) TextRole(Role::Body) ),
-                        ( Text(format_status(&projection.privileged_network)) PrivilegedNetworkStatusLine TextRole(Role::Mono) ),
-                    ]
-                ),
-                (
-                    Node {
-                        min_height: px(palette.control_height_px),
-                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::all(Val::Px(space::S8)),
                         border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                     }
-                    BackgroundColor({ palette.accent })
-                    PrivilegedNetworkRunButton
-                    Button
+                    BackgroundColor({ palette.surface_elevated })
                     Children [
-                        ( Text({ "运行回归".to_owned() }) TextRole(Role::BodyStrong) ),
+                        Node {
+                            flex_direction: bevy::ui::prelude::FlexDirection::Column,
+                            row_gap: Val::Px(space::S4),
+                        }
+                        Children [
+                            Text({ "特权网络无头回归 (Privileged Network Regression)".to_owned() }) TextRole(Role::Body)
+                            --
+                            Text(format_status(&projection.privileged_network)) PrivilegedNetworkStatusLine TextRole(Role::Mono)
+                        ]
+                        --
+                        Node {
+                            min_height: px(palette.control_height_px),
+                            padding: UiRect::horizontal(Val::Px(space::S12)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.accent })
+                        PrivilegedNetworkRunButton
+                        Button
+                        Children [
+                            Text({ "运行回归".to_owned() }) TextRole(Role::BodyStrong)
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     ))

@@ -357,24 +357,25 @@ pub fn combobox_scene(
     let display_text = selected_label.unwrap_or(placeholder);
 
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        Button
-        ComboboxRoot
-        ComboboxTrigger
-        Children [
-            ( Text(display_text) TextRole(Role::Body) ComboboxLabel ),
-            ( { icon_tile_scene(IconId::ArrowDown, 16.0, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            Button
+            ComboboxRoot
+            ComboboxTrigger
+            Children [
+                Text(display_text) TextRole(Role::Body) ComboboxLabel
+                --
+                @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
+            ]
     }
 }
 
@@ -416,31 +417,31 @@ pub fn combobox_dropdown_scene(
                 Button
                 ComboboxOptionItem(idx)
                 Children [
-                    ( Text(lbl) TextRole(Role::Body) ),
+                    Text(lbl) TextRole(Role::Body)
                 ]
-            }) as Box<dyn Scene>
+}) as Box<dyn Scene>
         })
         .collect();
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(rect.x),
-            top: px(rect.y),
-            width: px(rect.w),
-            max_height: px(rect.h),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-            padding: UiRect::all(Val::Px(space::S8)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        ComboboxDropdownPanel
-        Children [
-            { items },
-        ]
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(rect.x),
+                top: px(rect.y),
+                width: px(rect.w),
+                max_height: px(rect.h),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+                padding: UiRect::all(Val::Px(space::S8)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            ComboboxDropdownPanel
+            Children [
+                { items }
+            ]
     }
 }
 

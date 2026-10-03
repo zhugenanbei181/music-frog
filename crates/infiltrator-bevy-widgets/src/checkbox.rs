@@ -149,25 +149,24 @@ fn checked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Checked, palette);
     let edge = tri_checkbox_border(TriState::Checked, palette);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        Checkbox
-        Checked
-        TriStateCheckbox(TriState::Checked)
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            Checkbox
+            Checked
+            TriStateCheckbox(TriState::Checked)
+            Children [
                 Node {
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
@@ -181,19 +180,17 @@ fn checked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                 }
                 CheckboxBox
                 Children [
-                    (
-                        Node {
-                            width: px(palette.control_square_px * 0.55),
-                            height: px(2.0),
-                        }
-                        BackgroundColor({ palette.on_accent })
-                        Visibility::Hidden
-                        CheckboxDash
-                    ),
+                    Node {
+                        width: px(palette.control_square_px * 0.55),
+                        height: px(2.0),
+                    }
+                    BackgroundColor({ palette.on_accent })
+                    Visibility::Hidden
+                    CheckboxDash
                 ]
-            ),
-            ( Text(label) TextRole(Role::Body) ),
-        ]
+                --
+                Text(label) TextRole(Role::Body)
+            ]
     }
 }
 
@@ -201,24 +198,23 @@ fn unchecked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Unchecked, palette);
     let edge = tri_checkbox_border(TriState::Unchecked, palette);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        Checkbox
-        TriStateCheckbox(TriState::Unchecked)
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            Checkbox
+            TriStateCheckbox(TriState::Unchecked)
+            Children [
                 Node {
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
@@ -232,19 +228,17 @@ fn unchecked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                 }
                 CheckboxBox
                 Children [
-                    (
-                        Node {
-                            width: px(palette.control_square_px * 0.55),
-                            height: px(2.0),
-                        }
-                        BackgroundColor({ palette.on_accent })
-                        Visibility::Hidden
-                        CheckboxDash
-                    ),
+                    Node {
+                        width: px(palette.control_square_px * 0.55),
+                        height: px(2.0),
+                    }
+                    BackgroundColor({ palette.on_accent })
+                    Visibility::Hidden
+                    CheckboxDash
                 ]
-            ),
-            ( Text(label) TextRole(Role::Body) ),
-        ]
+                --
+                Text(label) TextRole(Role::Body)
+            ]
     }
 }
 
@@ -252,25 +246,24 @@ fn indeterminate_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Indeterminate, palette);
     let edge = tri_checkbox_border(TriState::Indeterminate, palette);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        Checkbox
-        Indeterminate
-        TriStateCheckbox(TriState::Indeterminate)
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            Checkbox
+            Indeterminate
+            TriStateCheckbox(TriState::Indeterminate)
+            Children [
                 Node {
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
@@ -284,19 +277,17 @@ fn indeterminate_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                 }
                 CheckboxBox
                 Children [
-                    (
-                        Node {
-                            width: px(palette.control_square_px * 0.55),
-                            height: px(2.0),
-                        }
-                        BackgroundColor({ palette.on_accent })
-                        Visibility::Visible
-                        CheckboxDash
-                    ),
+                    Node {
+                        width: px(palette.control_square_px * 0.55),
+                        height: px(2.0),
+                    }
+                    BackgroundColor({ palette.on_accent })
+                    Visibility::Visible
+                    CheckboxDash
                 ]
-            ),
-            ( Text(label) TextRole(Role::Body) ),
-        ]
+                --
+                Text(label) TextRole(Role::Body)
+            ]
     }
 }
 

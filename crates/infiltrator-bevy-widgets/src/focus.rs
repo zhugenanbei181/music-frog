@@ -136,15 +136,15 @@ use bevy::ui::prelude::{BorderRadius, Node, PositionType, UiRect, Val, percent};
 pub fn focus_ring_scene(palette: &UiPalette) -> Box<dyn Scene> {
     let ring = palette.focus_ring;
     Box::new(bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            border: UiRect::all(Val::Px(2.0)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px + 2.0)),
-        }
-        BorderColor { top: ring, right: ring, bottom: ring, left: ring }
-        FocusRingStyle { width_px: 2.0, offset_px: 2.0 }
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                border: UiRect::all(Val::Px(2.0)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px + 2.0)),
+            }
+            BorderColor { top: ring, right: ring, bottom: ring, left: ring }
+            FocusRingStyle { width_px: 2.0, offset_px: 2.0 }
     })
 }
 

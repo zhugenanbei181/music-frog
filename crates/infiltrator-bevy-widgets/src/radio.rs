@@ -160,72 +160,70 @@ pub fn indexed_radio_scene(
 
     if selected {
         Box::new(bsn! {
-            Node {
-                min_height: px(palette.control_height_px),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
-            }
-            RadioButton
-            Checked
-            RadioButtonIndex(index)
-            Children [
-                (
                     Node {
-                        width: px(palette.control_square_px),
-                        height: px(palette.control_square_px),
-                        flex_shrink: 0.0,
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                        )),
+                        min_height: px(palette.control_height_px),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                        padding: UiRect::horizontal(Val::Px(space::S4)),
                     }
-                    BackgroundColor({ fill })
-                    BorderColor {
-                        top: edge,
-                        right: edge,
-                        bottom: edge,
-                        left: edge,
-                    }
-                    RadioRing
-                ),
-                ( Text(label) TextRole(Role::Body) ),
-            ]
+                    RadioButton
+                    Checked
+                    RadioButtonIndex(index)
+                    Children [
+                        Node {
+                            width: px(palette.control_square_px),
+                            height: px(palette.control_square_px),
+                            flex_shrink: 0.0,
+                            border: UiRect::all(Val::Px(palette.hairline_px)),
+                            border_radius: BorderRadius::all(Val::Px(
+                                    palette.control_square_px * 0.5,
+                            )),
+                        }
+                        BackgroundColor({ fill })
+                        BorderColor {
+                            top: edge,
+                            right: edge,
+                            bottom: edge,
+                            left: edge,
+                        }
+                        RadioRing
+                        --
+                        Text(label) TextRole(Role::Body)
+                    ]
         })
     } else {
         Box::new(bsn! {
-            Node {
-                min_height: px(palette.control_height_px),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(space::S8),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
-            }
-            RadioButton
-            RadioButtonIndex(index)
-            Children [
-                (
                     Node {
-                        width: px(palette.control_square_px),
-                        height: px(palette.control_square_px),
-                        flex_shrink: 0.0,
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(
-                            palette.control_square_px * 0.5,
-                        )),
+                        min_height: px(palette.control_height_px),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                        padding: UiRect::horizontal(Val::Px(space::S4)),
                     }
-                    BackgroundColor({ fill })
-                    BorderColor {
-                        top: edge,
-                        right: edge,
-                        bottom: edge,
-                        left: edge,
-                    }
-                    RadioRing
-                ),
-                ( Text(label) TextRole(Role::Body) ),
-            ]
+                    RadioButton
+                    RadioButtonIndex(index)
+                    Children [
+                        Node {
+                            width: px(palette.control_square_px),
+                            height: px(palette.control_square_px),
+                            flex_shrink: 0.0,
+                            border: UiRect::all(Val::Px(palette.hairline_px)),
+                            border_radius: BorderRadius::all(Val::Px(
+                                    palette.control_square_px * 0.5,
+                            )),
+                        }
+                        BackgroundColor({ fill })
+                        BorderColor {
+                            top: edge,
+                            right: edge,
+                            bottom: edge,
+                            left: edge,
+                        }
+                        RadioRing
+                        --
+                        Text(label) TextRole(Role::Body)
+                    ]
         })
     }
 }
@@ -235,18 +233,18 @@ pub fn indexed_radio_scene(
 pub fn radio_group_scene(members: Vec<Box<dyn Scene>>) -> impl Scene + use<> {
     let count = members.len();
     bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        RadioGroup
-        RadioGroupState {
-            active_index: None,
-            count: count,
-        }
-        Children [
-            { members },
-        ]
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            RadioGroup
+            RadioGroupState {
+                active_index: None,
+                count: count,
+            }
+            Children [
+                { members }
+            ]
     }
 }
 
@@ -264,18 +262,18 @@ pub fn indexed_radio_group_scene(
         .collect();
 
     bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        RadioGroup
-        RadioGroupState {
-            active_index: selected_index,
-            count: count,
-        }
-        Children [
-            { members },
-        ]
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            RadioGroup
+            RadioGroupState {
+                active_index: selected_index,
+                count: count,
+            }
+            Children [
+                { members }
+            ]
     }
 }
 
@@ -283,24 +281,23 @@ fn selected_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
     let fill = radio_fill(true, palette);
     let edge = radio_ring(true, palette);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        RadioButton
-        Checked
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            RadioButton
+            Checked
+            Children [
                 Node {
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                 }
                 BackgroundColor({ fill })
@@ -311,9 +308,9 @@ fn selected_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     left: edge,
                 }
                 RadioRing
-            ),
-            ( Text(label) TextRole(Role::Body) ),
-        ]
+                --
+                Text(label) TextRole(Role::Body)
+            ]
     }
 }
 
@@ -321,23 +318,22 @@ fn idle_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
     let fill = radio_fill(false, palette);
     let edge = radio_ring(false, palette);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        RadioButton
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            RadioButton
+            Children [
                 Node {
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(palette.hairline_px)),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                 }
                 BackgroundColor({ fill })
@@ -348,9 +344,9 @@ fn idle_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     left: edge,
                 }
                 RadioRing
-            ),
-            ( Text(label) TextRole(Role::Body) ),
-        ]
+                --
+                Text(label) TextRole(Role::Body)
+            ]
     }
 }
 

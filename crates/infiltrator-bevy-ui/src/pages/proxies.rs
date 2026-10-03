@@ -443,25 +443,29 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Proxies)
-        ProxiesPageRoot
-        Children [
-            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
-            ( { header_card_scene(summary, active_exit, test_status, palette) } ),
-            ( { search_bar_card_scene(palette) } ),
-            ( { crate::pages::proxies_custom::custom_node_scene(&projection.custom_node, palette) } ),
-            { group_scenes },
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Proxies)
+            ProxiesPageRoot
+            Children [
+                @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
+                --
+                @{ header_card_scene(summary, active_exit, test_status, palette) }
+                --
+                @{ search_bar_card_scene(palette) }
+                --
+                @{ crate::pages::proxies_custom::custom_node_scene(&projection.custom_node, palette) }
+                --
+                { group_scenes }
+            ]
     }
 }
 

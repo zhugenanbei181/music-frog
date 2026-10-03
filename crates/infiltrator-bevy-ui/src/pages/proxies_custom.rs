@@ -233,19 +233,18 @@ pub fn custom_node_scene(
             let value = slot_initial(*slot, studio);
             let label = (*label).to_owned();
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        CustomNodeText({ *slot })
-                        Text({ value })
-                        TextRole(Role::Caption)
-                    ),
-                    ( Text({ label }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                CustomNodeText({ *slot })
+                                Text({ value })
+                                TextRole(Role::Caption)
+                                --
+                                Text({ label }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
@@ -253,166 +252,158 @@ pub fn custom_node_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                CustomNodeEditorRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Plus, 24.0, palette) } ),
-                            ( Text({ "自定义节点与分享链接 (Custom Node & URI Codec)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        ImportUriButton
-                        CustomNodeActionButton(CustomNodeAction::ImportUri)
-                        Children [
-                            ( Text({ "解析分享链接 URI".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            CustomNodeEditorRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::Plus, 24.0, palette) }
+                                    --
+                                    Text({ "自定义节点与分享链接 (Custom Node & URI Codec)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                ImportUriButton
+                                CustomNodeActionButton(CustomNodeAction::ImportUri)
+                                Children [
+                                    Text({ "解析分享链接 URI".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                CustomNodeUriField
-                CustomNodeInputField(CustomNodeInput::Uri)
-                Children [
-                    ( { text_field_with_placeholder_scene(
-                        uri_initial,
-                        "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// / ssh:// / anytls:// 分享链接".to_owned(),
-                        palette,
-                    ) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            CustomNodeUriField
+                            CustomNodeInputField(CustomNodeInput::Uri)
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        uri_initial,
+                                        "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// / ssh:// / anytls:// 分享链接".to_owned(),
+                                        palette,
+                                ) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::End,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            padding: UiRect::vertical(Val::Px(space::S2)),
-                        }
-                        CustomNodeDialerField
-                        CustomNodeInputField(CustomNodeInput::Dialer)
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                dialer_initial,
-                                "前置跳板 (dialer-proxy: 节点或策略组名)".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            padding: UiRect::vertical(Val::Px(space::S2)),
-                        }
-                        CustomNodeCaField
-                        CustomNodeInputField(CustomNodeInput::Ca)
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                ca_initial,
-                                "自定义 CA 路径 (tls.custom-certifactes)".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        ScanDialerChainsButton
-                        CustomNodeActionButton(CustomNodeAction::ScanDialer)
-                        Children [
-                            ( Text({ "扫描跳板链".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.success })
-                        Button
-                        VerifyCustomNodeCaButton
-                        CustomNodeActionButton(CustomNodeAction::VerifyCa)
-                        Children [
-                            ( Text({ "校验证书信任".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::End,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    flex_grow: 1.0,
+                                    padding: UiRect::vertical(Val::Px(space::S2)),
+                                }
+                                CustomNodeDialerField
+                                CustomNodeInputField(CustomNodeInput::Dialer)
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            dialer_initial,
+                                            "前置跳板 (dialer-proxy: 节点或策略组名)".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                                --
+                                Node {
+                                    flex_grow: 1.0,
+                                    padding: UiRect::vertical(Val::Px(space::S2)),
+                                }
+                                CustomNodeCaField
+                                CustomNodeInputField(CustomNodeInput::Ca)
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            ca_initial,
+                                            "自定义 CA 路径 (tls.custom-certifactes)".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                ScanDialerChainsButton
+                                CustomNodeActionButton(CustomNodeAction::ScanDialer)
+                                Children [
+                                    Text({ "扫描跳板链".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.success })
+                                Button
+                                VerifyCustomNodeCaButton
+                                CustomNodeActionButton(CustomNodeAction::VerifyCa)
+                                Children [
+                                    Text({ "校验证书信任".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    { slots },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                { slots }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "分享链接不携带多路复用/传输层参数；写入配置时未知字段与其它小节均无损保留".to_owned() }) TextRole(Role::Caption) ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.success })
-                        Button
-                        SaveCustomNodeButton
-                        CustomNodeActionButton(CustomNodeAction::SaveDraft)
-                        Children [
-                            ( Text({ "保存为自定义节点".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "分享链接不携带多路复用/传输层参数；写入配置时未知字段与其它小节均无损保留".to_owned() }) TextRole(Role::Caption)
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.success })
+                                Button
+                                SaveCustomNodeButton
+                                CustomNodeActionButton(CustomNodeAction::SaveDraft)
+                                Children [
+                                    Text({ "保存为自定义节点".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
         ],
         palette,

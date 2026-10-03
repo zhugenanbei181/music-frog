@@ -14,7 +14,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::Res;
 use bevy::ecs::system::{Commands, Query, ResMut};
-use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
+use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -74,38 +74,38 @@ pub struct SnapshotHistorySummaryText;
 pub(super) fn backup_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
-        Node {
-            min_height: px(24.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        BackupSnapshotButton
-        Children [
-            ( Text({ "立即备份".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(24.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            BackupSnapshotButton
+            Children [
+                Text({ "立即备份".to_owned() }) TextRole(Role::Caption)
+            ]
     })
 }
 
 pub(super) fn history_refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
-        Node {
-            min_height: px(24.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        RefreshSnapshotHistoryButton
-        Children [
-            ( Text({ "刷新列表".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(24.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            RefreshSnapshotHistoryButton
+            Children [
+                Text({ "刷新列表".to_owned() }) TextRole(Role::Caption)
+            ]
     })
 }
 
@@ -114,49 +114,50 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
     let mut chips: Vec<Box<dyn Scene>> = Vec::new();
     for keep in [5usize, 10, 20, 50] {
         chips.push(Box::new(bsn! {
-            Node {
-                min_height: px(24.0),
-                padding: UiRect::horizontal(Val::Px(space::S4)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(Val::Px(4.0)),
-            }
-            BackgroundColor({ background })
-            Button
-            template_value(SnapshotPruneKeepButton { keep })
-            Children [
-                ( Text({ format!("{keep}") }) TextRole(Role::Caption) ),
-            ]
+                    Node {
+                        min_height: px(24.0),
+                        padding: UiRect::horizontal(Val::Px(space::S4)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                    }
+                    BackgroundColor({ background })
+                    Button
+                    SnapshotPruneKeepButton { keep }
+                    Children [
+                        Text({ format!("{keep}") }) TextRole(Role::Caption)
+                    ]
         }));
     }
     Box::new(bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S2),
-        }
-        Children [
-            ( Text({ "保留".to_owned() }) TextRole(Role::Caption) ),
-            { chips },
-        ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S2),
+            }
+            Children [
+                Text({ "保留".to_owned() }) TextRole(Role::Caption)
+                --
+                { chips }
+            ]
     })
 }
 
 pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
-        Node {
-            min_height: px(24.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        PruneSnapshotsButton
-        Children [
-            ( Text({ "立即修剪".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(24.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            PruneSnapshotsButton
+            Children [
+                Text({ "立即修剪".to_owned() }) TextRole(Role::Caption)
+            ]
     })
 }
 
@@ -195,14 +196,13 @@ fn history_row_scene(
     let id = entry.id.clone();
     let restore_id = entry.id.clone();
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(20.0),
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S4),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                min_height: px(20.0),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S4),
+            }
+            Children [
                 Node {
                     width: percent(70),
                     min_height: px(20.0),
@@ -212,12 +212,11 @@ fn history_row_scene(
                 }
                 BackgroundColor({ if selected { palette.surface_elevated } else { palette.window_clear } })
                 Button
-                template_value(SnapshotHistoryEntryButton { id })
+                SnapshotHistoryEntryButton { id }
                 Children [
-                    ( Text({ label }) TextRole(Role::Mono) TextColor({ color }) ),
+                    Text({ label }) TextRole(Role::Mono) TextColor({ color })
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(20.0),
                     padding: UiRect::horizontal(Val::Px(space::S4)),
@@ -227,12 +226,11 @@ fn history_row_scene(
                 }
                 BackgroundColor({ restore_color })
                 Button
-                template_value(SnapshotHistoryRestoreButton { id: restore_id })
+                SnapshotHistoryRestoreButton { id: restore_id }
                 Children [
-                    ( Text({ restore_label.to_owned() }) TextRole(Role::Caption) ),
+                    Text({ restore_label.to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -264,14 +262,14 @@ pub(super) fn history_rows_scene(
         )],
     };
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S2),
-        }
-        Children [
-            { rows },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S2),
+            }
+            Children [
+                { rows }
+            ]
     })
 }
 

@@ -281,12 +281,12 @@ pub fn donut_chart_scene(spec: DonutChartSpec) -> impl Scene + use<> {
     let width_px = spec.width as f32;
     let height_px = spec.height as f32;
     bsn! {
-        Node {
-            width: px(width_px),
-            height: px(height_px),
-            flex_shrink: 0.0,
-        }
-        DonutChartPlate({ spec })
+            Node {
+                width: px(width_px),
+                height: px(height_px),
+                flex_shrink: 0.0,
+            }
+            DonutChartPlate({ spec })
     }
 }
 

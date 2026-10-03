@@ -320,36 +320,36 @@ pub fn data_grid_header_scene<T>(
             let title = format!("{}{}", col.title, sort_symbol);
 
             Box::new(bsn! {
-                Node {
-                    width: px(width_px),
-                    height: px(palette.control_height_px),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    flex_shrink: 0.0,
-                }
-                Button
-                DataGridSortButton(idx)
-                Children [
-                    ( Text(title) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: px(width_px),
+                                height: px(palette.control_height_px),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                flex_shrink: 0.0,
+                            }
+                            Button
+                            DataGridSortButton(idx)
+                            Children [
+                                Text(title) TextRole(Role::BodyStrong)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            border: UiRect::bottom(Val::Px(palette.hairline_px)),
-        }
-        BackgroundColor({ header_fill })
-        BorderColor { top: border_color, right: border_color, bottom: border_color, left: border_color }
-        DataGridHeader
-        Children [
-            { col_scenes },
-        ]
+            Node {
+                width: percent(100),
+                height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                border: UiRect::bottom(Val::Px(palette.hairline_px)),
+            }
+            BackgroundColor({ header_fill })
+            BorderColor { top: border_color, right: border_color, bottom: border_color, left: border_color }
+            DataGridHeader
+            Children [
+                { col_scenes }
+            ]
     })
 }
 
@@ -378,32 +378,32 @@ pub fn data_grid_row_scene<T>(
             let text_val = (col.extractor)(item);
 
             Box::new(bsn! {
-                Node {
-                    width: px(width_px),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    flex_shrink: 0.0,
-                }
-                Children [
-                    ( Text(text_val) TextRole(Role::Body) ),
-                ]
+                            Node {
+                                width: px(width_px),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                flex_shrink: 0.0,
+                            }
+                            Children [
+                                Text(text_val) TextRole(Role::Body)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ row_fill })
-        DataGridRow(row_idx)
-        Children [
-            { cells },
-        ]
+            Node {
+                width: percent(100),
+                min_height: px(palette.control_height_px),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ row_fill })
+            DataGridRow(row_idx)
+            Children [
+                { cells }
+            ]
     })
 }
 

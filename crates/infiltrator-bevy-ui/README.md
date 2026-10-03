@@ -21,7 +21,7 @@ but `bevy_ui_widgets` (official unstyled widgets) plus our own
 - **Routing** (`route.rs`): a `RouteChanged` trigger swaps the page by
   bounded subtree replacement under the `ContentSlot` —
   `despawn_children` on the slot, then `spawn_scene` for the new page
-  (despawn is recursive per the vendored bevy_ecs 0.19.1 docs; mounting
+  (despawn is recursive per the vendored bevy_ecs 0.20.0-rc.2 docs; mounting
   never touches `.spawn(`). Same-route re-triggers are no-ops, so a shown
   page keeps its entity ids; `PageRoot(Route::…)` marks every mounted
   page root for assertions and nav chrome. `PagesPlugin` mounts the
@@ -54,9 +54,9 @@ but `bevy_ui_widgets` (official unstyled widgets) plus our own
   so the windowed winit bridge publishes them over AT-SPI. The bridge plugin
   itself lives in bevy_winit and activates only with `DefaultPlugins`
   (windowed); headless runs carry the seeds as inert components. `accesskit`
-  is a direct dependency for the node/role vocabulary (bevy_a11y 0.19 no
+  is a direct dependency for the node/role vocabulary (bevy_a11y no
   longer re-exports it; 0.24.1 matches the locked bevy resolution).
-- Dependency whitelist: locked bevy (`=0.19.1`) +
+- Dependency whitelist: locked bevy (`=0.20.0-rc.2`) +
   `infiltrator-bevy-widgets` + `infiltrator-contract` +
   `infiltrator-application` + `infiltrator-composition` + the accesskit vocabulary crate. Low-level
   `mihomo-api`, Reqwest and Tokio types do not enter this frontend crate.

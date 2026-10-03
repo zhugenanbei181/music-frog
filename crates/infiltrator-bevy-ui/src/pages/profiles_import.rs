@@ -145,356 +145,67 @@ pub fn profiles_import_card_scene(
         vec![
             // Section 1: "导入本地配置文件 (Import Local Config)" Header
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S4)),
-                }
-                ProfilesImportRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::FileText, 24.0, palette) } ),
-                            ( Text({ "导入本地配置文件 (Import Local Config)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S4)),
+                            }
+                            ProfilesImportRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
+                                    --
+                                    Text({ "导入本地配置文件 (Import Local Config)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
             // Section 1: Row with path hint box + ChooseLocalFileButton + ImportLocalFileButton
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            min_height: px(palette.control_height_px),
-                            align_items: AlignItems::Center,
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                        }
-                        BackgroundColor({ palette.window_clear })
-                        BorderColor {
-                            top: { palette.border },
-                            right: { palette.border },
-                            bottom: { palette.border },
-                            left: { palette.border },
-                        }
-                        Children [
-                            ( Text({ "选择或输入本地配置文件路径 (*.yaml, *.yml)...".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        ChooseLocalFileButton
-                        Children [
-                            ( Text({ "选择文件".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        ImportLocalFileButton
-                        Children [
-                            ( Text({ "+ 导入本地文件".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
-                        ]
-                    ),
-                ]
-            }),
-            // Section 1: Toggle switch "导入后立即激活"
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.window_clear })
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ "导入后立即激活".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ "已开启".to_owned() }) TextRole(Role::Caption) TextColor({ palette.success }) ),
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
                                 Node {
-                                    width: px(38.0),
-                                    height: px(22.0),
-                                    border: UiRect::all(Val::Px(palette.hairline_px)),
-                                    border_radius: BorderRadius::all(Val::Px(11.0)),
-                                    position_type: PositionType::Relative,
+                                    flex_grow: 1.0,
+                                    min_height: px(palette.control_height_px),
                                     align_items: AlignItems::Center,
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    border: UiRect::all(Val::Px(palette.hairline_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                BackgroundColor({ palette.window_clear })
                                 BorderColor {
-                                    top: { palette.accent },
-                                    right: { palette.accent },
-                                    bottom: { palette.accent },
-                                    left: { palette.accent },
+                                    top: { palette.border },
+                                    right: { palette.border },
+                                    bottom: { palette.border },
+                                    left: { palette.border },
                                 }
                                 Children [
-                                    (
-                                        Node {
-                                            position_type: PositionType::Absolute,
-                                            left: Val::Px(18.0),
-                                            width: px(16.0),
-                                            height: px(16.0),
-                                            border_radius: BorderRadius::all(Val::Px(8.0)),
-                                        }
-                                        BackgroundColor({ palette.on_accent })
-                                    ),
+                                    Text({ "选择或输入本地配置文件路径 (*.yaml, *.yml)...".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
-            }),
-            // Section 2: "订阅请求设置 (Subscription User-Agent)" Header
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( { icon_tile_scene(IconId::Settings, 24.0, palette) } ),
-                    ( Text({ "订阅请求设置 (Subscription User-Agent)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
-            }),
-            // Section 2: Per-profile User-Agent text field + save button
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                        }
-                        SubscriptionUserAgentField
-                        Children [
-                            ( { text_field_with_placeholder_scene(user_agent, "Clash.Meta / ClashVerge / Shadowrocket".to_owned(), palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        SaveUserAgentButton
-                        Children [
-                            ( Text({ "保存请求设置".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
-                        ]
-                    ),
-                ]
-            }),
-            // Section 2: Insecure TLS toggle + conditional-request cache state
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        SubscriptionInsecureToggle
-                        Children [
-                            ( { checkbox_scene("跳过 TLS 证书校验 (Insecure)".to_owned(), insecure_skip_verify, palette) } ),
-                        ]
-                    ),
-                    ( Text({ conditional.clone() }) SubscriptionConditionalStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                ]
-            }),
-            // Section 2: Safe pre-save backup status + restore action
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ backup_status }) SubscriptionBackupStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        RestoreSubscriptionBackupButton
-                        Children [
-                            ( Text({ "还原安全备份".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
-            }),
-            // Section 2: Preset UA badges / description
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::top(Val::Px(space::S2)),
-                }
-                Children [
-                    ( Text({ "预设 UA:".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                    (
-                        Node {
-                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "Clash.Meta".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "ClashVerge".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "Shadowrocket".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                ]
-            }),
-            // Section 3: DUAL-07-08 node-keyword cleaning pipeline.
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( { icon_tile_scene(IconId::Settings, 24.0, palette) } ),
-                    ( Text({ "节点清洗管道 (Filter Pipeline)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ schedule_status.clone() }) SubscriptionScheduleStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S6),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionFilterIncludeField
-                        Children [ ( { text_field_with_placeholder_scene(filter.include.clone(), "包含关键字（逗号分隔，支持正则）".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionFilterExcludeField
-                        Children [ ( { text_field_with_placeholder_scene(filter.exclude.clone(), "排除关键字（逗号分隔，支持正则）".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionFilterExcludeTypesField
-                        Children [ ( { text_field_with_placeholder_scene(filter.exclude_types.clone(), "排除协议（ss, vmess, trojan...）".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionFilterRenamesField
-                        Children [ ( { text_field_with_placeholder_scene(filter.renames.clone(), "重命名规则（每行 `模式 => 替换`）".to_owned(), palette) } ) ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        SubscriptionFilterDedupToggle
-                        Children [
-                            ( { checkbox_scene("跨订阅节点去重（保留首个）".to_owned(), filter.dedup_index != 0, palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ filter_status.clone() }) SubscriptionFilterStatus TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                            (
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                ChooseLocalFileButton
+                                Children [
+                                    Text({ "选择文件".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
                                 Node {
                                     min_height: px(palette.control_height_px),
                                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -504,107 +215,378 @@ pub fn profiles_import_card_scene(
                                 }
                                 BackgroundColor({ palette.accent })
                                 Button
-                                SaveSubscriptionFilterButton
+                                ImportLocalFileButton
                                 Children [
-                                    ( Text({ "应用清洗管道".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
+                                    Text({ "+ 导入本地文件".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                            ]
+            }),
+            // Section 1: Toggle switch "导入后立即激活"
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ "导入后立即激活".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ "已开启".to_owned() }) TextRole(Role::Caption) TextColor({ palette.success })
+                                    --
+                                    Node {
+                                        width: px(38.0),
+                                        height: px(22.0),
+                                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                                        position_type: PositionType::Relative,
+                                        align_items: AlignItems::Center,
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    BorderColor {
+                                        top: { palette.accent },
+                                        right: { palette.accent },
+                                        bottom: { palette.accent },
+                                        left: { palette.accent },
+                                    }
+                                    Children [
+                                        Node {
+                                            position_type: PositionType::Absolute,
+                                            left: Val::Px(18.0),
+                                            width: px(16.0),
+                                            height: px(16.0),
+                                            border_radius: BorderRadius::all(Val::Px(8.0)),
+                                        }
+                                        BackgroundColor({ palette.on_accent })
+                                    ]
+                                ]
+                            ]
+            }),
+            // Section 2: "订阅请求设置 (Subscription User-Agent)" Header
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
+                                --
+                                Text({ "订阅请求设置 (Subscription User-Agent)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
+            }),
+            // Section 2: Per-profile User-Agent text field + save button
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    flex_grow: 1.0,
+                                }
+                                SubscriptionUserAgentField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(user_agent, "Clash.Meta / ClashVerge / Shadowrocket".to_owned(), palette) }
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                SaveUserAgentButton
+                                Children [
+                                    Text({ "保存请求设置".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                ]
+                            ]
+            }),
+            // Section 2: Insecure TLS toggle + conditional-request cache state
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                SubscriptionInsecureToggle
+                                Children [
+                                    @{ checkbox_scene("跳过 TLS 证书校验 (Insecure)".to_owned(), insecure_skip_verify, palette) }
+                                ]
+                                --
+                                Text({ conditional.clone() }) SubscriptionConditionalStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            ]
+            }),
+            // Section 2: Safe pre-save backup status + restore action
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ backup_status }) SubscriptionBackupStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                RestoreSubscriptionBackupButton
+                                Children [
+                                    Text({ "还原安全备份".to_owned() }) TextRole(Role::Body)
+                                ]
+                            ]
+            }),
+            // Section 2: Preset UA badges / description
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::top(Val::Px(space::S2)),
+                            }
+                            Children [
+                                Text({ "预设 UA:".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                --
+                                Node {
+                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "Clash.Meta".to_owned() }) TextRole(Role::Caption)
+                                ]
+                                --
+                                Node {
+                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "ClashVerge".to_owned() }) TextRole(Role::Caption)
+                                ]
+                                --
+                                Node {
+                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "Shadowrocket".to_owned() }) TextRole(Role::Caption)
+                                ]
+                            ]
+            }),
+            // Section 3: DUAL-07-08 node-keyword cleaning pipeline.
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
+                                --
+                                Text({ "节点清洗管道 (Filter Pipeline)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ schedule_status.clone() }) SubscriptionScheduleStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S6),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node { width: percent(100) }
+                                SubscriptionFilterIncludeField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(filter.include.clone(), "包含关键字（逗号分隔，支持正则）".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                SubscriptionFilterExcludeField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(filter.exclude.clone(), "排除关键字（逗号分隔，支持正则）".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                SubscriptionFilterExcludeTypesField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(filter.exclude_types.clone(), "排除协议（ss, vmess, trojan...）".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                SubscriptionFilterRenamesField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(filter.renames.clone(), "重命名规则（每行 `模式 => 替换`）".to_owned(), palette) }
+                                ]
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                SubscriptionFilterDedupToggle
+                                Children [
+                                    @{ checkbox_scene("跨订阅节点去重（保留首个）".to_owned(), filter.dedup_index != 0, palette) }
+                                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ filter_status.clone() }) SubscriptionFilterStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    Button
+                                    SaveSubscriptionFilterButton
+                                    Children [
+                                        Text({ "应用清洗管道".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    ]
+                                ]
+                            ]
             }),
             // Section 4: DUAL-07-01 multi-channel import workbench.
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( { icon_tile_scene(IconId::FileText, 24.0, palette) } ),
-                    ( Text({ "多渠道导入 (URL / 本地 / 剪贴板)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
+                                --
+                                Text({ "多渠道导入 (URL / 本地 / 剪贴板)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S6),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node { width: percent(100) }
-                        ImportSubscriptionNameField
-                        Children [ ( { text_field_with_placeholder_scene(String::new(), "新配置名称".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        ImportSubscriptionUrlField
-                        Children [ ( { text_field_with_placeholder_scene(String::new(), "订阅 URL".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        ImportLocalPathField
-                        Children [ ( { text_field_with_placeholder_scene(String::new(), "本地文件路径 (*.yaml / *.json / *.txt)".to_owned(), palette) } ) ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S6),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node { width: percent(100) }
+                                ImportSubscriptionNameField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(String::new(), "新配置名称".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                ImportSubscriptionUrlField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(String::new(), "订阅 URL".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                ImportLocalPathField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(String::new(), "本地文件路径 (*.yaml / *.json / *.txt)".to_owned(), palette) }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        ImportSubscriptionUrlButton
-                        Children [
-                            ( Text({ "从 URL 导入".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        ImportLocalSubscriptionButton
-                        Children [
-                            ( Text({ "从本地文件导入".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        ImportClipboardSubscriptionButton
-                        Children [
-                            ( Text({ "从剪贴板导入".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                ImportSubscriptionUrlButton
+                                Children [
+                                    Text({ "从 URL 导入".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                ImportLocalSubscriptionButton
+                                Children [
+                                    Text({ "从本地文件导入".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                ImportClipboardSubscriptionButton
+                                Children [
+                                    Text({ "从剪贴板导入".to_owned() }) TextRole(Role::Body)
+                                ]
+                            ]
             }),
         ],
         palette,

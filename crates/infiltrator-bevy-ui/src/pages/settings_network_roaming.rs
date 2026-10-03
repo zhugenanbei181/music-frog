@@ -46,27 +46,29 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     let route = format_route(snapshot);
     Box::new(surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
-            }
-            Children [
-                ( Text({ "物理网卡漫游与默认网关感知 (Network Roaming)".to_owned() }) TextRole(Role::BodyStrong) ),
-                (
                     Node {
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
-                        padding: UiRect::all(Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        row_gap: Val::Px(space::S6),
                     }
-                    BackgroundColor({ palette.surface_elevated })
                     Children [
-                        ( Text(status) NetworkRoamingStatusLine TextRole(Role::Mono) ),
-                        ( Text(interfaces) NetworkRoamingInterfacesLine TextRole(Role::Caption) ),
-                        ( Text(route) NetworkRoamingRouteLine TextRole(Role::Mono) ),
-                        (
+                        Text({ "物理网卡漫游与默认网关感知 (Network Roaming)".to_owned() }) TextRole(Role::BodyStrong)
+                        --
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(space::S4),
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        Children [
+                            Text(status) NetworkRoamingStatusLine TextRole(Role::Mono)
+                            --
+                            Text(interfaces) NetworkRoamingInterfacesLine TextRole(Role::Caption)
+                            --
+                            Text(route) NetworkRoamingRouteLine TextRole(Role::Mono)
+                            --
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
@@ -74,41 +76,36 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 column_gap: Val::Px(space::S6),
                             }
                             Children [
-                                (
-                                    Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    }
-                                    BackgroundColor({ palette.surface_elevated })
-                                    NetworkRoamingRefreshButton
-                                    Button
-                                    Children [
-                                        ( Text({ "刷新链路".to_owned() }) TextRole(Role::Body) ),
-                                    ]
-                                ),
-                                (
-                                    Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    }
-                                    BackgroundColor({ palette.accent })
-                                    NetworkRoamingRepairButton
-                                    Button
-                                    Children [
-                                        ( Text({ "立即修复 TUN 路由".to_owned() }) TextRole(Role::BodyStrong) ),
-                                    ]
-                                ),
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                NetworkRoamingRefreshButton
+                                Button
+                                Children [
+                                    Text({ "刷新链路".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                NetworkRoamingRepairButton
+                                Button
+                                Children [
+                                    Text({ "立即修复 TUN 路由".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     ))

@@ -118,22 +118,22 @@ pub fn tooltip_scene(
     let edge = palette.border;
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(rect.x),
-            top: px(rect.y),
-            padding: UiRect::new(Val::Px(space::S8), Val::Px(space::S8), Val::Px(space::S4), Val::Px(space::S4)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        TooltipBubble
-        Children [
-            ( Text(text) TextRole(Role::Caption) ),
-        ]
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(rect.x),
+                top: px(rect.y),
+                padding: UiRect::new(Val::Px(space::S8), Val::Px(space::S8), Val::Px(space::S4), Val::Px(space::S4)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px * 0.75)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            TooltipBubble
+            Children [
+                Text(text) TextRole(Role::Caption)
+            ]
     }
 }
 

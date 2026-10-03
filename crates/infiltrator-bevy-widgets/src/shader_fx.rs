@@ -225,41 +225,37 @@ pub fn skeleton_card_scene(height_px: f32, palette: &UiPalette) -> Box<dyn Scene
     let shimmer_bar_fill = palette.border;
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: px(height_px),
-            flex_direction: FlexDirection::Column,
-            padding: UiRect::all(Val::Px(space::S16)),
-            row_gap: Val::Px(space::S12),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ base_fill })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(height_px),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(space::S16)),
+                row_gap: Val::Px(space::S12),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ base_fill })
+            Children [
                 Node {
                     width: percent(40),
                     height: px(16.0),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
-            ),
-            (
+                --
                 Node {
                     width: percent(80),
                     height: px(12.0),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
-            ),
-            (
+                --
                 Node {
                     flex_grow: 1.0,
                     width: percent(100),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ shimmer_bar_fill })
-            ),
-        ]
+            ]
     })
 }
 

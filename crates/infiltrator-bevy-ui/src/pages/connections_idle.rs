@@ -74,21 +74,22 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-        }
-        Children [
-            ( Text({ "空闲超时: ".to_owned() }) TextRole(Role::Caption) ),
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+            }
+            Children [
+                Text({ "空闲超时: ".to_owned() }) TextRole(Role::Caption)
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S4),
                 }
-                Children [ { pills } ]
-            ),
-            (
+                Children [
+                    { pills }
+                ]
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -100,11 +101,11 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Button
                 ConnIdleSweepButton
                 Children [
-                    ( Text({ "清理空闲连接".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "清理空闲连接".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-            ( Text({ "上次清理: 尚未执行".to_owned() }) ConnIdleStatus TextRole(Role::Caption) ),
-        ]
+                --
+                Text({ "上次清理: 尚未执行".to_owned() }) ConnIdleStatus TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -117,17 +118,17 @@ fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl 
     let label = infiltrator_domain::connection_activity::idle_timeout_minutes_label(secs);
 
     bsn! {
-        Node {
-            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ bg })
-        ConnIdleTimeoutPill(secs)
-        Button
-        Children [
-            ( Text(label) TextRole(Role::Caption) TextColor({ text_color }) ),
-        ]
+            Node {
+                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ bg })
+            ConnIdleTimeoutPill(secs)
+            Button
+            Children [
+                Text(label) TextRole(Role::Caption) TextColor({ text_color })
+            ]
     }
 }
 

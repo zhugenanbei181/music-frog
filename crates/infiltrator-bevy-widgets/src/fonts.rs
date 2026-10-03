@@ -3,7 +3,7 @@
 //! The faces are compiled into this crate (`include_bytes!`) and registered
 //! as [`Font`] assets through the [`Assets<Font>`] store — the same store
 //! `AssetServer`-loaded fonts land in, and the store bevy_text's font
-//! collection is built from. bevy_asset 0.19 has no in-memory
+//! collection is built from. bevy_asset 0.20 has no in-memory
 //! `AssetServer` entry point, and folder-path loading would tie every host
 //! (headless tests, the future Android closure) to a configured asset root,
 //! so the embedding is the load path, not a preload cache.

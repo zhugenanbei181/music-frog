@@ -20,7 +20,7 @@
 //! top band is a pull-to-refresh, a dominant horizontal drag is a
 //! swipe-to-action, a two-finger sequence is a pinch, and everything else goes
 //! to the recognizer (tap/double-tap/long-press/pan). The boundary is explicit:
-//! Bevy 0.19 exposes no safe-area API, so insets default to zero and a mobile
+//! Bevy 0.20 exposes no safe-area API, so insets default to zero and a mobile
 //! composition root must inject the real values through [`GestureHostReport`].
 
 use std::collections::BTreeMap;
@@ -143,7 +143,7 @@ pub struct ShellGestureSnapshot(pub GestureSnapshot);
 
 /// The host facts of this surface, inserted by [`ShellGesturePlugin`].
 ///
-/// `insets` is public because Bevy 0.19 has no safe-area API: a mobile
+/// `insets` is public because Bevy 0.20 has no safe-area API: a mobile
 /// composition root writes the real values here and
 /// [`sync_gesture_capability`] publishes them into the shared snapshot.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]

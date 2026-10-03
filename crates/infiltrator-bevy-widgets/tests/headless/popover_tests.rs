@@ -52,9 +52,9 @@ fn headless_app() -> App {
 /// The popover's content is caller-owned; any composed scene does.
 fn content_scene() -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
+            Node {
+                width: percent(100),
+            }
     })
 }
 

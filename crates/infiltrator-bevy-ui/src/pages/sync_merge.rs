@@ -43,14 +43,14 @@ pub fn sync_three_way_merge_scene(palette: &UiPalette) -> impl Scene + use<> {
         .into_iter()
         .map(|desc| {
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ desc.to_owned() }) TextRole(Role::Body) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ desc.to_owned() }) TextRole(Role::Body)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
@@ -58,102 +58,97 @@ pub fn sync_three_way_merge_scene(palette: &UiPalette) -> impl Scene + use<> {
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                SyncMergeRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Network, 24.0, palette) } ),
-                            ( Text({ "字段级三向冲突差异合并 (3-Way Merge & Conflict Resolver)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            SyncMergeRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::Network, 24.0, palette) }
+                                    --
+                                    Text({ "字段级三向冲突差异合并 (3-Way Merge & Conflict Resolver)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.window_clear })
-                Children [
-                    { conflict_rows },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            Children [
+                                { conflict_rows }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px * 0.85),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        AcceptLocalButton
-                        Children [
-                            ( Text({ "以本地为准".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px * 0.85),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        AcceptCloudButton
-                        Children [
-                            ( Text({ "以云端为准".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px * 0.85),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        MergeBothButton
-                        Children [
-                            ( Text({ "智能合并两者".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    min_height: px(palette.control_height_px * 0.85),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                AcceptLocalButton
+                                Children [
+                                    Text({ "以本地为准".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px * 0.85),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                AcceptCloudButton
+                                Children [
+                                    Text({ "以云端为准".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px * 0.85),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                MergeBothButton
+                                Children [
+                                    Text({ "智能合并两者".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::top(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ "精确到单个策略组与规则条目的三向合并，杜绝无脑覆盖".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::top(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ "精确到单个策略组与规则条目的三向合并，杜绝无脑覆盖".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
         ],
         palette,

@@ -389,14 +389,12 @@ fn test_dialog_to_actionsheet_morphology_transitions() {
     let palette = *app
         .world()
         .resource::<infiltrator_bevy_widgets::palette::UiPalette>();
-    let body = Box::new(
-        bevy::scene::bsn! { ( bevy::ui::widget::Text({ "Modal Body Content".to_owned() }) ) },
-    );
-    let actions =
-        vec![
-            Box::new(bevy::scene::bsn! { ( bevy::ui::widget::Text({ "Confirm".to_owned() }) ) })
-                as Box<dyn bevy::scene::Scene>,
-        ];
+    let body = Box::new(bevy::scene::bsn! {
+                bevy::ui::widget::Text({ "Modal Body Content".to_owned() })
+    });
+    let actions = vec![Box::new(bevy::scene::bsn! {
+                    bevy::ui::widget::Text({ "Confirm".to_owned() })
+    }) as Box<dyn bevy::scene::Scene>];
     app.world_mut().commands().spawn_scene(
         infiltrator_bevy_widgets::adaptive_modal::adaptive_modal_scene(
             "Test Modal".to_owned(),

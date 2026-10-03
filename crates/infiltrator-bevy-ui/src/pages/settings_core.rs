@@ -169,37 +169,37 @@ pub(super) fn controller_settings_card(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "外部控制器与核心 (Controller)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "外部控制器与核心 (Controller)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "外部控制端口 (External Controller API)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    ( { core_log_level_row_scene(projection, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "外部控制端口 (External Controller API)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(ctrl_port_str) SettingsLine(SettingsLineKind::ControllerPort) TextRole(Role::Mono)
+                                ]
+                                --
+                                @{ core_log_level_row_scene(projection, palette) }
+                            ]
             }),
         ],
         palette,
@@ -226,44 +226,47 @@ pub(super) fn core_rollback_row_scene(
         );
     let rollback_available = projection.core_versions.rollback.target.is_some();
     let action: Box<dyn Scene> = Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ if rollback_available { palette.accent } else { palette.surface_elevated } })
-        CoreRollbackButton
-        CoreRollbackAvailability(rollback_available)
-        Button
-        Children [
-            ( Text({ if rollback_available { "立即回滚".to_owned() } else { "不可用".to_owned() } }) CoreRollbackButtonLabel TextRole(Role::BodyStrong) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ if rollback_available { palette.accent } else { palette.surface_elevated } })
+            CoreRollbackButton
+            CoreRollbackAvailability(rollback_available)
+            Button
+            Children [
+                Text({ if rollback_available { "立即回滚".to_owned() } else { "不可用".to_owned() } }) CoreRollbackButtonLabel TextRole(Role::BodyStrong)
+            ]
     });
 
     let label: Box<dyn Scene> = Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            ( Text({ "内核版本回滚 (Core Rollback)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(rollback_text) SettingsLine(SettingsLineKind::CoreRollback) TextRole(Role::Mono) ),
-        ]
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                Text({ "内核版本回滚 (Core Rollback)".to_owned() }) TextRole(Role::Body)
+                --
+                Text(rollback_text) SettingsLine(SettingsLineKind::CoreRollback) TextRole(Role::Mono)
+            ]
     });
     let children = vec![label, action];
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [ { children } ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                { children }
+            ]
     })
 }
 
@@ -290,18 +293,19 @@ pub(super) fn controller_auth_row_scene(
 ) -> Box<dyn Scene> {
     let status = format_controller_auth(snapshot);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            ( Text({ "控制器认证 (Controller Auth)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(status) SettingsLine(SettingsLineKind::ControllerAuth) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                Text({ "控制器认证 (Controller Auth)".to_owned() }) TextRole(Role::Body)
+                --
+                Text(status) SettingsLine(SettingsLineKind::ControllerAuth) TextRole(Role::Mono)
+            ]
     })
 }
 
@@ -356,34 +360,39 @@ pub(super) fn core_log_level_row_scene(
         |level| level.as_str().to_uppercase(),
     );
     let label: Box<dyn Scene> = Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            ( Text({ "核心日志级别 (Core Log Level)".to_owned() }) TextRole(Role::Body) ),
-            ( Text({ format!("当前: {current}") }) SettingsLine(SettingsLineKind::LogLevel) TextRole(Role::Mono) ),
-        ]
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                Text({ "核心日志级别 (Core Log Level)".to_owned() }) TextRole(Role::Body)
+                --
+                Text({ format!("当前: {current}") }) SettingsLine(SettingsLineKind::LogLevel) TextRole(Role::Mono)
+            ]
     });
     let controls: Box<dyn Scene> = Box::new(bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S4),
-        }
-        Children [ { buttons } ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S4),
+            }
+            Children [
+                { buttons }
+            ]
     });
     let children = vec![label, controls];
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [ { children } ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                { children }
+            ]
     })
 }
 
@@ -394,19 +403,19 @@ fn core_log_level_button_scene(
 ) -> impl Scene + use<> {
     let selected = active == Some(level);
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
-        CoreLogLevelButton { level }
-        Button
-        Children [
-            ( Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
+            CoreLogLevelButton { level }
+            Button
+            Children [
+                Text({ level.as_str().to_uppercase() }) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -420,24 +429,27 @@ pub(super) fn tun_stack_selector_scene(
         .map(|stack| Box::new(tun_stack_button_scene(stack, active, palette)) as Box<dyn Scene>)
         .collect();
     let controls: Box<dyn Scene> = Box::new(bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S4),
-            flex_wrap: FlexWrap::Wrap,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [ { buttons } ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S4),
+                flex_wrap: FlexWrap::Wrap,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                { buttons }
+            ]
     });
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            ( Text({ "TUN 协议栈 (Protocol Stack)".to_owned() }) TextRole(Role::Body) ),
-            ( { controls } ),
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                Text({ "TUN 协议栈 (Protocol Stack)".to_owned() }) TextRole(Role::Body)
+                --
+                @{ controls }
+            ]
     })
 }
 
@@ -447,26 +459,25 @@ pub(super) fn mtu_row_scene(
 ) -> Box<dyn Scene> {
     let status = format_mtu(snapshot);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "物理/虚拟网卡 MTU (MTU Negotiation)".to_owned() }) TextRole(Role::Body) ),
-                    ( Text(status) SettingsLine(SettingsLineKind::Mtu) TextRole(Role::Mono) ),
+                    Text({ "物理/虚拟网卡 MTU (MTU Negotiation)".to_owned() }) TextRole(Role::Body)
+                    --
+                    Text(status) SettingsLine(SettingsLineKind::Mtu) TextRole(Role::Mono)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -478,10 +489,9 @@ pub(super) fn mtu_row_scene(
                 ProbeTunMtuButton
                 Button
                 Children [
-                    ( Text({ "探测并协商".to_owned() }) TextRole(Role::BodyStrong) ),
+                    Text({ "探测并协商".to_owned() }) TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -492,27 +502,27 @@ pub(super) fn tun_route_toggle_scene(
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        TunRouteToggle(kind)
-        Children [
-            ( { checkbox_scene(label.to_owned(), checked, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            TunRouteToggle(kind)
+            Children [
+                @{ checkbox_scene(label.to_owned(), checked, palette) }
+            ]
     })
 }
 
 pub(super) fn tun_enable_toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        TunEnableToggle
-        Children [
-            ( { checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), checked, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            TunEnableToggle
+            Children [
+                @{ checkbox_scene("启用 TUN 虚拟网卡接管 (Enable TUN Device)".to_owned(), checked, palette) }
+            ]
     })
 }
 
@@ -608,20 +618,20 @@ fn tun_stack_button_scene(
         "LWIP (参考 / Reference-only)".to_owned()
     };
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ if available && active == Some(stack) { palette.accent } else { palette.surface_elevated } })
-        TunStackButton { stack }
-        TunStackButtonAvailability(available)
-        Button
-        Children [
-            ( Text(label) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ if available && active == Some(stack) { palette.accent } else { palette.surface_elevated } })
+            TunStackButton { stack }
+            TunStackButtonAvailability(available)
+            Button
+            Children [
+                Text(label) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -637,26 +647,25 @@ pub(super) fn service_mode_row_scene(
         "准备服务模式"
     };
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "特权服务模式 (Service Mode)".to_owned() }) TextRole(Role::Body) ),
-                    ( Text(status) SettingsLine(SettingsLineKind::ServiceMode) TextRole(Role::Mono) ),
+                    Text({ "特权服务模式 (Service Mode)".to_owned() }) TextRole(Role::Body)
+                    --
+                    Text(status) SettingsLine(SettingsLineKind::ServiceMode) TextRole(Role::Mono)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -669,10 +678,9 @@ pub(super) fn service_mode_row_scene(
                 ServiceModeAvailability({ !ready })
                 Button
                 Children [
-                    ( Text({ label.to_owned() }) ServiceModeButtonLabel TextRole(Role::BodyStrong) ),
+                    Text({ label.to_owned() }) ServiceModeButtonLabel TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -700,26 +708,25 @@ pub(super) fn port_conflicts_row_scene(
 ) -> Box<dyn Scene> {
     let status = format_port_conflicts(snapshot);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "端口冲突 (Port Conflicts)".to_owned() }) TextRole(Role::Body) ),
-                    ( Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(Role::Mono) ),
+                    Text({ "端口冲突 (Port Conflicts)".to_owned() }) TextRole(Role::Body)
+                    --
+                    Text(status) SettingsLine(SettingsLineKind::PortConflicts) TextRole(Role::Mono)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -731,10 +738,9 @@ pub(super) fn port_conflicts_row_scene(
                 PortConflictButton
                 Button
                 Children [
-                    ( Text({ "检查并避让".to_owned() }) TextRole(Role::BodyStrong) ),
+                    Text({ "检查并避让".to_owned() }) TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -778,18 +784,19 @@ pub(super) fn core_resources_row_scene(
 ) -> Box<dyn Scene> {
     let status = format_core_resources(snapshot);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            ( Text({ "内核资源 (Core Resources)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                Text({ "内核资源 (Core Resources)".to_owned() }) TextRole(Role::Body)
+                --
+                Text(status) SettingsLine(SettingsLineKind::CoreResources) TextRole(Role::Mono)
+            ]
     })
 }
 

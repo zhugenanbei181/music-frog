@@ -7,8 +7,9 @@
 | 上游线 | 当前真相来源 | 当前观察 | 升级影响 |
 | --- | --- | --- | --- |
 | mihomo core | `scripts/fetch-mihomo.sh` | pinned release 为 `v1.19.18`，脚本记录 archive/binary SHA-256 | 资产名、API、配置字段、行为、许可证、ABI、回滚 |
-| Rust toolchain | `rust-toolchain.toml` | stable + rustfmt/clippy，声明 Android target | edition、MSRV/编译器、native crate 和 CI |
+| Rust toolchain | `rust-toolchain.toml` | 1.99.0 + rustfmt/clippy，声明 Android target | edition、MSRV/编译器、native crate 和 CI |
 | Rust libraries | 根 `Cargo.toml` + `Cargo.lock` + `src-tauri/Cargo.lock` | workspace 统一 Tokio/Reqwest/Serde 等，UI/宿主有额外 toolkit 依赖 | resolver、feature、TLS、系统库、跨平台编译 |
+| Bevy UI engine | 根 `Cargo.toml`（`bevy = "=0.20.0-rc.2"`）+ `Cargo.lock` | 战略统一 surface，锁 **0.20 发布线**（上游当前为预发布构建 rc.2，GA 后只改 pin 不改代码）；与 taskmanager 同锁 | BSN 语法、feature 闭包、wgpu/naga、文本/无障碍栈、Android APK、桌面打包 |
 | Web Admin | `webui/config-manager-ui/package.json` + lockfile | Vue/Vite/Tailwind/Vitest 独立构建 | API schema、浏览器行为、bundle |
 | external dashboard | `webui/mihomo-manager-ui/dist` + `THIRD-PARTY-NOTICES.md` | 上游静态构建产物 | controller API、资产来源、字体和许可 |
 | Android | `android/app/build.gradle.kts` + Gradle wrapper | Compose BOM、AndroidX、NDK/ABI 构建脚本 | min/target SDK、JNI/UniFFI、VPN、ABI |

@@ -27,14 +27,14 @@ pub struct SystemProxyToggle;
 
 pub(super) fn toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::horizontal(Val::Px(space::S4)),
-        }
-        SystemProxyToggle
-        Children [
-            ( { checkbox_scene("设置系统代理 (Set System Proxy)".to_owned(), checked, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                padding: UiRect::horizontal(Val::Px(space::S4)),
+            }
+            SystemProxyToggle
+            Children [
+                @{ checkbox_scene("设置系统代理 (Set System Proxy)".to_owned(), checked, palette) }
+            ]
     })
 }
 
@@ -44,17 +44,18 @@ pub(super) fn status_row(
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: bevy::ui::prelude::AlignItems::Center,
-            justify_content: bevy::ui::prelude::JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-        }
-        bevy::ui::prelude::BackgroundColor({ palette.surface_elevated })
-        Children [
-            ( Text({ "系统代理状态 (System Proxy Status)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(format_status(snapshot, recovery)) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                align_items: bevy::ui::prelude::AlignItems::Center,
+                justify_content: bevy::ui::prelude::JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+            }
+            bevy::ui::prelude::BackgroundColor({ palette.surface_elevated })
+            Children [
+                Text({ "系统代理状态 (System Proxy Status)".to_owned() }) TextRole(Role::Body)
+                --
+                Text(format_status(snapshot, recovery)) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
+            ]
     })
 }
 

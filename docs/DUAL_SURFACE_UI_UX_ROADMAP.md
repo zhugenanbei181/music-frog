@@ -15,10 +15,10 @@
               (ResponsiveViewportSnapshot / TrafficSnapshot / CoreLifecycle)
                                          │
                      ┌───────────────────┴───────────────────┐
-                     ▼ (Elm 纯函数 MVU 架构)                  ▼ (Bevy 0.19 ECS + GPU 管线)
+                     ▼ (Elm 纯函数 MVU 架构)                  ▼ (Bevy 0.20 ECS + GPU 管线)
           [ infiltrator-iced ]                     [ infiltrator-bevy-ui ]
         桌面生产力与轻量守护基石                  跨平台战略旗舰 (桌面/移动全适配)
-      - 常驻内存 < 20MB                         - Bevy 0.19 现代化 UI 引擎
+      - 常驻内存 < 20MB                         - Bevy 0.20 现代化 UI 引擎
       - Linux/Windows/macOS 原生沉浸           - WGSL 硬件着色器加速、高刷微动效
       - 极致稳定、低功耗后台常驻               - 移动端 (Android/iOS) 触控与手势深度闭环
 ```
@@ -29,7 +29,7 @@
 - **体验重心**：高信息密度排版、毫秒级界面回响、系统托盘（SNI/ksni/原生）深度无缝集成、键盘快捷键全覆盖。
 
 ### 1.2 Bevy UI 表面定位：跨平台现代战略旗舰
-- **架构范式**：依托 Bevy 0.19 ECS 高并发架构与现代 GPU 硬件渲染管线，承载桌面高刷体验并向移动端（Android/iOS/折叠屏）全面辐射。
+- **架构范式**：依托 Bevy 0.20 ECS 高并发架构与现代 GPU 硬件渲染管线，承载桌面高刷体验并向移动端（Android/iOS/折叠屏）全面辐射。
 - **渲染基石**：WGSL 硬件着色器加速、苹果级超椭圆连续曲率圆角、物理阻尼弹簧微动效、全链路触控手势闭环。
 - **组件分工**：底层纯 UI 原语完全收敛于业务无关的 `crates/infiltrator-bevy-widgets/`，业务外壳与路由装配由 `crates/infiltrator-bevy-ui/` 承担。
 

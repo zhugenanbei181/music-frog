@@ -65,7 +65,9 @@ fn drawer_scene_spawns_scrim_and_panel() {
     app.add_systems(
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
-            let content = Box::new(bsn! { ( Text({ "Drawer Content".to_owned() }) ) });
+            let content = Box::new(bsn! {
+                            Text({ "Drawer Content".to_owned() })
+            });
             commands.spawn_scene(drawer_scene(
                 DrawerPlacement::Left,
                 280.0,

@@ -36,35 +36,34 @@ pub fn dns_self_heal_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "DNS 故障自愈检测 (DUAL-14-13)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text(overall_label) TextRole(Role::BodyStrong) TextColor(overall_color) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "DNS 故障自愈检测 (DUAL-14-13)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text(overall_label) TextRole(Role::BodyStrong) TextColor(overall_color)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    min_height: px(48.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(
-                        palette.control_radius_px,
-                    )),
-                    flex_direction: FlexDirection::Column,
-                }
-                BackgroundColor({ palette.surface_elevated })
-                Children [
-                    (
-                        Text(listing)
-                        DnsLine(DnsLineKind::SelfHeal)
-                        TextRole(Role::Mono)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                min_height: px(48.0),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(
+                                        palette.control_radius_px,
+                                )),
+                                flex_direction: FlexDirection::Column,
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Children [
+                                Text(listing)
+                                DnsLine(DnsLineKind::SelfHeal)
+                                TextRole(Role::Mono)
+                            ]
             }),
         ],
         palette,

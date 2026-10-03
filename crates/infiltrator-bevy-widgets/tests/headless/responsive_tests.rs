@@ -260,9 +260,15 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
             let cards = vec![
-                Box::new(bsn! { ( Text({ "Card 1".to_owned() }) ) }) as Box<dyn Scene>,
-                Box::new(bsn! { ( Text({ "Card 2".to_owned() }) ) }) as Box<dyn Scene>,
-                Box::new(bsn! { ( Text({ "Card 3".to_owned() }) ) }) as Box<dyn Scene>,
+                Box::new(bsn! {
+                                    Text({ "Card 1".to_owned() })
+                }) as Box<dyn Scene>,
+                Box::new(bsn! {
+                                    Text({ "Card 2".to_owned() })
+                }) as Box<dyn Scene>,
+                Box::new(bsn! {
+                                    Text({ "Card 3".to_owned() })
+                }) as Box<dyn Scene>,
             ];
             commands.spawn_scene(fluid_card_grid_scene(
                 cards,
@@ -336,25 +342,25 @@ fn master_detail_split_and_stacked_navigation() {
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
             let master = Box::new(bsn! {
-                Node {
-                    flex_direction: FlexDirection::Column,
-                }
-                Children [
-                    ( Text({ "Master List".to_owned() }) ),
-                    (
-                        Node {}
-                        MasterItemButton({ "item-42".to_owned() })
-                    ),
-                ]
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                            }
+                            Children [
+                                Text({ "Master List".to_owned() })
+                                --
+                                Node {}
+                                MasterItemButton({ "item-42".to_owned() })
+                            ]
             });
             let detail = Box::new(bsn! {
-                Node {
-                    flex_direction: FlexDirection::Column,
-                }
-                Children [
-                    ( Text({ "Detail View".to_owned() }) ),
-                    ( { master_back_button_scene("返回列表", &palette) } ),
-                ]
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                            }
+                            Children [
+                                Text({ "Detail View".to_owned() })
+                                --
+                                @{ master_back_button_scene("返回列表", &palette) }
+                            ]
             });
             commands.spawn_scene(master_detail_scene(master, detail, &palette));
         },
@@ -446,9 +452,12 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
     app.add_systems(
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
-            let body = Box::new(bsn! { ( Text({ "Modal Body Content".to_owned() }) ) });
-            let actions =
-                vec![Box::new(bsn! { ( Text({ "Confirm".to_owned() }) ) }) as Box<dyn Scene>];
+            let body = Box::new(bsn! {
+                            Text({ "Modal Body Content".to_owned() })
+            });
+            let actions = vec![Box::new(bsn! {
+                                Text({ "Confirm".to_owned() })
+            }) as Box<dyn Scene>];
             commands.spawn_scene(adaptive_modal_scene(
                 "Test Modal".to_owned(),
                 body,
@@ -482,8 +491,8 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, px(480.0));
-        assert_eq!(card.border_radius.top_left, Val::Px(radius::CARD));
-        assert_eq!(card.border_radius.bottom_left, Val::Px(radius::CARD));
+        assert_eq!(card.border_radius.top_left, Val::Px(radius::CARD).into());
+        assert_eq!(card.border_radius.bottom_left, Val::Px(radius::CARD).into());
     }
 
     // 3. Resize to Compact (375px): ActionSheet morphology (JustifyContent::FlexEnd, width 100%, rounded top only)
@@ -503,8 +512,11 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
         let card = cards.iter(world).next().unwrap();
         assert_eq!(card.width, percent(100));
-        assert_eq!(card.border_radius.top_left, Val::Px(radius::SHEET_TOP));
-        assert_eq!(card.border_radius.bottom_left, Val::Px(0.0));
+        assert_eq!(
+            card.border_radius.top_left,
+            Val::Px(radius::SHEET_TOP).into()
+        );
+        assert_eq!(card.border_radius.bottom_left, Val::Px(0.0).into());
     }
 
     // 4. Close modal: Display::None again

@@ -186,7 +186,7 @@
 ### 大类十：引擎调步、低功耗渲染与底层组件架构 (Engine, Performance & Architecture)
 136. **BEVY-GAP-136 实时双向内核通信契约通道落地 (BEVY-005 Seam)**：基于 Tokio 异步 Runtime 建立常驻管道，订阅 Mihomo WebSocket 流（`/traffic`、`/logs`、`/connections`）；转换为 typed ECS 事件投递主线程，每帧有界排水消费。模块：`crates/infiltrator-bevy-ui/src/controller.rs`。验收：彻底替代 DemoProjection，11 个页面接入真实内核数据，指令毫秒级往返。
 137. **BEVY-GAP-137 多模态引擎渲染调步机制 (Cadence & Low Power Policy)**：实现动态调步状态机：活跃交互时 60 FPS，静置 30 秒后降至 15 FPS；窗口失去焦点或最小化到托盘后，进入完全事件等待或 2 FPS 微息模式。模块：`crates/infiltrator-bevy-widgets/src/cadence.rs`。验收：桌面后台运行 CPU 占用 <0.3%，移动端后台运行彻底杜绝发热耗电。
-138. **BEVY-GAP-138 完全响应式事件驱动渲染管线 (Reactive Rendering Pipeline)**：接入 Bevy 0.19 的 `bevy_winit::UpdateMode::ReactiveLowPower`；仅当窗口事件到达、键鼠交互或 WebSocket 推送新数据时，才唤醒 ECS 调度重绘一帧。模块：`crates/infiltrator-bevy-widgets/src/reactive.rs`。验收：网络闲置状态下 GPU 负荷归零，笔记本电池续航不受代理软件影响。
+138. **BEVY-GAP-138 完全响应式事件驱动渲染管线 (Reactive Rendering Pipeline)**：接入 Bevy 0.20 的 `bevy_winit::UpdateMode::ReactiveLowPower`；仅当窗口事件到达、键鼠交互或 WebSocket 推送新数据时，才唤醒 ECS 调度重绘一帧。模块：`crates/infiltrator-bevy-widgets/src/reactive.rs`。验收：网络闲置状态下 GPU 负荷归零，笔记本电池续航不受代理软件影响。
 139. **BEVY-GAP-139 中文与东亚多语言输入法 (IME) 深度适配**：完善自研纯核文本输入状态机，对接 `Ime::Preedit` 与 `Ime::Commit` 窗口事件；精准计算光标物理位置，确保输入法候选词浮窗紧随输入光标。模块：`crates/infiltrator-bevy-widgets/src/text_input/ime.rs`。验收：在搜索框与编辑器中流畅输入中文、日文、韩文，候选词不漂移。
 140. **BEVY-GAP-140 跨平台原生剪贴板安全与异步交互**：封装原生剪贴板驱动，支持 Wayland `wl-clipboard`、X11、Windows Win32 API 及 Android JNI 通道；集成敏感凭据脱敏保护。模块：`crates/infiltrator-bevy-widgets/src/clipboard_sanitizer.rs`。验收：一键复制节点链接、粘贴订阅 URL 稳定可靠，无死锁或闪退。
 141. **BEVY-GAP-141 通用高性能虚拟视口滚动容器组件 (VirtualList Widget)**：将虚拟视口几何裁剪算法抽象为通用控件包，提供 `VirtualListBuilder<T>` 模板；自动根据容器尺寸与项高度计算可视区间，全页面复用。模块：`crates/infiltrator-bevy-widgets/src/list/scroll_core.rs`。验收：规则列表、连接列表、日志流与节点网格统一接入，零冗余代码。

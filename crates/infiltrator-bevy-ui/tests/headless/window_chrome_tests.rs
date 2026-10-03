@@ -8,7 +8,7 @@ use bevy::asset::AssetPlugin;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
 use bevy::picking::backend::HitData;
-use bevy::picking::events::{Click, Pointer, Press};
+use bevy::picking::events::{Pointer, PointerClick, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
 use bevy::scene::ScenePlugin;
 use bevy::window::{PrimaryWindow, Window, WindowRef};
@@ -39,16 +39,13 @@ fn press_on(app: &mut App, window: Entity, entity: Entity, count: u8) {
         ),
         position: bevy::math::Vec2::ZERO,
     };
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        location,
-        Press {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            count,
-        },
+    app.world_mut().trigger(PointerPress {
         entity,
-    ));
+        pointer: Pointer::new(PointerId::Mouse, location),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        count,
+    });
 }
 
 fn double_click_on(app: &mut App, window: Entity, entity: Entity) {
@@ -60,17 +57,14 @@ fn double_click_on(app: &mut App, window: Entity, entity: Entity) {
         ),
         position: bevy::math::Vec2::ZERO,
     };
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        location,
-        Click {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            duration: std::time::Duration::from_millis(120),
-            count: 2,
-        },
+    app.world_mut().trigger(PointerClick {
         entity,
-    ));
+        pointer: Pointer::new(PointerId::Mouse, location),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        duration: std::time::Duration::from_millis(120),
+        count: 2,
+    });
 }
 
 #[test]

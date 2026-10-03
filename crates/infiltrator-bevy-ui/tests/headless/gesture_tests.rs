@@ -45,6 +45,14 @@ fn gesture_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(ShellGesturePlugin);
+    // Deterministic frame time: `TimePlugin` recomputes the generic `Time`
+    // from the real clock every frame, so a bare `Time::advance_by` in a test
+    // is overwritten and spring convergence would depend on wall-clock timing.
+    // Pinning the update strategy makes each `app.update()` advance exactly
+    // 20 ms, matching what the spring tests intend to step.
+    app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+        Duration::from_millis(20),
+    ));
     app.update();
     app
 }

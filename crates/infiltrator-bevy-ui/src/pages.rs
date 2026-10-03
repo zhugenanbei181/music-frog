@@ -97,19 +97,20 @@ pub fn placeholder_page(route: Route, palette: &UiPalette) -> impl Scene + use<>
     let subtitle = format!("{} · 0.30 迁移蓝图演进中", route.label());
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                padding: UiRect::all(Val::Px(space::S16)),
-                row_gap: Val::Px(space::S12),
-            }
-            PageRoot(route)
-            Children [
-                ( Text({ title }) TextRole(Role::Heading) ),
-                ( Text({ subtitle }) TextRole(Role::Caption) ),
-            ]
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        padding: UiRect::all(Val::Px(space::S16)),
+                        row_gap: Val::Px(space::S12),
+                    }
+                    PageRoot(route)
+                    Children [
+                        Text({ title }) TextRole(Role::Heading)
+                        --
+                        Text({ subtitle }) TextRole(Role::Caption)
+                    ]
         })],
         palette,
     )

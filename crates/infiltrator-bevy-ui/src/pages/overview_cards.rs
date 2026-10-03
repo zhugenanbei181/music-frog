@@ -7,7 +7,7 @@ use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
@@ -72,36 +72,35 @@ pub fn subscription_quota_scene_with_snapshot(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
-            }
-            template_value(AccessibilityNode(quota_a11y))
-            SubscriptionQuotaCard
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S8),
                     }
+                    AccessibilityNode(quota_a11y)
+                    SubscriptionQuotaCard
                     Children [
-                        ( { icon_scene(IconId::FileText, 16.0, palette.accent) } ),
-                        ( Text({ "订阅配额".to_owned() }) TextRole(Role::Caption) ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        flex_wrap: FlexWrap::Wrap,
-                        row_gap: Val::Px(space::S4),
-                    }
-                    Children [
-                        ( Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(Role::Heading) ),
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
+                            @{ icon_scene(IconId::FileText, 16.0, palette.accent) }
+                            --
+                            Text({ "订阅配额".to_owned() }) TextRole(Role::Caption)
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            flex_wrap: FlexWrap::Wrap,
+                            row_gap: Val::Px(space::S4),
+                        }
+                        Children [
+                            Text({ profile }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Profile) TextRole(Role::Heading)
+                            --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -109,31 +108,27 @@ pub fn subscription_quota_scene_with_snapshot(
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                                Text({ expiry }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Expiry) TextRole(Role::Caption) TextColor({ palette.accent })
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                    }
-                    Children [
-                        ( Text({ metrics }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Metrics) TextRole(Role::Caption) ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        height: px(8.0),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
-                        overflow: Overflow::clip(),
-                    }
-                    BackgroundColor({ palette.border })
-                    BorderFill
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                        }
+                        Children [
+                            Text({ metrics }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Metrics) TextRole(Role::Caption)
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            height: px(8.0),
+                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                            overflow: Overflow::clip(),
+                        }
+                        BackgroundColor({ palette.border })
+                        BorderFill
+                        Children [
                             Node {
                                 width: percent(progress_percent),
                                 height: percent(100),
@@ -142,21 +137,19 @@ pub fn subscription_quota_scene_with_snapshot(
                             BackgroundColor({ palette.accent })
                             AccentFill
                             SubscriptionQuotaProgress
-                        ),
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
+                            Text({ reset }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Reset) TextRole(Role::Caption)
+                            --
+                            Text({ status }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Status) TextRole(Role::Caption) TextColor({ status_color })
+                        ]
                     ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                    }
-                    Children [
-                        ( Text({ reset }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Reset) TextRole(Role::Caption) ),
-                        ( Text({ status }) SubscriptionQuotaText(SubscriptionQuotaTextKind::Status) TextRole(Role::Caption) TextColor({ status_color }) ),
-                    ]
-                ),
-            ]
         })],
         palette,
     )
@@ -203,32 +196,30 @@ pub fn active_exit_node_scene_with_snapshot(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
-            }
-            template_value(AccessibilityNode(a11y))
-            ActiveExitNodeCard
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S8),
                     }
+                    AccessibilityNode(a11y)
+                    ActiveExitNodeCard
                     Children [
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( { icon_scene(IconId::Globe, 16.0, palette.accent) } ),
-                                ( Text({ "当前主出口节点 (Active Exit Node)".to_owned() }) TextRole(Role::Heading) ),
+                                @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
+                                --
+                                Text({ "当前主出口节点 (Active Exit Node)".to_owned() }) TextRole(Role::Heading)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -236,53 +227,48 @@ pub fn active_exit_node_scene_with_snapshot(
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(Role::Caption) TextColor({ delay_color }) ),
+                                Text({ delay }) ActiveExitText(ActiveExitTextKind::Delay) TextRole(Role::Caption) TextColor({ delay_color })
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::all(Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                    }
-                    BackgroundColor({ palette.surface_elevated })
-                    SurfaceElevatedFill
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        SurfaceElevatedFill
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(Role::BodyStrong) ),
-                                ( Text({ name }) ActiveExitText(ActiveExitTextKind::Name) TextRole(Role::BodyStrong) ),
+                                Text({ flag }) ActiveExitText(ActiveExitTextKind::Flag) TextRole(Role::BodyStrong)
+                                --
+                                Text({ name }) ActiveExitText(ActiveExitTextKind::Name) TextRole(Role::BodyStrong)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S6),
                             }
                             Children [
-                                ( Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                                ( Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
+                                Text({ protocol }) ActiveExitText(ActiveExitTextKind::Protocol) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                --
+                                Text({ group }) ActiveExitText(ActiveExitTextKind::Group) TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
-                        ),
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                        }
+                        Children [
+                            Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                        ]
                     ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                    }
-                    Children [
-                        ( Text({ status }) ActiveExitText(ActiveExitTextKind::Status) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                    ]
-                ),
-            ]
         })],
         palette,
     )
@@ -303,23 +289,20 @@ pub fn master_switches_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(space::S12),
-            flex_wrap: FlexWrap::Wrap,
-            row_gap: Val::Px(space::S8),
-        }
-        Children [
-            (
-                { single_master_card_scene("系统代理 (System Proxy)", "接管系统 HTTP/SOCKS 端口", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(space::S12),
+                flex_wrap: FlexWrap::Wrap,
+                row_gap: Val::Px(space::S8),
+            }
+            Children [
+                @{ single_master_card_scene("系统代理 (System Proxy)", "接管系统 HTTP/SOCKS 端口", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
                 SystemProxyMasterCard
-            ),
-            (
-                { single_master_card_scene("TUN 模式 (TUN Virtual Interface)", "gVisor 虚拟网卡全量接管", IconId::Network, SystemToggle::Tun, snapshot, palette) }
+                --
+                @{ single_master_card_scene("TUN 模式 (TUN Virtual Interface)", "gVisor 虚拟网卡全量接管", IconId::Network, SystemToggle::Tun, snapshot, palette) }
                 TunMasterCard
-            ),
-        ]
+            ]
     }
 }
 
@@ -348,58 +331,53 @@ fn single_master_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                flex_grow: 1.0,
-                flex_basis: px(280.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
-            }
-            Children [
-                (
                     Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
+                        flex_grow: 1.0,
+                        flex_basis: px(280.0),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S8),
                     }
                     Children [
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( { icon_scene(icon, 16.0, palette.accent) } ),
-                                ( Text({ title.to_owned() }) TextRole(Role::BodyStrong) ),
+                                @{ icon_scene(icon, 16.0, palette.accent) }
+                                --
+                                Text({ title.to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S4),
                             }
                             Children [
-                                (
-                                    Node {
-                                        width: px(6.0),
-                                        height: px(6.0),
-                                        border_radius: BorderRadius::all(Val::Px(3.0)),
-                                    }
-                                    BackgroundColor({ dot_color })
-                                ),
-                                ( Text({ status_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Status } TextRole(Role::Caption) TextColor({ status_color }) ),
+                                Node {
+                                    width: px(6.0),
+                                    height: px(6.0),
+                                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                                }
+                                BackgroundColor({ dot_color })
+                                --
+                                Text({ status_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Status } TextRole(Role::Caption) TextColor({ status_color })
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                    }
-                    Children [
-                        ( Text({ desc.to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim }) ),
-                        (
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
+                            Text({ desc.to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -408,12 +386,10 @@ fn single_master_card_scene(
                             Button
                             BackgroundColor({ palette.accent_container })
                             Children [
-                                ( Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                                Text({ action_text }) OverviewMasterSwitchText { toggle, kind: OverviewMasterSwitchTextKind::Action } TextRole(Role::Caption) TextColor({ palette.accent })
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -453,32 +429,30 @@ pub fn mode_segmented_controller_scene_with_snapshot(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S12),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            ProxyModeSegmentCard
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S12),
                     }
+                    AccessibilityNode(header_a11y)
+                    ProxyModeSegmentCard
                     Children [
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( { icon_scene(IconId::Settings, 16.0, palette.accent) } ),
-                                ( Text({ "代理运行模式 (Proxy Mode)".to_owned() }) TextRole(Role::Heading) ),
+                                @{ icon_scene(IconId::Settings, 16.0, palette.accent) }
+                                --
+                                Text({ "代理运行模式 (Proxy Mode)".to_owned() }) TextRole(Role::Heading)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -486,27 +460,27 @@ pub fn mode_segmented_controller_scene_with_snapshot(
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ format!("{} · {}", mode_label(snapshot.current), status_str) }) TextRole(Role::Caption) TextColor({ palette.accent }) ),
+                                Text({ format!("{} · {}", mode_label(snapshot.current), status_str) }) TextRole(Role::Caption) TextColor({ palette.accent })
                             ]
-                        ),
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Row,
+                            column_gap: Val::Px(space::S8),
+                            flex_wrap: FlexWrap::Wrap,
+                            row_gap: Val::Px(space::S4),
+                        }
+                        Children [
+                            @{ single_mode_pill_scene(ProxyMode::Rule, snapshot, palette) }
+                            --
+                            @{ single_mode_pill_scene(ProxyMode::Global, snapshot, palette) }
+                            --
+                            @{ single_mode_pill_scene(ProxyMode::Direct, snapshot, palette) }
+                            --
+                            @{ single_mode_pill_scene(ProxyMode::Script, snapshot, palette) }
+                        ]
                     ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        flex_direction: FlexDirection::Row,
-                        column_gap: Val::Px(space::S8),
-                        flex_wrap: FlexWrap::Wrap,
-                        row_gap: Val::Px(space::S4),
-                    }
-                    Children [
-                        ( { single_mode_pill_scene(ProxyMode::Rule, snapshot, palette) } ),
-                        ( { single_mode_pill_scene(ProxyMode::Global, snapshot, palette) } ),
-                        ( { single_mode_pill_scene(ProxyMode::Direct, snapshot, palette) } ),
-                        ( { single_mode_pill_scene(ProxyMode::Script, snapshot, palette) } ),
-                    ]
-                ),
-            ]
         })],
         palette,
     )
@@ -536,15 +510,15 @@ fn single_mode_pill_scene(
     let label = mode_label(mode).to_owned();
 
     bsn! {
-        Node {
-            padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S6)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        OverviewModeSegmentPill(mode)
-        Button
-        BackgroundColor({ bg })
-        Children [
-            ( Text({ label }) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink }) )
-        ]
+            Node {
+                padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S6)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            OverviewModeSegmentPill(mode)
+            Button
+            BackgroundColor({ bg })
+            Children [
+                Text({ label }) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink })
+            ]
     }
 }

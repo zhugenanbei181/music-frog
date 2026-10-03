@@ -153,31 +153,32 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text({ "上游加密 DNS 配置与回退策略 (DUAL-14-04/05)".to_owned() })
-                        TextRole(Role::BodyStrong)
-                    ),
-                    ( Text({ "DoH / DoT / DoQ · fallback-filter".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "上游加密 DNS 配置与回退策略 (DUAL-14-04/05)".to_owned() })
+                                TextRole(Role::BodyStrong)
+                                --
+                                Text({ "DoH / DoT / DoQ · fallback-filter".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { rows },
-                    ( { geoip_toggle_row(projection, geoip_details, palette) } ),
-                    ( { edit_apply_row(palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { rows }
+                                --
+                                @{ geoip_toggle_row(projection, geoip_details, palette) }
+                                --
+                                @{ edit_apply_row(palette) }
+                            ]
             }),
         ],
         palette,
@@ -199,28 +200,28 @@ fn edit_field_row(
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            ( Text(label) TextRole(Role::Caption) ),
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                Text(label) TextRole(Role::Caption)
+                --
                 Node { width: percent(100) }
                 DnsEditField(field)
                 Children [
-                    ( { text_field_with_placeholder_scene(value, placeholder.to_owned(), palette) } ),
+                    @{ text_field_with_placeholder_scene(value, placeholder.to_owned(), palette) }
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S4),
                 }
-                Children [ { chips } ]
-            ),
-        ]
+                Children [
+                    { chips }
+                ]
+            ]
     }
 }
 
@@ -246,17 +247,17 @@ fn template_chip(
     let label = format!("+ {server}");
 
     bsn! {
-        Node {
-            padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ bg })
-        DnsEditTemplate { field, server }
-        Button
-        Children [
-            ( Text(label) TextRole(Role::Caption) TextColor({ ink }) ),
-        ]
+            Node {
+                padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ bg })
+            DnsEditTemplate { field, server }
+            Button
+            Children [
+                Text(label) TextRole(Role::Caption) TextColor({ ink })
+            ]
     }
 }
 
@@ -290,85 +291,78 @@ fn geoip_toggle_row(
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    ( Text({ "GEOIP 触发回退 (fallback_filter.geoip)".to_owned() }) TextRole(Role::Body) ),
-                    ( Text(details) TextRole(Role::Caption) ),
+                    Text({ "GEOIP 触发回退 (fallback_filter.geoip)".to_owned() }) TextRole(Role::Body)
+                    --
+                    Text(details) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color }) ),
-                    (
+                    Text(status) DnsEditGeoipStatus TextRole(Role::Caption) TextColor({ status_color })
+                    --
+                    Node {
+                        width: px(38.0),
+                        height: px(22.0),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                        position_type: PositionType::Relative,
+                        align_items: AlignItems::Center,
+                    }
+                    BackgroundColor({ track })
+                    BorderColor {
+                        top: edge,
+                        right: edge,
+                        bottom: edge,
+                        left: edge,
+                    }
+                    DnsEditGeoipToggle(enabled)
+                    Button
+                    Children [
                         Node {
-                            width: px(38.0),
-                            height: px(22.0),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(11.0)),
-                            position_type: PositionType::Relative,
-                            align_items: AlignItems::Center,
+                            position_type: PositionType::Absolute,
+                            left: { knob_left },
+                            width: px(16.0),
+                            height: px(16.0),
+                            border_radius: BorderRadius::all(Val::Px(8.0)),
                         }
-                        BackgroundColor({ track })
-                        BorderColor {
-                            top: edge,
-                            right: edge,
-                            bottom: edge,
-                            left: edge,
-                        }
-                        DnsEditGeoipToggle(enabled)
-                        Button
-                        Children [
-                            (
-                                Node {
-                                    position_type: PositionType::Absolute,
-                                    left: { knob_left },
-                                    width: px(16.0),
-                                    height: px(16.0),
-                                    border_radius: BorderRadius::all(Val::Px(8.0)),
-                                }
-                                BackgroundColor({ knob })
-                            ),
-                        ]
-                    ),
+                        BackgroundColor({ knob })
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 
 fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::top(Val::Px(space::S8)),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::top(Val::Px(space::S8)),
+            }
+            Children [
                 Text({ "本地校验通过后提交共享 ApplyDnsSettings 补丁".to_owned() })
                 DnsEditStatusLine
                 TextRole(Role::Caption)
                 TextColor({ palette.ink_dim })
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -380,10 +374,9 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 DnsEditApplyButton
                 Button
                 Children [
-                    ( Text({ "应用 DNS 表单 (Apply)".to_owned() }) TextRole(Role::BodyStrong) ),
+                    Text({ "应用 DNS 表单 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     }
 }
 

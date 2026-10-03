@@ -1,6 +1,6 @@
 //! Bevy host wiring for the real OS IME path (DUAL-15-11).
 //!
-//! Bevy 0.19 exposes the whole path: `Window::ime_enabled` reaches
+//! Bevy 0.20 exposes the whole path: `Window::ime_enabled` reaches
 //! `winit::Window::set_ime_allowed`, `Window::ime_position` reaches
 //! `set_ime_cursor_area` (logical pixels), and `bevy::window::Ime` carries the
 //! composition events. Nothing consumed any of it, so this module owns the

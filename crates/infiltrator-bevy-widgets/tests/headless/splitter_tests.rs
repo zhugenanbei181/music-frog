@@ -51,8 +51,12 @@ fn splitter_scene_spawns_and_drag_event_updates_basis() {
     app.add_systems(
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
-            let left = Box::new(bsn! { ( Text({ "Left Pane".to_owned() }) ) });
-            let right = Box::new(bsn! { ( Text({ "Right Pane".to_owned() }) ) });
+            let left = Box::new(bsn! {
+                            Text({ "Left Pane".to_owned() })
+            });
+            let right = Box::new(bsn! {
+                            Text({ "Right Pane".to_owned() })
+            });
             commands.spawn_scene(splitter_scene(
                 SplitterDirection::Horizontal,
                 0.4,

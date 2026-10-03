@@ -21,7 +21,7 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
     UiRect, Val, percent, px,
@@ -281,39 +281,38 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             let label = pane.label_zh();
             let pane = *pane;
             Box::new(bsn! {
-                Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                BackgroundColor({ background })
-                Button
-                template_value(ProfileEditorPaneButton { pane })
-                Children [
-                    ( Text({ label.to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                min_height: px(24.0),
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ background })
+                            Button
+                            ProfileEditorPaneButton { pane }
+                            Children [
+                                Text({ label.to_owned() }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
     let note_color = palette.ink_dim;
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: Val::Px(space::S4),
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            { buttons },
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(space::S4),
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                { buttons }
+                --
                 Text({ "脚本控制台由共享读模型驱动：Iced 经 ScriptApplication 运行并发布 SurfaceSnapshot.script_sandbox，Bevy 控制台渲染同一投影（指令 DSL，非 JavaScript 引擎）".to_owned() })
                 TextRole(Role::Caption)
                 bevy::text::TextColor({ note_color })
-            ),
-        ]
+            ]
     })
 }
 
@@ -333,25 +332,23 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
         "语法通过"
     };
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S8),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            Children [
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Column,
                 }
                 MixinStudioBody
-            ),
-            (
+                --
                 Text({ "Mixin 覆盖：保存先剥离上一版注入的规则行，再经共享保真引擎合并并应用".to_owned() })
                 TextRole(Role::Caption)
-            ),
-            ( Text(status) MixinEditorStatusText TextRole(Role::Caption) ),
-            (
+                --
+                Text(status) MixinEditorStatusText TextRole(Role::Caption)
+                --
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -360,22 +357,22 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    (
-                        Node {
-                            padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ error_color })
-                        Children [
-                            ( Text({ pill_label.to_owned() }) MixinEditorDiagnosticPill TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( Text(diagnostic_text) MixinEditorDiagnosticText TextRole(Role::Mono) ),
-                    ( { mixin_actions_scene(palette) } ),
+                    Node {
+                        padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                    }
+                    BackgroundColor({ error_color })
+                    Children [
+                        Text({ pill_label.to_owned() }) MixinEditorDiagnosticPill TextRole(Role::Caption)
+                    ]
+                    --
+                    Text(diagnostic_text) MixinEditorDiagnosticText TextRole(Role::Mono)
+                    --
+                    @{ mixin_actions_scene(palette) }
                 ]
-            ),
-            ( { mixin_snippet_bar(palette) } ),
-        ]
+                --
+                @{ mixin_snippet_bar(palette) }
+            ]
     })
 }
 
@@ -383,12 +380,11 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     let accent = palette.accent;
     Box::new(bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S4),
-        }
-        Children [
-            (
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S4),
+            }
+            Children [
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -400,10 +396,9 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 Button
                 MixinEditorFocusButton
                 Children [
-                    ( Text({ "编辑 Mixin（键盘）".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "编辑 Mixin（键盘）".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -415,10 +410,9 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 Button
                 MixinEditorReloadButton
                 Children [
-                    ( Text({ "重新加载 Mixin".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "重新加载 Mixin".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -430,10 +424,9 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 Button
                 MixinEditorSaveButton
                 Children [
-                    ( Text({ "保存 Mixin（共享用例）".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "保存 Mixin（共享用例）".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -445,34 +438,35 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
             let label = snippet.label_zh.to_owned();
             let background = palette.surface_elevated;
             Box::new(bsn! {
-                Node {
-                    min_height: px(20.0),
-                    padding: UiRect::horizontal(Val::Px(space::S6)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                BackgroundColor({ background })
-                Button
-                template_value(MixinEditorSnippetButton { index })
-                Children [
-                    ( Text({ label }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                min_height: px(20.0),
+                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ background })
+                            Button
+                            MixinEditorSnippetButton { index }
+                            Children [
+                                Text({ label }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: Val::Px(space::S4),
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            ( Text({ "插入共享片段".to_owned() }) TextRole(Role::Caption) ),
-            { buttons },
-        ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(space::S4),
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                Text({ "插入共享片段".to_owned() }) TextRole(Role::Caption)
+                --
+                { buttons }
+            ]
     })
 }
 
@@ -493,37 +487,36 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 palette.surface_elevated
             };
             Box::new(bsn! {
-                Node {
-                    min_height: px(24.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                BackgroundColor({ background })
-                Button
-                template_value(EditorFilterDedupButton { index })
-                Children [
-                    ( Text({ label.to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                min_height: px(24.0),
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ background })
+                            Button
+                            EditorFilterDedupButton { index }
+                            Children [
+                                Text({ label.to_owned() }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
     let status = filter_status_line(state);
     let accent = palette.accent;
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S8),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            Children [
                 Text({ "订阅过滤：保存即用共享管道重跑当前配置，并持久化同一 draft".to_owned() })
                 TextRole(Role::Caption)
-            ),
-            { fields },
-            (
+                --
+                { fields }
+                --
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -532,11 +525,11 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "重复节点去重".to_owned() }) TextRole(Role::Caption) ),
-                    { chips },
+                    Text({ "重复节点去重".to_owned() }) TextRole(Role::Caption)
+                    --
+                    { chips }
                 ]
-            ),
-            (
+                --
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -544,25 +537,23 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(status) EditorFilterStatusText TextRole(Role::Caption) ),
-                    (
-                        Node {
-                            min_height: px(26.0),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ accent })
-                        Button
-                        EditorFilterSaveButton
-                        Children [
-                            ( Text({ "应用过滤（共享管道）".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
+                    Text(status) EditorFilterStatusText TextRole(Role::Caption)
+                    --
+                    Node {
+                        min_height: px(26.0),
+                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                    }
+                    BackgroundColor({ accent })
+                    Button
+                    EditorFilterSaveButton
+                    Children [
+                        Text({ "应用过滤（共享管道）".to_owned() }) TextRole(Role::Body)
+                    ]
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -574,14 +565,14 @@ fn filter_field_scene(
     let initial = value.to_owned();
     let placeholder = kind.placeholder_zh().to_owned();
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
-        Button
-        template_value(EditorFilterField { kind: Some(kind) })
-        Children [
-            ( { text_field_with_placeholder_scene(initial, placeholder, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+            }
+            Button
+            EditorFilterField { kind: { Some(kind) } }
+            Children [
+                @{ text_field_with_placeholder_scene(initial, placeholder, palette) }
+            ]
     })
 }
 

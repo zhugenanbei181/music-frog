@@ -18,7 +18,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -228,22 +228,23 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Doctor)
-        DoctorPageRoot
-        Children [
-            ( { header_card_scene(summary, last_run_str, watchdog_str, palette) } ),
-            ( { checks_container_scene(check_scenes, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Doctor)
+            DoctorPageRoot
+            Children [
+                @{ header_card_scene(summary, last_run_str, watchdog_str, palette) }
+                --
+                @{ checks_container_scene(check_scenes, palette) }
+            ]
     }
 }
 
@@ -258,41 +259,39 @@ fn header_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::Activity, 36.0, palette) } ),
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::Activity, 36.0, palette) }
+                            --
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                ( Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption) ),
-                                ( Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption) ),
+                                Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading)
+                                --
+                                Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption)
+                                --
+                                Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption)
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -304,10 +303,9 @@ fn header_card_scene(
                             RunDoctorDiagnosticsButton
                             Button
                             Children [
-                                ( Text({ "立即诊断".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "立即诊断".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -319,12 +317,10 @@ fn header_card_scene(
                             RepairAllDoctorButton
                             Button
                             Children [
-                                ( Text({ "一键修复".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "一键修复".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -356,26 +352,27 @@ fn checks_container_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "诊断检查清单 (Diagnostic Suite)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "涵盖网络栈、系统代理、端口、DNS 与权限".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "诊断检查清单 (Diagnostic Suite)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "涵盖网络栈、系统代理、端口、DNS 与权限".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { check_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { check_scenes }
+                            ]
             }),
         ],
         palette,
@@ -389,32 +386,30 @@ fn check_row_scene(idx: usize, check: &DoctorCheckItem, palette: &UiPalette) -> 
     let state_col = check_state_color(check.state, palette);
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(name) TextRole(Role::BodyStrong) ),
-                    ( Text(detail) CheckDetailText(idx) TextRole(Role::Caption) ),
+                    Text(name) TextRole(Role::BodyStrong)
+                    --
+                    Text(detail) CheckDetailText(idx) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Text(state_str)
                 CheckStateText(idx)
                 TextRole(Role::BodyStrong)
                 TextColor(state_col)
-            ),
-        ]
+            ]
     }
 }
 

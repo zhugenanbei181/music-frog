@@ -78,11 +78,11 @@ $ grep -n -A4 'name = "wasm-bindgen"' Cargo.lock
 
 ```console
 $ rustc --version
-rustc 1.98.1 (48a229cea 2026-09-01)
+rustc 1.99.0 (b940084d7 2026-09-28)
 
 $ cat rust-toolchain.toml
 [toolchain]
-channel = "stable"
+channel = "1.99.0"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
 targets = [
@@ -93,7 +93,7 @@ $ grep -rn 'no_std' crates/*/src/lib.rs
 （无输出：全工作区是 std）
 ```
 
-即：MSRV 需 ≤ 1.98.1；实际参与交叉编译的是 Android（`aarch64-linux-android`、
+即：MSRV 需 ≤ 1.99.0；实际参与交叉编译的是 Android（`aarch64-linux-android`、
 `x86_64-linux-android`，见 `.github/workflows/release.yml:211` 与
 `.cargo/config.toml` 的 `aarch64-linux-android21-clang`）。当前工具链与 CI **没有 iOS 目标**。
 
@@ -187,7 +187,7 @@ total 77    # 含 dev；required kind=normal 的主要为 boa_*、regress、icu_
 | 约束（本仓库事实） | `rquickjs` 0.14.0 | `boa_engine` 0.22.0 |
 | :--- | :--- | :--- |
 | 许可证准入（`THIRD-PARTY-NOTICES.md` + `license-guard.py` 白名单） | MIT ✅ | Unlicense OR MIT ✅ |
-| MSRV（实测 rustc 1.98.1） | 1.87 ✅ | 1.91.0 ✅ |
+| MSRV（实测 rustc 1.99.0） | 1.87 ✅ | 1.91.0 ✅ |
 | std / no_std（全工作区 std） | 默认 `std`，支持 alloc/no_std ✅ | std 形态 ✅ |
 | 静态链接 | QuickJS C 源码随 crate 静态编译 ✅ | 纯 Rust 静态链接 ✅ |
 | Android 交叉编译 | 需目标 C 编译器（NDK clang 已配；`cc` 已在锁文件）⚠️ 需验证 | 纯 Rust，无额外工具链 ✅ |

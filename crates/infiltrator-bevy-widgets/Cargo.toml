@@ -8,7 +8,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 # Business-agnostic by law (docs/BEVY_UI_FRONTEND.md): this crate depends on
 # locked bevy only — never on infiltrator-core / mihomo-*. It is the future
 # extraction candidate shared with taskmanager's bevy frontend, which is why
-# bevy is pinned to the exact same patch (`=0.19.1`) so both resolve one ABI.
+# bevy is pinned to the exact same patch (`=0.20.0-rc.2`) so both resolve one ABI.
 
 # Base `bevy` declaration with an EMPTY feature set. The per-target tables
 # below own the real feature closure; this entry exists because bevy's derive
@@ -20,7 +20,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 bevy = { workspace = true }
 unicode-segmentation = { workspace = true }
 
-# Feature closure (minimal for a bevy_ui surface), locked `=0.19.1`:
+# Feature closure (minimal for a bevy_ui surface), locked `=0.20.0-rc.2`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and
 #   bevy_sprite; nothing 3D).
 # - bevy_ui_widgets: the official unstyled widget package (button / checkbox /
@@ -29,7 +29,7 @@ unicode-segmentation = { workspace = true }
 # - bevy_scene: the `bsn!` (Bevy Scene Notation) macro and the `Scene` /
 #   `CommandsSceneExt` spawn seam. Charter law: static structure composes
 #   declaratively with `bsn!`; no imperative `Node`/`Children` trees.
-# - bevy_ui_render: bevy 0.19 splits ui layout from ui rendering, so
+# - bevy_ui_render: bevy 0.20 splits ui layout from ui rendering, so
 #   `bevy_ui` alone lays nodes out without ever painting them.
 # - bevy_core_pipeline / bevy_render: the render-graph host the ui render
 #   node plugs into.
@@ -39,7 +39,7 @@ unicode-segmentation = { workspace = true }
 #   the host's render stack registers.
 # - bevy_winit: the window/event-loop host; no raw winit use of our own.
 # - bevy_text: font shaping through cosmic-text, chosen explicitly.
-# - ui_picking: the picking/message infrastructure the 0.19 widget observers
+# - ui_picking: the picking/message infrastructure the 0.20 widget observers
 #   require (pointer release / IME queues).
 # - wayland (Linux only): winit backend selection. The X11 sessions stay
 #   carried by the iced frontend; revisit when bevy becomes the only surface.
@@ -70,7 +70,7 @@ bevy = { workspace = true, features = [
 # Android (the reason this frontend exists), BEVY-006 front half: same UI
 # closure as desktop, minus `wayland` (winit backend selection is a desktop
 # compositor concern), plus `android-native-activity` — the one feature bevy
-# 0.19.1 offers to satisfy android-activity's hard requirement.
+# 0.20.0-rc.2 offers to satisfy android-activity's hard requirement.
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",

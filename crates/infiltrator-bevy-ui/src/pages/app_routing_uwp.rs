@@ -73,13 +73,13 @@ pub fn uwp_exemption_scene(
         .collect();
     let app_rows = if app_rows.is_empty() {
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                padding: UiRect::vertical(Val::Px(space::S4)),
-            }
-            Children [
-                ( Text({ empty_packages_text(&projection.uwp_loopback) }) TextRole(Role::Caption) ),
-            ]
+                    Node {
+                        width: percent(100),
+                        padding: UiRect::vertical(Val::Px(space::S4)),
+                    }
+                    Children [
+                        Text({ empty_packages_text(&projection.uwp_loopback) }) TextRole(Role::Caption)
+                    ]
         }) as Box<dyn Scene>]
     } else {
         app_rows
@@ -89,70 +89,69 @@ pub fn uwp_exemption_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                UwpExemptionRoot
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            UwpExemptionRoot
+                            Children [
                                 Node {
+                                    width: percent(100),
                                     align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
+                                    justify_content: JustifyContent::SpaceBetween,
                                 }
                                 Children [
-                                    ( { icon_tile_scene(IconId::Settings, 24.0, palette) } ),
-                                    ( Text({ "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    Node {
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(space::S8),
+                                    }
+                                    Children [
+                                        @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
+                                        --
+                                        Text({ "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                    --
+                                    Node {
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(space::S4),
+                                    }
+                                    Children [
+                                        @{ action_button("扫描", UwpAction::Scan, palette) }
+                                        --
+                                        @{ action_button("一键豁免全部 UWP 应用", UwpAction::ExemptAll, palette) }
+                                        --
+                                        @{ action_button("清除全部 UWP 豁免", UwpAction::ClearAll, palette) }
+                                    ]
                                 ]
-                            ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S4),
-                                }
-                                Children [
-                                    ( { action_button("扫描", UwpAction::Scan, palette) } ),
-                                    ( { action_button("一键豁免全部 UWP 应用", UwpAction::ExemptAll, palette) } ),
-                                    ( { action_button("清除全部 UWP 豁免", UwpAction::ClearAll, palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    ( Text(status) UwpStatusLine TextRole(Role::Caption) ),
-                ]
+                                --
+                                Text(status) UwpStatusLine TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.window_clear })
-                Children [
-                    { app_rows },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            Children [
+                                { app_rows }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::top(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ "仅 Windows AppContainer 需要解除回环隔离；其他宿主保持 typed unsupported".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::top(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ "仅 Windows AppContainer 需要解除回环隔离；其他宿主保持 typed unsupported".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
         ],
         palette,
@@ -161,19 +160,19 @@ pub fn uwp_exemption_scene(
 
 fn action_button(label: &str, action: UwpAction, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.accent })
-        UwpActionButton(action)
-        Button
-        Children [
-            ( Text({ label.to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.accent })
+            UwpActionButton(action)
+            Button
+            Children [
+                Text({ label.to_owned() }) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -193,30 +192,29 @@ fn package_row_scene(
         palette.ink_dim
     };
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::vertical(Val::Px(space::S4)),
-        }
-        ToggleUwpButton {
-            sid: { package.sid.clone() },
-            exempt: { package.loopback_exempt },
-        }
-        Button
-        Children [
-            ( Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(Role::Caption) ),
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::vertical(Val::Px(space::S4)),
+            }
+            ToggleUwpButton {
+                sid: { package.sid.clone() },
+                exempt: { package.loopback_exempt },
+            }
+            Button
+            Children [
+                Text({ package.display_name.clone() }) UwpPackageName(index) TextRole(Role::Caption)
+                --
                 Node {
                     padding: UiRect::axes(Val::Px(space::S6), Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ color })
                 Children [
-                    ( Text({ state.to_owned() }) UwpPackageState(index) TextColor({ palette.on_accent }) TextRole(Role::Caption) ),
+                    Text({ state.to_owned() }) UwpPackageState(index) TextColor({ palette.on_accent }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 

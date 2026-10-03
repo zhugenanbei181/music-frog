@@ -11,7 +11,7 @@ use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
+use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, FlexWrap, Node, UiRect,
     Val, percent, px,
@@ -85,17 +85,17 @@ pub fn mixin_studio_scene(
             };
             let label = toggle.label_zh.to_owned();
             Box::new(bsn! {
-                Node {
-                    min_height: px(22.0),
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    align_items: AlignItems::Center,
-                }
-                BackgroundColor({ background })
-                Button
-                template_value(MixinToggleButton { index })
-                Children [
-                    ( Text({ label }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                min_height: px(22.0),
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                align_items: AlignItems::Center,
+                            }
+                            BackgroundColor({ background })
+                            Button
+                            MixinToggleButton { index }
+                            Children [
+                                Text({ label }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
@@ -104,13 +104,12 @@ pub fn mixin_studio_scene(
     let columns = three_column_scene(&mixin_text, base_content, palette);
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -119,20 +118,18 @@ pub fn mixin_studio_scene(
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    (
-                        Node {
-                            padding: UiRect::new(Val::Px(4.0), Val::Px(4.0), Val::Px(1.0), Val::Px(1.0)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ preflight_pill.1 })
-                        Children [
-                            ( Text({ preflight_pill.0.to_owned() }) MixinPreflightText TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( Text(preflight_detail) TextRole(Role::Mono) ),
+                    Node {
+                        padding: UiRect::new(Val::Px(4.0), Val::Px(4.0), Val::Px(1.0), Val::Px(1.0)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                    }
+                    BackgroundColor({ preflight_pill.1 })
+                    Children [
+                        Text({ preflight_pill.0.to_owned() }) MixinPreflightText TextRole(Role::Caption)
+                    ]
+                    --
+                    Text(preflight_detail) TextRole(Role::Mono)
                 ]
-            ),
-            (
+                --
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -141,13 +138,15 @@ pub fn mixin_studio_scene(
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "常用覆写开关".to_owned() }) TextRole(Role::Caption) ),
-                    { toggle_buttons },
+                    Text({ "常用覆写开关".to_owned() }) TextRole(Role::Caption)
+                    --
+                    { toggle_buttons }
                 ]
-            ),
-            ( Text(cascade_text) MixinCascadeText TextRole(Role::Mono) ),
-            { vec![columns] },
-        ]
+                --
+                Text(cascade_text) MixinCascadeText TextRole(Role::Mono)
+                --
+                { vec![columns] }
+            ]
     })
 }
 
@@ -175,14 +174,13 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
     let box_background = palette.window_clear;
     let border = palette.border;
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(space::S8),
-            align_items: AlignItems::Start,
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(space::S8),
+                align_items: AlignItems::Start,
+            }
+            Children [
                 Node {
                     flex_grow: 1.0,
                     flex_basis: Val::Px(0.0),
@@ -190,25 +188,23 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    ( Text({ base_caption }) TextRole(Role::Caption) ),
-                    (
-                        Node {
-                            width: percent(100),
-                            max_height: px(220.0),
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            overflow: bevy::ui::prelude::Overflow::scroll_y(),
-                        }
-                        BackgroundColor({ box_background })
-                        BorderColor { top: border, right: border, bottom: border, left: border }
-                        Children [
-                            ( Text(base_text) TextRole(Role::Mono) ),
-                        ]
-                    ),
+                    Text({ base_caption }) TextRole(Role::Caption)
+                    --
+                    Node {
+                        width: percent(100),
+                        max_height: px(220.0),
+                        padding: UiRect::all(Val::Px(space::S8)),
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                    }
+                    BackgroundColor({ box_background })
+                    BorderColor { top: border, right: border, bottom: border, left: border }
+                    Children [
+                        Text(base_text) TextRole(Role::Mono)
+                    ]
                 ]
-            ),
-            (
+                --
                 Node {
                     flex_grow: 1.0,
                     flex_basis: Val::Px(0.0),
@@ -216,29 +212,25 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    ( Text({ overlay_caption }) TextRole(Role::Caption) ),
-                    (
+                    Text({ overlay_caption }) TextRole(Role::Caption)
+                    --
+                    Node {
+                        width: percent(100),
+                        max_height: px(220.0),
+                        padding: UiRect::all(Val::Px(space::S8)),
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                    }
+                    BackgroundColor({ box_background })
+                    Children [
                         Node {
                             width: percent(100),
-                            max_height: px(220.0),
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                            flex_direction: FlexDirection::Column,
                         }
-                        BackgroundColor({ box_background })
-                        Children [
-                            (
-                                Node {
-                                    width: percent(100),
-                                    flex_direction: FlexDirection::Column,
-                                }
-                                MixinEditorBody
-                            ),
-                        ]
-                    ),
+                        MixinEditorBody
+                    ]
                 ]
-            ),
-            (
+                --
                 Node {
                     flex_grow: 1.0,
                     flex_basis: Val::Px(0.0),
@@ -246,35 +238,32 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    ( Text({ composed_caption }) TextRole(Role::Caption) ),
-                    (
+                    Text({ composed_caption }) TextRole(Role::Caption)
+                    --
+                    Node {
+                        width: percent(100),
+                        max_height: px(220.0),
+                        padding: UiRect::all(Val::Px(space::S8)),
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                    }
+                    BackgroundColor({ box_background })
+                    BorderColor { top: border, right: border, bottom: border, left: border }
+                    Children [
                         Node {
                             width: percent(100),
-                            max_height: px(220.0),
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(space::S2),
                         }
-                        BackgroundColor({ box_background })
-                        BorderColor { top: border, right: border, bottom: border, left: border }
                         Children [
-                            (
-                                Node {
-                                    width: percent(100),
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S2),
-                                }
-                                Children [
-                                    ( Text(composed_text) TextRole(Role::Mono) MixinComposedText ),
-                                    ( Text(composed_note) TextRole(Role::Mono) MixinComposedErrorText bevy::text::TextColor({ composed_color }) ),
-                                ]
-                            ),
+                            Text(composed_text) TextRole(Role::Mono) MixinComposedText
+                            --
+                            Text(composed_note) TextRole(Role::Mono) MixinComposedErrorText bevy::text::TextColor({ composed_color })
                         ]
-                    ),
+                    ]
                 ]
-            ),
-        ]
+            ]
     })
 }
 

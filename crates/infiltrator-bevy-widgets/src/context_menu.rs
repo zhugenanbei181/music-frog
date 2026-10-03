@@ -147,36 +147,34 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                 .map(|ic| Box::new(icon_tile_scene(ic, 16.0, palette)) as Box<dyn Scene>);
 
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    height: px(32.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::FlexStart,
-                    padding: UiRect::horizontal(Val::Px(space::S8)),
-                    column_gap: Val::Px(space::S8),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                Button
-                Children [
-                    { icon_node.into_iter().collect::<Vec<_>>() },
-                    (
-                        Text({ label })
-                        TextRole(Role::Body)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                height: px(32.0),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::FlexStart,
+                                padding: UiRect::horizontal(Val::Px(space::S8)),
+                                column_gap: Val::Px(space::S8),
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            Button
+                            Children [
+                                { icon_node.into_iter().collect::<Vec<_>>() }
+                                --
+                                Text({ label })
+                                TextRole(Role::Body)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-        }
-        ContextMenuRoot
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+            }
+            ContextMenuRoot
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: px(pos_x),
@@ -192,10 +190,9 @@ pub fn context_menu_scene(palette: &UiPalette, state: &ContextMenuState) -> Box<
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ContextMenuCard
                 Children [
-                    { item_scenes },
+                    { item_scenes }
                 ]
-            ),
-        ]
+            ]
     })
 }
 

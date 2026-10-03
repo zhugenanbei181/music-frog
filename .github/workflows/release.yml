@@ -44,44 +44,55 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary_name: infiltrator-iced.exe
+            bevy_binary_name: infiltrator-bevy-ui.exe
             pkg_format: nsis
             artifact_name: Infiltrator-Windows-x86_64
+            bevy_artifact_name: Infiltrator-Bevy-Windows-x86_64
           # Windows ARM64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             binary_name: infiltrator-iced.exe
+            bevy_binary_name: infiltrator-bevy-ui.exe
             pkg_format: zip
             artifact_name: Infiltrator-Windows-aarch64
+            bevy_artifact_name: Infiltrator-Bevy-Windows-aarch64
           # macOS Apple Silicon (arm64)
           - os: macos-latest
             target: aarch64-apple-darwin
             binary_name: infiltrator-iced
+            bevy_binary_name: infiltrator-bevy-ui
             pkg_format: dmg
             artifact_name: Infiltrator-macOS-arm64
+            bevy_artifact_name: Infiltrator-Bevy-macOS-arm64
           # macOS Intel (x86_64)
           - os: macos-13
             target: x86_64-apple-darwin
             binary_name: infiltrator-iced
+            bevy_binary_name: infiltrator-bevy-ui
             pkg_format: dmg
             artifact_name: Infiltrator-macOS-x86_64
+            bevy_artifact_name: Infiltrator-Bevy-macOS-x86_64
           # Linux x64 —— cargo-zigbuild 把 glibc 下限定桩在 2.17（CentOS 7 /
           # Debian 9 级别），产物兼容性不随构建机系统漂移，runner 始终跟最新
           # LTS；OpenSSL 经 static-openssl feature 静态内联，产物不依赖用户机
-          # libssl（deb control 的 Depends 已同步）。
+          # libssl（deb control 的 Depends 已同步）。iced 与 bevy 共用同一
+          # runner/cache，各自出独立安装包（一碗水端平）。
           - os: ubuntu-26.04
             target: x86_64-unknown-linux-gnu
             zig_target: x86_64-unknown-linux-gnu.2.17
             tool: zigbuild
             binary_name: infiltrator-iced
+            bevy_binary_name: infiltrator-bevy-ui
             pkg_format: linux-all
             artifact_name: Infiltrator-Linux-x86_64
+            bevy_artifact_name: Infiltrator-Bevy-Linux-x86_64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: ${{ matrix.target }}
 
@@ -138,6 +149,20 @@ jobs:
         if: matrix.tool != 'zigbuild'
         run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-iced
 
+      # -----------------------------------------------------------------------
+      # Bevy unified surface: identical platform matrix, its own binary and
+      # its own equal package set. Shares this leg's toolchain/cache.
+      # -----------------------------------------------------------------------
+      - name: Build Bevy Release Binary (zig-pinned glibc floor)
+        if: matrix.tool == 'zigbuild'
+        run: >
+          cargo zigbuild --release --target ${{ matrix.zig_target }}
+          -p infiltrator-bevy-ui --bin infiltrator-bevy-ui
+
+      - name: Build Bevy Release Binary
+        if: matrix.tool != 'zigbuild'
+        run: cargo build --release --target ${{ matrix.target }} --bin infiltrator-bevy-ui
+
       - name: Package Windows Artifacts (NSIS & ZIP)
         if: runner.os == 'Windows'
         shell: bash
@@ -157,6 +182,29 @@ jobs:
               -DOUTFILE="dist/Infiltrator-Setup-x86_64.exe" \
               -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
             test -s "dist/Infiltrator-Setup-x86_64.exe"
+          fi
+
+          find dist -maxdepth 1 -type f -size +0c -print
+
+      - name: Package Bevy Windows Artifacts (NSIS & ZIP)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui.exe"
+          test -s "$BIN_PATH"
+
+          ZIP_NAME="${{ matrix.bevy_artifact_name }}.zip"
+          7z a -tzip "dist/${ZIP_NAME}" "$BIN_PATH"
+          test -s "dist/${ZIP_NAME}"
+
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
+            command -v makensis >/dev/null 2>&1
+            makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
+              -DOUTFILE="dist/Infiltrator-Bevy-Setup-x86_64.exe" \
+              -DBINARY_PATH="${BIN_PATH}" packaging/windows/nsis/infiltrator-bevy.nsi
+            test -s "dist/Infiltrator-Bevy-Setup-x86_64.exe"
           fi
 
           find dist -maxdepth 1 -type f -size +0c -print
@@ -181,6 +229,30 @@ jobs:
           bash packaging/macos/create-dmg.sh "dist/${{ matrix.artifact_name }}.dmg" "$APP_DIR"
           test -s "dist/${{ matrix.artifact_name }}.dmg"
 
+      - name: Package Bevy macOS Artifacts (DMG & Tarball)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui"
+          test -s "$BIN_PATH"
+          chmod +x "$BIN_PATH"
+
+          APP_DIR="dist/InfiltratorBevy.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/infiltrator-bevy-ui"
+          sed -e 's/infiltrator-iced/infiltrator-bevy-ui/' \
+              -e 's/app\.musicfrog\.infiltrator/app.musicfrog.infiltrator.bevy/' \
+              -e 's#<string>Infiltrator</string>#<string>Infiltrator Bevy</string>#g' \
+              packaging/macos/Info.plist > "$APP_DIR/Contents/Info.plist"
+
+          tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" -C dist InfiltratorBevy.app
+          test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
+          VOL_NAME="Infiltrator Bevy" bash packaging/macos/create-dmg.sh \
+            "dist/${{ matrix.bevy_artifact_name }}.dmg" "$APP_DIR"
+          test -s "dist/${{ matrix.bevy_artifact_name }}.dmg"
+
       - name: Package Linux Artifacts (AppImage, Deb & Tarball)
         if: runner.os == 'Linux'
         shell: bash
@@ -202,6 +274,39 @@ jobs:
           bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH" \
             "dist/Infiltrator-Linux-x86_64.AppImage"
           test -s "dist/Infiltrator-Linux-x86_64.AppImage"
+
+          find dist -maxdepth 1 -type f -size +0c -print
+
+      - name: Package Bevy Linux Artifacts (AppImage, Deb & Tarball)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui"
+          test -s "$BIN_PATH"
+          chmod +x "$BIN_PATH"
+
+          tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" infiltrator-bevy-ui
+          test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
+
+          APP_BIN=infiltrator-bevy-ui \
+          APP_PKG=infiltrator-bevy \
+          APP_DISPLAY_NAME="Infiltrator Bevy" \
+          APP_DESKTOP=packaging/linux/appimage/infiltrator-bevy.desktop \
+          APP_ICON=crates/infiltrator-iced/icons/icon.png \
+            bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
+              "${GITHUB_REF_NAME#v}" "amd64" "dist"
+          test -s "dist/infiltrator-bevy_${GITHUB_REF_NAME#v}_amd64.deb"
+
+          APP_BIN=infiltrator-bevy-ui \
+          APP_PKG=infiltrator-bevy \
+          APP_DESKTOP=packaging/linux/appimage/infiltrator-bevy.desktop \
+          APP_ICON=crates/infiltrator-iced/icons/icon.png \
+            bash packaging/linux/appimage/build-appimage.sh "$BIN_PATH" \
+              "dist/${{ matrix.bevy_artifact_name }}.AppImage"
+          test -s "dist/${{ matrix.bevy_artifact_name }}.AppImage"
 
           find dist -maxdepth 1 -type f -size +0c -print
 
@@ -234,7 +339,7 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: aarch64-linux-android, x86_64-linux-android
 
@@ -267,11 +372,67 @@ jobs:
           path: dist-android/
 
   # ---------------------------------------------------------------------------
+  # 2b. Bevy Android APK Build Job (separate, equal artifact)
+  # ---------------------------------------------------------------------------
+  build-android-bevy:
+    needs: test-gate
+    name: Build Bevy Android APK
+    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-bevy-release
+
+      # The userspace Android toolchain (Temurin JDK + cmdline-tools + SDK +
+      # NDK + cargo-apk) is installed by scripts/build-bevy-apk.sh under
+      # $ANDROID_TOOLS_ROOT. Caching that root makes only the first release pay
+      # the ~1.5 GB download; BEVY_APK_SKIP_EMULATOR drops the emulator and
+      # system image that a packaging-only run never uses.
+      - name: Cache Bevy Android toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/android-tools-bevy
+          key: bevy-android-tools-${{ runner.os }}-ndk-27.0.12077973-v1
+
+      - name: Build Bevy Release APK
+        shell: bash
+        env:
+          BEVY_APK_SKIP_EMULATOR: "1"
+        run: bash scripts/build-bevy-apk.sh --release
+
+      - name: Collect Bevy APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-android-bevy
+          APK="target/android-tools/apk-driver/target/release/apk/infiltrator-bevy-ui.apk"
+          test -s "$APK"
+          cp "$APK" dist-android-bevy/
+          find dist-android-bevy -type f -size +0c -print
+
+      - name: Upload Bevy Android Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Infiltrator-Bevy-Android-APKs
+          path: dist-android-bevy/
+
+  # ---------------------------------------------------------------------------
   # 3. Release Publication & Manifest Generation
   # ---------------------------------------------------------------------------
   publish-release:
     name: Generate Manifest & Publish Release
-    needs: [build-desktop, build-android]
+    needs: [build-desktop, build-android, build-android-bevy]
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
     timeout-minutes: 15
@@ -290,8 +451,12 @@ jobs:
           set -euo pipefail
           apk_count="$(find all-artifacts -type f -name '*.apk' -size +0c | wc -l)"
           desktop_count="$(find all-artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' -o -name '*.zip' \) -size +0c | wc -l)"
-          test "$apk_count" -ge 1
-          test "$desktop_count" -ge 7
+          bevy_count="$(find all-artifacts -type f -iname '*bevy*' -size +0c | wc -l)"
+          # Both UI surfaces must ship: the iced desktop matrix plus the Bevy
+          # matrix, and one APK per surface.
+          test "$apk_count" -ge 2
+          test "$desktop_count" -ge 14
+          test "$bevy_count" -ge 7
           find all-artifacts -type f -size +0c -print
 
       - name: Consolidate & Generate Checksums / Manifests

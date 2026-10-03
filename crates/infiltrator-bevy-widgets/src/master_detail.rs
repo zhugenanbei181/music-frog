@@ -102,14 +102,13 @@ pub fn master_detail_scene(
     _palette: &UiPalette,
 ) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            flex_direction: FlexDirection::Row,
-        }
-        MasterDetailContainer
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Row,
+            }
+            MasterDetailContainer
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     width: px(320.0),
@@ -117,10 +116,9 @@ pub fn master_detail_scene(
                 }
                 MasterPane
                 Children [
-                    { vec![master_pane] },
+                    { vec![master_pane] }
                 ]
-            ),
-            (
+                --
                 Node {
                     flex_direction: FlexDirection::Column,
                     flex_grow: 1.0,
@@ -129,10 +127,9 @@ pub fn master_detail_scene(
                 }
                 DetailPane
                 Children [
-                    { vec![detail_pane] },
+                    { vec![detail_pane] }
                 ]
-            ),
-        ]
+            ]
     })
 }
 
@@ -140,18 +137,19 @@ pub fn master_detail_scene(
 pub fn master_back_button_scene(label: &str, palette: &UiPalette) -> Box<dyn Scene> {
     let lbl = label.to_owned();
     Box::new(bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::all(Val::Px(space::S8)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Button
-        MasterBackButton
-        Children [
-            ( { icon_tile_scene(IconId::ArrowUp, 20.0, palette) } ),
-            ( Text(lbl) TextRole(Role::Body) ),
-        ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::all(Val::Px(space::S8)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Button
+            MasterBackButton
+            Children [
+                @{ icon_tile_scene(IconId::ArrowUp, 20.0, palette) }
+                --
+                Text(lbl) TextRole(Role::Body)
+            ]
     })
 }
 

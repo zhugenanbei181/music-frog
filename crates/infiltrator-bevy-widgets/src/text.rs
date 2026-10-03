@@ -79,7 +79,7 @@ pub fn role_typography(role: Role, palette: &UiPalette, fonts: Option<&FontSourc
 /// its role lands. Runs for the shell, every remount and every future
 /// widget insert — the single place typography becomes bevy values.
 pub fn style_text_roles(
-    trigger: On<Add, TextRole>,
+    trigger: On<Add<TextRole>>,
     mut texts: Query<(&TextRole, &mut TextFont, &mut TextColor)>,
     palette: Res<UiPalette>,
     fonts: Option<Res<FontSources>>,
@@ -150,33 +150,29 @@ pub fn rich_text_line_scene(spans: Vec<RichTextSpan>, palette: &UiPalette) -> Bo
                     }
                     BackgroundColor({ ink.with_alpha(0.15) })
                     Children [
-                        (
-                            Text({ span.text })
-                            TextRole(Role::Caption)
-                            TextColor({ ink })
-                        ),
+                        Text({ span.text })
+                        TextRole(Role::Caption)
+                        TextColor({ ink })
                     ]
-                }) as Box<dyn Scene>
+}) as Box<dyn Scene>
             } else {
                 Box::new(bsn! {
-                    (
-                        Text({ span.text })
-                        TextRole({ role })
-                        TextColor({ ink })
-                    )
-                }) as Box<dyn Scene>
+                    Text({ span.text })
+                    TextRole({ role })
+                    TextColor({ ink })
+}) as Box<dyn Scene>
             }
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-        }
-        Children [
-            { span_nodes },
-        ]
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+            }
+            Children [
+                { span_nodes }
+            ]
     })
 }

@@ -24,18 +24,19 @@ pub(super) fn offline_startup_row_scene(
 ) -> Box<dyn Scene> {
     let status = format_offline_startup(snapshot);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            ( Text({ "离线启动 (Offline-first)".to_owned() }) TextRole(Role::Body) ),
-            ( Text(status) SettingsLine(SettingsLineKind::OfflineStartup) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                Text({ "离线启动 (Offline-first)".to_owned() }) TextRole(Role::Body)
+                --
+                Text(status) SettingsLine(SettingsLineKind::OfflineStartup) TextRole(Role::Mono)
+            ]
     })
 }
 

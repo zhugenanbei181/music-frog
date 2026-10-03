@@ -173,108 +173,103 @@ pub fn rules_mrs_scene(
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
-                    ( Text({ label }) MrsItemText(idx) TextRole(Role::Body) ),
+                    Text({ label }) MrsItemText(idx) TextRole(Role::Body)
                 ]
-            }) as Box<dyn Scene>
+}) as Box<dyn Scene>
         })
         .collect();
 
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                RulesMrsRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
-                            ( Text({ "MRS 二进制规则集治理与解构 (MRS Ruleset Engine)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            RulesMrsRoot
+                            Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S8),
                                 }
-                                BackgroundColor({ palette.border })
-                                Button
-                                UpgradeGeoDatabasesButton
                                 Children [
-                                    ( Text({ "更新 Geo 数据库".to_owned() }) TextRole(Role::Body) ),
+                                    @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
+                                    --
+                                    Text({ "MRS 二进制规则集治理与解构 (MRS Ruleset Engine)".to_owned() }) TextRole(Role::BodyStrong)
                                 ]
-                            ),
-                            (
+                                --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S8),
                                 }
-                                BackgroundColor({ palette.border })
-                                Button
-                                PurgeRuleProviderCacheButton
                                 Children [
-                                    ( Text({ "清理规则集本地缓存".to_owned() }) TextRole(Role::Body) ),
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.border })
+                                    Button
+                                    UpgradeGeoDatabasesButton
+                                    Children [
+                                        Text({ "更新 Geo 数据库".to_owned() }) TextRole(Role::Body)
+                                    ]
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.border })
+                                    Button
+                                    PurgeRuleProviderCacheButton
+                                    Children [
+                                        Text({ "清理规则集本地缓存".to_owned() }) TextRole(Role::Body)
+                                    ]
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    Button
+                                    UnpackRuleProviderButton
+                                    Children [
+                                        Text({ "一键解构导入为本地规则".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
                                 ]
-                            ),
-                            (
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.accent })
-                                Button
-                                UnpackRuleProviderButton
-                                Children [
-                                    ( Text({ "一键解构导入为本地规则".to_owned() }) TextRole(Role::BodyStrong) ),
-                                ]
-                            ),
-                        ]
-                    ),
-                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ status_line }) MrsStatusText TextRole(Role::Caption) ),
-                    ( Text({ cache_line }) ProviderCacheText TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ status_line }) MrsStatusText TextRole(Role::Caption)
+                                --
+                                Text({ cache_line }) ProviderCacheText TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    { item_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                { item_scenes }
+                            ]
             }),
         ],
         palette,

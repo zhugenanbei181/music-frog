@@ -200,35 +200,34 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
     };
 
     bsn! {
-        Node {
-            width: px(320.0),
-            padding: UiRect::all(Val::Px(space::S12)),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            border: UiRect::left(Val::Px(4.0)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor {
-            top: Color::NONE,
-            right: Color::NONE,
-            bottom: Color::NONE,
-            left: accent,
-        }
-        ToastCard(id)
-        Children [
-            ( { icon_tile_scene(icon_id, 20.0, palette) } ),
-            (
+            Node {
+                width: px(320.0),
+                padding: UiRect::all(Val::Px(space::S12)),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                border: UiRect::left(Val::Px(4.0)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor {
+                top: Color::NONE,
+                right: Color::NONE,
+                bottom: Color::NONE,
+                left: accent,
+            }
+            ToastCard(id)
+            Children [
+                @{ icon_tile_scene(icon_id, 20.0, palette) }
+                --
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
                 }
                 Children [
-                    ( Text(content_text) TextRole(Role::Body) ),
+                    Text(content_text) TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
@@ -236,10 +235,9 @@ pub fn toast_item_scene(toast: &ToastMessage, palette: &UiPalette) -> impl Scene
                 Button
                 ToastDismissButton(id)
                 Children [
-                    ( { icon_tile_scene(IconId::Trash, 16.0, palette) } ),
+                    @{ icon_tile_scene(IconId::Trash, 16.0, palette) }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -251,17 +249,17 @@ pub fn toast_stack_scene(toasts: &[ToastMessage], palette: &UiPalette) -> impl S
         .collect();
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            right: px(space::S16),
-            top: px(space::S16),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S8),
-        }
-        ToastContainer
-        Children [
-            { toast_nodes },
-        ]
+            Node {
+                position_type: PositionType::Absolute,
+                right: px(space::S16),
+                top: px(space::S16),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            ToastContainer
+            Children [
+                { toast_nodes }
+            ]
     }
 }
 

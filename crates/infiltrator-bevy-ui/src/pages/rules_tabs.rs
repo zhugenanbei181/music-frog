@@ -68,25 +68,23 @@ fn tab_chip_scene(tab: RulesTab, palette: &UiPalette) -> Box<dyn Scene> {
         palette.ink_dim
     };
     Box::new(bsn! {
-        Node {
-            flex_grow: 1.0,
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ background })
-        Button
-        RulesTabChip(index)
-        Children [
-            (
+            Node {
+                flex_grow: 1.0,
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ background })
+            Button
+            RulesTabChip(index)
+            Children [
                 Text({ tab_label_zh(tab).to_owned() })
                 TextRole(Role::Body)
                 TextColor({ ink })
                 RulesTabChipLabel(index)
-            ),
-        ]
+            ]
     })
 }
 
@@ -98,33 +96,33 @@ pub fn rules_tabs_scene(palette: &UiPalette) -> impl Scene + use<> {
         .map(|tab| tab_chip_scene(*tab, palette))
         .collect();
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::all(Val::Px(space::S4)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        Children [
-            { chips },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::all(Val::Px(space::S4)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            Children [
+                { chips }
+            ]
     }
 }
 
 /// Wrap one partition body so [`sync_rules_tabs`] can show/hide it.
 pub fn tab_body_scene(tab: RulesTab, content: Box<dyn Scene>) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-        }
-        RulesTabBody(tab)
-        Children [
-            { vec![content] },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+            }
+            RulesTabBody(tab)
+            Children [
+                { vec![content] }
+            ]
     })
 }
 

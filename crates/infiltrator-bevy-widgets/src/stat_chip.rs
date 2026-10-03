@@ -55,33 +55,33 @@ pub fn stat_chip_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            flex_grow: 1.0,
-            flex_shrink: 1.0,
-            flex_basis: px(140.0),
-            min_width: px(110.0),
-            min_height: px(CHIP_MIN_HEIGHT),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S12),
-            padding: UiRect::all(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ stat_chip_fill(palette) })
-        StatChip
-        Children [
-            ( { icon_tile_scene(icon, type_scale::HEADING + space::S16, palette) } ),
-            (
+            Node {
+                flex_grow: 1.0,
+                flex_shrink: 1.0,
+                flex_basis: px(140.0),
+                min_width: px(110.0),
+                min_height: px(CHIP_MIN_HEIGHT),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S12),
+                padding: UiRect::all(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ stat_chip_fill(palette) })
+            StatChip
+            Children [
+                @{ icon_tile_scene(icon, type_scale::HEADING + space::S16, palette) }
+                --
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(label) TextRole(Role::Caption) ),
-                    ( Text(value) TextRole(Role::Mono) StatChipValue ),
+                    Text(label) TextRole(Role::Caption)
+                    --
+                    Text(value) TextRole(Role::Mono) StatChipValue
                 ]
-            ),
-        ]
+            ]
     }
 }
 

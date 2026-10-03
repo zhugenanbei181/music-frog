@@ -312,22 +312,20 @@ pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -
     let spring = Spring::new(height, 240.0, 22.0);
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: px(height),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            overflow: Overflow::clip(),
-        }
-        PullToRefreshIndicator
-        PullToRefreshSpring { spring }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(height),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                overflow: Overflow::clip(),
+            }
+            PullToRefreshIndicator
+            PullToRefreshSpring { spring }
+            Children [
                 Text({ label.to_owned() })
                 TextRole(Role::Caption)
                 PullToRefreshText
-            ),
-        ]
+            ]
     })
 }
 

@@ -367,10 +367,10 @@ pub(crate) fn rebuild_rules_window(
 /// One flat spacer node of exactly `height` logical pixels.
 fn spacer_scene(height: f32) -> impl Scene {
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(height),
-        }
+            Node {
+                width: percent(100),
+                height: px(height),
+            }
     }
 }
 

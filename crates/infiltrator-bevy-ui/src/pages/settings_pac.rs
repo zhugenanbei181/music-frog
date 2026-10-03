@@ -44,54 +44,51 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     let status = format_status(&projection.pac);
     Box::new(surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S6),
-            }
-            Children [
-                ( Text({ "PAC 动态代理脚本与本地服务 (PAC)".to_owned() }) TextRole(Role::BodyStrong) ),
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::all(Val::Px(space::S8)),
-                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                    }
-                    BackgroundColor({ palette.surface_elevated })
-                    PacToggle
-                    Children [
-                        ( { checkbox_scene("启用本地 PAC 服务".to_owned(), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) } ),
-                        ( Text(status) PacStatusLine TextRole(Role::Mono) ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::all(Val::Px(space::S8)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S6),
                     }
                     Children [
-                        ( Text({ "绕过域名/网段".to_owned() }) TextRole(Role::Body) ),
-                        (
+                        Text({ "PAC 动态代理脚本与本地服务 (PAC)".to_owned() }) TextRole(Role::BodyStrong)
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                        }
+                        BackgroundColor({ palette.surface_elevated })
+                        PacToggle
+                        Children [
+                            @{ checkbox_scene("启用本地 PAC 服务".to_owned(), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) }
+                            --
+                            Text(status) PacStatusLine TextRole(Role::Mono)
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                        }
+                        Children [
+                            Text({ "绕过域名/网段".to_owned() }) TextRole(Role::Body)
+                            --
                             Node { width: px(360.0) }
                             PacBypassField
                             Children [
-                                ( { text_field_with_placeholder_scene(bypass, "localhost, *.lan, example.com".to_owned(), palette) } ),
+                                @{ text_field_with_placeholder_scene(bypass, "localhost, *.lan, example.com".to_owned(), palette) }
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::FlexEnd,
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::FlexEnd,
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -103,12 +100,10 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             PacApplyButton
                             Button
                             Children [
-                                ( Text({ "生成并应用 (Apply)".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "生成并应用 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     ))

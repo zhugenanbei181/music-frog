@@ -206,21 +206,20 @@ pub fn scrollarea_scene(
 ) -> impl Scene + use<> {
     let edge = palette.border;
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor {
-            top: edge,
-            right: edge,
-            bottom: edge,
-            left: edge,
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor {
+                top: edge,
+                right: edge,
+                bottom: edge,
+                left: edge,
+            }
+            Children [
                 Node {
                     width: percent(100),
                     height: px(viewport_height_px),
@@ -229,9 +228,8 @@ pub fn scrollarea_scene(
                 }
                 ScrollArea
                 Children [
-                    ( { content } ),
+                    @{ content }
                 ]
-            ),
-        ]
+            ]
     }
 }

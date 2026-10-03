@@ -65,19 +65,19 @@ pub fn nav_label_ink(active: bool, palette: &UiPalette) -> Color {
 /// disabled "not migrated" tag) or stack items in a column.
 pub fn nav_item_scene(label: String, active: bool, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            flex_grow: 1.0,
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ nav_fill(active, palette) })
-        NavItem
-        NavActive(active)
-        Children [
-            ( Text(label) TextRole(Role::Body) NavLabel ),
-        ]
+            Node {
+                flex_grow: 1.0,
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ nav_fill(active, palette) })
+            NavItem
+            NavActive(active)
+            Children [
+                Text(label) TextRole(Role::Body) NavLabel
+            ]
     }
 }
 

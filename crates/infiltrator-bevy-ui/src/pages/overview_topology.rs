@@ -11,7 +11,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::picking::hover::PickingInteraction;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
@@ -55,32 +55,30 @@ pub fn topology_chain_scene_with_snapshot(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S12),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            TopologyChainCard
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S12),
                     }
+                    AccessibilityNode(header_a11y)
+                    TopologyChainCard
                     Children [
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( { icon_scene(IconId::Network, 16.0, palette.accent) } ),
-                                ( Text({ "分流网络拓扑 (Traffic Topology)".to_owned() }) TextRole(Role::Heading) ),
+                                @{ icon_scene(IconId::Network, 16.0, palette.accent) }
+                                --
+                                Text({ "分流网络拓扑 (Traffic Topology)".to_owned() }) TextRole(Role::Heading)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
                                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -88,37 +86,43 @@ pub fn topology_chain_scene_with_snapshot(
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                ( Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) TextColor({ palette.success }) ),
+                                Text({ header }) TopologyText { stage: TrafficTopologyStage::Inbound, kind: TopologyTextKind::HeaderBadge } TextRole(Role::Caption) TextColor({ palette.success })
                             ]
-                        ),
+                        ]
+                        --
+                        @{ topology_flow_scene(snapshot) }
+                        --
+                        Node {
+                            width: percent(100),
+                            min_width: px(0.0),
+                            max_width: percent(100),
+                            flex_direction: FlexDirection::Row,
+                            flex_wrap: FlexWrap::Wrap,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            row_gap: Val::Px(space::S8),
+                            column_gap: Val::Px(space::S6),
+                        }
+                        Children [
+                            @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::Inbound, IconId::Activity, palette.success, palette) }
+                            --
+                            @{ topology_arrow_scene(palette) }
+                            --
+                            @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::Sniffer, IconId::Activity, palette.accent, palette) }
+                            --
+                            @{ topology_arrow_scene(palette) }
+                            --
+                            @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::RuleSet, IconId::FileText, palette.accent, palette) }
+                            --
+                            @{ topology_arrow_scene(palette) }
+                            --
+                            @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::ProxyGroup, IconId::Settings, palette.warning, palette) }
+                            --
+                            @{ topology_arrow_scene(palette) }
+                            --
+                            @{ topology_stage_chip_scene(snapshot, TrafficTopologyStage::Outbound, IconId::Globe, palette.success, palette) }
+                        ]
                     ]
-                ),
-                ( { topology_flow_scene(snapshot) } ),
-                (
-                    Node {
-                        width: percent(100),
-                        min_width: px(0.0),
-                        max_width: percent(100),
-                        flex_direction: FlexDirection::Row,
-                        flex_wrap: FlexWrap::Wrap,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        row_gap: Val::Px(space::S8),
-                        column_gap: Val::Px(space::S6),
-                    }
-                    Children [
-                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Inbound, IconId::Activity, palette.success, palette) } ),
-                        ( { topology_arrow_scene(palette) } ),
-                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Sniffer, IconId::Activity, palette.accent, palette) } ),
-                        ( { topology_arrow_scene(palette) } ),
-                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::RuleSet, IconId::FileText, palette.accent, palette) } ),
-                        ( { topology_arrow_scene(palette) } ),
-                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::ProxyGroup, IconId::Settings, palette.warning, palette) } ),
-                        ( { topology_arrow_scene(palette) } ),
-                        ( { topology_stage_chip_scene(snapshot, TrafficTopologyStage::Outbound, IconId::Globe, palette.success, palette) } ),
-                    ]
-                ),
-            ]
         })],
         palette,
     )
@@ -212,22 +216,21 @@ fn topology_stage_chip_scene(
             )
         });
     bsn! {
-        Node {
-            flex_grow: 1.0,
-            flex_shrink: 1.0,
-            flex_basis: px(140.0),
-            min_width: px(110.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S6),
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        TopologyStageButton { stage, enabled: { snapshot.is_drawable() } }
-        Button
-        BackgroundColor({ palette.surface_elevated })
-        SurfaceElevatedFill
-        Children [
-            (
+            Node {
+                flex_grow: 1.0,
+                flex_shrink: 1.0,
+                flex_basis: px(140.0),
+                min_width: px(110.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S6),
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            TopologyStageButton { stage, enabled: { snapshot.is_drawable() } }
+            Button
+            BackgroundColor({ palette.surface_elevated })
+            SurfaceElevatedFill
+            Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -235,30 +238,27 @@ fn topology_stage_chip_scene(
                     column_gap: Val::Px(space::S6),
                 }
                 Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
-                        }
-                        Children [
-                            ( { icon_scene(icon, 14.0, palette.ink_dim) } ),
-                            ( Text({ label }) TopologyText { stage, kind: TopologyTextKind::Label } TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                        }
-                        BackgroundColor({ palette.accent_container })
-                        AccentContainerFill
-                        Children [
-                            ( Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(Role::Caption) TextColor({ badge_fg }) ),
-                        ]
-                    ),
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S6),
+                    }
+                    Children [
+                        @{ icon_scene(icon, 14.0, palette.ink_dim) }
+                        --
+                        Text({ label }) TopologyText { stage, kind: TopologyTextKind::Label } TextRole(Role::Caption)
+                    ]
+                    --
+                    Node {
+                        padding: UiRect::axes(Val::Px(space::S6), Val::Px(space::S2)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                    }
+                    BackgroundColor({ palette.accent_container })
+                    AccentContainerFill
+                    Children [
+                        Text({ badge }) TopologyText { stage, kind: TopologyTextKind::Badge } TextRole(Role::Caption) TextColor({ badge_fg })
+                    ]
                 ]
-            ),
-            (
+                --
                 Node {
                     width: percent(100),
                     padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
@@ -267,10 +267,9 @@ fn topology_stage_chip_scene(
                 BackgroundColor({ palette.surface })
                 SurfaceFill
                 Children [
-                    ( Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(Role::BodyStrong) ),
+                    Text({ detail }) TopologyText { stage, kind: TopologyTextKind::Detail } TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -299,16 +298,16 @@ fn topology_badge(snapshot: &TrafficTopologySnapshot) -> String {
 
 fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_shrink: 0.0,
-            padding: UiRect::horizontal(Val::Px(space::S2)),
-        }
-        TopologyArrow
-        Children [
-            ( Text({ ">".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.ink_dim }) ),
-        ]
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_shrink: 0.0,
+                padding: UiRect::horizontal(Val::Px(space::S2)),
+            }
+            TopologyArrow
+            Children [
+                Text({ ">".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.ink_dim })
+            ]
     }
 }
 

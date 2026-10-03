@@ -87,14 +87,13 @@ pub struct OverviewSpeedtestDetailBodyText;
 
 pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-            align_items: AlignItems::End,
-            flex_shrink: 0.0,
-        }
-        Children [
-            (
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+                align_items: AlignItems::End,
+                flex_shrink: 0.0,
+            }
+            Children [
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -108,110 +107,104 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                 OverviewSpeedtestButton { testing: false }
                 Button
                 Children [
-                    ( { icon_scene(IconId::Zap, 14.0, palette.accent) } ),
-                    ( Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent }) ),
+                    @{ icon_scene(IconId::Zap, 14.0, palette.accent) }
+                    --
+                    Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent })
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S6),
                     flex_shrink: 0.0,
                 }
                 Children [
-                    (
-                        Node {
-                            width: px(240.0),
-                            align_items: AlignItems::Center,
-                            flex_shrink: 0.0,
-                        }
-                        OverviewSpeedtestUrlField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
+                    Node {
+                        width: px(240.0),
+                        align_items: AlignItems::Center,
+                        flex_shrink: 0.0,
+                    }
+                    OverviewSpeedtestUrlField
+                    Children [
+                        @{ text_field_with_placeholder_scene(
                                 String::new(),
                                 "测速目标 URL (留空用默认)".to_owned(),
                                 palette,
-                            ) } ),
-                        ]
-                    ),
-                    ( Text({ "并发".to_owned() }) TextRole(Role::Caption) ),
-                    (
-                        Node {
-                            min_width: px(26.0),
-                            min_height: px(24.0),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            flex_shrink: 0.0,
-                        }
-                        BackgroundColor({ palette.border })
-                        Button
-                        OverviewSpeedtestConcurrencyStep(-5)
-                        Children [ ( Text({ "-".to_owned() }) TextRole(Role::Body) ) ]
-                    ),
-                    (
-                        Text({ "30".to_owned() })
-                        OverviewSpeedtestConcurrencyText
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Node {
-                            min_width: px(26.0),
-                            min_height: px(24.0),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            flex_shrink: 0.0,
-                        }
-                        BackgroundColor({ palette.border })
-                        Button
-                        OverviewSpeedtestConcurrencyStep(5)
-                        Children [ ( Text({ "+".to_owned() }) TextRole(Role::Body) ) ]
-                    ),
+                        ) }
+                    ]
+                    --
+                    Text({ "并发".to_owned() }) TextRole(Role::Caption)
+                    --
+                    Node {
+                        min_width: px(26.0),
+                        min_height: px(24.0),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        flex_shrink: 0.0,
+                    }
+                    BackgroundColor({ palette.border })
+                    Button
+                    OverviewSpeedtestConcurrencyStep(-5)
+                    Children [
+                        Text({ "-".to_owned() }) TextRole(Role::Body)
+                    ]
+                    --
+                    Text({ "30".to_owned() })
+                    OverviewSpeedtestConcurrencyText
+                    TextRole(Role::Caption)
+                    --
+                    Node {
+                        min_width: px(26.0),
+                        min_height: px(24.0),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        flex_shrink: 0.0,
+                    }
+                    BackgroundColor({ palette.border })
+                    Button
+                    OverviewSpeedtestConcurrencyStep(5)
+                    Children [
+                        Text({ "+".to_owned() }) TextRole(Role::Body)
+                    ]
                 ]
-            ),
-            (
+                --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestMetricsText
                 TextRole(Role::Caption)
-            ),
-            (
+                --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDeadText
                 TextRole(Role::Caption)
-            ),
-            (
+                --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestHistoryText
                 TextRole(Role::Caption)
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S6),
                     flex_shrink: 0.0,
                 }
                 Children [
-                    (
-                        Node {
-                            min_height: px(24.0),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            flex_shrink: 0.0,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.border })
-                        Button
-                        OverviewSpeedtestDetailButton
-                        Children [ ( Text({ "详情".to_owned() }) TextRole(Role::Caption) ) ]
-                    ),
-                    (
-                        Text({ "—".to_owned() })
-                        OverviewSpeedtestEgressText
-                        TextRole(Role::Caption)
-                    ),
+                    Node {
+                        min_height: px(24.0),
+                        padding: UiRect::horizontal(Val::Px(space::S8)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        flex_shrink: 0.0,
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.border })
+                    Button
+                    OverviewSpeedtestDetailButton
+                    Children [
+                        Text({ "详情".to_owned() }) TextRole(Role::Caption)
+                    ]
+                    --
+                    Text({ "—".to_owned() })
+                    OverviewSpeedtestEgressText
+                    TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -220,19 +213,17 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
 /// modal widget layer owns open/close visibility and responsive morphology.
 pub fn overview_speedtest_detail_modal_scene(palette: &UiPalette) -> Box<dyn Scene> {
     let body = Box::new(bsn! {
-        Node {
-            width: percent(100),
-            max_height: px(360.0),
-            flex_direction: FlexDirection::Column,
-            overflow: Overflow::scroll_y(),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                max_height: px(360.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+            }
+            Children [
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDetailBodyText
                 TextRole(Role::Caption)
-            ),
-        ]
+            ]
     });
     adaptive_modal_scene(
         "测速结果明细".to_owned(),

@@ -14,7 +14,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     PositionType, UiRect, Val, percent, px,
@@ -237,50 +237,42 @@ pub fn command_palette_item_scene(
     let hint_text = hint.unwrap_or_default();
 
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(40.0),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S4)),
-            border: UiRect::all(Val::Px(1.0)),
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor(bg)
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        Button
-        CommandPaletteRow(display_index)
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(40.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S4)),
+                border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor(bg)
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            Button
+            CommandPaletteRow(display_index)
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    (
-                        Text({ category_text })
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ title_text })
-                        TextRole(Role::Body)
-                    ),
+                    Text({ category_text })
+                    TextRole(Role::Caption)
+                    --
+                    Text({ title_text })
+                    TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     padding: UiRect::axes(Val::Px(6.0), Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
-                    (
-                        Text({ hint_text })
-                        TextRole(Role::Caption)
-                    ),
+                    Text({ hint_text })
+                    TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -325,19 +317,18 @@ pub fn command_palette_modal_scene(
         .collect();
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::FlexStart,
-            padding: UiRect::top(Val::Px(80.0)),
-        }
-        BackgroundColor({ palette.scrim })
-        CommandPaletteOverlayRoot
-        template_value(semantic)
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::FlexStart,
+                padding: UiRect::top(Val::Px(80.0)),
+            }
+            BackgroundColor({ palette.scrim })
+            CommandPaletteOverlayRoot
+            semantic
+            Children [
                 Node {
                     width: px(560.0),
                     max_width: percent(92),
@@ -351,60 +342,51 @@ pub fn command_palette_modal_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 Children [
                     // Search bar row
-                    (
-                        Node {
-                            width: percent(100),
-                            height: px(44.0),
-                            align_items: AlignItems::Center,
-                            padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
-                            border: UiRect::all(Val::Px(1.0)),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
-                            column_gap: Val::Px(space::S8),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-                        Children [
-                            ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
-                            (
-                                Text({ query_display })
-                                TextRole(Role::Body)
-                                CommandPaletteQueryLabel
-                                template_value(query_semantic)
-                            ),
-                        ]
-                    ),
+                    Node {
+                        width: percent(100),
+                        height: px(44.0),
+                        align_items: AlignItems::Center,
+                        padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S8)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        border_radius: BorderRadius::all(Val::Px(8.0)),
+                        column_gap: Val::Px(space::S8),
+                    }
+                    BackgroundColor({ palette.surface_elevated })
+                    BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+                    Children [
+                        @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
+                        --
+                        Text({ query_display })
+                        TextRole(Role::Body)
+                        CommandPaletteQueryLabel
+                        query_semantic
+                    ]
+                    --
                     // Items list
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S4),
-                        }
-                        Children [
-                            { items_boxed },
-                        ]
-                    ),
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S4),
+                    }
+                    Children [
+                        { items_boxed }
+                    ]
+                    --
                     // Footer hint
-                    (
-                        Node {
-                            width: percent(100),
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::top(Val::Px(space::S4)),
-                        }
-                        Children [
-                            (
-                                Text({ "↑↓ 导航 · Enter 执行 · Esc 关闭".to_owned() })
-                                TextRole(Role::Caption)
-                            ),
-                            (
-                                Text({ format!("{}/{} 项", state.filtered_indices.len(), state.catalogue.len()) })
-                                TextRole(Role::Caption)
-                            ),
-                        ]
-                    ),
+                    Node {
+                        width: percent(100),
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::top(Val::Px(space::S4)),
+                    }
+                    Children [
+                        Text({ "↑↓ 导航 · Enter 执行 · Esc 关闭".to_owned() })
+                        TextRole(Role::Caption)
+                        --
+                        Text({ format!("{}/{} 项", state.filtered_indices.len(), state.catalogue.len()) })
+                        TextRole(Role::Caption)
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 

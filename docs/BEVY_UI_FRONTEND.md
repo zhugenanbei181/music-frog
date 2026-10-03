@@ -1,20 +1,20 @@
 # Bevy UI 前端章程
 
 本文是 Bevy UI 前端的公开事实权威。Bevy UI 是 MusicFrog Infiltrator 的**战略统一
-surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 Android 故事；bevy 0.19
+surface**：它的上限包含移动端。iced 是 winit 桌面方案，没有 Android 故事；bevy 0.20
 的同一棵 UI 树可以直接跑在 `aarch64-linux-android` 上。控件生态薄是事实，但
 `bevy_ui_widgets`（官方无样式控件包）加上我们自有的 `infiltrator-bevy-widgets`
 层可以补齐——控件是我们自己建的，就归我们自己所有。iced 主桌面维持维护态并继续
 承接 X11 会话；依据最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)，Iced（成熟桌面端）与 Bevy UI（跨平台战略端）现已确立为严格对等的双主干 surface，在功能和 UI 表现上全面同步演进。
 
-参考实现：taskmanager 的 `taskmanager-bevy-ui`（同为 bevy 0.19 产品级 UI，bsn! 场景法
+参考实现：taskmanager 的 `taskmanager-bevy-ui`（同为 bevy 0.20 产品级 UI，bsn! 场景法
 + 观察者绑定 + 纯核/场景适配器二分 + 中立主题 token）。本章程的多条铁律直接来自该
 项目的成文法律与踩坑记录。
 
 ## 1. 基座铁律
 
-- **bevy 锁定 `=0.19.1`**：精确到 patch，与 taskmanager 同锁。升级属于架构与发布
-  评审事项（bevy 0.19 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
+- **bevy 锁定 `=0.20.0-rc.2`**：精确到 patch，与 taskmanager 同锁。升级属于架构与发布
+  评审事项（bevy 0.20 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
   `bevy_ui_render`）。
 - **依赖白名单**：`infiltrator-bevy-widgets` 只依赖 bevy；`infiltrator-bevy-ui` 依赖
   bevy + widgets + `infiltrator-contract` + `infiltrator-application` 与组合根，但不依赖
@@ -76,7 +76,7 @@ feature 用途，代码零导入）。iced 的 wgpu 栈升级越过 naga 27 后�
 两项目未来共同抽出业务无关控件层（"我们自己的 bevy_ui_widgets 皮肤包"）的判定
 标准：**同一个控件在两个项目中第二次出现时，下沉**。为此：
 
-- bevy 同锁 `=0.19.1`；
+- bevy 同锁 `=0.20.0-rc.2`；
 - widgets 层零业务依赖、纯函数核可无头测试；
 - 控件实现风格对齐（bsn! 场景函数 + typed marker 组件 + 观察者），搬运即迁移。
 
@@ -103,7 +103,7 @@ bsn 机械守卫（`scripts/quality/bevy_bsn_guard.py`，已接 CI）；`aarch64
   chart 自适应宽度、双曲线共享量程、APK strip 减重、locale key 统一、真机 ARM smoke（可选）。
 - 核心生命周期控制（restart/stop：`mihomo-api::restart_core` 已具备，平台编排未接，
   界面已诚实声明「0.30 后续接入」）。
-- TalkBack：bevy 0.19 无 accesskit-android feature，待上游。
+- TalkBack：bevy 0.20 无 accesskit-android feature，待上游。
 - mihomo-api 严格解码对真内核的 3 处盲区（行号证据在 controller.rs 头注）——泵内
   lenient fallback 兜底，上游修复后拆除。
 
@@ -204,7 +204,7 @@ PID/标题绑定截图，零宿主会话串扰）产出真实渲染证据到 `do
 
 ### 8.2 实事求是的性能与内存预算红线 (真实硬件测量基准)
 
-拒绝不切实际的虚高指标，立足 Bevy 0.19 + Winit + Wgpu 的物理硬件测量事实：
+拒绝不切实际的虚高指标，立足 Bevy 0.20 + Winit + Wgpu 的物理硬件测量事实：
 
 | 性能与资源指标 | 极简原生态 (Eco / Native) | 均衡态 (Balanced - 默认) | 沉浸态 (Pro / Enhanced) | 测量口径与验收事实 |
 | :--- | :---: | :---: | :---: | :--- |

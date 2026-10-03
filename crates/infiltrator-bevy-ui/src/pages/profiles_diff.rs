@@ -14,7 +14,7 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
+use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -126,113 +126,109 @@ pub fn snapshot_diff_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                SnapshotDiffRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::FileText, 24.0, palette) } ),
-                            (
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S4),
-                                }
-                                Children [
-                                    ( Text({ "配置历史快照比对 (Snapshot Visual Diff)".to_owned() }) TextRole(Role::BodyStrong) ),
-                                    ( Text(summary) SnapshotDiffSummaryText TextRole(Role::Caption) ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { mode_button("行内", false, palette) } ),
-                            ( { mode_button("并排", true, palette) } ),
-                            ( { refresh_button(palette) } ),
-                            ( { rollback_button(diff_available, palette) } ),
-                        ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.window_clear })
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ history_summary }) SnapshotHistorySummaryText TextRole(Role::Caption) ),
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            SnapshotDiffRoot
+                            Children [
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    ( { super::profiles_diff_history::backup_button(palette) } ),
-                                    ( { super::profiles_diff_history::history_refresh_button(palette) } ),
-                                    ( { super::profiles_diff_history::prune_keep_row(palette) } ),
-                                    ( { super::profiles_diff_history::prune_button(palette) } ),
+                                    @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
+                                    --
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        row_gap: Val::Px(space::S4),
+                                    }
+                                    Children [
+                                        Text({ "配置历史快照比对 (Snapshot Visual Diff)".to_owned() }) TextRole(Role::BodyStrong)
+                                        --
+                                        Text(summary) SnapshotDiffSummaryText TextRole(Role::Caption)
+                                    ]
                                 ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S2),
-                        }
-                        SnapshotHistoryBody
-                        Children [
-                            ( { initial_history_rows } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S4),
-                            padding: UiRect::top(Val::Px(space::S4)),
-                        }
-                        Children [
-                            (
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ mode_button("行内", false, palette) }
+                                    --
+                                    @{ mode_button("并排", true, palette) }
+                                    --
+                                    @{ refresh_button(palette) }
+                                    --
+                                    @{ rollback_button(diff_available, palette) }
+                                ]
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ history_summary }) SnapshotHistorySummaryText TextRole(Role::Caption)
+                                    --
+                                    Node {
+                                        align_items: AlignItems::Center,
+                                        column_gap: Val::Px(space::S8),
+                                    }
+                                    Children [
+                                        @{ super::profiles_diff_history::backup_button(palette) }
+                                        --
+                                        @{ super::profiles_diff_history::history_refresh_button(palette) }
+                                        --
+                                        @{ super::profiles_diff_history::prune_keep_row(palette) }
+                                        --
+                                        @{ super::profiles_diff_history::prune_button(palette) }
+                                    ]
+                                ]
+                                --
                                 Node {
                                     width: percent(100),
                                     flex_direction: FlexDirection::Column,
                                     row_gap: Val::Px(space::S2),
                                 }
-                                SnapshotDiffBody
+                                SnapshotHistoryBody
                                 Children [
-                                    ( { initial_rows } ),
+                                    @{ initial_history_rows }
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S4),
+                                    padding: UiRect::top(Val::Px(space::S4)),
+                                }
+                                Children [
+                                    Node {
+                                        width: percent(100),
+                                        flex_direction: FlexDirection::Column,
+                                        row_gap: Val::Px(space::S2),
+                                    }
+                                    SnapshotDiffBody
+                                    Children [
+                                        @{ initial_rows }
+                                    ]
+                                ]
+                            ]
             }),
         ],
         palette,
@@ -269,37 +265,37 @@ fn mode_button(label: &str, split: bool, palette: &UiPalette) -> Box<dyn Scene> 
     };
     let label = label.to_owned();
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ background })
-        Button
-        template_value(SnapshotDiffModeButton { split })
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ background })
+            Button
+            SnapshotDiffModeButton { split }
+            Children [
+                Text({ label }) TextRole(Role::Caption)
+            ]
     })
 }
 
 fn refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Button
-        RefreshSnapshotDiffButton
-        Children [
-            ( Text({ "刷新差异".to_owned() }) TextRole(Role::Body) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Button
+            RefreshSnapshotDiffButton
+            Children [
+                Text({ "刷新差异".to_owned() }) TextRole(Role::Body)
+            ]
     })
 }
 
@@ -310,19 +306,19 @@ fn rollback_button(available: bool, palette: &UiPalette) -> Box<dyn Scene> {
         palette.surface_elevated
     };
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ background })
-        Button
-        RollbackSnapshotButton
-        Children [
-            ( Text({ "一键安全还原此快照".to_owned() }) RollbackSnapshotLabel TextRole(Role::BodyStrong) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ background })
+            Button
+            RollbackSnapshotButton
+            Children [
+                Text({ "一键安全还原此快照".to_owned() }) RollbackSnapshotLabel TextRole(Role::BodyStrong)
+            ]
     })
 }
 
@@ -381,24 +377,24 @@ fn diff_line_scene(line: &DiffLine, palette: &UiPalette) -> Box<dyn Scene> {
     );
     let color = diff_color(line.kind, palette);
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
-        Children [
-            ( Text({ label }) TextRole(Role::Mono) TextColor({ color }) ),
-        ]
+            Node {
+                width: percent(100),
+            }
+            Children [
+                Text({ label }) TextRole(Role::Mono) TextColor({ color })
+            ]
     })
 }
 
 pub(super) fn diff_notice_scene(text: &str) -> Box<dyn Scene> {
     let label = text.to_owned();
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                width: percent(100),
+            }
+            Children [
+                Text({ label }) TextRole(Role::Caption)
+            ]
     })
 }
 
@@ -432,14 +428,14 @@ fn diff_rows_scene(
         )],
     };
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S2),
-        }
-        Children [
-            { rows },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S2),
+            }
+            Children [
+                { rows }
+            ]
     })
 }
 

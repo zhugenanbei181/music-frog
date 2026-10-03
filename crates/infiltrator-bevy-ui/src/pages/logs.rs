@@ -18,7 +18,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -206,22 +206,23 @@ pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Logs)
-        LogsPageRoot
-        Children [
-            ( { header_card_scene(summary, palette) } ),
-            ( { logs_container_scene(log_scenes, projection.active_level, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Logs)
+            LogsPageRoot
+            Children [
+                @{ header_card_scene(summary, palette) }
+                --
+                @{ logs_container_scene(log_scenes, projection.active_level, palette) }
+            ]
     }
 }
 
@@ -231,31 +232,29 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::FileText, 36.0, palette) } ),
-                        ( Text(summary) LogsLine(LogsLineKind::Summary) TextRole(Role::Heading) ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
+                            --
+                            Text(summary) LogsLine(LogsLineKind::Summary) TextRole(Role::Heading)
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -267,10 +266,9 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             PauseLogsButton
                             Button
                             Children [
-                                ( Text({ "滚屏锁定".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "滚屏锁定".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -282,10 +280,9 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             ExportLogsButton
                             Button
                             Children [
-                                ( Text({ "导出日志".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "导出日志".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -297,12 +294,10 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             ClearLogsButton
                             Button
                             Children [
-                                ( Text({ "清空".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "清空".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -330,20 +325,20 @@ fn level_filter_pill(
     let label_str = label.to_owned();
 
     bsn! {
-        Node {
-            height: px(palette.control_height_px * 0.8),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ bg })
-        ControlVisual({ active })
-        LogLevelFilterButton { level: { level } }
-        Button
-        Children [
-            ( Text(label_str) TextRole(Role::Caption) ),
-        ]
+            Node {
+                height: px(palette.control_height_px * 0.8),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ bg })
+            ControlVisual({ active })
+            LogLevelFilterButton { level: { level } }
+            Button
+            Children [
+                Text(label_str) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -355,38 +350,41 @@ fn logs_container_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "实时日志输出 (Logs Stream)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
-                        }
-                        Children [
-                            ( { level_filter_pill("全部", None, active_level.is_none(), palette) } ),
-                            ( { level_filter_pill("DEBUG", Some(LogLevel::Debug), active_level == Some(LogLevel::Debug), palette) } ),
-                            ( { level_filter_pill("INFO", Some(LogLevel::Info), active_level == Some(LogLevel::Info), palette) } ),
-                            ( { level_filter_pill("WARN", Some(LogLevel::Warn), active_level == Some(LogLevel::Warn), palette) } ),
-                            ( { level_filter_pill("ERROR", Some(LogLevel::Error), active_level == Some(LogLevel::Error), palette) } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "实时日志输出 (Logs Stream)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S6),
+                                }
+                                Children [
+                                    @{ level_filter_pill("全部", None, active_level.is_none(), palette) }
+                                    --
+                                    @{ level_filter_pill("DEBUG", Some(LogLevel::Debug), active_level == Some(LogLevel::Debug), palette) }
+                                    --
+                                    @{ level_filter_pill("INFO", Some(LogLevel::Info), active_level == Some(LogLevel::Info), palette) }
+                                    --
+                                    @{ level_filter_pill("WARN", Some(LogLevel::Warn), active_level == Some(LogLevel::Warn), palette) }
+                                    --
+                                    @{ level_filter_pill("ERROR", Some(LogLevel::Error), active_level == Some(LogLevel::Error), palette) }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                }
-                Children [
-                    { log_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                            }
+                            Children [
+                                { log_scenes }
+                            ]
             }),
         ],
         palette,
@@ -401,21 +399,24 @@ fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl Scen
     let msg = entry.message.clone();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px * 0.8),
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            ( Text(time) LogTimestampText(idx) TextRole(Role::Caption) ),
-            ( Text(level_str) LogLevelText(idx) TextRole(Role::BodyStrong) TextColor(level_color) ),
-            ( Text(tag_str) LogTagText(idx) TextRole(Role::Caption) ),
-            ( Text(msg) LogMessageText(idx) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                min_height: px(palette.control_height_px * 0.8),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
+                Text(time) LogTimestampText(idx) TextRole(Role::Caption)
+                --
+                Text(level_str) LogLevelText(idx) TextRole(Role::BodyStrong) TextColor(level_color)
+                --
+                Text(tag_str) LogTagText(idx) TextRole(Role::Caption)
+                --
+                Text(msg) LogMessageText(idx) TextRole(Role::Mono)
+            ]
     }
 }
 

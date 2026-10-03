@@ -18,7 +18,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
     UiRect, Val, percent, px,
@@ -174,53 +174,51 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Rules)
-        RulesPageRoot
-        // DUAL-11-14: the official wheel/trackpad scroll behavior for the page
-        // itself; the list partition owns a nested scroll area of its own.
-        ScrollArea
-        Children [
-            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
-            ( { header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) } ),
-            ( { crate::pages::rules_tabs::rules_tabs_scene(palette) } ),
-            (
-                { crate::pages::rules_tabs::tab_body_scene(
-                    infiltrator_contract::rules_workspace::RulesTab::List,
-                    Box::new(rules_list_partition(rule_scenes, palette)),
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Rules)
+            RulesPageRoot
+            // DUAL-11-14: the official wheel/trackpad scroll behavior for the page
+            // itself; the list partition owns a nested scroll area of its own.
+            ScrollArea
+            Children [
+                @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
+                --
+                @{ header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) }
+                --
+                @{ crate::pages::rules_tabs::rules_tabs_scene(palette) }
+                --
+                @{ crate::pages::rules_tabs::tab_body_scene(
+                        infiltrator_contract::rules_workspace::RulesTab::List,
+                        Box::new(rules_list_partition(rule_scenes, palette)),
                 ) }
-            ),
-            (
-                { crate::pages::rules_tabs::tab_body_scene(
-                    infiltrator_contract::rules_workspace::RulesTab::Providers,
-                    Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
+                --
+                @{ crate::pages::rules_tabs::tab_body_scene(
+                        infiltrator_contract::rules_workspace::RulesTab::Providers,
+                        Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
                 ) }
-            ),
-            (
-                { crate::pages::rules_tabs::tab_body_scene(
-                    infiltrator_contract::rules_workspace::RulesTab::JsonEditors,
-                    Box::new(crate::pages::rules_json::rules_json_scene(
-                        palette,
-                        &crate::pages::rules_json::RulesJsonState::default(),
-                    )),
+                --
+                @{ crate::pages::rules_tabs::tab_body_scene(
+                        infiltrator_contract::rules_workspace::RulesTab::JsonEditors,
+                        Box::new(crate::pages::rules_json::rules_json_scene(
+                                palette,
+                                &crate::pages::rules_json::RulesJsonState::default(),
+                        )),
                 ) }
-            ),
-            (
-                { crate::pages::rules_tabs::tab_body_scene(
-                    infiltrator_contract::rules_workspace::RulesTab::Tracer,
-                    Box::new(crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer)),
+                --
+                @{ crate::pages::rules_tabs::tab_body_scene(
+                        infiltrator_contract::rules_workspace::RulesTab::Tracer,
+                        Box::new(crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer)),
                 ) }
-            ),
-        ]
+            ]
     }
 }
 
@@ -232,19 +230,21 @@ fn rules_list_partition(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-        }
-        Children [
-            ( { crate::pages::rules_builder::rules_builder_scene(palette) } ),
-            ( { crate::pages::rules_subrules::rules_subrules_scene(
-                palette,
-                &crate::pages::rules_subrules::RulesSubRuleState::default(),
-            ) } ),
-            ( { rules_table_scene(rule_scenes, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+            }
+            Children [
+                @{ crate::pages::rules_builder::rules_builder_scene(palette) }
+                --
+                @{ crate::pages::rules_subrules::rules_subrules_scene(
+                        palette,
+                        &crate::pages::rules_subrules::RulesSubRuleState::default(),
+                ) }
+                --
+                @{ rules_table_scene(rule_scenes, palette) }
+            ]
     }
 }
 
@@ -258,15 +258,16 @@ fn providers_partition(
     etag_support: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-        }
-        Children [
-            ( { crate::pages::rules_mrs::rules_mrs_scene(palette, mrs, provider_cache) } ),
-            ( { providers_card_scene(provider_scenes, etag_support, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+            }
+            Children [
+                @{ crate::pages::rules_mrs::rules_mrs_scene(palette, mrs, provider_cache) }
+                --
+                @{ providers_card_scene(provider_scenes, etag_support, palette) }
+            ]
     }
 }
 
@@ -282,42 +283,41 @@ fn header_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::Zap, 36.0, palette) } ),
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::Zap, 36.0, palette) }
+                            --
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                ( Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption) ),
-                                ( Text(hit_audit_line) RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption) ),
-                                ( Text(truncation_line) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption) ),
+                                Text(summary) RulesLine(RulesLineKind::Summary) TextRole(Role::Heading)
+                                --
+                                Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption)
+                                --
+                                Text(hit_audit_line) RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption)
+                                --
+                                Text(truncation_line) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption)
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -329,10 +329,9 @@ fn header_card_scene(
                             Button
                             RefreshRuleProvidersButton
                             Children [
-                                ( Text({ "刷新规则集".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "刷新规则集".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -344,12 +343,10 @@ fn header_card_scene(
                             Button
                             ClearRuleHitCountersButton
                             Children [
-                                ( Text({ "清空命中计数".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "清空命中计数".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -364,35 +361,36 @@ fn providers_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "外部规则集 (Rule Providers)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "MRS / GeoSite 二进制加速".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "外部规则集 (Rule Providers)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "MRS / GeoSite 二进制加速".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text(etag_line) RulesLine(RulesLineKind::EtagSupport) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { provider_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { provider_scenes }
+                            ]
             }),
         ],
         palette,
@@ -409,27 +407,27 @@ fn provider_item_scene(
     let updated = provider_updated_label(provider);
 
     bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::all(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                padding: UiRect::all(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(name) ProviderNameText(idx) TextRole(Role::Body) ),
-                    ( Text(count_info) ProviderCountText(idx) TextRole(Role::Caption) ),
+                    Text(name) ProviderNameText(idx) TextRole(Role::Body)
+                    --
+                    Text(count_info) ProviderCountText(idx) TextRole(Role::Caption)
                 ]
-            ),
-            ( Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption) ),
-        ]
+                --
+                Text(updated) ProviderUpdatedText(idx) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -437,96 +435,92 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "规则匹配序列表 (Rules Flow)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "自上而下第一命中即生效".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "规则匹配序列表 (Rules Flow)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "自上而下第一命中即生效".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0.0),
-                        }
-                        RuleSearchField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                String::new(),
-                                "按匹配表达式/类型/目标即时搜索规则".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        RulesPagePrevButton
-                        Children [
-                            ( Text({ "上一页".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( Text({ "第 1/1 页 · 共 0 条".to_owned() }) RulesPageIndicator TextRole(Role::Caption) ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        RulesPageNextButton
-                        Children [
-                            ( Text({ "下一页".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
+                                }
+                                RuleSearchField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            String::new(),
+                                            "按匹配表达式/类型/目标即时搜索规则".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                RulesPagePrevButton
+                                Children [
+                                    Text({ "上一页".to_owned() }) TextRole(Role::Caption)
+                                ]
+                                --
+                                Text({ "第 1/1 页 · 共 0 条".to_owned() }) RulesPageIndicator TextRole(Role::Caption)
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S8)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                RulesPageNextButton
+                                Children [
+                                    Text({ "下一页".to_owned() }) TextRole(Role::Caption)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    // DUAL-11-08: the fixed-height list viewport. Only the
-                    // shared render window is mounted inside it; the spacers
-                    // keep the scrollable range the full list height.
-                    height: px(infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX),
-                    flex_direction: FlexDirection::Column,
-                    overflow: Overflow::scroll_y(),
-                }
-                ScrollArea
-                RulesListScrollArea
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                        }
-                        RulesWindowRows
-                        Children [
-                            { rule_scenes },
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                // DUAL-11-08: the fixed-height list viewport. Only the
+                                // shared render window is mounted inside it; the spacers
+                                // keep the scrollable range the full list height.
+                                height: px(infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX),
+                                flex_direction: FlexDirection::Column,
+                                overflow: Overflow::scroll_y(),
+                            }
+                            ScrollArea
+                            RulesListScrollArea
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                }
+                                RulesWindowRows
+                                Children [
+                                    { rule_scenes }
+                                ]
+                            ]
             }),
         ],
         palette,
@@ -636,43 +630,45 @@ pub(crate) fn rule_row_scene(
     let hits = rule_hit_label(rule);
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S16)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ palette.surface })
-        SurfacePanel
-        RuleRow(idx)
-        Children [
-            (
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S16)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ palette.surface })
+            SurfacePanel
+            RuleRow(idx)
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S12),
                 }
                 Children [
-                    ( Text(idx_str) TextRole(Role::Caption) ),
-                    ( type_chip ),
-                    ( Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong) ),
-                    ( Text(payload) RulePayloadText(idx) TextRole(Role::Body) ),
+                    Text(idx_str) TextRole(Role::Caption)
+                    --
+                    @type_chip
+                    --
+                    Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong)
+                    --
+                    Text(payload) RulePayloadText(idx) TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S12),
                 }
                 Children [
-                    ( Text(proxy) RuleProxyText(idx) TextRole(Role::Body) ),
-                    ( Text(hits) RuleHitText(idx) TextRole(Role::Caption) ),
-                    ( { rule_row_controls_scene(idx, palette) } ),
+                    Text(proxy) RuleProxyText(idx) TextRole(Role::Body)
+                    --
+                    Text(hits) RuleHitText(idx) TextRole(Role::Caption)
+                    --
+                    @{ rule_row_controls_scene(idx, palette) }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -682,19 +678,19 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
     let label = infiltrator_domain::rules::matrix::matrix_label(rule_type);
     let fill = crate::pages::rules_projection::rule_type_chip_fill(rule_type, palette);
     bsn! {
-        Node {
-            min_width: px(8.0),
-            min_height: px(18.0),
-            padding: UiRect::horizontal(Val::Px(space::S6)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ fill })
-        RuleTypeBadge(idx)
-        Children [
-            ( Text(label) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_width: px(8.0),
+                min_height: px(18.0),
+                padding: UiRect::horizontal(Val::Px(space::S6)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ fill })
+            RuleTypeBadge(idx)
+            Children [
+                Text(label) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -703,12 +699,11 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
 /// application, which applies `infiltrator_domain::rules::edit`.
 fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S4),
-        }
-        Children [
-            (
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S4),
+            }
+            Children [
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -720,10 +715,9 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 Button
                 RuleToggleButton(idx)
                 Children [
-                    ( Text({ "启停".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "启停".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S6)),
@@ -735,10 +729,9 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 Button
                 RuleMoveUpButton(idx)
                 Children [
-                    ( Text({ "↑".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "↑".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(24.0),
                     padding: UiRect::horizontal(Val::Px(space::S6)),
@@ -750,10 +743,9 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 Button
                 RuleMoveDownButton(idx)
                 Children [
-                    ( Text({ "↓".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "↓".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 

@@ -102,12 +102,14 @@ pub fn sort_pills_scene(palette: &UiPalette) -> impl Scene + use<> {
     .collect();
 
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::FlexEnd,
-            column_gap: Val::Px(space::S4),
-        }
-        Children [ { pills } ]
+            Node {
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::FlexEnd,
+                column_gap: Val::Px(space::S4),
+            }
+            Children [
+                { pills }
+            ]
     }
 }
 
@@ -121,17 +123,17 @@ fn sort_pill(key: ConnectionSortKey, palette: &UiPalette) -> impl Scene + use<> 
     let label = sort_key_label(key);
 
     bsn! {
-        Node {
-            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ bg })
-        ConnSortPill(key)
-        Button
-        Children [
-            ( Text(label) TextRole(Role::Caption) TextColor({ text_color }) ),
-        ]
+            Node {
+                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ bg })
+            ConnSortPill(key)
+            Button
+            Children [
+                Text(label) TextRole(Role::Caption) TextColor({ text_color })
+            ]
     }
 }
 

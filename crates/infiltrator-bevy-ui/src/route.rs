@@ -472,7 +472,7 @@ fn sync_sidebar_foot(
 
 /// Mount the default route the moment the shell's content slot lands —
 /// the routing bootstrap with zero schedule-ordering assumptions.
-fn on_content_slot_added(_ready: On<Add, ContentSlot>, mut commands: Commands) {
+fn on_content_slot_added(_ready: On<Add<ContentSlot>>, mut commands: Commands) {
     let initial = crate::capture::page_from_env().unwrap_or_default();
     commands.trigger(RouteChanged(initial));
 }
@@ -480,7 +480,7 @@ fn on_content_slot_added(_ready: On<Add, ContentSlot>, mut commands: Commands) {
 /// Render a typed status banner for a page whose shared source is loading,
 /// empty, unavailable, or failed. Ready pages stay visually unchanged.
 fn on_page_root_added(
-    trigger: On<Add, PageRoot>,
+    trigger: On<Add<PageRoot>>,
     roots: Query<&PageRoot>,
     latest: Res<LatestSurfaceSnapshot>,
     palette: Res<UiPalette>,

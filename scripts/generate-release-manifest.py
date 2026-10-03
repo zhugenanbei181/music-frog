@@ -177,7 +177,11 @@ def main():
         "min_supported_version": args.min_version,
         "critical": args.critical,
         "rollout_percentage": args.rollout,
-        # Legacy compatibility map: target_triple -> single artifact
+        # Legacy compatibility map: target_triple -> single artifact.
+        # The iced self-updater consumes this map; the Bevy surface ships its
+        # own equal packages under the complete `packages` list below, but is
+        # kept out of this legacy single-artifact-per-target map so an iced
+        # client never gets pointed at a Bevy package.
         "artifacts": {
             art["target_triple"]: {
                 "name": art["name"],
@@ -187,6 +191,7 @@ def main():
             }
             for art in artifacts
             if art["target_triple"] != "unknown"
+            and "bevy" not in art["name"].lower()
         },
         # Complete package list preserving all artifacts across all formats per target
         "packages": [

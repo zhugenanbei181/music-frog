@@ -73,39 +73,35 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
                     token_color(token.kind, palette)
                 };
                 Box::new(bsn! {
-                    (
-                        Text({ token.text })
-                        TextRole(Role::Mono)
-                        TextColor({ color })
-                    )
+                                    Text({ token.text })
+                                    TextRole(Role::Mono)
+                                    TextColor({ color })
                 }) as Box<dyn Scene>
             })
             .collect();
         rows.push(Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(space::S8),
-                min_height: px(16.0),
-            }
-            BackgroundColor({ background })
-            Children [
-                (
                     Node {
-                        min_width: px(36.0),
-                        justify_content: JustifyContent::FlexEnd,
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(space::S8),
+                        min_height: px(16.0),
                     }
+                    BackgroundColor({ background })
                     Children [
-                        (
+                        Node {
+                            min_width: px(36.0),
+                            justify_content: JustifyContent::FlexEnd,
+                        }
+                        Children [
                             Text({ format!("{number}") })
                             TextRole(Role::Mono)
                             TextColor({ gutter_color })
-                        ),
+                        ]
+                        --
+                        @{ indent_rail(indent_level, palette) }
+                        --
+                        { tokens }
                     ]
-                ),
-                ( { indent_rail(indent_level, palette) } ),
-                { tokens },
-            ]
         }));
     }
     if viewport.hidden_below() > 0 {
@@ -118,13 +114,13 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
         ));
     }
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-        }
-        Children [
-            { rows },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+            }
+            Children [
+                { rows }
+            ]
     })
 }
 
@@ -135,22 +131,22 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
     let mut ticks: Vec<Box<dyn Scene>> = Vec::with_capacity(level);
     for _ in 0..level {
         ticks.push(Box::new(bsn! {
-            Node {
-                width: px(2.0),
-                height: px(10.0),
-                margin: UiRect::right(Val::Px(2.0)),
-            }
-            BackgroundColor({ color })
+                    Node {
+                        width: px(2.0),
+                        height: px(10.0),
+                        margin: UiRect::right(Val::Px(2.0)),
+                    }
+                    BackgroundColor({ color })
         }) as Box<dyn Scene>);
     }
     Box::new(bsn! {
-        Node {
-            flex_direction: FlexDirection::Row,
-            min_width: px(4.0),
-        }
-        Children [
-            { ticks },
-        ]
+            Node {
+                flex_direction: FlexDirection::Row,
+                min_width: px(4.0),
+            }
+            Children [
+                { ticks }
+            ]
     })
 }
 
@@ -158,12 +154,12 @@ fn notice_row(text: &str, palette: &UiPalette) -> Box<dyn Scene> {
     let label = text.to_owned();
     let color = palette.warning;
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-        }
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) TextColor({ color }) ),
-        ]
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+            }
+            Children [
+                Text({ label }) TextRole(Role::Caption) TextColor({ color })
+            ]
     })
 }

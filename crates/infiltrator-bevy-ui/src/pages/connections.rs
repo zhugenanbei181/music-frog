@@ -21,7 +21,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
@@ -206,23 +206,25 @@ pub fn connections_page(
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Connections)
-        ConnectionsPageRoot
-        Children [
-            ( { header_card_scene(summary, traffic, palette) } ),
-            ( { connections_table_scene(connection_scenes, palette) } ),
-            ( { crate::pages::connections_drawer::connection_drawer_scene(palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Connections)
+            ConnectionsPageRoot
+            Children [
+                @{ header_card_scene(summary, traffic, palette) }
+                --
+                @{ connections_table_scene(connection_scenes, palette) }
+                --
+                @{ crate::pages::connections_drawer::connection_drawer_scene(palette) }
+            ]
     }
 }
 
@@ -233,62 +235,97 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(space::S16),
-                }
-                template_value(AccessibilityNode(header_a11y))
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Network, 36.0, palette) } ),
-                            (
-                                Node {
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S4),
-                                }
-                                Children [
-                                    ( Text(summary) ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading) ),
-                                    ( Text(traffic) ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption) ),
-                                    ( Text({ "● 连接流 · 未连接".to_owned() }) ConnectionsLine(ConnectionsLineKind::Stream) TextRole(Role::Caption) ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                column_gap: Val::Px(space::S16),
+                            }
+                            AccessibilityNode(header_a11y)
+                            Children [
                                 Node {
                                     align_items: AlignItems::Center,
-                                    padding: UiRect::all(Val::Px(2.0)),
-                                    border: UiRect::all(Val::Px(palette.hairline_px)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    column_gap: Val::Px(space::S4),
-                                }
-                                BackgroundColor({ palette.surface_elevated })
-                                BorderColor {
-                                    top: { palette.border },
-                                    right: { palette.border },
-                                    bottom: { palette.border },
-                                    left: { palette.border },
+                                    column_gap: Val::Px(space::S12),
                                 }
                                 Children [
-                                    ( { conn_aggregation_pill(ConnectionGroupingMode::Flat, "全部连接 (Flat)", true, palette) } ),
-                                    ( { conn_aggregation_pill(ConnectionGroupingMode::ByProcess, "按应用进程聚合 (By Process)", false, palette) } ),
-                                    ( { conn_aggregation_pill(ConnectionGroupingMode::ByHost, "按目标域名聚合 (By Host)", false, palette) } ),
+                                    @{ icon_tile_scene(IconId::Network, 36.0, palette) }
+                                    --
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        row_gap: Val::Px(space::S4),
+                                    }
+                                    Children [
+                                        Text(summary) ConnectionsLine(ConnectionsLineKind::Summary) TextRole(Role::Heading)
+                                        --
+                                        Text(traffic) ConnectionsLine(ConnectionsLineKind::TrafficSummary) TextRole(Role::Caption)
+                                        --
+                                        Text({ "● 连接流 · 未连接".to_owned() }) ConnectionsLine(ConnectionsLineKind::Stream) TextRole(Role::Caption)
+                                    ]
                                 ]
-                            ),
-                            (
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Node {
+                                        align_items: AlignItems::Center,
+                                        padding: UiRect::all(Val::Px(2.0)),
+                                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                        column_gap: Val::Px(space::S4),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    BorderColor {
+                                        top: { palette.border },
+                                        right: { palette.border },
+                                        bottom: { palette.border },
+                                        left: { palette.border },
+                                    }
+                                    Children [
+                                        @{ conn_aggregation_pill(ConnectionGroupingMode::Flat, "全部连接 (Flat)", true, palette) }
+                                        --
+                                        @{ conn_aggregation_pill(ConnectionGroupingMode::ByProcess, "按应用进程聚合 (By Process)", false, palette) }
+                                        --
+                                        @{ conn_aggregation_pill(ConnectionGroupingMode::ByHost, "按目标域名聚合 (By Host)", false, palette) }
+                                    ]
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.danger })
+                                    Button
+                                    CloseAllConnectionsButton
+                                    Children [
+                                        Text({ "关闭全部连接".to_owned() }) CloseAllConnectionsLabel TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
+                                }
+                                ConnSearchField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            String::new(),
+                                            "按域名/IP/进程即时搜索连接".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                                --
                                 Node {
                                     min_height: px(palette.control_height_px),
                                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -296,54 +333,13 @@ fn header_card_scene(summary: String, traffic: String, palette: &UiPalette) -> i
                                     justify_content: JustifyContent::Center,
                                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.danger })
+                                BackgroundColor({ palette.surface_elevated })
                                 Button
-                                CloseAllConnectionsButton
+                                CloseFilteredConnectionsButton
                                 Children [
-                                    ( Text({ "关闭全部连接".to_owned() }) CloseAllConnectionsLabel TextRole(Role::BodyStrong) ),
+                                    Text({ "断开筛选结果".to_owned() }) TextRole(Role::Caption)
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0.0),
-                        }
-                        ConnSearchField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                String::new(),
-                                "按域名/IP/进程即时搜索连接".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        CloseFilteredConnectionsButton
-                        Children [
-                            ( Text({ "断开筛选结果".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                ]
+                            ]
             }),
             Box::new(conn_idle_controls_scene(palette)),
         ],
@@ -370,17 +366,17 @@ fn conn_aggregation_pill(
     let label_str = label.to_owned();
 
     bsn! {
-        Node {
-            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ bg })
-        ConnAggregationPill(mode)
-        Button
-        Children [
-            ( Text(label_str) TextRole(Role::Caption) TextColor({ text_color }) ),
-        ]
+            Node {
+                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ bg })
+            ConnAggregationPill(mode)
+            Button
+            Children [
+                Text(label_str) TextRole(Role::Caption) TextColor({ text_color })
+            ]
     }
 }
 
@@ -391,40 +387,42 @@ fn connections_table_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "实时连接表 (Active Sessions)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( { sort_pills_scene(palette) } ),
-                    ( Text({ "实时追踪链路与进程".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "实时连接表 (Active Sessions)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                @{ sort_pills_scene(palette) }
+                                --
+                                Text({ "实时追踪链路与进程".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    display: Display::None,
-                    align_items: AlignItems::Center,
-                }
-                ConnAggregationSummaryContainer
-                Children [
-                    ( Text({ String::new() }) ConnAggregationSummary TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                display: Display::None,
+                                align_items: AlignItems::Center,
+                            }
+                            ConnAggregationSummaryContainer
+                            Children [
+                                Text({ String::new() }) ConnAggregationSummary TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                ConnRowsContainer
-                Children [
-                    { connection_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            ConnRowsContainer
+                            Children [
+                                { connection_scenes }
+                            ]
             }),
         ],
         palette,

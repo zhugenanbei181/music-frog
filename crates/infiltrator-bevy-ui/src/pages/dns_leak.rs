@@ -109,40 +109,37 @@ pub fn dns_leak_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text(conclusion)
-                        DnsLine(DnsLineKind::LeakConclusion)
-                        TextRole(Role::BodyStrong)
-                        TextColor(conclusion_color)
-                    ),
-                    ( Text(sources) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text(conclusion)
+                                DnsLine(DnsLineKind::LeakConclusion)
+                                TextRole(Role::BodyStrong)
+                                TextColor(conclusion_color)
+                                --
+                                Text(sources) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    min_height: px(48.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(
-                        palette.control_radius_px,
-                    )),
-                    flex_direction: FlexDirection::Column,
-                }
-                BackgroundColor({ palette.surface_elevated })
-                Children [
-                    (
-                        Text(listing)
-                        DnsLine(DnsLineKind::Leak)
-                        TextRole(Role::Mono)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                min_height: px(48.0),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(
+                                        palette.control_radius_px,
+                                )),
+                                flex_direction: FlexDirection::Column,
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Children [
+                                Text(listing)
+                                DnsLine(DnsLineKind::Leak)
+                                TextRole(Role::Mono)
+                            ]
             }),
         ],
         palette,

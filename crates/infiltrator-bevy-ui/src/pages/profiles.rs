@@ -17,7 +17,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
     UiRect, Val, percent, px,
@@ -352,29 +352,37 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Profiles)
-        ProfilesPageRoot
-        Children [
-            ( { pull_to_refresh_scene(&PullToRefreshState::default(), palette) } ),
-            ( { header_card_scene(summary, auto_update, palette) } ),
-            ( { crate::pages::profiles_import::profiles_import_card_scene(projection, palette) } ),
-            ( { crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) } ),
-            ( { crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) } ),
-            ( { crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) } ),
-            ( { crate::pages::profiles_editor::profile_editor_scene(projection, palette) } ),
-            ( { crate::pages::profiles_script::script_sandbox_scene(projection, palette) } ),
-            { profile_scenes },
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Profiles)
+            ProfilesPageRoot
+            Children [
+                @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
+                --
+                @{ header_card_scene(summary, auto_update, palette) }
+                --
+                @{ crate::pages::profiles_import::profiles_import_card_scene(projection, palette) }
+                --
+                @{ crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) }
+                --
+                @{ crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) }
+                --
+                @{ crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) }
+                --
+                @{ crate::pages::profiles_editor::profile_editor_scene(projection, palette) }
+                --
+                @{ crate::pages::profiles_script::script_sandbox_scene(projection, palette) }
+                --
+                { profile_scenes }
+            ]
     }
 }
 
@@ -388,40 +396,37 @@ fn header_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::FileText, 36.0, palette) } ),
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
+                            --
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                ( Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(Role::Caption) ),
+                                Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(Role::Heading)
+                                --
+                                Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(Role::Caption)
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -433,10 +438,9 @@ fn header_card_scene(
                             Button
                             UpdateAllSubscriptionsButton
                             Children [
-                                ( Text({ "一键更新全部订阅".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "一键更新全部订阅".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -447,12 +451,10 @@ fn header_card_scene(
                             BackgroundColor({ palette.accent })
                             Button
                             Children [
-                                ( Text({ "导入订阅链接".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "导入订阅链接".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -491,46 +493,44 @@ fn profile_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            Children [
-                (
                     Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(space::S4),
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
                     Children [
-                        (
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(space::S4),
+                        }
+                        Children [
                             Node {
                                 align_items: AlignItems::Center,
                                 column_gap: Val::Px(space::S8),
                             }
                             Children [
-                                ( Text(name) ProfileNameText(idx) TextRole(Role::BodyStrong) ),
-                                ( Text(updated) ProfileTimeText(idx) TextRole(Role::Caption) ),
+                                Text(name) ProfileNameText(idx) TextRole(Role::BodyStrong)
+                                --
+                                Text(updated) ProfileTimeText(idx) TextRole(Role::Caption)
                             ]
-                        ),
-                        ( Text(url) TextRole(Role::Caption) ),
-                        (
+                            --
+                            Text(url) TextRole(Role::Caption)
+                            --
                             Text({ profile.write_protection.label_zh().to_owned() })
                             ProfileProtectionText(idx)
                             TextRole(Role::Caption)
-                        ),
-                        ( Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono) ),
-                        ( Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption) ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                            --
+                            Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono)
+                            --
+                            Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption)
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -542,10 +542,9 @@ fn profile_card_scene(
                             Button
                             UpdateProfileButton(idx)
                             Children [
-                                ( Text({ "立即更新".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "立即更新".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -561,10 +560,9 @@ fn profile_card_scene(
                             }
                             Button
                             Children [
-                                ( Text(status_str) ProfileStatusText(idx) TextRole(Role::Body) ),
+                                Text(status_str) ProfileStatusText(idx) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -580,12 +578,10 @@ fn profile_card_scene(
                                 profile_idx: { idx },
                             }
                             Children [
-                                ( Text({ "删除配置".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "删除配置".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )

@@ -16,7 +16,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{ParamSet, Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
@@ -140,25 +140,29 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
     let summary = "系统与内核全局设置 · 统一策略中枢".to_owned();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Settings)
-        SettingsPageRoot
-        Children [
-            ( { tun_permission_alert_banner_scene(palette) } ),
-            ( { header_card_scene(summary, palette) } ),
-            ( { general_card_scene(projection, palette) } ),
-            ( { settings_tun::card(projection, palette) } ),
-            ( { settings_core::controller_settings_card(projection, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Settings)
+            SettingsPageRoot
+            Children [
+                @{ tun_permission_alert_banner_scene(palette) }
+                --
+                @{ header_card_scene(summary, palette) }
+                --
+                @{ general_card_scene(projection, palette) }
+                --
+                @{ settings_tun::card(projection, palette) }
+                --
+                @{ settings_core::controller_settings_card(projection, palette) }
+            ]
     }
 }
 
@@ -168,38 +172,37 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
     let border_color = palette.warning;
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(Val::Px(space::S16), Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-            column_gap: Val::Px(space::S12),
-            row_gap: Val::Px(space::S8),
-            flex_wrap: FlexWrap::Wrap,
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor {
-            top: border_color,
-            right: border_color,
-            bottom: border_color,
-            left: border_color,
-        }
-        TunPermissionAlertBanner
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::axes(Val::Px(space::S16), Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                column_gap: Val::Px(space::S12),
+                row_gap: Val::Px(space::S8),
+                flex_wrap: FlexWrap::Wrap,
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor {
+                top: border_color,
+                right: border_color,
+                bottom: border_color,
+                left: border_color,
+            }
+            TunPermissionAlertBanner
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S12),
                     flex_grow: 1.0,
                 }
                 Children [
-                    ( { icon_tile_scene(IconId::Activity, 28.0, palette) } ),
-                    ( Text(alert_text) TextRole(Role::Body) ),
+                    @{ icon_tile_scene(IconId::Activity, 28.0, palette) }
+                    --
+                    Text(alert_text) TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -211,10 +214,9 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 PrepareTunPermissionButton
                 Button
                 Children [
-                    ( Text({ "准备 TUN 权限".to_owned() }) TextRole(Role::BodyStrong) ),
+                    Text({ "准备 TUN 权限".to_owned() }) TextRole(Role::BodyStrong)
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -224,31 +226,29 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::Settings, 36.0, palette) } ),
-                        ( Text(summary) SettingsLine(SettingsLineKind::Summary) TextRole(Role::Heading) ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::Settings, 36.0, palette) }
+                            --
+                            Text(summary) SettingsLine(SettingsLineKind::Summary) TextRole(Role::Heading)
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -260,12 +260,10 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                             SaveSettingsButton
                             Button
                             Children [
-                                ( Text({ "保存生效".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "保存生效".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -297,65 +295,59 @@ fn close_to_tray_toggle_row_scene(enabled: bool, palette: &UiPalette) -> impl Sc
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(text_str) TextRole(Role::Body) ),
+                    Text(text_str) TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color }) ),
-                    (
+                    Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color })
+                    --
+                    Node {
+                        width: px(38.0),
+                        height: px(22.0),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                        position_type: PositionType::Relative,
+                        align_items: AlignItems::Center,
+                    }
+                    BackgroundColor({ switch_bg })
+                    BorderColor {
+                        top: edge_color,
+                        right: edge_color,
+                        bottom: edge_color,
+                        left: edge_color,
+                    }
+                    CloseToTrayToggle
+                    Button
+                    Children [
                         Node {
-                            width: px(38.0),
-                            height: px(22.0),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(11.0)),
-                            position_type: PositionType::Relative,
-                            align_items: AlignItems::Center,
+                            position_type: PositionType::Absolute,
+                            left: { knob_left },
+                            width: px(16.0),
+                            height: px(16.0),
+                            border_radius: BorderRadius::all(Val::Px(8.0)),
                         }
-                        BackgroundColor({ switch_bg })
-                        BorderColor {
-                            top: edge_color,
-                            right: edge_color,
-                            bottom: edge_color,
-                            left: edge_color,
-                        }
-                        CloseToTrayToggle
-                        Button
-                        Children [
-                            (
-                                Node {
-                                    position_type: PositionType::Absolute,
-                                    left: { knob_left },
-                                    width: px(16.0),
-                                    height: px(16.0),
-                                    border_radius: BorderRadius::all(Val::Px(8.0)),
-                                }
-                                BackgroundColor({ knob_color })
-                            ),
-                        ]
-                    ),
+                        BackgroundColor({ knob_color })
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -385,65 +377,59 @@ fn system_notifications_toggle_row_scene(enabled: bool, palette: &UiPalette) -> 
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text(text_str) TextRole(Role::Body) ),
+                    Text(text_str) TextRole(Role::Body)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color }) ),
-                    (
+                    Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color })
+                    --
+                    Node {
+                        width: px(38.0),
+                        height: px(22.0),
+                        border: UiRect::all(Val::Px(palette.hairline_px)),
+                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                        position_type: PositionType::Relative,
+                        align_items: AlignItems::Center,
+                    }
+                    BackgroundColor({ switch_bg })
+                    BorderColor {
+                        top: edge_color,
+                        right: edge_color,
+                        bottom: edge_color,
+                        left: edge_color,
+                    }
+                    SystemNotificationsToggle
+                    Button
+                    Children [
                         Node {
-                            width: px(38.0),
-                            height: px(22.0),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(11.0)),
-                            position_type: PositionType::Relative,
-                            align_items: AlignItems::Center,
+                            position_type: PositionType::Absolute,
+                            left: { knob_left },
+                            width: px(16.0),
+                            height: px(16.0),
+                            border_radius: BorderRadius::all(Val::Px(8.0)),
                         }
-                        BackgroundColor({ switch_bg })
-                        BorderColor {
-                            top: edge_color,
-                            right: edge_color,
-                            bottom: edge_color,
-                            left: edge_color,
-                        }
-                        SystemNotificationsToggle
-                        Button
-                        Children [
-                            (
-                                Node {
-                                    position_type: PositionType::Absolute,
-                                    left: { knob_left },
-                                    width: px(16.0),
-                                    height: px(16.0),
-                                    border_radius: BorderRadius::all(Val::Px(8.0)),
-                                }
-                                BackgroundColor({ knob_color })
-                            ),
-                        ]
-                    ),
+                        BackgroundColor({ knob_color })
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -466,134 +452,149 @@ pub fn general_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "常规与系统集成 (General)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "常规与系统集成 (General)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    ( { checkbox_scene("开机自动启动 (Autostart on Boot)".to_owned(), projection.autostart, palette) } ),
-                    ( { settings_system::toggle_scene(projection.system_proxy, palette) } ),
-                    ( { settings_system::status_row(&projection.system_proxy_snapshot, &projection.system_proxy_recovery, palette) } ),
-                    ( { close_to_tray_toggle_row_scene(true, palette) } ),
-                    ( { system_notifications_toggle_row_scene(true, palette) } ),
-                    ( { settings_lan::scene(projection, palette) } ),
-                    ( { settings_pac::scene(projection, palette) } ),
-                    ( { settings_network_roaming::scene(projection, palette) } ),
-                    ( { settings_vpn::scene(projection, palette) } ),
-                    ( { settings_privileged_network::scene(projection, palette) } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "内核版本通道 (Core Channel)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    ( { settings_core::core_rollback_row_scene(projection, palette) } ),
-                    ( { settings_offline_startup::offline_startup_row_scene(&projection.offline_startup, palette) } ),
-                    ( { settings_core::controller_auth_row_scene(&projection.controller_auth, palette) } ),
-                    ( { settings_core::service_mode_row_scene(&projection.service_mode, palette) } ),
-                    ( { settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) } ),
-                    ( { settings_core::core_resources_row_scene(&projection.core_resources, palette) } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "制品完整性 (SHA-256)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "在线通道探测 (Online Probe)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S6),
-                            padding: UiRect::top(Val::Px(space::S4)),
-                        }
-                        Children [
-                            ( Text({ "界面主题 (Interface Theme)".to_owned() }) TextRole(Role::Caption) ),
-                            ( { segmented_control_scene(
-                                vec![
-                                    "浅色模式".to_owned(),
-                                    "深色模式".to_owned(),
-                                    "护眼森林".to_owned(),
-                                    "AMOLED".to_owned(),
-                                ],
-                                1,
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S6),
-                            padding: UiRect::top(Val::Px(space::S4)),
-                        }
-                        Children [
-                            ( Text({ "语言设置 (Language)".to_owned() }) TextRole(Role::Caption) ),
-                            ( { segmented_control_scene(
-                                vec![
-                                    "zh-CN (简体中文)".to_owned(),
-                                    "en-US (English)".to_owned(),
-                                ],
-                                0,
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                @{ checkbox_scene("开机自动启动 (Autostart on Boot)".to_owned(), projection.autostart, palette) }
+                                --
+                                @{ settings_system::toggle_scene(projection.system_proxy, palette) }
+                                --
+                                @{ settings_system::status_row(&projection.system_proxy_snapshot, &projection.system_proxy_recovery, palette) }
+                                --
+                                @{ close_to_tray_toggle_row_scene(true, palette) }
+                                --
+                                @{ system_notifications_toggle_row_scene(true, palette) }
+                                --
+                                @{ settings_lan::scene(projection, palette) }
+                                --
+                                @{ settings_pac::scene(projection, palette) }
+                                --
+                                @{ settings_network_roaming::scene(projection, palette) }
+                                --
+                                @{ settings_vpn::scene(projection, palette) }
+                                --
+                                @{ settings_privileged_network::scene(projection, palette) }
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "内核版本通道 (Core Channel)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                @{ settings_core::core_rollback_row_scene(projection, palette) }
+                                --
+                                @{ settings_offline_startup::offline_startup_row_scene(&projection.offline_startup, palette) }
+                                --
+                                @{ settings_core::controller_auth_row_scene(&projection.controller_auth, palette) }
+                                --
+                                @{ settings_core::service_mode_row_scene(&projection.service_mode, palette) }
+                                --
+                                @{ settings_core::port_conflicts_row_scene(&projection.port_conflicts, palette) }
+                                --
+                                @{ settings_core::core_resources_row_scene(&projection.core_resources, palette) }
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "制品完整性 (SHA-256)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(Role::Mono)
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "在线通道探测 (Online Probe)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(Role::Mono)
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(Role::Mono)
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S6),
+                                    padding: UiRect::top(Val::Px(space::S4)),
+                                }
+                                Children [
+                                    Text({ "界面主题 (Interface Theme)".to_owned() }) TextRole(Role::Caption)
+                                    --
+                                    @{ segmented_control_scene(
+                                            vec![
+                                                "浅色模式".to_owned(),
+                                                "深色模式".to_owned(),
+                                                "护眼森林".to_owned(),
+                                                "AMOLED".to_owned(),
+                                            ],
+                                            1,
+                                            palette,
+                                    ) }
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S6),
+                                    padding: UiRect::top(Val::Px(space::S4)),
+                                }
+                                Children [
+                                    Text({ "语言设置 (Language)".to_owned() }) TextRole(Role::Caption)
+                                    --
+                                    @{ segmented_control_scene(
+                                            vec![
+                                                "zh-CN (简体中文)".to_owned(),
+                                                "en-US (English)".to_owned(),
+                                            ],
+                                            0,
+                                            palette,
+                                    ) }
+                                ]
+                            ]
             }),
         ],
         palette,

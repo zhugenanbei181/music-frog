@@ -148,129 +148,124 @@ pub fn subscription_policy_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( { icon_tile_scene(IconId::Settings, 24.0, palette) } ),
-                    ( Text({ "订阅更新策略 (Update Policy)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
+                                --
+                                Text({ "订阅更新策略 (Update Policy)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S6),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionPolicyUrlField
-                        Children [ ( { text_field_with_placeholder_scene(url, "订阅 URL".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionPolicyIntervalField
-                        Children [ ( { text_field_with_placeholder_scene(interval, "自动更新周期（小时）".to_owned(), palette) } ) ]
-                    ),
-                    (
-                        Node { width: percent(100) }
-                        SubscriptionPolicyCronField
-                        Children [ ( { text_field_with_placeholder_scene(cron, "Cron 表达式（留空按小时周期）".to_owned(), palette) } ) ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        SubscriptionAutoUpdateToggle
-                        Children [
-                            ( { checkbox_scene("启用定时自动更新".to_owned(), auto_update, palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ status.clone() }) SubscriptionPolicyStatus TextRole(Role::Caption) ),
-                            (
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.accent })
-                                Button
-                                SaveSubscriptionPolicyButton
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S6),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node { width: percent(100) }
+                                SubscriptionPolicyUrlField
                                 Children [
-                                    ( Text({ "保存更新策略".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    @{ text_field_with_placeholder_scene(url, "订阅 URL".to_owned(), palette) }
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node { width: percent(100) }
+                                SubscriptionPolicyIntervalField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(interval, "自动更新周期（小时）".to_owned(), palette) }
+                                ]
+                                --
+                                Node { width: percent(100) }
+                                SubscriptionPolicyCronField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(cron, "Cron 表达式（留空按小时周期）".to_owned(), palette) }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        SubscriptionAutoReloadToggle
-                        Children [
-                            ( { checkbox_scene("更新后自动重载内核".to_owned(), auto_reload, palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text({ reload_status.clone() }) SubscriptionAutoReloadStatus TextRole(Role::Caption) ),
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S8),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
-                                Button
-                                SaveSubscriptionAutoReloadButton
+                                SubscriptionAutoUpdateToggle
                                 Children [
-                                    ( Text({ "保存内核重载策略".to_owned() }) TextRole(Role::Body) ),
+                                    @{ checkbox_scene("启用定时自动更新".to_owned(), auto_update, palette) }
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ status.clone() }) SubscriptionPolicyStatus TextRole(Role::Caption)
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    Button
+                                    SaveSubscriptionPolicyButton
+                                    Children [
+                                        Text({ "保存更新策略".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                SubscriptionAutoReloadToggle
+                                Children [
+                                    @{ checkbox_scene("更新后自动重载内核".to_owned(), auto_reload, palette) }
+                                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text({ reload_status.clone() }) SubscriptionAutoReloadStatus TextRole(Role::Caption)
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    Button
+                                    SaveSubscriptionAutoReloadButton
+                                    Children [
+                                        Text({ "保存内核重载策略".to_owned() }) TextRole(Role::Body)
+                                    ]
+                                ]
+                            ]
             }),
         ],
         palette,

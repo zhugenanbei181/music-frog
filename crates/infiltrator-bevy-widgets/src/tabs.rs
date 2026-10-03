@@ -148,34 +148,31 @@ pub fn segmented_control_scene(
                 Button
                 SegmentedTab(idx)
                 Children [
-                    (
-                        Text(title)
-                        TextRole(Role::Caption)
-                        TextColor({ ink })
-                        SegmentedTabLabel
-                    ),
+                    Text(title)
+                    TextRole(Role::Caption)
+                    TextColor({ ink })
+                    SegmentedTabLabel
                 ]
-            }) as Box<dyn Scene>
+}) as Box<dyn Scene>
         })
         .collect();
 
     bsn! {
-        Node {
-            position_type: PositionType::Relative,
-            width: percent(100),
-            height: px(palette.control_height_px * 0.9),
-            padding: UiRect::all(Val::Px(space::S4)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        SegmentedControl
-        SegmentedControlValue(selected_index)
-        SegmentedControlCount(count)
-        Children [
-            (
+            Node {
+                position_type: PositionType::Relative,
+                width: percent(100),
+                height: px(palette.control_height_px * 0.9),
+                padding: UiRect::all(Val::Px(space::S4)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            SegmentedControl
+            SegmentedControlValue(selected_index)
+            SegmentedControlCount(count)
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(left_pct),
@@ -185,8 +182,7 @@ pub fn segmented_control_scene(
                 }
                 BackgroundColor({ palette.accent })
                 SegmentedPillIndicator
-            ),
-            (
+                --
                 Node {
                     position_type: PositionType::Relative,
                     width: percent(100),
@@ -195,10 +191,9 @@ pub fn segmented_control_scene(
                     align_items: AlignItems::Center,
                 }
                 Children [
-                    { tab_scenes },
+                    { tab_scenes }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -235,34 +230,31 @@ pub fn tabs_scene(
                 Button
                 SegmentedTab(idx)
                 Children [
-                    (
-                        Text(title)
-                        TextRole(Role::Body)
-                        TextColor({ ink })
-                        SegmentedTabLabel
-                    ),
+                    Text(title)
+                    TextRole(Role::Body)
+                    TextColor({ ink })
+                    SegmentedTabLabel
                 ]
-            }) as Box<dyn Scene>
+}) as Box<dyn Scene>
         })
         .collect();
 
     bsn! {
-        Node {
-            position_type: PositionType::Relative,
-            width: percent(100),
-            height: px(palette.control_height_px + space::S8),
-            padding: UiRect::all(Val::Px(space::S4)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-            align_items: AlignItems::Center,
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        SegmentedControl
-        SegmentedControlValue(selected_index)
-        SegmentedControlCount(count)
-        Children [
-            (
+            Node {
+                position_type: PositionType::Relative,
+                width: percent(100),
+                height: px(palette.control_height_px + space::S8),
+                padding: UiRect::all(Val::Px(space::S4)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                align_items: AlignItems::Center,
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            SegmentedControl
+            SegmentedControlValue(selected_index)
+            SegmentedControlCount(count)
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(left_pct),
@@ -272,8 +264,7 @@ pub fn tabs_scene(
                 }
                 BackgroundColor({ palette.accent })
                 SegmentedPillIndicator
-            ),
-            (
+                --
                 Node {
                     position_type: PositionType::Relative,
                     width: percent(100),
@@ -282,10 +273,9 @@ pub fn tabs_scene(
                     align_items: AlignItems::Center,
                 }
                 Children [
-                    { tab_scenes },
+                    { tab_scenes }
                 ]
-            ),
-        ]
+            ]
     }
 }
 

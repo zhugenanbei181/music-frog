@@ -74,9 +74,9 @@ jobs:
       - name: Enforce quality guards (fail fast)
         run: bash scripts/test.sh --guards-only
 
-      # 每次运行都解析为最新 stable 工具链（rust-toolchain.toml channel=stable 同轨）。
+      # 每次运行都解析为仓库钉死的 1.99.0 工具链（rust-toolchain.toml channel=1.99.0 同轨）。
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.0
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2

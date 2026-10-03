@@ -149,7 +149,7 @@ pub struct IconTint(pub Color);
 /// plate stamps `Handle::default()` (bevy's transparent image): the node
 /// keeps its layout box and draws nothing.
 pub fn stamp_icon_plate(
-    trigger: On<Add, IconPlate>,
+    trigger: On<Add<IconPlate>>,
     sources: Option<Res<IconSources>>,
     marks: Query<&IconPlate>,
     tints: Query<&IconTint>,
@@ -188,12 +188,12 @@ pub fn sync_icon_tints(mut icons: Query<(&IconTint, &mut ImageNode)>) {
 /// not a panic and not a glyph.
 pub fn icon_scene(icon: IconId, size_px: f32, tint: Color) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: px(size_px),
-            height: px(size_px),
-            flex_shrink: 0.0,
-        }
-        IconPlate({ icon })
-        IconTint({ tint })
+            Node {
+                width: px(size_px),
+                height: px(size_px),
+                flex_shrink: 0.0,
+            }
+            IconPlate({ icon })
+            IconTint({ tint })
     }
 }

@@ -84,119 +84,112 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                RulesBuilderRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Zap, 24.0, palette) } ),
-                            ( Text({ "添加自定义规则向导 (Add Custom Rule)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            column_gap: Val::Px(space::S8),
-                            align_items: AlignItems::Center,
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            RulesBuilderRoot
+                            Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S8),
                                 }
-                                BackgroundColor({ palette.surface_elevated })
-                                Button
-                                InjectGamePresetsButton
                                 Children [
-                                    ( Text({ "一键注入游戏分流预设".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
+                                    --
+                                    Text({ "添加自定义规则向导 (Add Custom Rule)".to_owned() }) TextRole(Role::BodyStrong)
                                 ]
-                            ),
-                            (
+                                --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    column_gap: Val::Px(space::S8),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
-                                Button
-                                AddCustomRuleButton
                                 Children [
-                                    ( Text({ "+ 确认添加规则".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    Button
+                                    InjectGamePresetsButton
+                                    Children [
+                                        Text({ "一键注入游戏分流预设".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    Button
+                                    AddCustomRuleButton
+                                    Children [
+                                        Text({ "+ 确认添加规则".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
-                        }
-                        Children [ { type_chips } ]
-                    ),
-                    ( Text({ "已选类型: DOMAIN-SUFFIX" }) RuleBuilderSelection TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S6),
+                                }
+                                Children [
+                                    { type_chips }
+                                ]
+                                --
+                                Text({ "已选类型: DOMAIN-SUFFIX" }) RuleBuilderSelection TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Node {
-                            flex_grow: 2.0,
-                            min_width: px(0.0),
-                        }
-                        RulePayloadField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                String::new(),
-                                "匹配内容 e.g. github.com".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0.0),
-                        }
-                        RuleTargetField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                edit::DEFAULT_RULE_TARGET.to_owned(),
-                                "出站目标".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Node {
+                                    flex_grow: 2.0,
+                                    min_width: px(0.0),
+                                }
+                                RulePayloadField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            String::new(),
+                                            "匹配内容 e.g. github.com".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                                --
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
+                                }
+                                RuleTargetField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            edit::DEFAULT_RULE_TARGET.to_owned(),
+                                            "出站目标".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                            ]
             }),
         ],
         palette,
@@ -205,19 +198,19 @@ pub fn rules_builder_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 fn rule_type_chip(index: usize, rule_type: String, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Button
-        RuleTypeChip(index)
-        Children [
-            ( Text(rule_type) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Button
+            RuleTypeChip(index)
+            Children [
+                Text(rule_type) TextRole(Role::Caption)
+            ]
     }
 }
 

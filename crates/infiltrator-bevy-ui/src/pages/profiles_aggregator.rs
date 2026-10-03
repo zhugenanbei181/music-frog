@@ -338,103 +338,194 @@ pub fn profiles_aggregator_scene(
             let label = profile.name.clone();
             let source_name = profile.name.clone();
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                }
-                AggregatorSourceToggle(index, source_name)
-                Children [
-                    ( { checkbox_scene(label, checked, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                            }
+                            AggregatorSourceToggle(index, source_name)
+                            Children [
+                                @{ checkbox_scene(label, checked, palette) }
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     let switch_rows: Vec<Box<dyn Scene>> = vec![
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::Deduplicate)
-            Children [ ( { checkbox_scene(
-                "跨订阅节点自动去重".to_owned(),
-                switch_of(report, |draft| draft.deduplicate),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::Deduplicate)
+                    Children [
+                        @{ checkbox_scene(
+                                "跨订阅节点自动去重".to_owned(),
+                                switch_of(report, |draft| draft.deduplicate),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::GeoCluster)
-            Children [ ( { checkbox_scene(
-                "区域节点自动归类".to_owned(),
-                switch_of(report, |draft| draft.geo_cluster),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::GeoCluster)
+                    Children [
+                        @{ checkbox_scene(
+                                "区域节点自动归类".to_owned(),
+                                switch_of(report, |draft| draft.geo_cluster),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::GenerateGroups)
-            Children [ ( { checkbox_scene(
-                "生成区域测速策略组".to_owned(),
-                switch_of(report, |draft| draft.generate_groups),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::GenerateGroups)
+                    Children [
+                        @{ checkbox_scene(
+                                "生成区域测速策略组".to_owned(),
+                                switch_of(report, |draft| draft.generate_groups),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::RemoveEmojis)
-            Children [ ( { checkbox_scene(
-                "清洗节点名 emoji".to_owned(),
-                switch_of(report, |draft| draft.remove_emojis),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::RemoveEmojis)
+                    Children [
+                        @{ checkbox_scene(
+                                "清洗节点名 emoji".to_owned(),
+                                switch_of(report, |draft| draft.remove_emojis),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::AvailabilityPrecheck)
-            Children [ ( { checkbox_scene(
-                "节点可用性预检过滤".to_owned(),
-                switch_of(report, |draft| draft.availability_precheck),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::AvailabilityPrecheck)
+                    Children [
+                        @{ checkbox_scene(
+                                "节点可用性预检过滤".to_owned(),
+                                switch_of(report, |draft| draft.availability_precheck),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
         Box::new(bsn! {
-            Node { align_items: AlignItems::Center }
-            AggregatorSwitch(AggregatorSwitchKind::ActivateAfterCreate)
-            Children [ ( { checkbox_scene(
-                "创建后设为当前配置".to_owned(),
-                switch_of(report, |draft| draft.activate_after_create),
-                palette,
-            ) } ) ]
+                    Node { align_items: AlignItems::Center }
+                    AggregatorSwitch(AggregatorSwitchKind::ActivateAfterCreate)
+                    Children [
+                        @{ checkbox_scene(
+                                "创建后设为当前配置".to_owned(),
+                                switch_of(report, |draft| draft.activate_after_create),
+                                palette,
+                        ) }
+                    ]
         }) as Box<dyn Scene>,
     ];
 
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                ProfileAggregatorRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::FileText, 24.0, palette) } ),
-                            ( Text({ "多订阅节点聚合器 (Profile Aggregator)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            ProfileAggregatorRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
+                                    --
+                                    Text({ "多订阅节点聚合器 (Profile Aggregator)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.surface_elevated })
+                                    Button
+                                    PreviewAggregationButton
+                                    Children [
+                                        Text({ "预览聚合结果".to_owned() }) TextRole(Role::Body)
+                                    ]
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    Button
+                                    SaveAggregatedProfileButton
+                                    Children [
+                                        Text({ "保存为新配置".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node { width: percent(100) }
+                            AggregatorNameField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        name,
+                                        "聚合配置名称 (例如: Aggregated-All)".to_owned(),
+                                        palette,
+                                ) }
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node { width: percent(100) }
+                            AggregatorRenamesField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        renames,
+                                        "节点重命名规则: 模式 => 替换（多条用 ; 分隔）".to_owned(),
+                                        palette,
+                                ) }
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node { width: percent(100) }
+                            AggregatorCustomGroupNameField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        String::new(),
+                                        "自定义策略组名称 (例如: 流媒体专用)".to_owned(),
+                                        palette,
+                                ) }
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node { width: percent(100) }
+                            AggregatorCustomGroupKeywordsField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        String::new(),
+                                        "成员关键词，逗号分隔（留空 = 全部节点）".to_owned(),
+                                        palette,
+                                ) }
+                            ]
+            }),
+            Box::new(bsn! {
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
                                 Node {
                                     min_height: px(palette.control_height_px),
                                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -444,12 +535,11 @@ pub fn profiles_aggregator_scene(
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Button
-                                PreviewAggregationButton
+                                AddAggregatorCustomGroupButton
                                 Children [
-                                    ( Text({ "预览聚合结果".to_owned() }) TextRole(Role::Body) ),
+                                    Text({ "追加自定义策略组".to_owned() }) TextRole(Role::Body)
                                 ]
-                            ),
-                            (
+                                --
                                 Node {
                                     min_height: px(palette.control_height_px),
                                     padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -457,237 +547,149 @@ pub fn profiles_aggregator_scene(
                                     justify_content: JustifyContent::Center,
                                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
+                                BackgroundColor({ palette.surface_elevated })
                                 Button
-                                SaveAggregatedProfileButton
+                                ClearAggregatorCustomGroupsButton
                                 Children [
-                                    ( Text({ "保存为新配置".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    Text({ "清空自定义策略组".to_owned() }) TextRole(Role::Body)
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                AggregatorNameField
-                Children [ ( { text_field_with_placeholder_scene(
-                    name,
-                    "聚合配置名称 (例如: Aggregated-All)".to_owned(),
-                    palette,
-                ) } ) ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S6),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                { switch_rows }
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                AggregatorRenamesField
-                Children [ ( { text_field_with_placeholder_scene(
-                    renames,
-                    "节点重命名规则: 模式 => 替换（多条用 ; 分隔）".to_owned(),
-                    palette,
-                ) } ) ]
+                            Node { width: percent(100) }
+                            AggregatorTemplateNameField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        String::new(),
+                                        "模板名称（复用/重新聚合均按此名称查找）".to_owned(),
+                                        palette,
+                                ) }
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                AggregatorCustomGroupNameField
-                Children [ ( { text_field_with_placeholder_scene(
-                    String::new(),
-                    "自定义策略组名称 (例如: 流媒体专用)".to_owned(),
-                    palette,
-                ) } ) ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                SaveAggregationTemplateButton
+                                Children [
+                                    Text({ "保存为模板".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                UseAggregationTemplateButton
+                                Children [
+                                    Text({ "复用模板".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                ReAggregateTemplateButton
+                                Children [
+                                    Text({ "重新聚合".to_owned() }) TextRole(Role::Body)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Button
+                                DeleteAggregationTemplateButton
+                                Children [
+                                    Text({ "删除模板".to_owned() }) TextRole(Role::Body)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                AggregatorCustomGroupKeywordsField
-                Children [ ( { text_field_with_placeholder_scene(
-                    String::new(),
-                    "成员关键词，逗号分隔（留空 = 全部节点）".to_owned(),
-                    palette,
-                ) } ) ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ counters.clone() })
+                                AggregatorPreviewText(AggregatorPreviewKind::Counters)
+                                TextRole(Role::Caption)
+                                --
+                                Text({ regions.clone() })
+                                AggregatorPreviewText(AggregatorPreviewKind::Regions)
+                                TextRole(Role::Caption)
+                                --
+                                Text({ groups.clone() })
+                                AggregatorPreviewText(AggregatorPreviewKind::Groups)
+                                TextRole(Role::Caption)
+                                --
+                                Text({ yaml.clone() })
+                                AggregatorPreviewText(AggregatorPreviewKind::Yaml)
+                                TextRole(Role::Caption)
+                                --
+                                Text({ templates.clone() })
+                                AggregatorPreviewText(AggregatorPreviewKind::Templates)
+                                TextRole(Role::Caption)
+                                --
+                                Text({ custom_groups.clone() })
+                                AggregatorCustomGroupsText
+                                TextRole(Role::Caption)
+                                --
+                                Text({ "聚合向导：编辑后点击预览，可保存为新配置或设为当前配置".to_owned() })
+                                AggregatorStatusText
+                                TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        AddAggregatorCustomGroupButton
-                        Children [
-                            ( Text({ "追加自定义策略组".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        ClearAggregatorCustomGroupsButton
-                        Children [
-                            ( Text({ "清空自定义策略组".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S6),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    { switch_rows },
-                ]
-            }),
-            Box::new(bsn! {
-                Node { width: percent(100) }
-                AggregatorTemplateNameField
-                Children [ ( { text_field_with_placeholder_scene(
-                    String::new(),
-                    "模板名称（复用/重新聚合均按此名称查找）".to_owned(),
-                    palette,
-                ) } ) ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        SaveAggregationTemplateButton
-                        Children [
-                            ( Text({ "保存为模板".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        UseAggregationTemplateButton
-                        Children [
-                            ( Text({ "复用模板".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        ReAggregateTemplateButton
-                        Children [
-                            ( Text({ "重新聚合".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Button
-                        DeleteAggregationTemplateButton
-                        Children [
-                            ( Text({ "删除模板".to_owned() }) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Text({ counters.clone() })
-                        AggregatorPreviewText(AggregatorPreviewKind::Counters)
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ regions.clone() })
-                        AggregatorPreviewText(AggregatorPreviewKind::Regions)
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ groups.clone() })
-                        AggregatorPreviewText(AggregatorPreviewKind::Groups)
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ yaml.clone() })
-                        AggregatorPreviewText(AggregatorPreviewKind::Yaml)
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ templates.clone() })
-                        AggregatorPreviewText(AggregatorPreviewKind::Templates)
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ custom_groups.clone() })
-                        AggregatorCustomGroupsText
-                        TextRole(Role::Caption)
-                    ),
-                    (
-                        Text({ "聚合向导：编辑后点击预览，可保存为新配置或设为当前配置".to_owned() })
-                        AggregatorStatusText
-                        TextRole(Role::Caption)
-                    ),
-                ]
-            }),
-            Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::top(Val::Px(space::S4)),
-                }
-                Children [
-                    ( Text({ "聚合源订阅（勾选后点击预览）".to_owned() }) TextRole(Role::BodyStrong) ),
-                    { source_rows },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::top(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ "聚合源订阅（勾选后点击预览）".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                { source_rows }
+                            ]
             }),
         ],
         palette,

@@ -48,17 +48,17 @@ pub fn connection_pulse_scene(
     let ink = palette.accent;
 
     bsn! {
-        Node {
-            display: { if visible { Display::Flex } else { Display::None } },
-            align_items: AlignItems::Center,
-            padding: UiRect::axes(Val::Px(space::S4), Val::Px(0.0)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ glow })
-        ConnHighThroughputPulse(row)
-        Children [
-            ( Text({ "高吞吐脉冲".to_owned() }) TextRole(Role::Caption) TextColor({ ink }) ),
-        ]
+            Node {
+                display: { if visible { Display::Flex } else { Display::None } },
+                align_items: AlignItems::Center,
+                padding: UiRect::axes(Val::Px(space::S4), Val::Px(0.0)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ glow })
+            ConnHighThroughputPulse(row)
+            Children [
+                Text({ "高吞吐脉冲".to_owned() }) TextRole(Role::Caption) TextColor({ ink })
+            ]
     }
 }
 

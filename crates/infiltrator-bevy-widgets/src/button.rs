@@ -223,26 +223,26 @@ pub fn button_sized_scene(
     };
 
     bsn! {
-        Node {
-            height: px(height_px),
-            padding: UiRect::horizontal(Val::Px(padding_h)),
-            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ fill })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        ButtonVariantStyle(variant)
-        ButtonSizeStyle(size)
-        ControlVisual(false)
-        ButtonLoading(false)
-        ButtonDisabled(false)
-        Button
-        TouchHitbox::default()
-        Children [
-            ( Text(label) TextRole(role) ButtonLabel ),
-        ]
+            Node {
+                height: px(height_px),
+                padding: UiRect::horizontal(Val::Px(padding_h)),
+                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ fill })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            ButtonVariantStyle(variant)
+            ButtonSizeStyle(size)
+            ControlVisual(false)
+            ButtonLoading(false)
+            ButtonDisabled(false)
+            Button
+            TouchHitbox::default()
+            Children [
+                Text(label) TextRole(role) ButtonLabel
+            ]
     }
 }
 
@@ -271,26 +271,26 @@ pub fn loading_button_scene(
     };
 
     bsn! {
-        Node {
-            height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ fill })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        ButtonVariantStyle(variant)
-        ButtonSizeStyle(ButtonSize::Md)
-        ControlVisual(false)
-        ButtonLoading(loading)
-        ButtonDisabled(loading)
-        Button
-        TouchHitbox::default()
-        Children [
-            ( Text(display_text) TextRole(Role::Body) ButtonLabel ),
-        ]
+            Node {
+                height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ fill })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            ButtonVariantStyle(variant)
+            ButtonSizeStyle(ButtonSize::Md)
+            ControlVisual(false)
+            ButtonLoading(loading)
+            ButtonDisabled(loading)
+            Button
+            TouchHitbox::default()
+            Children [
+                Text(display_text) TextRole(Role::Body) ButtonLabel
+            ]
     }
 }
 
@@ -299,23 +299,23 @@ pub fn loading_button_scene(
 pub fn pill_scene(label: String, selected: bool, palette: &UiPalette) -> impl Scene + use<> {
     let edge = control_border(palette);
     bsn! {
-        Node {
-            min_width: px(palette.control_height_px * 2.8),
-            height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ control_fill(selected, false, false, palette) })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        ControlVisual(selected)
-        Button
-        TouchHitbox::default()
-        Children [
-            ( Text(label) TextRole(Role::Body) PillLabel ),
-        ]
+            Node {
+                min_width: px(palette.control_height_px * 2.8),
+                height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ control_fill(selected, false, false, palette) })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            ControlVisual(selected)
+            Button
+            TouchHitbox::default()
+            Children [
+                Text(label) TextRole(Role::Body) PillLabel
+            ]
     }
 }
 
@@ -327,22 +327,22 @@ pub fn pill_caption_scene(
 ) -> impl Scene + use<> {
     let edge = control_border(palette);
     bsn! {
-        Node {
-            height: px(palette.control_height_px * 0.8),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            border: UiRect::all(Val::Px(metrics::HAIRLINE)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ control_fill(selected, false, false, palette) })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        ControlVisual(selected)
-        Button
-        TouchHitbox::default()
-        Children [
-            ( Text(label) TextRole(Role::Caption) PillLabel ),
-        ]
+            Node {
+                height: px(palette.control_height_px * 0.8),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                border: UiRect::all(Val::Px(metrics::HAIRLINE)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ control_fill(selected, false, false, palette) })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            ControlVisual(selected)
+            Button
+            TouchHitbox::default()
+            Children [
+                Text(label) TextRole(Role::Caption) PillLabel
+            ]
     }
 }
 

@@ -105,21 +105,21 @@ pub fn status_banner_scene(
     };
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                min_width: px(0.0),
-                flex_direction: FlexDirection::Column,
-                padding: bevy::ui::UiRect::all(Val::Px(space::S12)),
-                overflow: Overflow::clip(),
-            }
-            SurfaceStatusBanner {
-                page,
-                status: { status.clone() },
-            }
-            BackgroundColor({ fill })
-            Children [
-                ( Text({ label }) TextRole(Role::Caption) TextColor({ palette.ink }) ),
-            ]
+                    Node {
+                        width: percent(100),
+                        min_width: px(0.0),
+                        flex_direction: FlexDirection::Column,
+                        padding: bevy::ui::UiRect::all(Val::Px(space::S12)),
+                        overflow: Overflow::clip(),
+                    }
+                    SurfaceStatusBanner {
+                        page,
+                        status: { status.clone() },
+                    }
+                    BackgroundColor({ fill })
+                    Children [
+                        Text({ label }) TextRole(Role::Caption) TextColor({ palette.ink })
+                    ]
         })],
         palette,
     )

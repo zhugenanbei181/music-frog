@@ -241,8 +241,8 @@ jobs:
           done
 
           # Bevy must be pinned to exact version in workspace deps
-          if ! grep -Fq 'bevy = { version = "=0.19.1"' Cargo.toml; then
-            echo "::error::Bevy must be pinned to =0.19.1 in workspace dependencies"
+          if ! grep -Fq 'bevy = { version = "=0.20.0-rc.2"' Cargo.toml; then
+            echo "::error::Bevy must be pinned to =0.20.0-rc.2 in workspace dependencies"
             exit 1
           fi
 
@@ -262,8 +262,8 @@ jobs:
         shell: bash
         run: bash scripts/test-bevy.sh --guards-only
 
-      - name: Setup stable Rust with fmt and clippy
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup 1.99.0 Rust with fmt and clippy
+        uses: dtolnay/rust-toolchain@1.99.0
         with:
           components: rustfmt, clippy
 

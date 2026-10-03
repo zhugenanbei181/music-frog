@@ -10,7 +10,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
     Overflow, PositionType, UiRect, Val, percent, px,
@@ -93,13 +93,13 @@ fn down_waveform_slot_scene() -> impl Scene + use<> {
     let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
     let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
-        Node {
-            width: px(width),
-            height: px(height),
-            overflow: Overflow::clip(),
-            flex_shrink: 0.0,
-        }
-        MiniHudDownWaveform
+            Node {
+                width: px(width),
+                height: px(height),
+                overflow: Overflow::clip(),
+                flex_shrink: 0.0,
+            }
+            MiniHudDownWaveform
     }
 }
 
@@ -107,13 +107,13 @@ fn up_waveform_slot_scene() -> impl Scene + use<> {
     let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
     let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
-        Node {
-            width: px(width),
-            height: px(height),
-            overflow: Overflow::clip(),
-            flex_shrink: 0.0,
-        }
-        MiniHudUpWaveform
+            Node {
+                width: px(width),
+                height: px(height),
+                overflow: Overflow::clip(),
+                flex_shrink: 0.0,
+            }
+            MiniHudUpWaveform
     }
 }
 
@@ -165,17 +165,16 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
     let scrim = Color::NONE;
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-        }
-        BackgroundColor(scrim)
-        MiniHudRoot
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            BackgroundColor(scrim)
+            MiniHudRoot
+            Children [
                 Node {
                     width: px(280.0),
                     height: px(112.0),
@@ -187,172 +186,151 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                 }
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-                template_value(card_node)
+                card_node
                 Children [
                     // Header: title, real mode chip, pin and expand actions
-                    (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::bottom(Val::Px(space::S4)),
+                    }
+                    Children [
                         Node {
-                            width: percent(100),
                             align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::bottom(Val::Px(space::S4)),
-                        }
-                        Children [
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
-                                }
-                                Children [
-                                    ( { icon_tile_scene(IconId::Activity, 16.0, palette) } ),
-                                    ( Text({ "Mini HUD".to_owned() }) TextRole(Role::Caption) ),
-                                    (
-                                        Node {
-                                            padding: UiRect::axes(Val::Px(space::S6), Val::Px(2.0)),
-                                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                                        }
-                                        BackgroundColor({ palette.surface_elevated })
-                                        Children [
-                                            (
-                                                Text({ mode_label })
-                                                TextRole(Role::Caption)
-                                                MiniHudModeLabel
-                                            ),
-                                        ]
-                                    ),
-                                ]
-                            ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S4),
-                                }
-                                Children [
-                                    (
-                                        Node {
-                                            min_height: px(20.0),
-                                            padding: UiRect::horizontal(Val::Px(space::S6)),
-                                            align_items: AlignItems::Center,
-                                            justify_content: JustifyContent::Center,
-                                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                                            border: UiRect::all(Val::Px(1.0)),
-                                        }
-                                        BackgroundColor({ palette.surface_elevated })
-                                        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-                                        Button
-                                        MiniHudPinButton
-                                        Children [
-                                            ( Text({ pin_label.to_owned() }) TextRole(Role::Caption) ),
-                                        ]
-                                    ),
-                                    (
-                                        Node {
-                                            min_height: px(20.0),
-                                            padding: UiRect::horizontal(Val::Px(space::S6)),
-                                            align_items: AlignItems::Center,
-                                            justify_content: JustifyContent::Center,
-                                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                                        }
-                                        BackgroundColor({ palette.accent })
-                                        Button
-                                        MiniHudExpandButton
-                                        Children [
-                                            ( Text({ "展开".to_owned() }) TextRole(Role::Caption) ),
-                                        ]
-                                    ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    // Dual-Channel Bandwidth Rates
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            justify_content: JustifyContent::SpaceBetween,
-                            align_items: AlignItems::Center,
-                            padding: UiRect::vertical(Val::Px(space::S4)),
-                        }
-                        Children [
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
-                                }
-                                Children [
-                                    ( { icon_tile_scene(IconId::ArrowDown, 16.0, palette) } ),
-                                    ( Text(down_rate) TextRole(Role::BodyStrong) ),
-                                    ( { down_waveform_slot_scene() } ),
-                                ]
-                            ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
-                                }
-                                Children [
-                                    ( { icon_tile_scene(IconId::ArrowUp, 16.0, palette) } ),
-                                    ( Text(up_rate) TextRole(Role::BodyStrong) ),
-                                    ( { up_waveform_slot_scene() } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    // Footer: real exit node pill + the shared quick switches
-                    // and toggle-state line (same command path as the sidebar).
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::top(Val::Px(space::S4)),
                             column_gap: Val::Px(space::S6),
                         }
                         Children [
-                            (
-                                Node {
-                                    padding: UiRect::axes(Val::Px(space::S8), Val::Px(2.0)),
-                                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                                }
-                                BackgroundColor({ palette.accent.with_alpha(0.14) })
-                                Children [
-                                    (
-                                        Text(node_label)
-                                        TextRole(Role::Caption)
-                                        MiniHudNodeLabel
-                                    ),
-                                ]
-                            ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S6),
-                                }
-                                Children [
-                                    (
-                                        { pill_caption_scene(proxy_label, proxy_selected, palette) }
-                                        MiniHudSystemProxyToggle
-                                        ButtonDisabled({ !proxy_actionable })
-                                        template_value(proxy_node)
-                                    ),
-                                    (
-                                        { pill_caption_scene(tun_label, tun_selected, palette) }
-                                        MiniHudTunToggle
-                                        ButtonDisabled({ !tun_actionable })
-                                        template_value(tun_node)
-                                    ),
-                                    (
-                                        Text(toggle_line)
-                                        TextRole(Role::Caption)
-                                        MiniHudToggleLabel
-                                    ),
-                                ]
-                            ),
+                            @{ icon_tile_scene(IconId::Activity, 16.0, palette) }
+                            --
+                            Text({ "Mini HUD".to_owned() }) TextRole(Role::Caption)
+                            --
+                            Node {
+                                padding: UiRect::axes(Val::Px(space::S6), Val::Px(2.0)),
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Children [
+                                Text({ mode_label })
+                                TextRole(Role::Caption)
+                                MiniHudModeLabel
+                            ]
                         ]
-                    ),
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S4),
+                        }
+                        Children [
+                            Node {
+                                min_height: px(20.0),
+                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                border: UiRect::all(Val::Px(1.0)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+                            Button
+                            MiniHudPinButton
+                            Children [
+                                Text({ pin_label.to_owned() }) TextRole(Role::Caption)
+                            ]
+                            --
+                            Node {
+                                min_height: px(20.0),
+                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ palette.accent })
+                            Button
+                            MiniHudExpandButton
+                            Children [
+                                Text({ "展开".to_owned() }) TextRole(Role::Caption)
+                            ]
+                        ]
+                    ]
+                    --
+                    // Dual-Channel Bandwidth Rates
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
+                        padding: UiRect::vertical(Val::Px(space::S4)),
+                    }
+                    Children [
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S6),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
+                            --
+                            Text(down_rate) TextRole(Role::BodyStrong)
+                            --
+                            @{ down_waveform_slot_scene() }
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S6),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::ArrowUp, 16.0, palette) }
+                            --
+                            Text(up_rate) TextRole(Role::BodyStrong)
+                            --
+                            @{ up_waveform_slot_scene() }
+                        ]
+                    ]
+                    --
+                    // Footer: real exit node pill + the shared quick switches
+                    // and toggle-state line (same command path as the sidebar).
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::top(Val::Px(space::S4)),
+                        column_gap: Val::Px(space::S6),
+                    }
+                    Children [
+                        Node {
+                            padding: UiRect::axes(Val::Px(space::S8), Val::Px(2.0)),
+                            border_radius: BorderRadius::all(Val::Px(4.0)),
+                        }
+                        BackgroundColor({ palette.accent.with_alpha(0.14) })
+                        Children [
+                            Text(node_label)
+                            TextRole(Role::Caption)
+                            MiniHudNodeLabel
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S6),
+                        }
+                        Children [
+                            @{ pill_caption_scene(proxy_label, proxy_selected, palette) }
+                            MiniHudSystemProxyToggle
+                            ButtonDisabled({ !proxy_actionable })
+                            proxy_node
+                            --
+                            @{ pill_caption_scene(tun_label, tun_selected, palette) }
+                            MiniHudTunToggle
+                            ButtonDisabled({ !tun_actionable })
+                            tun_node
+                            --
+                            Text(toggle_line)
+                            TextRole(Role::Caption)
+                            MiniHudToggleLabel
+                        ]
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 

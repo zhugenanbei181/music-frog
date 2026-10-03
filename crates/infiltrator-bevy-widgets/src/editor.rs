@@ -305,17 +305,15 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
     let gutter_lines: Vec<Box<dyn Scene>> = (1..=total_lines)
         .map(|num| {
             Box::new(bsn! {
-                Node {
-                    height: px(palette.control_height_px * 0.6),
-                    justify_content: JustifyContent::FlexEnd,
-                    padding: UiRect::horizontal(Val::Px(space::S4)),
-                }
-                Children [
-                    (
-                        Text({ format!("{}", num) })
-                        TextRole(Role::Mono)
-                    ),
-                ]
+                            Node {
+                                height: px(palette.control_height_px * 0.6),
+                                justify_content: JustifyContent::FlexEnd,
+                                padding: UiRect::horizontal(Val::Px(space::S4)),
+                            }
+                            Children [
+                                Text({ format!("{}", num) })
+                                TextRole(Role::Mono)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
@@ -329,41 +327,38 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                 .into_iter()
                 .map(|tok| {
                     Box::new(bsn! {
-                        (
-                            Text({ tok.text })
-                            TextRole(Role::Mono)
-                        )
+                                            Text({ tok.text })
+                                            TextRole(Role::Mono)
                     }) as Box<dyn Scene>
                 })
                 .collect();
 
             Box::new(bsn! {
-                Node {
-                    height: px(palette.control_height_px * 0.6),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                }
-                Children [
-                    { token_nodes },
-                ]
+                            Node {
+                                height: px(palette.control_height_px * 0.6),
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                            }
+                            Children [
+                                { token_nodes }
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            flex_direction: FlexDirection::Row,
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-            overflow: Overflow::clip(),
-        }
-        BackgroundColor({ palette.surface })
-        BorderColor { top: edge, right: edge, bottom: edge, left: edge }
-        CodeEditorRoot
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Row,
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+                overflow: Overflow::clip(),
+            }
+            BackgroundColor({ palette.surface })
+            BorderColor { top: edge, right: edge, bottom: edge, left: edge }
+            CodeEditorRoot
+            Children [
                 Node {
                     width: px(48.0),
                     flex_direction: FlexDirection::Column,
@@ -372,10 +367,9 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                 BackgroundColor({ palette.surface_elevated })
                 CodeEditorGutter
                 Children [
-                    { gutter_lines },
+                    { gutter_lines }
                 ]
-            ),
-            (
+                --
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
@@ -383,10 +377,9 @@ pub fn code_editor_scene(state: &CodeEditorState, palette: &UiPalette) -> Box<dy
                 }
                 CodeEditorBody
                 Children [
-                    { code_lines },
+                    { code_lines }
                 ]
-            ),
-        ]
+            ]
     })
 }
 

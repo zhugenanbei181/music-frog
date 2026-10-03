@@ -79,7 +79,7 @@ pub enum MenuNav {
     Cancel,
 }
 
-/// Typed navigation *message* (bevy 0.19's buffered-event vocabulary): hosts
+/// Typed navigation *message* (bevy 0.20's buffered-event vocabulary): hosts
 /// translate raw keyboard / pointer input into this and the
 /// [`advance_menus`] system drives every mounted menu. Wiring the translation
 /// is host work (the pill pattern: interaction wiring stays with the
@@ -241,16 +241,15 @@ pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl 
         .collect();
     let edge = palette.border;
     bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-        }
-        BackgroundColor({ palette.scrim })
-        MenuScrim
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            BackgroundColor({ palette.scrim })
+            MenuScrim
+            Children [
                 Node {
                     min_width: px(MENU_WIDTH),
                     flex_direction: FlexDirection::Column,
@@ -264,10 +263,9 @@ pub fn menu_overlay_scene(entries: Vec<MenuEntry>, palette: &UiPalette) -> impl 
                 MenuPanel
                 Menu({ state })
                 Children [
-                    { rows },
+                    { rows }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -281,22 +279,20 @@ fn menu_row_scene(
         MenuEntry::Separator => {
             let bar = palette.border;
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                }
-                MenuRowIndex({ index })
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            height: px(palette.hairline_px),
-                            flex_shrink: 0.0,
-                        }
-                        BackgroundColor({ bar })
-                        MenuSeparator
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                            }
+                            MenuRowIndex({ index })
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    height: px(palette.hairline_px),
+                                    flex_shrink: 0.0,
+                                }
+                                BackgroundColor({ bar })
+                                MenuSeparator
+                            ]
             })
         }
         MenuEntry::Item { label, enabled } => {
@@ -306,18 +302,18 @@ fn menu_row_scene(
             let role = if *enabled { Role::Body } else { Role::Caption };
             let fill = menu_row_fill(highlighted, palette);
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    min_height: px(palette.control_height_px),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ fill })
-                MenuRowIndex({ index })
-                Children [
-                    ( Text(label) TextRole(role) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                min_height: px(palette.control_height_px),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::horizontal(Val::Px(space::S12)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ fill })
+                            MenuRowIndex({ index })
+                            Children [
+                                Text(label) TextRole(role)
+                            ]
             })
         }
     }

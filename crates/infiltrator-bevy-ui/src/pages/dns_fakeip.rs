@@ -175,65 +175,58 @@ pub fn dns_fakeip_pool_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text({ "Fake-IP 映射池实时检索 (DUAL-14-06)".to_owned() })
-                        TextRole(Role::BodyStrong)
-                    ),
-                    ( Text(count) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "Fake-IP 映射池实时检索 (DUAL-14-06)".to_owned() })
+                                TextRole(Role::BodyStrong)
+                                --
+                                Text(count) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node { width: percent(100) }
-                DnsFakeIpSearchField
-                Children [
-                    (
-                        { text_field_with_placeholder_scene(
-                            String::new(),
-                            "搜索域名或虚拟 IP".to_owned(),
-                            palette,
-                        ) }
-                    ),
-                ]
+                            Node { width: percent(100) }
+                            DnsFakeIpSearchField
+                            Children [
+                                @{ text_field_with_placeholder_scene(
+                                        String::new(),
+                                        "搜索域名或虚拟 IP".to_owned(),
+                                        palette,
+                                ) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    min_height: px(48.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(
-                        palette.control_radius_px,
-                    )),
-                    flex_direction: FlexDirection::Column,
-                }
-                BackgroundColor({ palette.surface_elevated })
-                Children [
-                    (
-                        Text(listing)
-                        DnsLine(DnsLineKind::FakeIpMapping)
-                        TextRole(Role::Mono)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                min_height: px(48.0),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(
+                                        palette.control_radius_px,
+                                )),
+                                flex_direction: FlexDirection::Column,
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Children [
+                                Text(listing)
+                                DnsLine(DnsLineKind::FakeIpMapping)
+                                TextRole(Role::Mono)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S2),
-                }
-                Children [
-                    (
-                        Text({ String::new() })
-                        DnsLine(DnsLineKind::FakeIpMappingCount)
-                        TextRole(Role::Caption)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S2),
+                            }
+                            Children [
+                                Text({ String::new() })
+                                DnsLine(DnsLineKind::FakeIpMappingCount)
+                                TextRole(Role::Caption)
+                            ]
             }),
         ],
         palette,

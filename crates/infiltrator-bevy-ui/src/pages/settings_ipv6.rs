@@ -29,26 +29,25 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     let status = format_status(&projection.ipv6_routing);
     Box::new(surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
-            }
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        padding: UiRect::all(Val::Px(space::S8)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S4),
                     }
-                    Ipv6RoutingToggle
                     Children [
-                        ( { checkbox_scene("允许 IPv6 内核流量 (Mihomo IPv6)".to_owned(), projection.ipv6_routing.enabled, palette) } ),
-                        ( Text(status) SettingsLine(SettingsLineKind::Ipv6Routing) TextRole(Role::Mono) ),
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                            padding: UiRect::all(Val::Px(space::S8)),
+                        }
+                        Ipv6RoutingToggle
+                        Children [
+                            @{ checkbox_scene("允许 IPv6 内核流量 (Mihomo IPv6)".to_owned(), projection.ipv6_routing.enabled, palette) }
+                            --
+                            Text(status) SettingsLine(SettingsLineKind::Ipv6Routing) TextRole(Role::Mono)
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     ))

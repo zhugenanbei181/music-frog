@@ -1,6 +1,6 @@
 //! Frameless window chrome for the Bevy shell (DUAL-15-13).
 //!
-//! Bevy 0.19 exposes a real OS window path: [`bevy::window::Window`]'s
+//! Bevy 0.20 exposes a real OS window path: [`bevy::window::Window`]'s
 //! `start_drag_move` reaches `winit::Window::drag_window`, `set_minimized` /
 //! `set_maximized` reach their winit counterparts, and `decorations` is a
 //! real (runtime-toggleable) flag. The shell therefore runs frameless with a
@@ -22,8 +22,8 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::picking::events::{Click, Pointer, Press};
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::picking::events::{PointerClick, PointerPress};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, Node, UiRect, Val, percent, px,
@@ -130,7 +130,7 @@ fn apply_window_chrome(
 
 /// Press on the bar starts the OS drag move (winit's `drag_window`).
 fn on_drag_bar_pressed(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     bars: Query<(), With<ChromeDragBar>>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
@@ -144,7 +144,7 @@ fn on_drag_bar_pressed(
 
 /// A double click on the bar toggles maximize.
 fn on_drag_bar_clicked(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     bars: Query<(), With<ChromeDragBar>>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut latch: ResMut<ChromeMaximizeLatch>,
@@ -205,39 +205,35 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
     let maximize_node = crate::a11y::semantic_node(ShellA11yNode::ChromeMaximize);
     let close_node = crate::a11y::semantic_node(ShellA11yNode::ChromeClose);
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(CHROME_DRAG_STRIP_HEIGHT_PX as f32),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            column_gap: Val::Px(space::S8),
-        }
-        BackgroundColor({ palette.sidebar })
-        ChromeDragBar
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(CHROME_DRAG_STRIP_HEIGHT_PX as f32),
+                flex_shrink: 0.0,
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                column_gap: Val::Px(space::S8),
+            }
+            BackgroundColor({ palette.sidebar })
+            ChromeDragBar
+            Children [
                 Text({ "MusicFrog Infiltrator".to_owned() })
                 TextRole(Role::Caption)
                 TextColor({ palette.ink_dim })
-            ),
-            ( Node { flex_grow: 1.0 } ),
-            (
-                { pill_caption_scene("–".to_owned(), false, palette) }
+                --
+                Node { flex_grow: 1.0 }
+                --
+                @{ pill_caption_scene("–".to_owned(), false, palette) }
                 ChromeMinimizeButton
-                template_value(minimize_node)
-            ),
-            (
-                { pill_caption_scene("▢".to_owned(), false, palette) }
+                minimize_node
+                --
+                @{ pill_caption_scene("▢".to_owned(), false, palette) }
                 ChromeMaximizeButton
-                template_value(maximize_node)
-            ),
-            (
-                { pill_caption_scene("✕".to_owned(), false, palette) }
+                maximize_node
+                --
+                @{ pill_caption_scene("✕".to_owned(), false, palette) }
                 ChromeCloseButton
-                template_value(close_node)
-            ),
-        ]
+                close_node
+            ]
     }
 }

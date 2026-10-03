@@ -18,7 +18,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -262,23 +262,25 @@ pub fn app_routing_page(
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::AppRouting)
-        AppRoutingPageRoot
-        Children [
-            ( { header_card_scene(summary, projection.include_system, palette) } ),
-            ( { crate::pages::app_routing_uwp::uwp_exemption_scene(projection, palette) } ),
-            ( { apps_container_scene(app_scenes, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::AppRouting)
+            AppRoutingPageRoot
+            Children [
+                @{ header_card_scene(summary, projection.include_system, palette) }
+                --
+                @{ crate::pages::app_routing_uwp::uwp_exemption_scene(projection, palette) }
+                --
+                @{ apps_container_scene(app_scenes, palette) }
+            ]
     }
 }
 
@@ -293,58 +295,54 @@ fn header_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    column_gap: Val::Px(space::S16),
-                }
-                template_value(AccessibilityNode(header_a11y))
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Globe, 36.0, palette) } ),
-                            ( Text(summary) AppRoutingLine(AppRoutingLineKind::Summary) TextRole(Role::Heading) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                column_gap: Val::Px(space::S16),
+                            }
+                            AccessibilityNode(header_a11y)
+                            Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    column_gap: Val::Px(space::S12),
                                 }
-                                BackgroundColor({ palette.accent })
-                                AddAppRouteButton
-                                Button
                                 Children [
-                                    ( Text({ "添加应用分流".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    @{ icon_tile_scene(IconId::Globe, 36.0, palette) }
+                                    --
+                                    Text(summary) AppRoutingLine(AppRoutingLineKind::Summary) TextRole(Role::Heading)
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    AddAppRouteButton
+                                    Button
+                                    Children [
+                                        Text({ "添加应用分流".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::top(Val::Px(space::S8)),
-                }
-                Children [
-                    ( { checkbox_scene("显示系统后台进程 (Include System Processes)".to_owned(), include_system, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::top(Val::Px(space::S8)),
+                            }
+                            Children [
+                                @{ checkbox_scene("显示系统后台进程 (Include System Processes)".to_owned(), include_system, palette) }
+                            ]
             }),
         ],
         palette,
@@ -358,26 +356,27 @@ fn apps_container_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "进程与应用分流策略列表 (Application Rules)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "按进程匹配并重定向流量".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "进程与应用分流策略列表 (Application Rules)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "按进程匹配并重定向流量".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { app_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { app_scenes }
+                            ]
             }),
         ],
         palette,
@@ -391,60 +390,55 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
     let rule_col = app_rule_color(app.rule, palette);
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(name) AppNameText(idx) TextRole(Role::BodyStrong) ),
-                    ( Text(proc_str) AppProcessText(idx) TextRole(Role::Caption) ),
+                    Text(name) AppNameText(idx) TextRole(Role::BodyStrong)
+                    --
+                    Text(proc_str) AppProcessText(idx) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    (
-                        Text(rule_str)
-                        AppRuleText(idx)
-                        TextRole(Role::BodyStrong)
-                        TextColor(rule_col)
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px * 0.8),
-                            padding: UiRect::horizontal(Val::Px(space::S8)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface })
-                        ControlVisual(false)
-                        SwitchAppRuleButton {
-                            app_id: { app.id.clone() },
-                            app_idx: { idx },
-                            current_rule: { app.rule },
-                        }
-                        Button
-                        Children [
-                            ( Text({ "切换策略".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
+                    Text(rule_str)
+                    AppRuleText(idx)
+                    TextRole(Role::BodyStrong)
+                    TextColor(rule_col)
+                    --
+                    Node {
+                        min_height: px(palette.control_height_px * 0.8),
+                        padding: UiRect::horizontal(Val::Px(space::S8)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.surface })
+                    ControlVisual(false)
+                    SwitchAppRuleButton {
+                        app_id: { app.id.clone() },
+                        app_idx: { idx },
+                        current_rule: { app.rule },
+                    }
+                    Button
+                    Children [
+                        Text({ "切换策略".to_owned() }) TextRole(Role::Caption)
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 

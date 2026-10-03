@@ -17,7 +17,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
     Overflow, UiRect, Val, percent, px,
@@ -222,25 +222,29 @@ pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene
     let conflict_scene = conflict_panel_scene(projection.conflict.as_ref(), palette);
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Sync)
-        SyncPageRoot
-        Children [
-            ( { header_card_scene(summary, last_sync_str, palette) } ),
-            ( { conflict_scene } ),
-            ( { crate::pages::sync_merge::sync_three_way_merge_scene(palette) } ),
-            ( { webdav_config_card(projection, palette) } ),
-            ( { snapshots_card_scene(snapshot_scenes, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Sync)
+            SyncPageRoot
+            Children [
+                @{ header_card_scene(summary, last_sync_str, palette) }
+                --
+                @{ conflict_scene }
+                --
+                @{ crate::pages::sync_merge::sync_three_way_merge_scene(palette) }
+                --
+                @{ webdav_config_card(projection, palette) }
+                --
+                @{ snapshots_card_scene(snapshot_scenes, palette) }
+            ]
     }
 }
 
@@ -254,40 +258,37 @@ fn header_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::Zap, 36.0, palette) } ),
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::Zap, 36.0, palette) }
+                            --
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                ( Text(summary) SyncLine(SyncLineKind::Summary) TextRole(Role::Heading) ),
-                                ( Text(last_sync) SyncLine(SyncLineKind::LastSync) TextRole(Role::Caption) ),
+                                Text(summary) SyncLine(SyncLineKind::Summary) TextRole(Role::Heading)
+                                --
+                                Text(last_sync) SyncLine(SyncLineKind::LastSync) TextRole(Role::Caption)
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -299,10 +300,9 @@ fn header_card_scene(
                             SyncNowButton
                             Button
                             Children [
-                                ( Text({ "立即同步".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "立即同步".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -314,12 +314,10 @@ fn header_card_scene(
                             CreateBackupButton
                             Button
                             Children [
-                                ( Text({ "创建备份".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "创建备份".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -347,32 +345,30 @@ fn conflict_panel_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S8),
-                display: { display_mode },
-            }
-            ConflictCardContainer
-            Children [
-                (
                     Node {
                         width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(space::S8),
+                        display: { display_mode },
                     }
+                    ConflictCardContainer
                     Children [
-                        ( Text({ "⚠️ WebDAV 3-Way 同步冲突待解决".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ]
-                ),
-                ( Text(conflict_text) ConflictSummaryText TextRole(Role::Body) ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        Node {
+                            width: percent(100),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::SpaceBetween,
+                        }
+                        Children [
+                            Text({ "⚠️ WebDAV 3-Way 同步冲突待解决".to_owned() }) TextRole(Role::BodyStrong)
+                        ]
+                        --
+                        Text(conflict_text) ConflictSummaryText TextRole(Role::Body)
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px * 0.85),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -384,10 +380,9 @@ fn conflict_panel_scene(
                             KeepLocalConflictButton
                             Button
                             Children [
-                                ( Text({ "保留本地配置 (Keep Local)".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "保留本地配置 (Keep Local)".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px * 0.85),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -399,12 +394,10 @@ fn conflict_panel_scene(
                             TakeRemoteConflictButton
                             Button
                             Children [
-                                ( Text({ "采用远端配置 (Take Remote)".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "采用远端配置 (Take Remote)".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -417,37 +410,37 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "WebDAV 云端漫游配置".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "WebDAV 云端漫游配置".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(Role::Body) ),
-                            ( Text(user_str) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    ( { checkbox_scene("配置变更时自动同步 (Auto Sync on Change)".to_owned(), projection.auto_sync, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(Role::Body)
+                                    --
+                                    Text(user_str) TextRole(Role::Caption)
+                                ]
+                                --
+                                @{ checkbox_scene("配置变更时自动同步 (Auto Sync on Change)".to_owned(), projection.auto_sync, palette) }
+                            ]
             }),
         ],
         palette,
@@ -461,26 +454,27 @@ fn snapshots_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "云端快照历史 (Cloud Snapshots)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "支持 3-Way 差异比对与回滚".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "云端快照历史 (Cloud Snapshots)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "支持 3-Way 差异比对与回滚".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { snapshot_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { snapshot_scenes }
+                            ]
             }),
         ],
         palette,
@@ -496,26 +490,25 @@ fn snapshot_row_scene(
     let size_str = format_byte_count(snapshot.size_bytes);
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(device_time) SnapshotDeviceText(idx) TextRole(Role::Body) ),
-                    ( Text(size_str) SnapshotSizeText(idx) TextRole(Role::Mono) ),
+                    Text(device_time) SnapshotDeviceText(idx) TextRole(Role::Body)
+                    --
+                    Text(size_str) SnapshotSizeText(idx) TextRole(Role::Mono)
                 ]
-            ),
-            (
+                --
                 Node {
                     min_height: px(palette.control_height_px * 0.8),
                     padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -524,16 +517,15 @@ fn snapshot_row_scene(
                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                 }
                 BackgroundColor({ palette.surface })
-                template_value(RestoreSnapshotButton {
-                    snapshot_id: snapshot.id.clone(),
+                RestoreSnapshotButton {
+                    snapshot_id: { snapshot.id.clone() },
                     snapshot_idx: idx,
-                } )
+                }
                 Button
                 Children [
-                    ( Text({ "还原此版本".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "还原此版本".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 

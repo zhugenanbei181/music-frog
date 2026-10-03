@@ -135,16 +135,15 @@ pub fn splitter_scene(
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            flex_direction: flex_dir,
-        }
-        SplitterRoot
-        SplitterFraction(f_clamped)
-        SplitterDirectionComp(direction)
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: flex_dir,
+            }
+            SplitterRoot
+            SplitterFraction(f_clamped)
+            SplitterDirectionComp(direction)
+            Children [
                 Node {
                     flex_basis: Val::Percent(first_pct),
                     flex_grow: 0.0,
@@ -152,10 +151,9 @@ pub fn splitter_scene(
                 }
                 SplitterFirstPane
                 Children [
-                    ( { first_pane } ),
+                    @{ first_pane }
                 ]
-            ),
-            (
+                --
                 Node {
                     width: handle_w,
                     height: handle_h,
@@ -165,8 +163,7 @@ pub fn splitter_scene(
                 BackgroundColor({ palette.surface_elevated })
                 Button
                 SplitterHandle
-            ),
-            (
+                --
                 Node {
                     flex_basis: Val::Percent(second_pct),
                     flex_grow: 1.0,
@@ -174,10 +171,9 @@ pub fn splitter_scene(
                 }
                 SplitterSecondPane
                 Children [
-                    ( { second_pane } ),
+                    @{ second_pane }
                 ]
-            ),
-        ]
+            ]
     }
 }
 

@@ -30,41 +30,46 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "虚拟网卡模式 (TUN Mode)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "虚拟网卡模式 (TUN Mode)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    ( { super::settings_core::tun_enable_toggle_scene(projection.tun_enabled, palette) } ),
-                    ( { super::settings_core::tun_stack_selector_scene(projection, palette) } ),
-                    ( { super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::AutoRoute, "自动路由 (Auto Route)", projection.tun_auto_route, palette) } ),
-                    ( { super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::StrictRoute, "严格路由 (Strict Route)", projection.tun_strict_route, palette) } ),
-                    ( { settings_ipv6::scene(projection, palette) } ),
-                    ( { super::settings_core::mtu_row_scene(&projection.mtu, palette) } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "TUN 协议栈 (TUN Stack)".to_owned() }) TextRole(Role::Body) ),
-                            ( Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(Role::Body) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                @{ super::settings_core::tun_enable_toggle_scene(projection.tun_enabled, palette) }
+                                --
+                                @{ super::settings_core::tun_stack_selector_scene(projection, palette) }
+                                --
+                                @{ super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::AutoRoute, "自动路由 (Auto Route)", projection.tun_auto_route, palette) }
+                                --
+                                @{ super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::StrictRoute, "严格路由 (Strict Route)", projection.tun_strict_route, palette) }
+                                --
+                                @{ settings_ipv6::scene(projection, palette) }
+                                --
+                                @{ super::settings_core::mtu_row_scene(&projection.mtu, palette) }
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "TUN 协议栈 (TUN Stack)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(Role::Body)
+                                ]
+                            ]
             }),
         ],
         palette,

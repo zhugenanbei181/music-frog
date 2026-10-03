@@ -11,8 +11,8 @@
 
 ## 1. 结论先行
 
-**前提已核实**：两仓 bevy 均精确锁 `=0.19.1`（MF `Cargo.toml` 三张 per-target 表、
-TM `Cargo.toml:46`；两侧 `Cargo.lock` 均解析 bevy 0.19.1 + bevy_ui_widgets 0.19.1）；
+**前提已核实**：两仓 bevy 均精确锁 `=0.20.0-rc.2`（MF `Cargo.toml` 三张 per-target 表、
+TM `Cargo.toml:46`；两侧 `Cargo.lock` 均解析 bevy 0.20.0-rc.2 + bevy_ui_widgets 0.20.0-rc.2）；
 两仓控件都是"零 bevy 纯函数核 + `bsn!` 场景适配器 + typed marker + 观察者/同步系统"
 同一套模式；`bsn!` 宏限制、官方原语不可无头驱动等坑两边记录互相印证。抽取条件成熟。
 
@@ -130,15 +130,15 @@ bytes），`IconId` 集合是产品语义（MF 的 Lucide chrome 集 vs TM 的 u
 
 ## 4. 抽取方案对比
 
-法律前提：bevy 锁 `=0.19.1`，升级属架构与发布评审（两仓章程成文）。共享包因此
-**必须**延续 MF 现行的独立 workspace + per-target feature 闭包 + `=0.19.1` 精确锁
-形态，任何方案都不得引入 `version = "0.19"` 浮动解析。
+法律前提：bevy 锁 `=0.20.0-rc.2`，升级属架构与发布评审（两仓章程成文）。共享包因此
+**必须**延续 MF 现行的独立 workspace + per-target feature 闭包 + `=0.20.0-rc.2` 精确锁
+形态，任何方案都不得引入 `version = "0.20"` 浮动解析。
 
 | 方案 | 做法 | 利 | 弊 | 结论 |
 | --- | --- | --- | --- | --- |
 | [a] git 依赖 pin commit | 共享包留在一仓（或新仓），对方 `Cargo.toml` 以 `git = …, rev = <sha>` 引用 | 零拷贝、升级=改一行；天然单一事实源 | 跨账号 remote（`zhugenanbei181/music-frog` vs `YellowWhiteBlackCat/TaskForest`）使 CI credential/ssh alias 双方都要配置；rev pin 的 diff 审查要跨仓操作；TM 主 workspace 引入外部 git 源后其 lock 独立性叙述变复杂；任一仓网络策略收紧即断供 | 备选，不推荐 |
 | **[b] vendored 子树 + 同步脚本 + 双仓 CI 校验** | 共享包以独立 workspace 形态**同时**活在两仓固定路径（如 `third-party/<crate>/` 或沿用 MF 现路径）；`scripts/sync-widgets` 脚本按记录的基准 commit 做带 hash 校验的定向拷贝；两仓 CI 各自跑全量 nextest+clippy+bsn 守卫，另加"树内副本与基准一致"校验步 | 零发布流程、离线可构建、审计即 `git diff`；延续两仓 `publish = false` 现状；MF 的独立 lock/Android feature 闭包原样保留；单侧紧急修复可先落本仓再同步，不被对方 release 节奏卡住 | 双份工作树需要纪律（脚本 + CI hash 校验即护栏）；"哪个方向是权威"需要成文（见 §6-Q1）；同步遗漏靠 CI 兜底而非编译期 | **推荐** |
-| [c] 发布 crates.io | 去掉 `publish = false`，以 `0.x` 版本发布，两仓按版本依赖 | 消费体验最标准；版本边界清晰 | 两仓现均为私有协作仓（跨两个 GitHub 账号），公开发布需双方 owner 同意私有性变更；控件层仍在快变期（TM menu/dialog W4 未接线、MF BEVY-010 未做），每个补丁都要发版+两仓升级，版本节奏被最快一方绑架；`=0.19.1` 锁在 registry 上虽可表达，但"升级走评审"的流程约束在公共 registry 上更难执行 | 暂不采用；控件层稳定后（menu/text field 落地、bevy 升级节奏明确）可复议 |
+| [c] 发布 crates.io | 去掉 `publish = false`，以 `0.x` 版本发布，两仓按版本依赖 | 消费体验最标准；版本边界清晰 | 两仓现均为私有协作仓（跨两个 GitHub 账号），公开发布需双方 owner 同意私有性变更；控件层仍在快变期（TM menu/dialog W4 未接线、MF BEVY-010 未做），每个补丁都要发版+两仓升级，版本节奏被最快一方绑架；`=0.20.0-rc.2` 锁在 registry 上虽可表达，但"升级走评审"的流程约束在公共 registry 上更难执行 | 暂不采用；控件层稳定后（menu/text field 落地、bevy 升级节奏明确）可复议 |
 
 **推荐路径**：方案 [b]。落地形态——共享包源码以 MF `crates/infiltrator-bevy-widgets`
 为权威起点（它已满足全部前提：业务无关成文、独立 lock、无头测试、Android 闭包），
@@ -203,5 +203,5 @@ TM 侧 vendored 副本 + 同步脚本 + CI 校验；`theme.rs` 具体 token 值*
    TM 补齐两角色？影响 `FontSources` 槽数。
 6. **TM 运行时换肤时间表**：`ThemeSwitch`/compare-and-set 随第一批进入 TM（推荐，
    免费获得 light/dark 能力）还是 TM 先按启动定格消费、换肤延后？
-7. **bevy 升级协议**：共享包 `=0.19.1` 锁的变更必须两仓同窗评审——是否成文进双方
+7. **bevy 升级协议**：共享包 `=0.20.0-rc.2` 锁的变更必须两仓同窗评审——是否成文进双方
    章程（MF 章程已约，TM 侧需对应条款）。

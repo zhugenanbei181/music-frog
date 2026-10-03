@@ -267,64 +267,60 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
     let index = section.index();
     let selected = index == 0;
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px * 0.85),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
-        Button
-        RulesJsonSectionChip(index)
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px * 0.85),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ if selected { palette.accent } else { palette.surface_elevated } })
+            Button
+            RulesJsonSectionChip(index)
+            Children [
                 Text({ json_section_label_zh(section).to_owned() })
                 TextRole(Role::Caption)
                 TextColor({ if selected { palette.on_accent } else { palette.ink_dim } })
                 RulesJsonSectionLabel(index)
-            ),
-        ]
+            ]
     })
 }
 
 fn edit_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.border })
-        Button
-        RulesJsonEditButton
-        Children [
-            ( Text({ "编辑缓冲区".to_owned() }) TextRole(Role::Body) ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.border })
+            Button
+            RulesJsonEditButton
+            Children [
+                Text({ "编辑缓冲区".to_owned() }) TextRole(Role::Body)
+            ]
     })
 }
 
 fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.accent })
-        Button
-        RulesJsonSaveButton
-        Children [
-            (
+            Node {
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.accent })
+            Button
+            RulesJsonSaveButton
+            Children [
                 Text({ json_section_save_label_zh(section).to_owned() })
                 TextRole(Role::BodyStrong)
                 RulesJsonSaveLabel
-            ),
-        ]
+            ]
     })
 }
 
@@ -340,13 +336,12 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
     let save_button = save_button_scene(state.section, palette);
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S12),
-        }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S12),
+            }
+            Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -354,19 +349,17 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     padding: UiRect::bottom(Val::Px(space::S8)),
                 }
                 Children [
-                    ( Text({ "规则工作区 JSON 编辑器 (Rule Workspace JSON)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            { vec![edit_button, save_button] },
-                        ]
-                    ),
+                    Text({ "规则工作区 JSON 编辑器 (Rule Workspace JSON)".to_owned() }) TextRole(Role::BodyStrong)
+                    --
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        { vec![edit_button, save_button] }
+                    ]
                 ]
-            ),
-            (
+                --
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
@@ -374,11 +367,11 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    { chips },
+                    { chips }
                 ]
-            ),
-            ( Text({ status }) RulesJsonStatusText TextRole(Role::Caption) ),
-            (
+                --
+                Text({ status }) RulesJsonStatusText TextRole(Role::Caption)
+                --
                 Node {
                     width: percent(100),
                     height: px(320.0),
@@ -388,19 +381,16 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                 }
                 BackgroundColor({ palette.window_clear })
                 Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                        }
-                        RulesJsonEditorBody
-                        Children [
-                            { vec![body] },
-                        ]
-                    ),
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                    }
+                    RulesJsonEditorBody
+                    Children [
+                        { vec![body] }
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 

@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
-# Builds a self-contained Linux AppImage for Infiltrator.
+# Builds a self-contained Linux AppImage for an Infiltrator UI.
+#
+# Product identity is env-overridable so the iced and bevy UIs each get their
+# own equal AppImage from one tested template. Defaults reproduce the original
+# iced package.
+#
+#   APP_BIN      binary filename inside the image   (default infiltrator-iced)
+#   APP_PKG      desktop/icon basename              (default infiltrator)
+#   APP_DESKTOP  tracked .desktop template path     (default appimage/infiltrator.desktop)
+#   APP_ICON     tracked PNG icon path              (default iced icon)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 BIN_PATH="${1:-target/release/infiltrator-iced}"
 OUTPUT_PATH="${2:-dist/Infiltrator-x86_64.AppImage}"
-ICON_PATH="$REPO_ROOT/crates/infiltrator-iced/icons/icon.png"
+
+APP_BIN="${APP_BIN:-infiltrator-iced}"
+APP_PKG="${APP_PKG:-infiltrator}"
+APP_DESKTOP="${APP_DESKTOP:-packaging/linux/appimage/infiltrator.desktop}"
+APP_ICON="${APP_ICON:-crates/infiltrator-iced/icons/icon.png}"
+ICON_PATH="$REPO_ROOT/$APP_ICON"
 
 if [ ! -f "$BIN_PATH" ]; then
     echo "Error: Binary not found at $BIN_PATH" >&2
@@ -15,25 +29,25 @@ fi
 APP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/infiltrator-appimage.XXXXXX")"
 trap 'rm -rf "$APP_DIR"' EXIT
 
-echo "[build-appimage] Constructing AppDir structure..."
+echo "[build-appimage] Constructing AppDir structure for ${APP_PKG}..."
 mkdir -p "$APP_DIR/usr/bin"
 mkdir -p "$APP_DIR/usr/share/applications"
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/512x512/apps"
 mkdir -p "$APP_DIR/usr/lib"
 
 # Copy binary
-cp "$BIN_PATH" "$APP_DIR/usr/bin/infiltrator-iced"
-chmod +x "$APP_DIR/usr/bin/infiltrator-iced"
+cp "$BIN_PATH" "$APP_DIR/usr/bin/$APP_BIN"
+chmod +x "$APP_DIR/usr/bin/$APP_BIN"
 
 # Copy desktop and icon metadata
-cp packaging/linux/appimage/infiltrator.desktop "$APP_DIR/infiltrator.desktop"
-cp packaging/linux/appimage/infiltrator.desktop "$APP_DIR/usr/share/applications/infiltrator.desktop"
+cp "$REPO_ROOT/$APP_DESKTOP" "$APP_DIR/${APP_PKG}.desktop"
+cp "$REPO_ROOT/$APP_DESKTOP" "$APP_DIR/usr/share/applications/${APP_PKG}.desktop"
 test -s "$ICON_PATH"
-cp "$ICON_PATH" "$APP_DIR/infiltrator.png"
-cp "$ICON_PATH" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/infiltrator.png"
+cp "$ICON_PATH" "$APP_DIR/${APP_PKG}.png"
+cp "$ICON_PATH" "$APP_DIR/usr/share/icons/hicolor/512x512/apps/${APP_PKG}.png"
 
-# Copy AppRun
-cp packaging/linux/appimage/AppRun "$APP_DIR/AppRun"
+# Copy AppRun, substituting the packaged binary name.
+sed "s/@APP_BIN@/${APP_BIN}/g" packaging/linux/appimage/AppRun > "$APP_DIR/AppRun"
 chmod +x "$APP_DIR/AppRun"
 
 # Check for appimagetool

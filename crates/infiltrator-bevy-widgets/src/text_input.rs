@@ -4,7 +4,7 @@
 //! EditableText` + `bevy_ui_widgets::EditableTextInputPlugin`): the official
 //! editing core itself is headless-composable, but every input path that
 //! drives it — `FocusedInput<KeyboardInput>` from the focus dispatcher,
-//! `Pointer<Press/Drag>` click-to-place from the picking runtime, and `Ime`
+//! `PointerPress`/`PointerDrag` click-to-place from the picking runtime, and `Ime`
 //! window messages — originates in window event queues that only a windowed
 //! composition registers. A `MinimalPlugins` headless composition can spawn
 //! the component but can never exercise it, the same finding taskmanager
@@ -127,27 +127,28 @@ pub fn text_field_with_placeholder_scene(
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor {
-            top: edge,
-            right: edge,
-            bottom: edge,
-            left: edge,
-        }
-        TextField(state)
-        TextFieldFocused(false)
-        Children [
-            ( Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder ),
-            ( Text(before) TextRole(Role::Body) TextFieldBefore ),
-            (
+            Node {
+                width: percent(100),
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor {
+                top: edge,
+                right: edge,
+                bottom: edge,
+                left: edge,
+            }
+            TextField(state)
+            TextFieldFocused(false)
+            Children [
+                Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder
+                --
+                Text(before) TextRole(Role::Body) TextFieldBefore
+                --
                 Node {
                     width: px(caret_w),
                     height: px(caret_h),
@@ -155,35 +156,31 @@ pub fn text_field_with_placeholder_scene(
                 }
                 BackgroundColor({ palette.accent })
                 TextFieldCaret(0)
-            ),
-            (
+                --
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 TextFieldPreedit
                 Children [
-                    ( Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText ),
-                    (
-                        Node {
-                            width: percent(100),
-                            height: px(palette.hairline_px),
-                            flex_shrink: 0.0,
-                        }
-                        BackgroundColor({ palette.accent })
-                        TextFieldPreeditUnderline
-                    ),
+                    Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText
+                    --
+                    Node {
+                        width: percent(100),
+                        height: px(palette.hairline_px),
+                        flex_shrink: 0.0,
+                    }
+                    BackgroundColor({ palette.accent })
+                    TextFieldPreeditUnderline
                 ]
-            ),
-            (
+                --
                 Node { padding: UiRect::horizontal(Val::Px(space::S4)) }
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
-                    ( Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText ),
+                    Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText
                 ]
-            ),
-            (
+                --
                 Node {
                     width: px(caret_w),
                     height: px(caret_h),
@@ -191,9 +188,9 @@ pub fn text_field_with_placeholder_scene(
                 }
                 BackgroundColor({ palette.accent })
                 TextFieldCaret(1)
-            ),
-            ( Text(after) TextRole(Role::Body) TextFieldAfter ),
-        ]
+                --
+                Text(after) TextRole(Role::Body) TextFieldAfter
+            ]
     }
 }
 
@@ -219,27 +216,28 @@ pub fn password_field_scene(
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(palette.control_height_px),
-            align_items: AlignItems::Center,
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            border: UiRect::all(Val::Px(palette.hairline_px)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        BorderColor {
-            top: edge,
-            right: edge,
-            bottom: edge,
-            left: edge,
-        }
-        TextField(state)
-        TextFieldFocused(false)
-        Children [
-            ( Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder ),
-            ( Text(before) TextRole(Role::Body) TextFieldBefore ),
-            (
+            Node {
+                width: percent(100),
+                min_height: px(palette.control_height_px),
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                border: UiRect::all(Val::Px(palette.hairline_px)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            BorderColor {
+                top: edge,
+                right: edge,
+                bottom: edge,
+                left: edge,
+            }
+            TextField(state)
+            TextFieldFocused(false)
+            Children [
+                Text(placeholder_text) TextRole(Role::Body) TextFieldPlaceholder
+                --
+                Text(before) TextRole(Role::Body) TextFieldBefore
+                --
                 Node {
                     width: px(caret_w),
                     height: px(caret_h),
@@ -247,35 +245,31 @@ pub fn password_field_scene(
                 }
                 BackgroundColor({ palette.accent })
                 TextFieldCaret(0)
-            ),
-            (
+                --
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 TextFieldPreedit
                 Children [
-                    ( Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText ),
-                    (
-                        Node {
-                            width: percent(100),
-                            height: px(palette.hairline_px),
-                            flex_shrink: 0.0,
-                        }
-                        BackgroundColor({ palette.accent })
-                        TextFieldPreeditUnderline
-                    ),
+                    Text({ String::new() }) TextRole(Role::Body) TextFieldPreeditText
+                    --
+                    Node {
+                        width: percent(100),
+                        height: px(palette.hairline_px),
+                        flex_shrink: 0.0,
+                    }
+                    BackgroundColor({ palette.accent })
+                    TextFieldPreeditUnderline
                 ]
-            ),
-            (
+                --
                 Node { padding: UiRect::horizontal(Val::Px(space::S4)) }
                 BackgroundColor({ palette.selection_fill() })
                 TextFieldSelection
                 Children [
-                    ( Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText ),
+                    Text({ String::new() }) TextRole(Role::Body) TextFieldSelectionText
                 ]
-            ),
-            (
+                --
                 Node {
                     width: px(caret_w),
                     height: px(caret_h),
@@ -283,9 +277,9 @@ pub fn password_field_scene(
                 }
                 BackgroundColor({ palette.accent })
                 TextFieldCaret(1)
-            ),
-            ( Text(after) TextRole(Role::Body) TextFieldAfter ),
-        ]
+                --
+                Text(after) TextRole(Role::Body) TextFieldAfter
+            ]
     }
 }
 

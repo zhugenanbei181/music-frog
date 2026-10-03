@@ -43,19 +43,19 @@ pub fn icon_tile_tint(palette: &UiPalette) -> Color {
 pub fn icon_tile_scene(icon: IconId, size_px: f32, palette: &UiPalette) -> impl Scene + use<> {
     let tint = icon_tile_tint(palette);
     bsn! {
-        Node {
-            width: px(size_px),
-            height: px(size_px),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(radius::CONTROL)),
-        }
-        BackgroundColor({ icon_tile_fill(palette) })
-        IconTile
-        Children [
-            ( { icon_scene(icon, size_px * 0.55, tint) } ),
-        ]
+            Node {
+                width: px(size_px),
+                height: px(size_px),
+                flex_shrink: 0.0,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(radius::CONTROL)),
+            }
+            BackgroundColor({ icon_tile_fill(palette) })
+            IconTile
+            Children [
+                @{ icon_scene(icon, size_px * 0.55, tint) }
+            ]
     }
 }
 

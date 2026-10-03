@@ -63,7 +63,9 @@ fn collapse_scene_mounts_and_toggles_content_display() {
     app.add_systems(
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
-            let body = Box::new(bsn! { ( Text({ "Inner content".to_owned() }) ) });
+            let body = Box::new(bsn! {
+                            Text({ "Inner content".to_owned() })
+            });
             commands.spawn_scene(collapse_scene(
                 "Advanced Settings".to_owned(),
                 false,

@@ -151,15 +151,14 @@ pub fn popover_scene(
     let rect = placement(hint, ANCHOR_GAP_PX);
     let edge = palette.border;
     bsn! {
-        Node {
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::FlexStart,
-        }
-        BackgroundColor({ palette.scrim })
-        PopoverScrim
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::FlexStart,
+            }
+            BackgroundColor({ palette.scrim })
+            PopoverScrim
+            Children [
                 Node {
                     position_type: PositionType::Absolute,
                     left: px(rect.x),
@@ -175,10 +174,9 @@ pub fn popover_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 PopoverPanel
                 Children [
-                    ( { content } ),
+                    @{ content }
                 ]
-            ),
-        ]
+            ]
     }
 }
 

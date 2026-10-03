@@ -18,7 +18,7 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
@@ -295,30 +295,39 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Dns)
-        DnsPageRoot
-        Children [
-            ( { header_card_scene(summary, projection, palette) } ),
-            ( { crate::pages::dns_form::dns_form_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_edit::dns_edit_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_leak::dns_leak_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_stun::dns_stun_card_scene(projection, palette) } ),
-            ( { crate::pages::dns_self_heal::dns_self_heal_card_scene(projection, palette) } ),
-            ( { servers_card_scene(server_scenes, &projection.latency, palette) } ),
-            ( { fake_ip_card_scene(&projection.fake_ip_range, palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Dns)
+            DnsPageRoot
+            Children [
+                @{ header_card_scene(summary, projection, palette) }
+                --
+                @{ crate::pages::dns_form::dns_form_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_edit::dns_edit_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_leak::dns_leak_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_stun::dns_stun_card_scene(projection, palette) }
+                --
+                @{ crate::pages::dns_self_heal::dns_self_heal_card_scene(projection, palette) }
+                --
+                @{ servers_card_scene(server_scenes, &projection.latency, palette) }
+                --
+                @{ fake_ip_card_scene(&projection.fake_ip_range, palette) }
+            ]
     }
 }
 
@@ -333,44 +342,39 @@ fn header_card_scene(
 
     surface_scene(
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                column_gap: Val::Px(space::S16),
-            }
-            template_value(AccessibilityNode(header_a11y))
-            Children [
-                (
                     Node {
+                        width: percent(100),
                         align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S16),
                     }
+                    AccessibilityNode(header_a11y)
                     Children [
-                        ( { icon_tile_scene(IconId::Network, 36.0, palette) } ),
-                        (
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S12),
+                        }
+                        Children [
+                            @{ icon_tile_scene(IconId::Network, 36.0, palette) }
+                            --
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                ( Text(summary) DnsLine(DnsLineKind::Summary) TextRole(Role::Heading) ),
-                                (
-                                    Text(flush_label)
-                                    DnsLine(DnsLineKind::CacheFlush)
-                                    TextRole(Role::Caption)
-                                ),
+                                Text(summary) DnsLine(DnsLineKind::Summary) TextRole(Role::Heading)
+                                --
+                                Text(flush_label)
+                                DnsLine(DnsLineKind::CacheFlush)
+                                TextRole(Role::Caption)
                             ]
-                        ),
-                    ]
-                ),
-                (
-                    Node {
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(space::S8),
-                    }
-                    Children [
-                        (
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S8),
+                        }
+                        Children [
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -382,10 +386,9 @@ fn header_card_scene(
                             TestDnsLatencyButton
                             Button
                             Children [
-                                ( Text({ "测速".to_owned() }) TextRole(Role::BodyStrong) ),
+                                Text({ "测速".to_owned() }) TextRole(Role::BodyStrong)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -397,10 +400,9 @@ fn header_card_scene(
                             TestDnsLeakButton
                             Button
                             Children [
-                                ( Text({ "泄漏交叉探测".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "泄漏交叉探测".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -412,10 +414,9 @@ fn header_card_scene(
                             TestStunProbeButton
                             Button
                             Children [
-                                ( Text({ "STUN 出网探测".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "STUN 出网探测".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
-                        (
+                            --
                             Node {
                                 min_height: px(palette.control_height_px),
                                 padding: UiRect::horizontal(Val::Px(space::S12)),
@@ -427,12 +428,10 @@ fn header_card_scene(
                             ClearDnsCacheButton
                             Button
                             Children [
-                                ( Text({ "清空 DNS 缓存".to_owned() }) TextRole(Role::Body) ),
+                                Text({ "清空 DNS 缓存".to_owned() }) TextRole(Role::Body)
                             ]
-                        ),
+                        ]
                     ]
-                ),
-            ]
         })],
         palette,
     )
@@ -444,27 +443,28 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "Fake-IP 高级设置 (Fake-IP Filter & Pool)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "Fake-IP 高级设置 (Fake-IP Filter & Pool)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.surface_elevated })
-                Children [
-                    ( Text(range_str) DnsLine(DnsLineKind::FakeIpRange) TextRole(Role::Body) ),
-                    ( Text({ "过滤域名: *.lan, localhost".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.surface_elevated })
+                            Children [
+                                Text(range_str) DnsLine(DnsLineKind::FakeIpRange) TextRole(Role::Body)
+                                --
+                                Text({ "过滤域名: *.lan, localhost".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
         ],
         palette,

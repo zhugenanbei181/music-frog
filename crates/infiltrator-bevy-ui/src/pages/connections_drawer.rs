@@ -111,16 +111,16 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
     let content: Box<dyn Scene> = Box::new(connection_drawer_content(palette));
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            display: Display::None,
-        }
-        ConnectionDrawerLayer
-        Children [
-            ( { drawer_scene(DrawerPlacement::Right, 420.0, content, palette) } ),
-        ]
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                display: Display::None,
+            }
+            ConnectionDrawerLayer
+            Children [
+                @{ drawer_scene(DrawerPlacement::Right, 420.0, content, palette) }
+            ]
     }
 }
 
@@ -135,57 +135,59 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 }
                 ConnDrawerHopSlot(hop)
                 Children [
-                    ( Text({ String::new() }) ConnDrawerHopText(hop) TextRole(Role::Caption) ),
+                    Text({ String::new() }) ConnDrawerHopText(hop) TextRole(Role::Caption)
                 ]
-            }) as Box<dyn Scene>
+}) as Box<dyn Scene>
         })
         .collect();
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S12),
-        }
-        ConnectionDrawerRoot
-        Children [
-            (
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S12),
+            }
+            ConnectionDrawerRoot
+            Children [
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                 }
                 Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Activity, 24.0, palette) } ),
-                            ( Text({ "单连接深度透视 (Deep Telemetry)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                        }
-                        Button
-                        DrawerCloseButton
-                        Children [
-                            ( Text({ "关闭".to_owned() }) TextRole(Role::Caption) ),
-                        ]
-                    ),
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
+                        --
+                        Text({ "单连接深度透视 (Deep Telemetry)".to_owned() }) TextRole(Role::BodyStrong)
+                    ]
+                    --
+                    Node {
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                    }
+                    Button
+                    DrawerCloseButton
+                    Children [
+                        Text({ "关闭".to_owned() }) TextRole(Role::Caption)
+                    ]
                 ]
-            ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Host) TextRole(Role::BodyStrong) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Process) TextRole(Role::Caption) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rule) TextRole(Role::Caption) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::RulePayload) TextRole(Role::Caption) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Endpoints) TextRole(Role::Mono) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Network) TextRole(Role::Caption) ),
-            (
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Host) TextRole(Role::BodyStrong)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Process) TextRole(Role::Caption)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rule) TextRole(Role::Caption)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::RulePayload) TextRole(Role::Caption)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Endpoints) TextRole(Role::Mono)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Network) TextRole(Role::Caption)
+                --
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
@@ -193,16 +195,21 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     column_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text({ "路由链: ".to_owned() }) TextRole(Role::Caption) ),
-                    { hop_slots },
+                    Text({ "路由链: ".to_owned() }) TextRole(Role::Caption)
+                    --
+                    { hop_slots }
                 ]
-            ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(Role::Mono) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(Role::Mono) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelAsn) TextRole(Role::Mono) ),
-            ( Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(Role::Mono) ),
-            ( Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption) ),
-            (
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Traffic) TextRole(Role::Mono)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::Rate) TextRole(Role::Mono)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelAsn) TextRole(Role::Mono)
+                --
+                Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(Role::Mono)
+                --
+                Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption)
+                --
                 Node {
                     width: percent(100),
                     align_items: AlignItems::Center,
@@ -210,40 +217,37 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        DrawerAddRuleButton
-                        Children [
-                            ( Text({ "一键添加为规则".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.danger })
-                        Button
-                        DrawerCloseConnectionButton
-                        Children [
-                            ( Text({ "断开此连接".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
+                    Node {
+                        min_height: px(palette.control_height_px),
+                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.accent })
+                    Button
+                    DrawerAddRuleButton
+                    Children [
+                        Text({ "一键添加为规则".to_owned() }) TextRole(Role::BodyStrong)
+                    ]
+                    --
+                    Node {
+                        min_height: px(palette.control_height_px),
+                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                    }
+                    BackgroundColor({ palette.danger })
+                    Button
+                    DrawerCloseConnectionButton
+                    Children [
+                        Text({ "断开此连接".to_owned() }) TextRole(Role::BodyStrong)
+                    ]
                 ]
-            ),
-            ( Text({ "规则草稿: 尚未生成".to_owned() }) ConnDrawerRuleDraft TextRole(Role::Caption) ),
-        ]
+                --
+                Text({ "规则草稿: 尚未生成".to_owned() }) ConnDrawerRuleDraft TextRole(Role::Caption)
+            ]
     }
 }
 

@@ -62,55 +62,52 @@ pub(crate) fn servers_card_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "上游加密 DNS 服务器 (Nameservers)".to_owned() }) TextRole(Role::BodyStrong) ),
-                    ( Text({ "支持 DoH / DoT / DoQ".to_owned() }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "上游加密 DNS 服务器 (Nameservers)".to_owned() }) TextRole(Role::BodyStrong)
+                                --
+                                Text({ "支持 DoH / DoT / DoQ".to_owned() }) TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text(latency_label)
-                        DnsLine(DnsLineKind::LatencyPolicy)
-                        TextRole(Role::Caption)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text(latency_label)
+                                DnsLine(DnsLineKind::LatencyPolicy)
+                                TextRole(Role::Caption)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    min_height: px(32.0),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    (
-                        Text(latency_results)
-                        DnsLine(DnsLineKind::LatencyResults)
-                        TextRole(Role::Mono)
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                min_height: px(32.0),
+                                flex_direction: FlexDirection::Column,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text(latency_results)
+                                DnsLine(DnsLineKind::LatencyResults)
+                                TextRole(Role::Mono)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    { server_scenes },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                { server_scenes }
+                            ]
             }),
         ],
         palette,
@@ -135,32 +132,31 @@ pub(crate) fn server_row_scene(
     let lat_col = latency_color(tier, palette);
 
     bsn! {
-        Node {
-            width: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::all(Val::Px(space::S8)),
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::S8)),
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    ( Text(addr) DnsServerAddress(idx) TextRole(Role::BodyStrong) ),
-                    ( Text(proto_str) DnsServerProto(idx) TextRole(Role::Caption) ),
-                    ( Text(tag_str) DnsLine(DnsLineKind::ServerTags(idx)) TextRole(Role::Caption) ),
+                    Text(addr) DnsServerAddress(idx) TextRole(Role::BodyStrong)
+                    --
+                    Text(proto_str) DnsServerProto(idx) TextRole(Role::Caption)
+                    --
+                    Text(tag_str) DnsLine(DnsLineKind::ServerTags(idx)) TextRole(Role::Caption)
                 ]
-            ),
-            (
+                --
                 Text(lat_str)
                 DnsServerLatency(idx)
                 TextRole(Role::Mono)
                 TextColor(lat_col)
-            ),
-        ]
+            ]
     }
 }

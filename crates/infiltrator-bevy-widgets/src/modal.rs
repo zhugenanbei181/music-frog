@@ -128,17 +128,16 @@ pub fn modal_scene(
     let action_scenes: Vec<Box<dyn Scene>> = actions.unwrap_or_default();
 
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-        }
-        BackgroundColor({ palette.scrim })
-        ModalScrim
-        Children [
-            (
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+            }
+            BackgroundColor({ palette.scrim })
+            ModalScrim
+            Children [
                 Node {
                     width: px(460.0),
                     max_width: percent(90),
@@ -152,42 +151,38 @@ pub fn modal_scene(
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 ModalDialogCard
                 Children [
-                    (
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                    }
+                    Children [
+                        Text(title) TextRole(Role::Heading) ModalTitle
+                        --
                         Node {
-                            width: percent(100),
                             align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
+                            justify_content: JustifyContent::Center,
                         }
+                        Button
+                        ModalCloseButton
                         Children [
-                            ( Text(title) TextRole(Role::Heading) ModalTitle ),
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                }
-                                Button
-                                ModalCloseButton
-                                Children [
-                                    ( { icon_tile_scene(IconId::Trash, 20.0, palette) } ),
-                                ]
-                            ),
+                            @{ icon_tile_scene(IconId::Trash, 20.0, palette) }
                         ]
-                    ),
-                    ( { content } ),
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            justify_content: JustifyContent::FlexEnd,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            { action_scenes },
-                        ]
-                    ),
+                    ]
+                    --
+                    @{ content }
+                    --
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Row,
+                        justify_content: JustifyContent::FlexEnd,
+                        column_gap: Val::Px(space::S8),
+                    }
+                    Children [
+                        { action_scenes }
+                    ]
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -212,13 +207,13 @@ pub fn confirm_dialog_scene(
     ];
 
     let content = Box::new(bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::vertical(Val::Px(space::S8)),
-        }
-        Children [
-            ( Text(message) TextRole(Role::Body) ),
-        ]
+            Node {
+                width: percent(100),
+                padding: UiRect::vertical(Val::Px(space::S8)),
+            }
+            Children [
+                Text(message) TextRole(Role::Body)
+            ]
     });
 
     modal_scene(title, content, Some(actions), palette)

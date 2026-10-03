@@ -49,12 +49,12 @@ pub struct ScriptSandboxViewState {
 
 fn text_row(body: String) -> Box<dyn Scene> {
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-        }
-        Children [
-            ( Text({ body }) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+            }
+            Children [
+                Text({ body }) TextRole(Role::Mono)
+            ]
     }) as Box<dyn Scene>
 }
 
@@ -218,51 +218,49 @@ pub fn script_sandbox_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: bevy::ui::prelude::JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                ScriptSandboxRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Settings, 24.0, palette) } ),
-                            ( Text({ "脚本指令 DSL 控制台 (Script Sandbox)".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.window_clear })
-                        Children [
-                            ( Text({ engine_note }) TextRole(Role::Caption) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: bevy::ui::prelude::JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            ScriptSandboxRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
+                                    --
+                                    Text({ "脚本指令 DSL 控制台 (Script Sandbox)".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.window_clear })
+                                Children [
+                                    Text({ engine_note }) TextRole(Role::Caption)
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                }
-                BackgroundColor({ palette.window_clear })
-                ScriptSandboxBody
-                Children [
-                    { rows },
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S4),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            ScriptSandboxBody
+                            Children [
+                                { rows }
+                            ]
             }),
         ],
         palette,

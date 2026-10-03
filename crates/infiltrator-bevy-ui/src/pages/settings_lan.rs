@@ -88,246 +88,225 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     Box::new(surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                Children [
-                    ( Text({ "局域网共享代理 (Allow LAN)".to_owned() }) TextRole(Role::BodyStrong) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            Children [
+                                Text({ "局域网共享代理 (Allow LAN)".to_owned() }) TextRole(Role::BodyStrong)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            padding: UiRect::horizontal(Val::Px(space::S4)),
-                        }
-                        LanSharingToggle
-                        Children [
-                            ( { checkbox_scene("开启局域网共享 (Allow LAN)".to_owned(), projection.allow_lan, palette) } ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(180.0) }
-                                LanMixedPortField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(mixed_port, "7890".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "绑定地址 (Bind Address)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(300.0) }
-                                LanBindAddressField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                        }
-                        Children [
-                            ( Text({ "当前绑定".to_owned() }) TextRole(Role::Caption) ),
-                            ( Text({ bind_address.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono) ),
-                            (
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
+                            }
+                            Children [
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    width: percent(100),
+                                    padding: UiRect::horizontal(Val::Px(space::S4)),
+                                }
+                                LanSharingToggle
+                                Children [
+                                    @{ checkbox_scene("开启局域网共享 (Allow LAN)".to_owned(), projection.allow_lan, palette) }
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
                                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
-                                LanSharingApplyButton
-                                Button
+                                BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    ( Text({ "应用并回读 (Apply)".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(180.0) }
+                                    LanMixedPortField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(mixed_port, "7890".to_owned(), palette) }
+                                    ]
                                 ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            padding: UiRect::top(Val::Px(space::S8)),
-                        }
-                        Children [
-                            ( Text({ "接入 ACL 与 HTTP 基本认证".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "允许网段 (Allowed CIDR)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(360.0) }
-                                LanAllowedIpsField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(allowed_ips, "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "拒绝网段 (Denied CIDR)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(360.0) }
-                                LanDisallowedIpsField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(disallowed_ips, "192.168.1.10/32".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "免认证网段 (Skip Auth CIDR)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(360.0) }
-                                LanSkipAuthPrefixesField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(skip_auth_prefixes, "127.0.0.0/8, ::1/128".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                        }
-                        LanAuthenticationToggle
-                        Children [
-                            ( { checkbox_scene("启用 HTTP 基本认证 (HTTP Basic Auth)".to_owned(), projection.lan_security.authentication_enabled, palette) } ),
-                            ( Text({ auth_status }) SettingsLine(SettingsLineKind::LanSecurity) TextRole(Role::Mono) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "认证用户名 (Username)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(240.0) }
-                                LanAuthUsernameField
-                                Children [
-                                    ( { text_field_with_placeholder_scene(auth_username, "musicfrog".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        Children [
-                            ( Text({ "认证密码 (Password)".to_owned() }) TextRole(Role::Body) ),
-                            (
-                                Node { width: px(240.0) }
-                                LanAuthPasswordField
-                                Children [
-                                    ( { password_field_scene(String::new(), "Apply to set password".to_owned(), palette) } ),
-                                ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            width: percent(100),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::FlexEnd,
-                            padding: UiRect::all(Val::Px(space::S8)),
-                        }
-                        Children [
-                            (
+                                --
                                 Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    width: percent(100),
                                     align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
                                     border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                                 }
-                                BackgroundColor({ palette.accent })
-                                LanSecurityApplyButton
-                                Button
+                                BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    ( Text({ "应用 ACL 与认证 (Apply)".to_owned() }) TextRole(Role::BodyStrong) ),
+                                    Text({ "绑定地址 (Bind Address)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(300.0) }
+                                    LanBindAddressField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) }
+                                    ]
                                 ]
-                            ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                }
+                                Children [
+                                    Text({ "当前绑定".to_owned() }) TextRole(Role::Caption)
+                                    --
+                                    Text({ bind_address.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
+                                    --
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    LanSharingApplyButton
+                                    Button
+                                    Children [
+                                        Text({ "应用并回读 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    padding: UiRect::top(Val::Px(space::S8)),
+                                }
+                                Children [
+                                    Text({ "接入 ACL 与 HTTP 基本认证".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "允许网段 (Allowed CIDR)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(360.0) }
+                                    LanAllowedIpsField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(allowed_ips, "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) }
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "拒绝网段 (Denied CIDR)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(360.0) }
+                                    LanDisallowedIpsField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(disallowed_ips, "192.168.1.10/32".to_owned(), palette) }
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "免认证网段 (Skip Auth CIDR)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(360.0) }
+                                    LanSkipAuthPrefixesField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(skip_auth_prefixes, "127.0.0.0/8, ::1/128".to_owned(), palette) }
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                }
+                                LanAuthenticationToggle
+                                Children [
+                                    @{ checkbox_scene("启用 HTTP 基本认证 (HTTP Basic Auth)".to_owned(), projection.lan_security.authentication_enabled, palette) }
+                                    --
+                                    Text({ auth_status }) SettingsLine(SettingsLineKind::LanSecurity) TextRole(Role::Mono)
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "认证用户名 (Username)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(240.0) }
+                                    LanAuthUsernameField
+                                    Children [
+                                        @{ text_field_with_placeholder_scene(auth_username, "musicfrog".to_owned(), palette) }
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.surface_elevated })
+                                Children [
+                                    Text({ "认证密码 (Password)".to_owned() }) TextRole(Role::Body)
+                                    --
+                                    Node { width: px(240.0) }
+                                    LanAuthPasswordField
+                                    Children [
+                                        @{ password_field_scene(String::new(), "Apply to set password".to_owned(), palette) }
+                                    ]
+                                ]
+                                --
+                                Node {
+                                    width: percent(100),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::FlexEnd,
+                                    padding: UiRect::all(Val::Px(space::S8)),
+                                }
+                                Children [
+                                    Node {
+                                        min_height: px(palette.control_height_px),
+                                        padding: UiRect::horizontal(Val::Px(space::S12)),
+                                        align_items: AlignItems::Center,
+                                        justify_content: JustifyContent::Center,
+                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                    }
+                                    BackgroundColor({ palette.accent })
+                                    LanSecurityApplyButton
+                                    Button
+                                    Children [
+                                        Text({ "应用 ACL 与认证 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                    ]
+                                ]
+                            ]
             }),
         ],
         palette,

@@ -425,13 +425,13 @@ pub fn topology_scene(spec: TopologySpec) -> impl Scene + use<> {
     let width_px = spec.width as f32;
     let height_px = spec.height as f32;
     bsn! {
-        Node {
-            width: percent(100),
-            max_width: px(width_px),
-            height: px(height_px),
-            flex_shrink: 1.0,
-        }
-        TopologyPlate({ spec })
+            Node {
+                width: percent(100),
+                max_width: px(width_px),
+                height: px(height_px),
+                flex_shrink: 1.0,
+            }
+            TopologyPlate({ spec })
     }
 }
 

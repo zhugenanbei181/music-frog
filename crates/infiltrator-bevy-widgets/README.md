@@ -5,7 +5,7 @@ over the official unstyled [`bevy_ui_widgets`](https://crates.io/crates/bevy_ui_
 
 ## Charter law (docs/BEVY_UI_FRONTEND.md)
 
-- **Locked bevy**: `=0.19.1`, explicit per-target feature closure, default
+- **Locked bevy**: `=0.20.0-rc.2`, explicit per-target feature closure, default
   features off. Same patch taskmanager locks, so a future shared extraction
   resolves one widget ABI.
 - **Zero business dependencies**: bevy only — never `infiltrator-core`,

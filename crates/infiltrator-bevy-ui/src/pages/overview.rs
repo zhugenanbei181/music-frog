@@ -48,7 +48,7 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::ecs::world::DeferredWorld;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, ComputedNode, Display, FlexDirection, FlexWrap,
@@ -430,22 +430,23 @@ pub(crate) fn card_fill(state: OverviewState, palette: &UiPalette) -> Color {
 pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
     let scrim = palette.scrim;
     bsn! {
-        Node {
-            display: Display::None,
-            position_type: bevy::ui::PositionType::Absolute,
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S8),
-        }
-        BackgroundColor({ scrim })
-        OverviewReloadMask
-        Children [
-            ( { icon_scene(IconId::Activity, 24.0, palette.accent) } ),
-            ( Text({ "内核重载中 · 保持上一帧快照 (Reloading Core)".to_owned() }) OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent }) ),
-        ]
+            Node {
+                display: Display::None,
+                position_type: bevy::ui::PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            BackgroundColor({ scrim })
+            OverviewReloadMask
+            Children [
+                @{ icon_scene(IconId::Activity, 24.0, palette.accent) }
+                --
+                Text({ "内核重载中 · 保持上一帧快照 (Reloading Core)".to_owned() }) OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+            ]
     }
 }
 
@@ -459,30 +460,39 @@ pub fn overview_page(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            height: percent(100),
-            min_height: px(0.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S16),
-            overflow: Overflow::scroll_y(),
-        }
-        PageRoot(Route::Overview)
-        OverviewPageRoot
-        Children [
-            ( { banner_scene(projection, palette) } ),
-            ( { crate::pages::overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) } ),
-            ( { traffic_card_scene(projection, history, palette) } ),
-            ( { chips_row_scene(projection, palette) } ),
-            ( { crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) } ),
-            ( { crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) } ),
-            ( { crate::pages::overview_public_ip::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) } ),
-            ( { crate::pages::overview_topology::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) } ),
-            ( { crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) } ),
-            ( { reload_mask_scene(palette) } ),
-        ]
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::scroll_y(),
+            }
+            PageRoot(Route::Overview)
+            OverviewPageRoot
+            Children [
+                @{ banner_scene(projection, palette) }
+                --
+                @{ crate::pages::overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) }
+                --
+                @{ traffic_card_scene(projection, history, palette) }
+                --
+                @{ chips_row_scene(projection, palette) }
+                --
+                @{ crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) }
+                --
+                @{ crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) }
+                --
+                @{ crate::pages::overview_public_ip::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) }
+                --
+                @{ crate::pages::overview_topology::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) }
+                --
+                @{ crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) }
+                --
+                @{ reload_mask_scene(palette) }
+            ]
     }
 }
 
@@ -500,86 +510,78 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
     let failure = projection.failure_text().to_owned();
     let note = banner_note(projection);
     bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::all(Val::Px(space::S16)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            column_gap: Val::Px(space::S16),
-            row_gap: Val::Px(space::S8),
-            flex_wrap: FlexWrap::Wrap,
-            border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
-        }
-        BackgroundColor({ card_fill(projection.state, palette) })
-        OverviewStatusCard
-        OverviewCardState({ projection.state })
-        Children [
-            (
+            Node {
+                width: percent(100),
+                padding: UiRect::all(Val::Px(space::S16)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                column_gap: Val::Px(space::S16),
+                row_gap: Val::Px(space::S8),
+                flex_wrap: FlexWrap::Wrap,
+                border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
+            }
+            BackgroundColor({ card_fill(projection.state, palette) })
+            OverviewStatusCard
+            OverviewCardState({ projection.state })
+            Children [
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S8),
                 }
                 Children [
-                    (
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S12),
+                    }
+                    Children [
                         Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            width: px(10.0),
+                            height: px(10.0),
+                            flex_shrink: 0.0,
+                            border_radius: BorderRadius::all(Val::Px(5.0)),
                         }
-                        Children [
-                            (
-                                Node {
-                                    width: px(10.0),
-                                    height: px(10.0),
-                                    flex_shrink: 0.0,
-                                    border_radius: BorderRadius::all(Val::Px(5.0)),
-                                }
-                                BackgroundColor({ palette.success })
-                                StatusDot
-                            ),
-                            (
-                                Text({ state }) OverviewLine(OverviewLineKind::State)
-                                TextRole(Role::Display)
-                                template_value(state_node)
-                            ),
-                        ]
-                    ),
-                    (
+                        BackgroundColor({ palette.success })
+                        StatusDot
+                        --
+                        Text({ state }) OverviewLine(OverviewLineKind::State)
+                        TextRole(Role::Display)
+                        state_node
+                    ]
+                    --
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S8),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(space::S4),
+                    }
+                    Children [
                         Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                            flex_wrap: FlexWrap::Wrap,
-                            row_gap: Val::Px(space::S4),
+                            padding: UiRect::all(Val::Px(space::S4)),
+                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                         }
+                        BackgroundColor({ palette.accent })
+                        OverviewModeChip
                         Children [
-                            (
-                                Node {
-                                    padding: UiRect::all(Val::Px(space::S4)),
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.accent })
-                                OverviewModeChip
-                                Children [
-                                    ( Text({ chip }) OverviewLine(OverviewLineKind::ModeChip) TextRole(Role::Caption) OnAccentText ),
-                                ]
-                            ),
-                            ( Text({ note }) OverviewLine(OverviewLineKind::BannerNote) TextRole(Role::Caption) ),
-                            ( Text({ failure }) OverviewLine(OverviewLineKind::Failure) TextRole(Role::Caption) ),
+                            Text({ chip }) OverviewLine(OverviewLineKind::ModeChip) TextRole(Role::Caption) OnAccentText
                         ]
-                    ),
+                        --
+                        Text({ note }) OverviewLine(OverviewLineKind::BannerNote) TextRole(Role::Caption)
+                        --
+                        Text({ failure }) OverviewLine(OverviewLineKind::Failure) TextRole(Role::Caption)
+                    ]
                 ]
-            ),
-            (
+                --
                 Node {
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    ( { speedtest_button_scene(palette) } ),
-                    ( { stop_area_scene(projection, palette) } ),
+                    @{ speedtest_button_scene(palette) }
+                    --
+                    @{ stop_area_scene(projection, palette) }
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -599,20 +601,20 @@ fn stop_area_scene(projection: &OverviewProjection, palette: &UiPalette) -> Box<
 /// pill skin. `Activate` carries no business action — demo semantics.
 fn stop_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            min_height: px(palette.control_height_px),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_shrink: 0.0,
-            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-        }
-        BackgroundColor({ palette.danger })
-        StopButton
-        Button
-        Children [
-            ( Text({ "停止代理".to_owned() }) TextRole(Role::BodyStrong) OnAccentText ),
-        ]
+            Node {
+                min_height: px(palette.control_height_px),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_shrink: 0.0,
+                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+            }
+            BackgroundColor({ palette.danger })
+            StopButton
+            Button
+            Children [
+                Text({ "停止代理".to_owned() }) TextRole(Role::BodyStrong) OnAccentText
+            ]
     }
 }
 
@@ -622,14 +624,14 @@ fn stop_button_scene(palette: &UiPalette) -> impl Scene + use<> {
 /// 未迁移 nav entries.
 fn lifecycle_caption_scene() -> impl Scene + use<> {
     bsn! {
-        Node {
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            flex_shrink: 0.0,
-        }
-        Children [
-            ( Text({ "核心生命周期控制 · 0.30 后续接入".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                flex_shrink: 0.0,
+            }
+            Children [
+                Text({ "核心生命周期控制 · 0.30 后续接入".to_owned() }) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -671,27 +673,28 @@ fn traffic_card_scene(
 /// The up/down rates side by side on one row (the reference layout).
 fn rates_row_scene(upload: String, download: String) -> impl Scene + use<> {
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S16),
-        }
-        Children [
-            ( { rate_line("↑ ", OverviewLineKind::Upload, upload) } ),
-            ( { rate_line("↓ ", OverviewLineKind::Download, download) } ),
-        ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S16),
+            }
+            Children [
+                @{ rate_line("↑ ", OverviewLineKind::Upload, upload) }
+                --
+                @{ rate_line("↓ ", OverviewLineKind::Download, download) }
+            ]
     }
 }
 
 fn scale_line_scene(scale: &TrafficScaleSnapshot) -> impl Scene + use<> {
     let label = format_scale(scale);
     bsn! {
-        Node {
-            width: percent(100),
-            min_height: px(16.0),
-        }
-        Children [
-            ( Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono) ),
-        ]
+            Node {
+                width: percent(100),
+                min_height: px(16.0),
+            }
+            Children [
+                Text({ label }) OverviewLine(OverviewLineKind::Scale) TextRole(Role::Mono)
+            ]
     }
 }
 
@@ -713,25 +716,25 @@ pub(crate) fn format_scale(scale: &TrafficScaleSnapshot) -> String {
 /// line's ink — success for uplink, ordinary for downlink).
 fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene + use<> {
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S8),
-        }
-        Children [
-            ( Text({ format!("{arrow}{value}") }) OverviewLine(kind) TextRole(Role::Mono) ),
-        ]
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+            }
+            Children [
+                Text({ format!("{arrow}{value}") }) OverviewLine(kind) TextRole(Role::Mono)
+            ]
     }
 }
 
 /// A plain caption line inside a card.
 fn plain_caption(label: String) -> impl Scene + use<> {
     bsn! {
-        Node {
-            align_items: AlignItems::Center,
-        }
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                align_items: AlignItems::Center,
+            }
+            Children [
+                Text({ label }) TextRole(Role::Caption)
+            ]
     }
 }
 
@@ -770,49 +773,42 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     ));
 
     bsn! {
-        Node {
-            width: percent(100),
-            min_width: px(0.0),
-            max_width: percent(100),
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(space::S12),
-            row_gap: Val::Px(space::S12),
-        }
-        OverviewMetricsBand
-        Children [
-            (
-                { stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections).to_owned(), connections, palette) }
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S12),
+                row_gap: Val::Px(space::S12),
+            }
+            OverviewMetricsBand
+            Children [
+                @{ stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections).to_owned(), connections, palette) }
                 OverviewChip(OverviewChipKind::Connections)
-                template_value(connections_node)
-            ),
-            (
-                { stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory).to_owned(), memory, palette) }
+                connections_node
+                --
+                @{ stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory).to_owned(), memory, palette) }
                 OverviewChip(OverviewChipKind::Memory)
-                template_value(memory_node)
-            ),
-            (
-                { stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu).to_owned(), cpu, palette) }
+                memory_node
+                --
+                @{ stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu).to_owned(), cpu, palette) }
                 OverviewChip(OverviewChipKind::Cpu)
-                template_value(cpu_node)
-            ),
-            (
-                { stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload).to_owned(), upload, palette) }
+                cpu_node
+                --
+                @{ stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload).to_owned(), upload, palette) }
                 OverviewChip(OverviewChipKind::Upload)
-                template_value(upload_node)
-            ),
-            (
-                { stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download).to_owned(), download, palette) }
+                upload_node
+                --
+                @{ stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download).to_owned(), download, palette) }
                 OverviewChip(OverviewChipKind::Download)
-                template_value(download_node)
-            ),
-            (
-                { stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic).to_owned(), total, palette) }
+                download_node
+                --
+                @{ stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic).to_owned(), total, palette) }
                 OverviewChip(OverviewChipKind::TotalTraffic)
-                template_value(total_node)
-            ),
-        ]
+                total_node
+            ]
     }
 }
 

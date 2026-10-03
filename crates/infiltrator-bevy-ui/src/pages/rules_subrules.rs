@@ -119,113 +119,111 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                    column_gap: Val::Px(space::S8),
-                }
-                RulesSubRuleRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::Zap, 24.0, palette) } ),
-                            ( Text({ "逻辑子规则构建器 (Sub-Rules)".to_owned() }) TextRole(Role::BodyStrong) ),
-                            ( Text({
-                                format!("已选逻辑: {}", state.draft.operator)
-                            }) SubRuleOperatorSelection TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
-                        }
-                        Children [ { chips } ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                                column_gap: Val::Px(space::S8),
+                            }
+                            RulesSubRuleRoot
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
+                                    --
+                                    Text({ "逻辑子规则构建器 (Sub-Rules)".to_owned() }) TextRole(Role::BodyStrong)
+                                    --
+                                    Text({
+                                            format!("已选逻辑: {}", state.draft.operator)
+                                    }) SubRuleOperatorSelection TextRole(Role::Caption)
+                                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S6),
+                                }
+                                Children [
+                                    { chips }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S6),
-                }
-                SubRuleConditionList
-                Children [
-                    ( { condition_rows_scene(&state.draft, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S6),
+                            }
+                            SubRuleConditionList
+                            Children [
+                                @{ condition_rows_scene(&state.draft, palette) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S6),
-                        }
-                        Children [ { preset_buttons } ]
-                    ),
-                    (
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(0.0),
-                        }
-                        SubRuleTargetField
-                        Children [
-                            ( { text_field_with_placeholder_scene(
-                                state.draft.target.clone(),
-                                "出站目标 e.g. PROXY".to_owned(),
-                                palette,
-                            ) } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S6),
+                                }
+                                Children [
+                                    { preset_buttons }
+                                ]
+                                --
+                                Node {
+                                    flex_grow: 1.0,
+                                    min_width: px(0.0),
+                                }
+                                SubRuleTargetField
+                                Children [
+                                    @{ text_field_with_placeholder_scene(
+                                            state.draft.target.clone(),
+                                            "出站目标 e.g. PROXY".to_owned(),
+                                            palette,
+                                    ) }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::vertical(Val::Px(space::S4)),
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( Text(preview_label(&state.draft)) SubRulePreviewLine TextRole(Role::Caption) ),
-                            ( Text(issue_label(&state.draft)) SubRuleIssueLine TextRole(Role::Caption) ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            min_height: px(palette.control_height_px),
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        }
-                        BackgroundColor({ palette.accent })
-                        Button
-                        SubRuleInsertButton
-                        Children [
-                            ( Text({ "插入到分流规则".to_owned() }) TextRole(Role::BodyStrong) ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::vertical(Val::Px(space::S4)),
+                                column_gap: Val::Px(space::S8),
+                            }
+                            Children [
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                Children [
+                                    Text(preview_label(&state.draft)) SubRulePreviewLine TextRole(Role::Caption)
+                                    --
+                                    Text(issue_label(&state.draft)) SubRuleIssueLine TextRole(Role::Caption)
+                                ]
+                                --
+                                Node {
+                                    min_height: px(palette.control_height_px),
+                                    padding: UiRect::horizontal(Val::Px(space::S12)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                }
+                                BackgroundColor({ palette.accent })
+                                Button
+                                SubRuleInsertButton
+                                Children [
+                                    Text({ "插入到分流规则".to_owned() }) TextRole(Role::BodyStrong)
+                                ]
+                            ]
             }),
         ],
         palette,
@@ -248,13 +246,13 @@ pub fn issue_label(draft: &LogicalDraft) -> String {
 fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene + use<> {
     let rows: Vec<Box<dyn Scene>> = if draft.conditions.is_empty() {
         vec![Box::new(bsn! {
-            Node {
-                width: percent(100),
-                padding: UiRect::all(Val::Px(space::S6)),
-            }
-            Children [
-                ( Text({ "尚未添加子条件".to_owned() }) TextRole(Role::Caption) ),
-            ]
+                    Node {
+                        width: percent(100),
+                        padding: UiRect::all(Val::Px(space::S6)),
+                    }
+                    Children [
+                        Text({ "尚未添加子条件".to_owned() }) TextRole(Role::Caption)
+                    ]
         }) as Box<dyn Scene>]
     } else {
         draft
@@ -268,30 +266,32 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
     };
 
     bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(space::S4),
-        }
-        Children [ { rows } ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            Children [
+                { rows }
+            ]
     }
 }
 
 fn condition_row(index: usize, condition: String, palette: &UiPalette) -> impl Scene + use<> {
     let label = format!("#{} {condition}", index + 1);
     bsn! {
-        Node {
-            width: percent(100),
-            padding: UiRect::all(Val::Px(space::S6)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::SpaceBetween,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        SubRuleConditionRow(index)
-        Children [
-            ( Text(label) TextRole(Role::Caption) ),
-            (
+            Node {
+                width: percent(100),
+                padding: UiRect::all(Val::Px(space::S6)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            SubRuleConditionRow(index)
+            Children [
+                Text(label) TextRole(Role::Caption)
+                --
                 Node {
                     min_height: px(22.0),
                     padding: UiRect::horizontal(Val::Px(space::S6)),
@@ -303,10 +303,9 @@ fn condition_row(index: usize, condition: String, palette: &UiPalette) -> impl S
                 Button
                 SubRuleRemoveConditionButton(index)
                 Children [
-                    ( Text({ "移除".to_owned() }) TextRole(Role::Caption) ),
+                    Text({ "移除".to_owned() }) TextRole(Role::Caption)
                 ]
-            ),
-        ]
+            ]
     }
 }
 
@@ -322,39 +321,39 @@ fn operator_chip(
         palette.surface_elevated
     };
     bsn! {
-        Node {
-            min_height: px(26.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ fill })
-        Button
-        SubRuleOperatorChip(index)
-        Children [
-            ( Text(operator) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(26.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ fill })
+            Button
+            SubRuleOperatorChip(index)
+            Children [
+                Text(operator) TextRole(Role::Caption)
+            ]
     }
 }
 
 fn preset_button(index: usize, preset: String, palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
-        Node {
-            min_height: px(24.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ palette.surface_elevated })
-        Button
-        SubRulePresetButton(index)
-        Children [
-            ( Text({
-                format!("+ {preset}")
-            }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(24.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ palette.surface_elevated })
+            Button
+            SubRulePresetButton(index)
+            Children [
+                Text({
+                        format!("+ {preset}")
+                }) TextRole(Role::Caption)
+            ]
     }
 }
 

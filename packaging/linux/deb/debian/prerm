@@ -2,6 +2,6 @@
 set -e
 
 # Stop any running instances before removal
-killall -q infiltrator-iced || true
+killall -q @APP_BIN@ || true
 
 exit 0

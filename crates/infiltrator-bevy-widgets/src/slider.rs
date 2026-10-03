@@ -9,7 +9,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{Changed, With, Without};
 use bevy::ecs::system::Query;
-use bevy::scene::{Scene, bsn, template_value};
+use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Node, PositionType, Val, percent, px,
 };
@@ -114,39 +114,35 @@ pub fn step_value(value: f32, step: f32, min: f32, max: f32) -> f32 {
 pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> impl Scene + use<> {
     let travel = slider_fraction(value, start, end) * 100.0;
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(palette.control_square_px),
-            align_items: AlignItems::Center,
-        }
-        Slider
-        SliderValue({ value })
-        template_value(SliderRange::new(start, end))
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(palette.control_square_px),
+                align_items: AlignItems::Center,
+            }
+            Slider
+            SliderValue({ value })
+            SliderRange::new(start, end)
+            Children [
                 Node {
                     width: percent(100),
                     height: px(palette.track_height_px),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.track_height_px * 0.5,
+                            palette.track_height_px * 0.5,
                     )),
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
-                    (
-                        Node {
-                            width: Val::Percent(travel),
-                            height: px(palette.track_height_px),
-                            border_radius: BorderRadius::all(Val::Px(
+                    Node {
+                        width: Val::Percent(travel),
+                        height: px(palette.track_height_px),
+                        border_radius: BorderRadius::all(Val::Px(
                                 palette.track_height_px * 0.5,
-                            )),
-                        }
-                        BackgroundColor({ palette.accent })
-                        SliderFill
-                    ),
+                        )),
+                    }
+                    BackgroundColor({ palette.accent })
+                    SliderFill
                 ]
-            ),
-            (
+                --
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(travel),
@@ -154,13 +150,12 @@ pub fn slider_scene(value: f32, start: f32, end: f32, palette: &UiPalette) -> im
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                 }
                 SliderThumb
                 BackgroundColor({ palette.accent })
-            ),
-        ]
+            ]
     }
 }
 
@@ -179,41 +174,37 @@ pub fn range_slider_scene(
     let thumb_max_left = e_pct * 100.0;
 
     bsn! {
-        Node {
-            width: percent(100),
-            height: px(palette.control_square_px),
-            align_items: AlignItems::Center,
-        }
-        RangeSlider
-        RangeSliderValues { start, end }
-        RangeSliderRange { min, max }
-        Children [
-            (
+            Node {
+                width: percent(100),
+                height: px(palette.control_square_px),
+                align_items: AlignItems::Center,
+            }
+            RangeSlider
+            RangeSliderValues { start, end }
+            RangeSliderRange { min, max }
+            Children [
                 Node {
                     width: percent(100),
                     height: px(palette.track_height_px),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.track_height_px * 0.5,
+                            palette.track_height_px * 0.5,
                     )),
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Children [
-                    (
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Percent(fill_left),
-                            width: Val::Percent(fill_width),
-                            height: px(palette.track_height_px),
-                            border_radius: BorderRadius::all(Val::Px(
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(fill_left),
+                        width: Val::Percent(fill_width),
+                        height: px(palette.track_height_px),
+                        border_radius: BorderRadius::all(Val::Px(
                                 palette.track_height_px * 0.5,
-                            )),
-                        }
-                        BackgroundColor({ palette.accent })
-                        RangeSliderFill
-                    ),
+                        )),
+                    }
+                    BackgroundColor({ palette.accent })
+                    RangeSliderFill
                 ]
-            ),
-            (
+                --
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(thumb_min_left),
@@ -221,13 +212,12 @@ pub fn range_slider_scene(
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                 }
                 RangeSliderThumbMin
                 BackgroundColor({ palette.accent })
-            ),
-            (
+                --
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(thumb_max_left),
@@ -235,13 +225,12 @@ pub fn range_slider_scene(
                     width: px(palette.control_square_px),
                     height: px(palette.control_square_px),
                     border_radius: BorderRadius::all(Val::Px(
-                        palette.control_square_px * 0.5,
+                            palette.control_square_px * 0.5,
                     )),
                 }
                 RangeSliderThumbMax
                 BackgroundColor({ palette.accent })
-            ),
-        ]
+            ]
     }
 }
 

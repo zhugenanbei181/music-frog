@@ -107,38 +107,38 @@ pub fn fluid_card_grid_scene(
         .into_iter()
         .map(|item| {
             Box::new(bsn! {
-                Node {
-                    flex_grow: 1.0,
-                    flex_shrink: 1.0,
-                    flex_basis: percent(100),
-                    min_width: px(min_w),
-                }
-                FluidGridItem
-                Children [
-                    ( { item } ),
-                ]
+                            Node {
+                                flex_grow: 1.0,
+                                flex_shrink: 1.0,
+                                flex_basis: percent(100),
+                                min_width: px(min_w),
+                            }
+                            FluidGridItem
+                            Children [
+                                @{ item }
+                            ]
             }) as Box<dyn Scene>
         })
         .collect();
 
     Box::new(bsn! {
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: Val::Px(gap),
-            row_gap: Val::Px(r_gap),
-        }
-        FluidCardGrid
-        FluidGridConfig {
-            min_card_width_px: min_w,
-            max_columns: max_cols,
-            gap_px: gap,
-            row_gap_px: r_gap,
-        }
-        Children [
-            { item_scenes },
-        ]
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(gap),
+                row_gap: Val::Px(r_gap),
+            }
+            FluidCardGrid
+            FluidGridConfig {
+                min_card_width_px: min_w,
+                max_columns: max_cols,
+                gap_px: gap,
+                row_gap_px: r_gap,
+            }
+            Children [
+                { item_scenes }
+            ]
     })
 }
 

@@ -26,7 +26,7 @@ use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::input::ButtonInput;
 use bevy::input::keyboard::{KeyCode, KeyboardInput};
-use bevy::scene::{CommandsSceneExt, Scene, bsn, template_value};
+use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
@@ -147,128 +147,130 @@ pub fn profile_editor_scene(
     surface_scene(
         vec![
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
-                    padding: UiRect::bottom(Val::Px(space::S8)),
-                }
-                ProfileEditorRoot
-                Children [
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            ( { icon_tile_scene(IconId::FileText, 24.0, palette) } ),
-                            (
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::SpaceBetween,
+                                padding: UiRect::bottom(Val::Px(space::S8)),
+                            }
+                            ProfileEditorRoot
+                            Children [
                                 Node {
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S4),
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    ( Text({ format!("配置文档编辑器 · YAML ({buffer_lines} 行)") }) TextRole(Role::BodyStrong) ),
-                                    ( Text(status) ProfileEditorStatusText TextRole(Role::Caption) ),
-                                    ( Text({ protection.label_zh().to_owned() }) ProfileEditorProtectionText TextRole(Role::Caption) ),
+                                    @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
+                                    --
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        row_gap: Val::Px(space::S4),
+                                    }
+                                    Children [
+                                        Text({ format!("配置文档编辑器 · YAML ({buffer_lines} 行)") }) TextRole(Role::BodyStrong)
+                                        --
+                                        Text(status) ProfileEditorStatusText TextRole(Role::Caption)
+                                        --
+                                        Text({ protection.label_zh().to_owned() }) ProfileEditorProtectionText TextRole(Role::Caption)
+                                    ]
                                 ]
-                            ),
-                        ]
-                    ),
-                    (
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
-                        Children [
-                            ( { action_button("编辑", palette.surface_elevated) } ),
-                            ( { protection_toggle(protection, palette) } ),
-                            ( { reload_button(palette) } ),
-                            ( { format_button(palette) } ),
-                            ( { save_button(palette) } ),
-                        ]
-                    ),
-                ]
+                                --
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    column_gap: Val::Px(space::S8),
+                                }
+                                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
+                                Children [
+                                    @{ action_button("编辑", palette.surface_elevated) }
+                                    --
+                                    @{ protection_toggle(protection, palette) }
+                                    --
+                                    @{ reload_button(palette) }
+                                    --
+                                    @{ format_button(palette) }
+                                    --
+                                    @{ save_button(palette) }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                }
-                Children [
-                    ( { pane_switch_scene(&options, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                            }
+                            Children [
+                                @{ pane_switch_scene(&options, palette) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
-                Children [
-                    ( { diagnostic_pill(has_error, palette) } ),
-                    ( Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(Role::Mono) ),
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(space::S8),
+                            }
+                            ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
+                            Children [
+                                @{ diagnostic_pill(has_error, palette) }
+                                --
+                                Text(diagnostic_text) ProfileEditorDiagnosticText TextRole(Role::Mono)
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Center,
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: Val::Px(space::S4),
-                    row_gap: Val::Px(space::S4),
-                }
-                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
-                Children [
-                    ( Text({ "快速插入片段（共享目录）".to_owned() }) TextRole(Role::Caption) ),
-                    { snippet_buttons(palette) },
-                ]
+                            Node {
+                                width: percent(100),
+                                align_items: AlignItems::Center,
+                                flex_wrap: FlexWrap::Wrap,
+                                column_gap: Val::Px(space::S4),
+                                row_gap: Val::Px(space::S4),
+                            }
+                            ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
+                            Children [
+                                Text({ "快速插入片段（共享目录）".to_owned() }) TextRole(Role::Caption)
+                                --
+                                { snippet_buttons(palette) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    max_height: px(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
-                    padding: UiRect::all(Val::Px(space::S8)),
-                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                    overflow: Overflow::scroll_y(),
-                }
-                BackgroundColor({ palette.window_clear })
-                ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
-                Children [
-                    (
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Column,
-                        }
-                        ProfileEditorBody
-                        Children [
-                            ( { initial_rows } ),
-                        ]
-                    ),
-                ]
+                            Node {
+                                width: percent(100),
+                                max_height: px(PROFILE_EDITOR_RENDER_LIMIT as f32 * 18.0),
+                                padding: UiRect::all(Val::Px(space::S8)),
+                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                overflow: Overflow::scroll_y(),
+                            }
+                            BackgroundColor({ palette.window_clear })
+                            ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
+                            Children [
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                }
+                                ProfileEditorBody
+                                Children [
+                                    @{ initial_rows }
+                                ]
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    display: Display::None,
-                }
-                ProfileEditorPaneArea { pane: ProfileEditorPane::Mixin }
-                Children [
-                    ( { mixin_pane_scene(&options, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                display: Display::None,
+                            }
+                            ProfileEditorPaneArea { pane: ProfileEditorPane::Mixin }
+                            Children [
+                                @{ mixin_pane_scene(&options, palette) }
+                            ]
             }),
             Box::new(bsn! {
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    display: Display::None,
-                }
-                ProfileEditorPaneArea { pane: ProfileEditorPane::Filter }
-                Children [
-                    ( { filter_pane_scene(&options, palette) } ),
-                ]
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                display: Display::None,
+                            }
+                            ProfileEditorPaneArea { pane: ProfileEditorPane::Filter }
+                            Children [
+                                @{ filter_pane_scene(&options, palette) }
+                            ]
             }),
         ],
         palette,
@@ -286,19 +288,19 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
             let label = snippet.label_zh.to_owned();
             let background = palette.surface_elevated;
             Box::new(bsn! {
-                Node {
-                    min_height: px(22.0),
-                    padding: UiRect::horizontal(Val::Px(space::S6)),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                }
-                BackgroundColor({ background })
-                Button
-                template_value(ProfileEditorSnippetButton { index })
-                Children [
-                    ( Text({ label }) TextRole(Role::Caption) ),
-                ]
+                            Node {
+                                min_height: px(22.0),
+                                padding: UiRect::horizontal(Val::Px(space::S6)),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                            }
+                            BackgroundColor({ background })
+                            Button
+                            ProfileEditorSnippetButton { index }
+                            Children [
+                                Text({ label }) TextRole(Role::Caption)
+                            ]
             }) as Box<dyn Scene>
         })
         .collect()
@@ -307,19 +309,19 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
 fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
     let label = label.to_owned();
     Box::new(bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        ProfileEditorFocusButton
-        Children [
-            ( Text({ label }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            ProfileEditorFocusButton
+            Children [
+                Text({ label }) TextRole(Role::Caption)
+            ]
     })
 }
 
@@ -329,19 +331,19 @@ fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
 fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) -> Box<dyn Scene> {
     let (label, background) = protection_toggle_visual(protection, false, palette);
     Box::new(bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        ProfileEditorProtectionToggle
-        Children [
-            ( Text({ label }) ProfileEditorProtectionToggleLabel TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            ProfileEditorProtectionToggle
+            Children [
+                Text({ label }) ProfileEditorProtectionToggleLabel TextRole(Role::Caption)
+            ]
     })
 }
 
@@ -352,57 +354,57 @@ pub struct ProfileEditorProtectionToggleLabel;
 fn reload_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        ProfileEditorReloadButton
-        Children [
-            ( Text({ "重新加载".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            ProfileEditorReloadButton
+            Children [
+                Text({ "重新加载".to_owned() }) TextRole(Role::Caption)
+            ]
     })
 }
 
 fn format_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.surface_elevated;
     Box::new(bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S8)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        ProfileEditorFormatButton
-        Children [
-            ( Text({ "格式化（共享保真）".to_owned() }) TextRole(Role::Caption) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S8)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            ProfileEditorFormatButton
+            Children [
+                Text({ "格式化（共享保真）".to_owned() }) TextRole(Role::Caption)
+            ]
     })
 }
 
 fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
     let background = palette.accent;
     Box::new(bsn! {
-        Node {
-            min_height: px(28.0),
-            padding: UiRect::horizontal(Val::Px(space::S12)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border_radius: BorderRadius::all(Val::Px(6.0)),
-        }
-        BackgroundColor({ background })
-        Button
-        ProfileEditorSaveButton
-        Children [
-            ( Text({ "保存并应用".to_owned() }) TextRole(Role::Body) ),
-        ]
+            Node {
+                min_height: px(28.0),
+                padding: UiRect::horizontal(Val::Px(space::S12)),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border_radius: BorderRadius::all(Val::Px(6.0)),
+            }
+            BackgroundColor({ background })
+            Button
+            ProfileEditorSaveButton
+            Children [
+                Text({ "保存并应用".to_owned() }) TextRole(Role::Body)
+            ]
     })
 }
 
@@ -413,14 +415,14 @@ fn diagnostic_pill(has_error: bool, palette: &UiPalette) -> Box<dyn Scene> {
         ("语法通过", palette.success)
     };
     Box::new(bsn! {
-        Node {
-            padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
-            border_radius: BorderRadius::all(Val::Px(4.0)),
-        }
-        BackgroundColor({ background })
-        Children [
-            ( Text({ label.to_owned() }) ProfileEditorDiagnosticPill TextRole(Role::Caption) ),
-        ]
+            Node {
+                padding: UiRect::new(Val::Px(6.0), Val::Px(6.0), Val::Px(2.0), Val::Px(2.0)),
+                border_radius: BorderRadius::all(Val::Px(4.0)),
+            }
+            BackgroundColor({ background })
+            Children [
+                Text({ label.to_owned() }) ProfileEditorDiagnosticPill TextRole(Role::Caption)
+            ]
     })
 }
 

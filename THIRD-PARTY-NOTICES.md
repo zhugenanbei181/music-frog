@@ -75,37 +75,39 @@ are original hand-written SVGs modeled on the **Lucide** icon style
 copies of upstream path data and are distributed with this project's license.
 For attribution of inspiration: <https://lucide.dev> (ISC).
 
-## 6. Bevy 0.19.1 engine family (`bevy` facade + sub-crates)
+## 6. Bevy 0.20.0-rc.2 engine family (`bevy` facade + sub-crates)
 
 - Source: crates.io, upstream [bevyengine/bevy](https://github.com/bevyengine/bevy),
-  pinned by `Cargo.lock` to **0.19.1**. The crates are not vendored into this
-  repository; they are pulled from crates.io at build time. / 不随仓库分发，
+  pinned by `Cargo.lock` to **0.20.0-rc.2**. The crates are not vendored into
+  this repository; they are pulled from crates.io at build time. / 不随仓库分发，
   构建时由 cargo 自 crates.io 拉取。License 逐个实证自本机
   `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/<name>-<version>/Cargo.toml`
   的 `license` 字段。
-- Members (all at 0.19.1): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
+- Members (all at 0.20.0-rc.2): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
   `bevy_android`, `bevy_app`, `bevy_asset`, `bevy_asset_macros`, `bevy_camera`,
-  `bevy_clipboard`, `bevy_color`, `bevy_core_pipeline`, `bevy_derive`,
-  `bevy_diagnostic`, `bevy_ecs`, `bevy_ecs_macro_logic`, `bevy_ecs_macros`,
-  `bevy_encase_derive`, `bevy_gizmos`, `bevy_gizmos_macros`,
+  `bevy_clipboard`, `bevy_color`, `bevy_core_pipeline`, `bevy_curve`,
+  `bevy_derive`, `bevy_diagnostic`, `bevy_ecs`, `bevy_ecs_macro_logic`,
+  `bevy_ecs_macros`, `bevy_encase_derive`, `bevy_extract`,
+  `bevy_extract_macros`, `bevy_gizmos`, `bevy_gizmos_macros`,
   `bevy_gizmos_render`, `bevy_image`, `bevy_input`, `bevy_input_focus`,
   `bevy_light`, `bevy_log`, `bevy_macro_utils`, `bevy_material`,
   `bevy_material_macros`, `bevy_math`, `bevy_mesh`, `bevy_picking`,
   `bevy_platform`, `bevy_ptr`, `bevy_reflect`, `bevy_reflect_derive`,
   `bevy_render`, `bevy_render_macros`, `bevy_scene`, `bevy_scene_macros`,
-  `bevy_shader`, `bevy_sprite`, `bevy_sprite_render`, `bevy_tasks`,
-  `bevy_text`, `bevy_time`, `bevy_transform`, `bevy_ui`, `bevy_ui_render`,
-  `bevy_ui_widgets`, `bevy_utils`, `bevy_window`, `bevy_winit`.
+  `bevy_shader`, `bevy_shape`, `bevy_sprite`, `bevy_sprite_render`,
+  `bevy_tasks`, `bevy_text`, `bevy_time`, `bevy_transform`, `bevy_ui`,
+  `bevy_ui_render`, `bevy_ui_widgets`, `bevy_utils`, `bevy_window`,
+  `bevy_winit`.
 - License: **MIT OR Apache-2.0** (dual-licensed, same expression for every
   member above), © Bevy contributors — see the upstream repository for the
   full license texts. / 上游全体子 crate 统一双许可 MIT OR Apache-2.0。
 - Companion crates maintained alongside Bevy (also **MIT OR Apache-2.0**):
-  `variadics_please` 1.1.0 ([bevyengine/variadics_please](https://github.com/bevyengine/variadics_please),
+  `variadics_please` 2.0.0 ([bevyengine/variadics_please](https://github.com/bevyengine/variadics_please),
   used by `bevy_app`/`bevy_ecs`/`bevy_render` etc.) and `web-task` 1.1.3
   ([NthTensor/web-task](https://github.com/NthTensor/web-task), wasm task
   backend of `bevy_tasks`).
 
-## 7. wgpu 29 / naga 29 rendering stack (added by `bevy_render`)
+## 7. wgpu 30 / naga 30 rendering stack (added by `bevy_render`)
 
 - Source: crates.io, upstream [gfx-rs/wgpu](https://github.com/gfx-rs/wgpu)
   (all `wgpu*` and `naga` crates) and
@@ -113,12 +115,17 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
   `Cargo.lock`. / 同上，构建时自 crates.io 拉取，license 实证自本机 vendored
   源码的 `Cargo.toml`。
 - Note: the iced client already brought `wgpu`/`naga` **27.x**; the entries
-  below are the **29.x** set added with bevy 0.19.1. Both generations coexist
-  in `Cargo.lock`. / 27.x 系 iced 原有；下述为 bevy 新增的 29.x 条目，两代并存。
-- Core (all **MIT OR Apache-2.0**): `wgpu` 29.0.4, `wgpu-core` 29.0.4,
-  `wgpu-hal` 29.0.4, `wgpu-types` 29.0.4, `wgpu-core-deps-apple` 29.0.4,
-  `wgpu-core-deps-windows-linux-android` 29.0.4, `wgpu-naga-bridge` 29.0.4,
-  `naga` 29.0.4, `naga_oil` 0.22.0.
+  below are the **30.x** set added with bevy 0.20.0-rc.2. Both generations
+  coexist in `Cargo.lock`. / 27.x 系 iced 原有；下述为 bevy 新增的 30.x
+  条目，两代并存。
+- Core (all **MIT OR Apache-2.0**): `wgpu` 30.0.1, `wgpu-core` 30.0.1,
+  `wgpu-hal` 30.0.1, `wgpu-types` 30.0.1, `wgpu-core-deps-apple` 30.0.1,
+  `wgpu-core-deps-windows-linux-android` 30.0.1, `wgpu-naga-bridge` 30.0.1,
+  `naga` 30.0.1, `naga-types` 30.0.1, `naga_oil` 0.22.0.
+- WESL shader language support (new with the 0.20 render stack, all **MIT OR
+  Apache-2.0**, upstream [wesl-lang/wesl](https://github.com/wesl-lang/wesl)):
+  `wesl` 0.4.4, `wesl-macros` 0.4.4, `wgsl-parse` 0.4.4, `wgsl-types` 0.4.4,
+  and their parser dependency `unsynn` 0.3.0.
 - Transitive additions (new name or new version entry, added by the stack
   above):
   - `codespan-reporting` 0.13.1 — **Apache-2.0**
@@ -130,7 +137,7 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
   - `bit-set` 0.9.1 / `bit-vec` 0.9.1 — **Apache-2.0 OR MIT** (via `naga`).
   - `pp-rs` 0.2.1 — **BSD-3-Clause** (preprocessor used by `naga`).
   - `petgraph` 0.8.3 — **MIT OR Apache-2.0** (via `naga_oil` /
-    `tree_magic_mini`); `weak-table` 0.3.2 — **MIT** (via `naga_oil`).
+    `tree_magic_mini`); `weak-table` 0.4.0 — **MIT** (via `naga_oil`).
   - `gpu-allocator` 0.28.0 — **MIT OR Apache-2.0**
     ([Traverse-Research/gpu-allocator](https://github.com/Traverse-Research/gpu-allocator));
     `presser` 0.3.1, `range-alloc` 0.1.5, `raw-window-metal` 1.1.0 — **MIT OR
@@ -145,12 +152,15 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
   checkouts as above. / 来源 crates.io，license 逐个实证自本机 vendored 源码。
 - Parley family (upstream
   [linebender/parley](https://github.com/linebender/parley), used by
-  `bevy_text`): `parley` 0.9.0, `parley_data` 0.9.0, `fontique` 0.9.0,
+  `bevy_text`): `parley` 0.11.1, `parley_data` 0.11.1, `fontique` 0.11.1,
   `parlance` 0.1.0 — all **Apache-2.0 OR MIT**.
 - Font parsing ([googlefonts/fontations](https://github.com/googlefonts/fontations),
-  version bumps via parley/cosmic-text): `skrifa` 0.42.1, `read-fonts` 0.39.2,
-  `font-types` 0.11.3 — **MIT OR Apache-2.0**; shaping via `harfrust` 0.6.2 —
-  **MIT** ([harfbuzz/harfrust](https://github.com/harfbuzz/harfrust)).
+  version bumps via parley/cosmic-text): `skrifa` 0.44.0, `read-fonts` 0.41.0,
+  `font-types` 0.12.4 (older `skrifa` 0.37.0, `read-fonts` 0.35.0,
+  `font-types` 0.10.1 entries predate the upgrade) — **MIT OR Apache-2.0**;
+  shaping via `harfrust` 0.12.0 — **MIT**
+  ([harfbuzz/harfrust](https://github.com/harfbuzz/harfrust)); the older
+  `harfrust` 0.3.2 entry predates the upgrade.
 - ICU4X segmentation (unicode-org/icu4x, via `parley`): `icu_segmenter` 2.3.0,
   `icu_segmenter_data` 2.3.0, `icu_locale_fallback` 2.3.0,
   `icu_locale_fallback_data` 2.3.0 — **Unicode-3.0**. Note: Unicode-3.0
@@ -158,16 +168,17 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
   whitelist set; it is registered here verbatim. / Unicode-3.0 不在
   license-guard 白名单内，此处原样登记；该许可为 Unicode 联盟的宽松许可。
 - Layout ([DioxusLabs/taffy](https://github.com/DioxusLabs/taffy), used by
-  `bevy_ui`): `taffy` 0.10.1 — **MIT**; its dependency `grid` 1.0.1 — **MIT**.
+  `bevy_ui`): `taffy` 0.14.0 — **MIT**.
 
 ## 9. Accessibility & clipboard stack added with `bevy_a11y` / `bevy_winit` / `bevy_clipboard`
 
 - Source: crates.io; licenses verified from the vendored registry checkouts
   as above. / 来源 crates.io，license 逐个实证自本机 vendored 源码。
 - AccessKit ([AccessKit/accesskit](https://github.com/AccessKit/accesskit)):
-  `accesskit` 0.24.1, `accesskit_consumer` 0.35.0 and 0.38.0 (two versions
-  coexist in `Cargo.lock`), `accesskit_macos` 0.26.3, `accesskit_windows`
-  0.32.1 — all **MIT OR Apache-2.0**; `accesskit_winit` 0.32.2 —
+  `accesskit` 0.24.1, `accesskit_consumer` 0.38.0, `accesskit_macos` 0.26.3,
+  `accesskit_windows` 0.34.0, `accesskit_unix` 0.22.1,
+  `accesskit_atspi_common` 0.19.1, `accesskit_ios` 0.1.2 — all
+  **MIT OR Apache-2.0**; `accesskit_winit` 0.33.2 —
   **Apache-2.0** (Apache only, unlike the rest of the family).
 - Clipboard ([1Password/arboard](https://github.com/1Password/arboard), via
   `bevy_clipboard`): `arboard` 3.6.1 — **MIT OR Apache-2.0**; its Linux
