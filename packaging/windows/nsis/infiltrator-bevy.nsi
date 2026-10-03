@@ -37,8 +37,11 @@ SetCompressor /SOLID lzma
 ; Interface Settings
 ; ---------------------------------------------------------------------------
 !define MUI_ABORTWARNING
-!define MUI_ICON "crates\infiltrator-iced\icons\icon.ico"
-!define MUI_UNICON "crates\infiltrator-iced\icons\icon.ico"
+; ${__FILEDIR__} anchors the icon to this script's directory so the path is
+; correct regardless of the compiler's current working directory (NSIS resolves
+; MUI_ICON relative to the script, not the invocation CWD).
+!define MUI_ICON "${__FILEDIR__}\..\..\..\crates\infiltrator-iced\icons\icon.ico"
+!define MUI_UNICON "${__FILEDIR__}\..\..\..\crates\infiltrator-iced\icons\icon.ico"
 
 !define MUI_HEADERIMAGE
 !define MUI_WELCOMEFINISHPAGE_BITMAP_NOSTRETCH
