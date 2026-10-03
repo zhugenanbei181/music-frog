@@ -353,9 +353,26 @@ jobs:
           key: android-release
 
       - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: 29.0.14206865
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK_VERSION="29.0.14206865"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # nttld/setup-ndk builds `android-ndk-<version>-linux.zip` from the
+          # numeric version, which 404s for the r29 series. The SDK manager
+          # knows the canonical `ndk;<version>` package and installs to
+          # $ANDROID_HOME/ndk/<version> — exactly where gradle's `ndkVersion`
+          # and the Bevy build look. `yes |` dies with SIGPIPE once sdkmanager
+          # stops reading; neutralize pipefail for the pipeline only.
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "ndk;$NDK_VERSION"
+          rc=$?
+          set -o pipefail
+          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install ndk;$NDK_VERSION (rc=$rc)"; exit "$rc"; }
+          NDK_ROOT="$ANDROID_HOME/ndk/$NDK_VERSION"
+          test -d "$NDK_ROOT"
+          echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Build iced Android Release APKs
         shell: bash
