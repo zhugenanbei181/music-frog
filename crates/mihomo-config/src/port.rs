@@ -1,4 +1,4 @@
-use std::net::{TcpListener, ToSocketAddrs};
+use std::net::TcpListener;
 
 /// Check if a port is available on localhost
 pub fn is_port_available(port: u16) -> bool {
@@ -10,12 +10,42 @@ pub fn find_available_port(start_port: u16) -> Option<u16> {
     (start_port..start_port + 100).find(|&port| is_port_available(port))
 }
 
-/// Parse port from address string (e.g., "127.0.0.1:9090" -> 9090)
+/// Parse the port from a socket-ish address.
+///
+/// Accepts bare `host:port`, `:port`, bracketed IPv6 `[::1]:port`, and full
+/// URLs such as `http://127.0.0.1:9090/path` (the shape
+/// [`ConfigManager::get_external_controller`] returns).
+///
+/// Parsing is purely textual and **never resolves DNS**. The previous
+/// `to_socket_addrs()` implementation only appeared to work because a
+/// wildcard/fake-IP resolver happened to answer for a bogus host such as
+/// `http://127.0.0.1`; in an offline / `unshare -n` test namespace DNS fails
+/// and the parse returned `None`, so the same input behaved differently by
+/// environment. This is deterministic everywhere.
 pub fn parse_port_from_addr(addr: &str) -> Option<u16> {
-    addr.to_socket_addrs()
-        .ok()?
+    let trimmed = addr.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    // Drop an optional scheme (`http://`, `socks5://`, ...) and any path/query.
+    let after_scheme = trimmed
+        .rsplit_once("://")
+        .map_or(trimmed, |(_, rest)| rest);
+    let authority = after_scheme
+        .split(['/', '?', '#'])
         .next()
-        .map(|socket_addr| socket_addr.port())
+        .unwrap_or(after_scheme);
+    if let Some(rest) = authority.strip_prefix('[') {
+        // Bracketed IPv6: `[::1]:9090`.
+        let (_, port) = rest.rsplit_once("]:")?;
+        return port.trim().parse().ok();
+    }
+    let (_, port) = authority.rsplit_once(':')?;
+    let port = port.trim();
+    if port.is_empty() {
+        return None;
+    }
+    port.parse().ok()
 }
 
 /// DUAL-14-13: split a `host:port` listener address as the profile writes it.
@@ -61,6 +91,19 @@ mod tests {
         assert_eq!(parse_port_from_addr("127.0.0.1:9090"), Some(9090));
         assert_eq!(parse_port_from_addr("localhost:8080"), Some(8080));
         assert_eq!(parse_port_from_addr("invalid"), None);
+        // URLs (the shape `get_external_controller` returns) and bracketed
+        // IPv6 must parse without any DNS lookup, so the result is identical
+        // online and inside an offline / `unshare -n` namespace.
+        assert_eq!(parse_port_from_addr("http://127.0.0.1:9090"), Some(9090));
+        assert_eq!(
+            parse_port_from_addr("https://127.0.0.1:9090/path?q=1"),
+            Some(9090)
+        );
+        assert_eq!(parse_port_from_addr(":9090"), Some(9090));
+        assert_eq!(parse_port_from_addr("[::1]:9090"), Some(9090));
+        assert_eq!(parse_port_from_addr("http://[::1]:9090"), Some(9090));
+        assert_eq!(parse_port_from_addr("http://127.0.0.1"), None);
+        assert_eq!(parse_port_from_addr(""), None);
     }
 
     #[test]

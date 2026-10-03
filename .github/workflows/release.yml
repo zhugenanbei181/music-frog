@@ -319,14 +319,16 @@ jobs:
           path: dist/
 
   # ---------------------------------------------------------------------------
-  # 2. Android APK Build Job
+  # 2. Android APK Build Job (iced + bevy share ONE SDK/NDK/JDK)
   # ---------------------------------------------------------------------------
   build-android:
     needs: test-gate
-    name: Build Android APKs
+    name: Build Android APKs (iced + bevy)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
-    timeout-minutes: 60
+    # iced(gradle) 与 bevy(cargo-apk) 串行跑在同一 runner，共享一套工具链；
+    # 相比两个作业各自装链，省下一次 SDK/NDK/JDK 供给与一份 ~1.2GB 缓存。
+    timeout-minutes: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -355,7 +357,7 @@ jobs:
         with:
           ndk-version: 29.0.14206865
 
-      - name: Build Android Release APKs
+      - name: Build iced Android Release APKs
         shell: bash
         run: |
           set -euo pipefail
@@ -367,49 +369,14 @@ jobs:
           test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
           find dist-android -type f -name '*.apk' -size +0c -print
 
-      - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: Infiltrator-Android-APKs
-          path: dist-android/
-
-  # ---------------------------------------------------------------------------
-  # 2b. Bevy Android APK Build Job (separate, equal artifact)
-  # ---------------------------------------------------------------------------
-  build-android-bevy:
-    needs: test-gate
-    name: Build Bevy Android APK
-    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
-    runs-on: ubuntu-26.04
-    timeout-minutes: 90
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.99.0
-        with:
-          targets: aarch64-linux-android, x86_64-linux-android
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: android-bevy-release
-
-      # The userspace Android toolchain (Temurin JDK + cmdline-tools + SDK +
-      # NDK + cargo-apk) is installed by scripts/build-bevy-apk.sh under
-      # $ANDROID_TOOLS_ROOT. Caching that root makes only the first release pay
-      # the ~1.5 GB download; BEVY_APK_SKIP_EMULATOR drops the emulator and
-      # system image that a packaging-only run never uses.
-      - name: Cache Bevy Android toolchain
-        uses: actions/cache@v4
-        with:
-          path: ~/android-tools-bevy
-          key: bevy-android-tools-${{ runner.os }}-ndk-27.0.12077973-v1
-
-      - name: Build Bevy Release APK
+      # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
+      # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
+      # toolchain is downloaded or cached. BEVY_APK_SKIP_EMULATOR drops the
+      # emulator/system image a packaging-only run never uses.
+      - name: Build Bevy Android Release APK
         shell: bash
         env:
+          BEVY_APK_USE_SYSTEM_TOOLCHAIN: "1"
           BEVY_APK_SKIP_EMULATOR: "1"
         run: bash scripts/build-bevy-apk.sh --release
 
@@ -423,6 +390,12 @@ jobs:
           cp "$APK" dist-android-bevy/
           find dist-android-bevy -type f -size +0c -print
 
+      - name: Upload iced Android Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Infiltrator-Android-APKs
+          path: dist-android/
+
       - name: Upload Bevy Android Artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -434,7 +407,7 @@ jobs:
   # ---------------------------------------------------------------------------
   publish-release:
     name: Generate Manifest & Publish Release
-    needs: [build-desktop, build-android, build-android-bevy]
+    needs: [build-desktop, build-android]
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
     timeout-minutes: 15

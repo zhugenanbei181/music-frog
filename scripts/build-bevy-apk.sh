@@ -30,9 +30,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${ANDROID_TOOLS_ROOT:-$HOME/android-tools-bevy}"
-SDK="$ROOT/android"
-JDK="$ROOT/jdk"
-NDK_VERSION="27.0.12077973"
 API="android-35"
 BUILD_TOOLS="35.0.0"
 AVD_NAME="bevy-smoke"
@@ -41,32 +38,59 @@ PACKAGE="app.musicfrog.infiltrator_bevy_ui"
 ACTIVITY="$PACKAGE/android.app.NativeActivity"
 DRIVER_PKG="infiltrator-bevy-apk-driver"
 
+# Toolchain source.
+#   default (0): install a self-contained userspace JDK+SDK+NDK under $ROOT —
+#                the validated local path, no sudo.
+#   system  (1): reuse JAVA_HOME / ANDROID_HOME / ANDROID_NDK_ROOT provided by
+#                the CI setup-java + setup-android + setup-ndk actions, so the
+#                Bevy APK shares the exact SDK/NDK the iced Android build
+#                already provisions instead of a second ~1.2 GB toolchain.
+USE_SYSTEM_TOOLCHAIN="${BEVY_APK_USE_SYSTEM_TOOLCHAIN:-0}"
+if [ "$USE_SYSTEM_TOOLCHAIN" = "1" ]; then
+    : "${JAVA_HOME:?JAVA_HOME must be set when BEVY_APK_USE_SYSTEM_TOOLCHAIN=1}"
+    : "${ANDROID_HOME:?ANDROID_HOME must be set when BEVY_APK_USE_SYSTEM_TOOLCHAIN=1}"
+    # setup-ndk exports ANDROID_NDK_HOME; accept either spelling.
+    ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-}}"
+    : "${ANDROID_NDK_ROOT:?ANDROID_NDK_ROOT (or ANDROID_NDK_HOME) must be set when BEVY_APK_USE_SYSTEM_TOOLCHAIN=1}"
+    SDK="$ANDROID_HOME"
+    JDK="$JAVA_HOME"
+    NDK_VERSION="$(basename "$ANDROID_NDK_ROOT")"
+else
+    SDK="$ROOT/android"
+    JDK="$ROOT/jdk"
+    NDK_VERSION="27.0.12077973"
+fi
+
 mkdir -p "$ROOT/dl" "$ROOT/logs"
 
 log() { printf '[build-bevy-apk] %s\n' "$*"; }
 
-# --- 1. Temurin JDK 17 -------------------------------------------------------
-if [ ! -x "$JDK/bin/java" ]; then
-    log "installing Temurin JDK 17"
-    curl -sL --retry 3 -o "$ROOT/dl/jdk17.tar.gz" \
-        "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz"
-    tar xzf "$ROOT/dl/jdk17.tar.gz" -C "$ROOT"
-    mv "$ROOT/jdk-17.0.20.1+1" "$JDK"
-else
-    log "JDK present"
-fi
+# --- 1. Temurin JDK 17 (userspace mode only) ---------------------------------
+if [ "$USE_SYSTEM_TOOLCHAIN" != "1" ]; then
+    if [ ! -x "$JDK/bin/java" ]; then
+        log "installing Temurin JDK 17"
+        curl -sL --retry 3 -o "$ROOT/dl/jdk17.tar.gz" \
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20.1%2B1/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20.1_1.tar.gz"
+        tar xzf "$ROOT/dl/jdk17.tar.gz" -C "$ROOT"
+        mv "$ROOT/jdk-17.0.20.1+1" "$JDK"
+    else
+        log "JDK present"
+    fi
 
-# --- 2. cmdline-tools --------------------------------------------------------
-if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
-    log "installing Android cmdline-tools"
-    curl -sL --retry 3 -o "$ROOT/dl/cmdline-tools.zip" \
-        "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-    unzip -q "$ROOT/dl/cmdline-tools.zip" -d "$ROOT/cmdline-tools-tmp"
-    mkdir -p "$SDK/cmdline-tools"
-    mv "$ROOT/cmdline-tools-tmp/cmdline-tools" "$SDK/cmdline-tools/latest"
-    rm -rf "$ROOT/cmdline-tools-tmp"
+    # --- 2. cmdline-tools (userspace mode only) ------------------------------
+    if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+        log "installing Android cmdline-tools"
+        curl -sL --retry 3 -o "$ROOT/dl/cmdline-tools.zip" \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+        unzip -q "$ROOT/dl/cmdline-tools.zip" -d "$ROOT/cmdline-tools-tmp"
+        mkdir -p "$SDK/cmdline-tools"
+        mv "$ROOT/cmdline-tools-tmp/cmdline-tools" "$SDK/cmdline-tools/latest"
+        rm -rf "$ROOT/cmdline-tools-tmp"
+    else
+        log "cmdline-tools present"
+    fi
 else
-    log "cmdline-tools present"
+    log "system toolchain: SDK=$SDK NDK=$NDK_VERSION JDK=$JDK"
 fi
 
 export JAVA_HOME="$JDK"
@@ -105,7 +129,12 @@ if [ -n "$missing" ]; then
 else
     log "SDK components present"
 fi
-export ANDROID_NDK_ROOT="$SDK/ndk/$NDK_VERSION"
+# Userspace mode installs the NDK under $SDK/ndk; system mode already points
+# ANDROID_NDK_ROOT at the setup-ndk checkout and must not rewrite it.
+if [ "$USE_SYSTEM_TOOLCHAIN" != "1" ]; then
+    export ANDROID_NDK_ROOT="$SDK/ndk/$NDK_VERSION"
+fi
+log "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
 
 # --- 4. AVD ------------------------------------------------------------------
 if [ "$SKIP_EMULATOR" = "1" ]; then
