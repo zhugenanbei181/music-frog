@@ -54,7 +54,9 @@ jobs:
     name: nextest (network-isolated, 4 threads)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    # Bevy 入 workspace 后全量编译（iced+bevy+全部 crate）显著变重；30 分钟会
+    # 在冷缓存下超时，超时=整轮 gate 报废。放宽到 60 给冷缓存留余量。
+    timeout-minutes: 60
 
     steps:
       - name: Checkout

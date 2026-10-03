@@ -33,7 +33,9 @@ jobs:
     needs: test-gate
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # 每条腿现在编译 iced + bevy 两个二进制（共享同一 target/cache）。iced-only
+    # 时代的 45 分钟不够，超时会把整条腿已完成的编译全部浪费掉。
+    timeout-minutes: 75
     strategy:
       # A failed platform must stop the release fan-out; publish-release is
       # gated on every matrix leg and partial releases are never useful.
@@ -192,7 +194,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui.exe"
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bevy_binary_name }}"
           test -s "$BIN_PATH"
 
           ZIP_NAME="${{ matrix.bevy_artifact_name }}.zip"
@@ -235,13 +237,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui"
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bevy_binary_name }}"
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
 
           APP_DIR="dist/InfiltratorBevy.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/infiltrator-bevy-ui"
+          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/${{ matrix.bevy_binary_name }}"
           sed -e 's/infiltrator-iced/infiltrator-bevy-ui/' \
               -e 's/app\.musicfrog\.infiltrator/app.musicfrog.infiltrator.bevy/' \
               -e 's#<string>Infiltrator</string>#<string>Infiltrator Bevy</string>#g' \
@@ -283,12 +285,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          BIN_PATH="target/${{ matrix.target }}/release/infiltrator-bevy-ui"
+          BIN_PATH="target/${{ matrix.target }}/release/${{ matrix.bevy_binary_name }}"
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
 
           tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" \
-            -C "target/${{ matrix.target }}/release" infiltrator-bevy-ui
+            -C "target/${{ matrix.target }}/release" "${{ matrix.bevy_binary_name }}"
           test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
 
           APP_BIN=infiltrator-bevy-ui \
