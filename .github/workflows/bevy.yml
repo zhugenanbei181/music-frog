@@ -123,6 +123,7 @@ jobs:
             libudev-dev \
             libwayland-dev \
             libxkbcommon-dev \
+            libgtk-3-dev \
             libglib2.0-dev \
             libssl-dev \
             libasound2-dev \
