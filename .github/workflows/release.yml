@@ -373,6 +373,19 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
+      # BANDROID-024: the Compose host compiles against API 37 (latest stable
+      # AndroidX/Compose). Install the platform and build-tools explicitly.
+      - name: Install Android platform 37 and build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-37.0" "build-tools;37.0.0"
+          rc=$?
+          set -o pipefail
+          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install platform 37 (rc=$rc)"; exit "$rc"; }
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.99.0
         with:

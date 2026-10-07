@@ -83,6 +83,20 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
+      # BANDROID-024: the latest stable AndroidX/Compose require compileSdk 37.
+      # Install the platform and build-tools explicitly so the Gradle build does
+      # not depend on whatever the runner image happens to ship.
+      - name: Install Android platform 37 and build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-37.0" "build-tools;37.0.0"
+          rc=$?
+          set -o pipefail
+          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install platform 37 (rc=$rc)"; exit "$rc"; }
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.99.0
         with:
@@ -115,6 +129,7 @@ jobs:
           test -d "$NDK_ROOT"
           echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
+          echo "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
 
       - name: Android compile + lint gate
         shell: bash

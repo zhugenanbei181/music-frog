@@ -120,7 +120,7 @@ UI 进程终止、任务划走、服务异常死亡、权限撤销和系统强�
 | L2.5 模拟器插桩 | `android/app/src/androidTest/`；编译门跑 `assembleDebugAndroidTest`，模拟器跑 `connectedDebugAndroidTest`（`BANDROID-022`） | 已安装 APK 的权限/service 声明、Activity/service 接线、Insets/IME | 真机 VPN/后台/功耗 |
 | L3/L4 真机 | `.github/workflows/android-device.yml`（`workflow_dispatch`/self-hosted，`scripts/android-device-evidence.sh`）（`BANDROID-023`） | VPN 流量、防回环、≥8h 后台、功耗原始报告 | —（最终证据层） |
 
-- 工具链版本必须两端统一：Compose 与 Bevy 共用 min 29 / target 36 / compile 36 / NDK `29.0.14206865`（`BANDROID-020`）。版本分叉时“CI 能编译”只对其中一套目标成立。
+- 工具链版本：两端 min 29 / target 36 / NDK `29.0.14206865` 统一；Compose `compileSdk 37`（最新稳定 AndroidX/Compose 要求，`BANDROID-024`，compileSdk 与 targetSdk 解耦），Bevy 按 target 36 编译。版本分叉时“CI 能编译”只对其中一套目标成立。
 - Android 依赖基线跟随**最新稳定版**（`BANDROID-024`）：AGP、Kotlin/Compose 插件、Compose BOM、AndroidX、JNA 与 test 依赖的版本真相只在 `android/build.gradle.kts`、`android/app/build.gradle.kts`；升级前核对 Google Maven / Maven Central 与 AGP↔Gradle↔KGP 兼容表，声明最新版不等于已验证。
 - `cargo-apk` 只能声明 `uses_permission`，**不能声明 `<service>`/`<receiver>`/`foregroundServiceType`**；完整 VPN 清单只能由 Gradle 宿主（`BANDROID-003`/`BANDROID-015`）交付。Bevy smoke APK 的权限声明与产品清单由 `BANDROID-019` 保持同步。
 - 编译门与守卫通过**不等于**产品完成：后台、省电、权限的产品实现仍按 §2/§3/§5 由服务宿主交付，设备证据按 §8 分层取得。该编译门已于 2026-10-07 在本地用真实 NDK 29 / SDK 36 端到端执行并通过（首个运行暴露并修复了 6 个 Android-only clippy 违规，证明 host clippy 看不到这些 cfg 分支）；CI workflow 本身仍须以第一次 GitHub Actions 运行为准。

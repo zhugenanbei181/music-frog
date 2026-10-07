@@ -43,6 +43,7 @@ fun FfiStatus.userMessage(fallback: String): String {
         FfiErrorCode.AUTH -> "Authentication error"
         FfiErrorCode.SYNC -> "Sync error"
         FfiErrorCode.CONFIG -> "Config error"
+        FfiErrorCode.CANCELED -> "Canceled"
         FfiErrorCode.UNKNOWN -> "Unknown error"
     }
     return if (fallback.isBlank()) codeMessage else "$fallback: $codeMessage"

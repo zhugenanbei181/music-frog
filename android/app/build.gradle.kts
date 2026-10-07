@@ -28,7 +28,10 @@ plugins {
 
 android {
     namespace = "com.musicfrog.infiltrator"
-    compileSdk = 36
+    // BANDROID-024: latest stable AndroidX/Compose (Compose 1.12.x, core-ktx
+    // 1.19.x, lifecycle 2.11.x) require compiling against API 37 or later.
+    // compileSdk is independent of targetSdk; runtime behavior stays at 36.
+    compileSdk = 37
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
