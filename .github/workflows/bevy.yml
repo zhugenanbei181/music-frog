@@ -123,6 +123,9 @@ jobs:
             libudev-dev \
             libwayland-dev \
             libxkbcommon-dev \
+            libglib2.0-dev \
+            libssl-dev \
+            libasound2-dev \
             pkg-config
 
       - name: Install cargo-nextest
@@ -132,4 +135,6 @@ jobs:
 
       - name: Run Bevy validation
         shell: bash
+        env:
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:${{ env.PKG_CONFIG_PATH }}
         run: bash scripts/test-bevy.sh
