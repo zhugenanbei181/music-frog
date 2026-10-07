@@ -346,21 +346,22 @@ mod tests {
     #[test]
     fn slot_initial_reports_shared_facts_and_honest_empty_states() {
         let empty = ProtocolStudioSnapshot::default();
+        let lang = Lang(&get_system_language());
         assert_eq!(
             slot_initial(ProtocolStudioSlot::Chips, &empty),
-            "尚无节点草稿"
+            lang.tr("protocol_form_no_draft").as_ref()
         );
         assert_eq!(
             slot_initial(ProtocolStudioSlot::UriPreview, &empty),
-            "尚无分享链接预览"
+            lang.tr("protocol_form_no_preview").as_ref()
         );
         assert_eq!(
             slot_initial(ProtocolStudioSlot::Audit, &empty),
-            "尚未执行编解码转换"
+            lang.tr("protocol_form_no_codec").as_ref()
         );
         assert_eq!(
             slot_initial(ProtocolStudioSlot::Gaps, &empty),
-            "分享链接可完整表达当前草稿"
+            lang.tr("protocol_form_no_gaps").as_ref()
         );
     }
 }
