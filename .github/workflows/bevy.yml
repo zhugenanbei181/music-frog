@@ -95,6 +95,10 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Install Python dependencies for parity guards
+        shell: bash
+        run: python3 -m pip install Pillow
+
       - name: Enforce quality guards (fail fast)
         shell: bash
         run: bash scripts/test-bevy.sh --guards-only

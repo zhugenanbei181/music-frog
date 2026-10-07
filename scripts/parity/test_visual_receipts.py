@@ -6,11 +6,16 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from PIL import Image
+try:
+    from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
 from visual_receipts import interaction_bounds, interaction_signature, pixel_signature, sha256, verified_receipts
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow is required for visual receipt tests")
 class VisualReceiptTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

@@ -68,6 +68,10 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Install Python dependencies for parity guards
+        shell: bash
+        run: python3 -m pip install Pillow
+
       # 廉价守卫前置（秒级）：在任何工具链安装、缓存与编译之前失败，尽早退出。
       # 守卫清单的唯一权威是 scripts/test.sh 本身，这里只调用、不复述清单。
       - name: Verify test policy

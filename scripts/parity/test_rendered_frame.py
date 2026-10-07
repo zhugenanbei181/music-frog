@@ -3,10 +3,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PIL import Image, ImageDraw
-from rendered_frame import compare_rendered_frame
+try:
+    from PIL import Image, ImageDraw
+    from rendered_frame import compare_rendered_frame
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
 
 
+@unittest.skipUnless(HAS_PIL, "Pillow is required for rendered frame tests")
 class RenderedFrameTests(unittest.TestCase):
     def test_current_frame_matches_but_an_old_panel_missing_readback_or_wrong_size_fails(self):
         with tempfile.TemporaryDirectory() as directory:

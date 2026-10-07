@@ -3,10 +3,10 @@ from pathlib import Path
 import argparse
 import re
 
-from PIL import Image, ImageChops
-
 
 def compare_rendered_frame(image, bounds=None):
+    from PIL import Image, ImageChops
+
     image = Path(image)
     rendered = image.parent / "rendered-frame.png"
     if not rendered.is_file():
