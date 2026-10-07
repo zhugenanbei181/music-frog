@@ -1,0 +1,161 @@
+name: android
+
+# BANDROID-018: the L0/L1 Android gate. It compiles and lints every
+# Android-only surface on PRs and pushes so Android breakage fails before a
+# release tag, instead of only inside the tag-only packaging job.
+#
+# Scope: L0 = cargo check (aarch64 + x86_64), L1 = clippy -D warnings on
+# aarch64. It also compiles the Compose host (Gradle `:app:assembleDebug`) and
+# the Bevy APK driver. It does NOT run on a device or emulator and therefore
+# does NOT replace device/emulator evidence (aapt badging, crash-free launch,
+# screenshots) — those stay in the packaging + device matrices.
+#
+# Note: Gradle `assembleDebug` invokes `scripts/android-build.sh` (the cargoBuild
+# task) by design, which builds the release .so for BOTH ABIs. That is expected:
+# the Compose host always consumes the release cdylib, debug or not.
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - ".github/workflows/android.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "crates/infiltrator-android/**"
+      - "crates/infiltrator-bevy-ui/**"
+      - "crates/infiltrator-bevy-widgets/**"
+      - "android/**"
+      - "scripts/android-build.sh"
+      - "scripts/android-check.sh"
+      - "scripts/build-bevy-apk.sh"
+      - "scripts/verify-bevy-apk.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/android.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "crates/infiltrator-android/**"
+      - "crates/infiltrator-bevy-ui/**"
+      - "crates/infiltrator-bevy-widgets/**"
+      - "android/**"
+      - "scripts/android-build.sh"
+      - "scripts/android-check.sh"
+      - "scripts/build-bevy-apk.sh"
+      - "scripts/verify-bevy-apk.sh"
+
+permissions:
+  contents: read
+
+# 同一引用的新提交自动取消旧运行：过时结果尽早退出，不浪费算力。
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # CI 中禁用增量编译：产物更小、缓存更省、全量构建更可复现。
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  android:
+    name: Android compile + lint gate
+    # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
+    runs-on: ubuntu-26.04
+    # iced(gradle) 与 bevy(cargo-apk) 串行跑在同一 runner，共享一套工具链。
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+          components: clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-gate
+
+      - name: Setup Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK_VERSION="29.0.14206865"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          # nttld/setup-ndk builds `android-ndk-<version>-linux.zip` from the
+          # numeric version, which 404s for the r29 series. The SDK manager
+          # knows the canonical `ndk;<version>` package and installs to
+          # $ANDROID_HOME/ndk/<version> — exactly where gradle's `ndkVersion`
+          # and the Bevy build look. `yes |` dies with SIGPIPE once sdkmanager
+          # stops reading; neutralize pipefail for the pipeline only.
+          set +o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "ndk;$NDK_VERSION"
+          rc=$?
+          set -o pipefail
+          [ "$rc" -eq 0 ] || { echo "::error::sdkmanager failed to install ndk;$NDK_VERSION (rc=$rc)"; exit "$rc"; }
+          NDK_ROOT="$ANDROID_HOME/ndk/$NDK_VERSION"
+          test -d "$NDK_ROOT"
+          echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$NDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Android compile + lint gate
+        shell: bash
+        run: bash scripts/android-check.sh
+
+      # Compile the Compose host. `:app:assembleDebug` drives the cargoBuild
+      # task (scripts/android-build.sh) so this also validates the JNI/Gradle
+      # wiring, not just the Rust crates.
+      - name: Build Compose host (assembleDebug)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          # Gradle resolves the project from the CWD, so run inside android/;
+          # invoking ./android/gradlew from the repo root makes it look for a
+          # settings.gradle at the root and fail ("does not contain a Gradle build").
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebug )
+
+      # BANDROID-021: JVM unit tests run without a device.
+      - name: Run Android JVM unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest )
+
+      # BANDROID-022: compile the instrumented tests here (no emulator needed);
+      # the actual connectedDebugAndroidTest run is an explicit device stage.
+      - name: Compile instrumented tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebugAndroidTest )
+
+      # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
+      # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
+      # toolchain is downloaded or cached. BEVY_APK_SKIP_EMULATOR drops the
+      # emulator/system image this gate never uses. Building the APK is what
+      # makes its manifest/permission assertions run.
+      - name: Build Bevy APK
+        shell: bash
+        env:
+          BEVY_APK_USE_SYSTEM_TOOLCHAIN: "1"
+          BEVY_APK_SKIP_EMULATOR: "1"
+        run: bash scripts/build-bevy-apk.sh

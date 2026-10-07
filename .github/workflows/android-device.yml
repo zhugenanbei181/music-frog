@@ -1,0 +1,55 @@
+name: android-device
+
+# BANDROID-023 — explicit, hash-bound Android real-device / long-running
+# evidence stage (docs/BEVY_ANDROID_PRODUCT.md §8/§9).
+#
+# This job REQUIRES a SELF-HOSTED runner labelled `android-arm64` with a real
+# ARM64 device attached over adb. It does NOT run on GitHub-hosted runners and
+# MUST NOT be added to the PR gate: it collects VPN traffic, no-loopback, >=8h
+# background, network-switch and power evidence that a hosted runner cannot
+# produce. Trigger it manually via workflow_dispatch (or a deliberate schedule).
+#
+# The evidence script itself refuses to claim success without a device and
+# writes STATUS: incomplete whenever a required step was skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      background_seconds:
+        description: "Background soak duration in seconds (0 = skip; 28800 = the >=8h requirement)"
+        required: false
+        default: "0"
+      run_instrumented:
+        description: "Run connected instrumented tests (1 = yes, 0 = skip)"
+        required: false
+        default: "1"
+  # A schedule is intentionally NOT enabled. To run the >=8h soak on a cadence,
+  # uncomment the block below and pin background_seconds in the script env.
+  # schedule:
+  #   - cron: "0 3 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  device-evidence:
+    name: Android device evidence (BANDROID-023)
+    runs-on: [self-hosted, android-arm64]
+    timeout-minutes: 600
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Collect device evidence
+        shell: bash
+        env:
+          BACKGROUND_SECONDS: ${{ inputs.background_seconds }}
+          RUN_INSTRUMENTED: ${{ inputs.run_instrumented }}
+        run: bash scripts/android-device-evidence.sh
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-device-evidence
+          path: target/android-evidence/
+          if-no-files-found: warn
