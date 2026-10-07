@@ -4,6 +4,7 @@
 use super::*;
 use bevy::ecs::query::With;
 use infiltrator_bevy_ui::pages::connections_pulse::ConnectionsPulseState;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
@@ -665,11 +666,13 @@ fn test_connections_drawer_parity_exposes_shared_fields_and_close_action() {
     ));
     assert!(subtree_has_text(app.world(), root, "TCP"));
     assert!(subtree_has_text(app.world(), root, "github.com"));
-    assert!(subtree_has_text(
-        app.world(),
-        root,
-        "瞬时 ↑ 23.44 KB/s  ↓ 175.78 KB/s"
-    ));
+    let locale = app.world().resource::<UiLocale>().code().to_string();
+    let lang = Lang(&locale);
+    let expected_rate = format!(
+        "{} ↑ 23.44 KB/s  ↓ 175.78 KB/s",
+        lang.tr("conn_drawer_rate_prefix")
+    );
+    assert!(subtree_has_text(app.world(), root, &expected_rate));
 
     // The drawer's disconnect action submits the shared teardown command and
     // closes the drawer, matching the Iced drawer's action.
@@ -726,17 +729,24 @@ fn test_connections_drawer_renders_kernel_asn_and_geo_without_guessing() {
         app.update();
     };
 
+    let locale = app.world().resource::<UiLocale>().code().to_string();
+    let lang = Lang(&locale);
+    let asn_header = lang.tr("conn_drawer_kernel_asn");
+    let geo_header = lang.tr("conn_drawer_kernel_geo");
+    let no_result = lang.tr("conn_drawer_kernel_no_result");
+    let not_evaluated = lang.tr("conn_drawer_kernel_not_evaluated");
+
     // Row 0: the kernel value is rendered verbatim (no client-side `AS` prefix).
     open_drawer(&mut app, 0);
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标 ASN 归属（/connections destinationIPASN）: 15169 Google LLC"
+        &format!("{asn_header}: 15169 Google LLC")
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标地理归属（/connections destinationGeoIP）: us"
+        &format!("{geo_header}: us")
     ));
 
     // Row 1: the kernel evaluated and its database had no record.
@@ -744,12 +754,12 @@ fn test_connections_drawer_renders_kernel_asn_and_geo_without_guessing() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标 ASN 归属（/connections destinationIPASN）: 内核已求值 · 无该 IP 的记录"
+        &format!("{asn_header}: {no_result}")
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标地理归属（/connections destinationGeoIP）: 内核已求值 · 无该 IP 的记录"
+        &format!("{geo_header}: {no_result}")
     ));
 
     // Row 2: no such rule ran, so the drawer says the kernel did not evaluate
@@ -758,11 +768,11 @@ fn test_connections_drawer_renders_kernel_asn_and_geo_without_guessing() {
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标 ASN 归属（/connections destinationIPASN）: 内核未对本次连接求值（需 GEOIP/IP-ASN 规则）"
+        &format!("{asn_header}: {not_evaluated}")
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        "目标地理归属（/connections destinationGeoIP）: 内核未对本次连接求值（需 GEOIP/IP-ASN 规则）"
+        &format!("{geo_header}: {not_evaluated}")
     ));
 }
