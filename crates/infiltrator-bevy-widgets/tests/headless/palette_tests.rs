@@ -5,10 +5,11 @@
 //! A mutation that hardcodes a bevy default or reinterprets a token fails
 //! here without any window.
 
+use bevy::color::Color;
 use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor, metrics, radius, type_scale};
 
-fn assert_same_color(bevy_color: bevy::color::Color, token: TokenColor) {
+fn assert_same_color(bevy_color: Color, token: TokenColor) {
     let srgba = bevy_color.to_srgba();
     assert_eq!(
         (srgba.red, srgba.green, srgba.blue, srgba.alpha),

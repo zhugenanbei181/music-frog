@@ -7,7 +7,7 @@
 use bevy::ecs::resource::Resource;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::{JoinHandle, spawn};
+use std::thread::{JoinHandle, sleep, spawn};
 use std::time::{Duration, Instant};
 
 /// Cancellation token shared between host and background worker thread.
@@ -87,7 +87,7 @@ impl LifecycleTaskHandle {
                 if start.elapsed() >= timeout {
                     return false;
                 }
-                std::thread::sleep(Duration::from_millis(1));
+                sleep(Duration::from_millis(1));
             }
             let _ = handle.join();
             true
@@ -148,14 +148,16 @@ impl Drop for TaskLifecycleRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::sync::mpsc::channel;
 
     #[test]
     fn test_task_lifecycle_cancellation_and_raii_teardown() {
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = channel();
 
         let mut handle = LifecycleTaskHandle::spawn("test_worker", move |token| {
             while !token.is_cancelled() {
-                std::thread::sleep(Duration::from_millis(2));
+                sleep(Duration::from_millis(2));
             }
             tx.send(true).unwrap();
         });
@@ -174,13 +176,13 @@ mod tests {
 
         registry.spawn_task("task1", |token| {
             while !token.is_cancelled() {
-                std::thread::sleep(Duration::from_millis(2));
+                sleep(Duration::from_millis(2));
             }
         });
 
         registry.spawn_task("task2", |token| {
             while !token.is_cancelled() {
-                std::thread::sleep(Duration::from_millis(2));
+                sleep(Duration::from_millis(2));
             }
         });
 

@@ -5,29 +5,42 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 use crate::state::AppState;
+use crate::test_mounts::profile_edit_fixture;
 use crate::types::app::SyncConflict;
 use crate::types::message::Message;
-use crate::types::options::{EditorPane, SyncDiffBundle, SyncDiffState};
+use crate::types::options::{EditorPane, MrsProviderDetail, SyncDiffBundle, SyncDiffState};
 use iced::widget::text_editor;
+use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
+use infiltrator_domain::mixin::MixinConfig;
+use infiltrator_domain::mrs::parse_mrs_header;
+use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, ProfileOptions};
+use mihomo_config::profile_option_store::save_options;
+use std::env::temp_dir;
+use std::fs::{create_dir_all, remove_dir_all};
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::runtime::Builder;
 
 fn temp_options_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = temp_dir().join(format!(
         "iced-options-{tag}-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos()
     ));
-    std::fs::create_dir_all(dir.join("configs/options")).unwrap();
+    create_dir_all(dir.join("configs/options")).unwrap();
     dir
 }
 
 /// Drive one async sidecar write from a sync test body.
-fn futures_executor_block_on<F: std::future::Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread()
+fn futures_executor_block_on<F: Future>(future: F) -> F::Output {
+    Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -39,33 +52,32 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     let (mut state, _) = AppState::new();
     // Editor bound to a profile with a stored mixin overlay.
     let dir = temp_options_dir("mixin");
-    let options = infiltrator_domain::profile_options::ProfileOptions {
-        mixin: infiltrator_domain::mixin::MixinConfig {
+    let options = ProfileOptions {
+        mixin: MixinConfig {
             mode: Some("global".to_string()),
             ..Default::default()
         },
         filter: None,
     };
-    futures_executor_block_on(infiltrator_core::profile_options_io::save_options(
-        &dir.join("configs"),
-        "alpha",
-        &options,
-    ))
-    .unwrap();
+    futures_executor_block_on(save_options(&dir.join("configs"), "alpha", &options)).unwrap();
 
-    let _ = state.update(Message::ProfileContentLoaded(Ok((
+    let reply = profile_edit_fixture::document(
+        &mut state,
         dir.join("configs/alpha.yaml"),
         "mode: rule\n".to_string(),
-    ))));
+    );
+    let _ = state.update(reply);
     assert_eq!(state.editor.editor_pane, EditorPane::Profile);
     let _ = state.update(Message::SetEditorPane(EditorPane::Filter));
+    let _ = state.update(Message::LoadProfileFilter);
     assert_eq!(state.editor.editor_pane, EditorPane::Filter);
     let _ = state.update(Message::SetEditorPane(EditorPane::Profile));
     assert_eq!(state.editor.editor_pane, EditorPane::Profile);
 
     // Opening the Mixin pane lazily loads the stored overlay into the editor.
     let _ = state.update(Message::SetEditorPane(EditorPane::Mixin));
-    let _ = state.update(Message::MixinLoaded(Ok("mode: global\n".to_string())));
+    let reply = profile_edit_fixture::options(&mut state, "mode: global\n".to_string());
+    let _ = state.update(reply);
     assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("alpha"));
     assert_eq!(
         state.editor.mixin_content.text(),
@@ -75,9 +87,9 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
     // Malformed mixin YAML is rejected before any task spawns: the saving
     // flag stays off and the error is projected through the single sink.
     for ch in "mode: [broken".chars() {
-        let _ = state.update(Message::MixinEditorAction(
-            iced::widget::text_editor::Action::Edit(iced::widget::text_editor::Edit::Insert(ch)),
-        ));
+        let _ = state.update(Message::MixinEditorAction(text_editor::Action::Edit(
+            text_editor::Edit::Insert(ch),
+        )));
     }
     let _ = state.update(Message::SaveMixin);
     assert!(!state.editor.is_saving_mixin);
@@ -89,39 +101,45 @@ fn test_mixin_pane_switch_loads_and_saves_via_options_state() {
             .unwrap_or("")
             .contains("Mixin")
     );
-    let _ = std::fs::remove_dir_all(&dir);
+    let _ = remove_dir_all(&dir);
 }
 
 #[test]
 fn test_filter_draft_updates_and_validation_gate() {
     let (mut state, _) = AppState::new();
-    let _ = state.update(Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft {
-        include: "HK, JP".into(),
-        exclude: String::new(),
-        exclude_types: "trojan".into(),
-        renames: "香港-(\\d+) => HK-$1".into(),
-        dedup_index: 3,
-    })));
-    assert_eq!(state.editor.filter_draft.include, "HK, JP");
-    assert_eq!(state.editor.filter_draft.dedup_index, 3);
+    state.editor.editor_path = Some(PathBuf::from("/isolated/alpha.yaml"));
+    let _ = state.update(Message::LoadProfileFilter);
+    let _ = state.update(Message::ProfileFilterLoaded {
+        token: 1,
+        profile: "alpha".into(),
+        result: observation(
+            "alpha",
+            FIXTURE_DOCUMENT,
+            SubscriptionFilterDraft {
+                include: "HK, JP".into(),
+                exclude: String::new(),
+                exclude_types: "trojan".into(),
+                renames: "香港-(\\d+) => HK-$1".into(),
+                dedup_index: 3,
+                ..Default::default()
+            },
+        ),
+    });
+    assert_eq!(state.editor.filter_editor.draft.include, "HK, JP");
+    assert_eq!(state.editor.filter_editor.draft.dedup_index, 3);
 
     // Free-text edits flow into the draft.
     let _ = state.update(Message::UpdateFilterExclude("剩余流量".into()));
-    assert_eq!(state.editor.filter_draft.exclude, "剩余流量");
+    assert_eq!(state.editor.filter_editor.draft.exclude, "剩余流量");
 
     // The draft compiles into a stored spec through the *shared* parser
     // (comma + semicolon splitting), the same one the Bevy filter pane uses.
-    let spec =
-        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
-            .unwrap();
+    let spec = filter_spec_from_draft(&state.editor.filter_editor.draft).unwrap();
     assert_eq!(spec.include_keywords, vec!["HK", "JP"]);
     assert_eq!(spec.exclude_keywords, vec!["剩余流量"]);
     assert_eq!(spec.exclude_types, vec!["trojan"]);
     assert_eq!(spec.rename_rules.len(), 1);
-    assert_eq!(
-        spec.deduplication,
-        infiltrator_domain::profile_options::FilterDedup::AppendIndex
-    );
+    assert_eq!(spec.deduplication, FilterDedup::AppendIndex);
 
     // A malformed rename line fails compilation with an actionable message.
     let bad = SubscriptionFilterDraft {
@@ -129,7 +147,7 @@ fn test_filter_draft_updates_and_validation_gate() {
         ..SubscriptionFilterDraft::default()
     };
     assert!(
-        infiltrator_domain::profile_options::filter_spec_from_draft(&bad)
+        filter_spec_from_draft(&bad)
             .err()
             .unwrap()
             .to_string()
@@ -140,30 +158,49 @@ fn test_filter_draft_updates_and_validation_gate() {
     // switching to the Filter pane after ProfileContentLoaded keys the load
     // on editor_path's stem.
     let dir2 = temp_options_dir("filter");
-    futures_executor_block_on(infiltrator_core::profile_options_io::save_options(
+    futures_executor_block_on(save_options(
         &dir2.join("configs"),
         "alpha",
-        &infiltrator_domain::profile_options::ProfileOptions {
+        &ProfileOptions {
             mixin: Default::default(),
-            filter: Some(infiltrator_domain::profile_options::FilterSpec {
+            filter: Some(FilterSpec {
                 include_keywords: vec!["JP".into()],
-                ..infiltrator_domain::profile_options::FilterSpec::default()
+                ..FilterSpec::default()
             }),
         },
     ))
     .unwrap();
-    let _ = state.update(Message::ProfileContentLoaded(Ok((
+    let reply = profile_edit_fixture::document(
+        &mut state,
         dir2.join("configs/alpha.yaml"),
         "mode: rule\n".to_string(),
-    ))));
+    );
+    let _ = state.update(reply);
     let _ = state.update(Message::SetEditorPane(EditorPane::Filter));
-    let _ = state.update(Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft {
-        include: "JP".into(),
-        ..SubscriptionFilterDraft::default()
-    })));
-    assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("alpha"));
-    assert_eq!(state.editor.filter_draft.include, "JP");
-    let _ = std::fs::remove_dir_all(&dir2);
+    let load = state.update(Message::LoadProfileFilter);
+    assert_eq!(
+        load.units(),
+        1,
+        "explicit refresh reads the changed sidecar without discarding a draft"
+    );
+    let _ = state.update(Message::ProfileFilterLoaded {
+        token: state.editor.filter_load.as_ref().unwrap().0,
+        profile: "alpha".into(),
+        result: observation(
+            "alpha",
+            FIXTURE_DOCUMENT,
+            SubscriptionFilterDraft {
+                include: "JP".into(),
+                ..SubscriptionFilterDraft::default()
+            },
+        ),
+    });
+    assert_eq!(state.editor.filter_editor.source_profile(), Some("alpha"));
+    assert!(state.editor.filter_editor.stale());
+    assert_eq!(state.editor.filter_editor.draft.include, "HK, JP");
+    let _ = state.update(Message::DiscardProfileFilter);
+    assert_eq!(state.editor.filter_editor.draft.include, "JP");
+    let _ = remove_dir_all(&dir2);
 }
 
 #[test]
@@ -171,8 +208,8 @@ fn test_mrs_details_projection() {
     let (mut state, _) = AppState::new();
     assert!(state.editor.mrs_details.is_empty());
     let bytes = mrs_header_bytes("geo");
-    let meta = infiltrator_domain::mrs::parse_mrs_header(&bytes).unwrap();
-    let detail = crate::types::options::MrsProviderDetail {
+    let meta = parse_mrs_header(&bytes).unwrap();
+    let detail = MrsProviderDetail {
         name: "geo".into(),
         behavior: "domain".into(),
         file: None,
@@ -185,9 +222,9 @@ fn test_mrs_details_projection() {
 
     // Scan errors surface through the error sink instead of silently
     // clearing the previous details.
-    let _ = state.update(Message::MrsDetailsReady(Err(
-        infiltrator_contract::error::InfiltratorError::Config("扫描失败".into()),
-    )));
+    let _ = state.update(Message::MrsDetailsReady(Err(InfiltratorError::Config(
+        "扫描失败".into(),
+    ))));
     assert!(state.shell.error_msg.is_some());
 }
 
@@ -255,9 +292,9 @@ fn test_sync_diff_flow_pick_merge_and_cleanup() {
         removed: Vec::new(),
         modified: vec![("port".into(), "1".into(), "2".into())],
     }));
-    let _ = state.update(Message::SyncDiffMerged(Err(
-        infiltrator_contract::error::InfiltratorError::Config("合并失败".into()),
-    )));
+    let _ = state.update(Message::SyncDiffMerged(Err(InfiltratorError::Config(
+        "合并失败".into(),
+    ))));
     assert!(!state.profile.is_applying_sync_diff);
     assert!(state.profile.sync_diff.is_some());
     assert!(
@@ -279,6 +316,13 @@ fn test_editor_yaml_syntax_preflight() {
     let (mut state, _) = AppState::new();
     assert!(state.editor.syntax_error.is_none());
 
+    let reply = profile_edit_fixture::document(
+        &mut state,
+        PathBuf::from("main.yaml"),
+        "mode: rule\n".into(),
+    );
+    let _ = state.update(reply);
+    let _ = state.update(Message::EditorAction(text_editor::Action::SelectAll));
     // Action on valid YAML -> syntax_error is None
     let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
         text_editor::Edit::Paste(Arc::new("port: 7890\nmode: rule".to_string())),

@@ -10,6 +10,10 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
+use std::env::var_os;
+use std::process;
+use tokio::fs::read_to_string;
+use tokio::task::spawn_blocking;
 
 /// Desktop-backed import source.
 #[derive(Clone, Copy, Debug, Default)]
@@ -22,13 +26,13 @@ impl SubscriptionImportPort for DesktopSubscriptionImportPort {
         if path.is_empty() {
             return Err(PortError::Io("本地文件路径不能为空".to_string()));
         }
-        tokio::fs::read_to_string(path)
+        read_to_string(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
 
     async fn read_clipboard(&self) -> Result<String, PortError> {
-        let text = tokio::task::spawn_blocking(read_clipboard_blocking)
+        let text = spawn_blocking(read_clipboard_blocking)
             .await
             .map_err(|error| PortError::Failed(error.to_string()))??;
         if text.trim().is_empty() {
@@ -44,7 +48,7 @@ impl SubscriptionImportPort for DesktopSubscriptionImportPort {
 fn read_clipboard_blocking() -> Result<String, PortError> {
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("pbpaste").output()
+        if let Ok(output) = process::Command::new("pbpaste").output()
             && output.status.success()
             && let Ok(text) = String::from_utf8(output.stdout)
         {
@@ -53,7 +57,7 @@ fn read_clipboard_blocking() -> Result<String, PortError> {
     }
     #[cfg(target_os = "windows")]
     {
-        if let Ok(output) = std::process::Command::new("powershell")
+        if let Ok(output) = process::Command::new("powershell")
             .args(["-NoProfile", "-Command", "Get-Clipboard"])
             .output()
             && output.status.success()
@@ -64,8 +68,8 @@ fn read_clipboard_blocking() -> Result<String, PortError> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if std::env::var_os("WAYLAND_DISPLAY").is_some()
-            && let Ok(output) = std::process::Command::new("wl-paste")
+        if var_os("WAYLAND_DISPLAY").is_some()
+            && let Ok(output) = process::Command::new("wl-paste")
                 .args(["--no-newline"])
                 .output()
             && output.status.success()
@@ -73,12 +77,12 @@ fn read_clipboard_blocking() -> Result<String, PortError> {
         {
             return Ok(text);
         }
-        if std::env::var_os("DISPLAY").is_some() {
+        if var_os("DISPLAY").is_some() {
             for (program, args) in [
                 ("xclip", &["-selection", "clipboard", "-o"][..]),
                 ("xsel", &["--clipboard", "--output"][..]),
             ] {
-                if let Ok(output) = std::process::Command::new(program).args(args).output()
+                if let Ok(output) = process::Command::new(program).args(args).output()
                     && output.status.success()
                     && let Ok(text) = String::from_utf8(output.stdout)
                 {

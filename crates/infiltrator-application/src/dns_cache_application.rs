@@ -10,7 +10,12 @@
 //! The command handler and the surface reader share one instance, which is how
 //! the honest last-flush report reaches both surfaces.
 
-use infiltrator_contract::dns::{DnsCacheFlushReport, DnsFlushOutcome};
+use crate::dns_cache_actions::allocate_operation;
+use futures_util::lock;
+use infiltrator_contract::dns_cache::{
+    DnsCacheFlushReport, DnsCacheOperation, DnsCacheOperationId, DnsCacheSnapshot, DnsFlushOutcome,
+};
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::error::Failure;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -21,7 +26,8 @@ use std::sync::{Arc, Mutex};
 pub struct DnsCacheApplication {
     runtime: Option<Arc<dyn RuntimeGateway>>,
     system_cache: Option<Arc<dyn SystemDnsCachePort>>,
-    last: Arc<Mutex<DnsCacheFlushReport>>,
+    last: Arc<Mutex<DnsCacheSnapshot>>,
+    serial: Arc<lock::Mutex<()>>,
 }
 
 impl DnsCacheApplication {
@@ -32,7 +38,8 @@ impl DnsCacheApplication {
         Self {
             runtime,
             system_cache,
-            last: Arc::new(Mutex::new(DnsCacheFlushReport::default())),
+            last: Arc::new(Mutex::new(DnsCacheSnapshot::default())),
+            serial: Arc::new(lock::Mutex::new(())),
         }
     }
 
@@ -43,7 +50,22 @@ impl DnsCacheApplication {
 
     /// The honest report of the last flush (or `NotRequested`).
     pub fn last_report(&self) -> DnsCacheFlushReport {
-        self.last.lock().expect("dns cache report lock").clone()
+        self.snapshot().report
+    }
+
+    pub fn snapshot(&self) -> DnsCacheSnapshot {
+        self.last
+            .lock()
+            .map(|last| last.clone())
+            .unwrap_or_else(|_| DnsCacheSnapshot {
+                operation: DnsCacheOperation::Failed,
+                failure: Some(Failure::new(
+                    ErrorCode::InvalidState,
+                    "DNS cache state lock is poisoned",
+                    false,
+                )),
+                ..DnsCacheSnapshot::default()
+            })
     }
 
     /// Flush the Fake-IP table and, when the host provides one, the OS cache.
@@ -51,6 +73,61 @@ impl DnsCacheApplication {
     /// The returned report is also stored as the last report. A partially
     /// unsupported host is not an error: the report says which target ran.
     pub async fn flush_all(&self) -> Result<DnsCacheFlushReport, Failure> {
+        self.flush_with_id(allocate_operation()?).await
+    }
+    pub async fn flush_with_id(
+        &self,
+        operation: DnsCacheOperationId,
+    ) -> Result<DnsCacheFlushReport, Failure> {
+        let _serial = self.serial.try_lock().ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "DNS cache flush is already running",
+                true,
+            )
+        })?;
+        {
+            let mut state = self.last.lock().map_err(|_| {
+                Failure::new(
+                    ErrorCode::InvalidState,
+                    "DNS cache state lock is poisoned",
+                    false,
+                )
+            })?;
+            if operation.0 == 0
+                || state
+                    .operation_id
+                    .is_some_and(|previous| previous.0 >= operation.0)
+            {
+                return Err(Failure::new(
+                    ErrorCode::InvalidState,
+                    "DNS cache operation identity is stale",
+                    false,
+                ));
+            }
+            state.revision.checked_add(2).ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::InvalidState,
+                    "DNS cache revision exhausted",
+                    false,
+                )
+            })?;
+            state.revision = state.revision.checked_add(1).ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::InvalidState,
+                    "DNS cache revision exhausted",
+                    false,
+                )
+            })?;
+            state.operation = DnsCacheOperation::Running;
+            state.operation_id = Some(operation);
+            state.failure = None;
+        }
+        let mut run = FlushRun {
+            state: self.last.clone(),
+            operation,
+            committed: false,
+        };
         let fake_ip = match self.runtime.as_ref() {
             Some(runtime) => outcome_from_result(runtime.flush_fakeip_cache().await),
             None => DnsFlushOutcome::Unsupported {
@@ -70,8 +147,63 @@ impl DnsCacheApplication {
             },
         };
         let report = DnsCacheFlushReport { fake_ip, os_cache };
-        *self.last.lock().expect("dns cache report lock") = report.clone();
-        Ok(report)
+        let failure = [&report.fake_ip, &report.os_cache]
+            .into_iter()
+            .find_map(|outcome| match outcome {
+                DnsFlushOutcome::Failed { failure } => Some(failure.clone()),
+                _ => None,
+            });
+        let mut state = self.last.lock().map_err(|_| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "DNS cache state lock is poisoned",
+                false,
+            )
+        })?;
+        state.revision = state.revision.checked_add(1).ok_or_else(|| {
+            Failure::new(
+                ErrorCode::InvalidState,
+                "DNS cache revision exhausted",
+                false,
+            )
+        })?;
+        state.operation = report.operation();
+        state.report = report.clone();
+        state.report_id = Some(operation);
+        state.failure = failure.clone();
+        run.committed = true;
+        if let Some(failure) = failure {
+            Err(failure)
+        } else {
+            Ok(report)
+        }
+    }
+}
+
+struct FlushRun {
+    state: Arc<Mutex<DnsCacheSnapshot>>,
+    operation: DnsCacheOperationId,
+    committed: bool,
+}
+impl Drop for FlushRun {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+        if let Ok(mut state) = self.state.lock()
+            && state.operation_id == Some(self.operation)
+            && state.operation == DnsCacheOperation::Running
+        {
+            state.operation = DnsCacheOperation::Failed;
+            state.failure = Some(Failure::new(
+                ErrorCode::Canceled,
+                "DNS cache operation was canceled before its final report",
+                true,
+            ));
+            if let Some(revision) = state.revision.checked_add(1) {
+                state.revision = revision;
+            }
+        }
     }
 }
 
@@ -80,158 +212,15 @@ fn outcome_from_result<T>(result: Result<T, PortError>) -> DnsFlushOutcome {
         Ok(_) => DnsFlushOutcome::Flushed,
         Err(PortError::Unsupported { reason, .. }) => DnsFlushOutcome::Unsupported { reason },
         Err(error) => DnsFlushOutcome::Failed {
-            message: error.to_string(),
+            failure: Failure::from(error),
         },
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use async_trait::async_trait;
-    use infiltrator_contract::capability::Capability;
-    use infiltrator_domain::runtime::ConfigSnapshot;
-    use infiltrator_ports::runtime_gateway::RuntimeStream;
-    use std::collections::HashMap;
+#[path = "dns_cache_application_test.rs"]
+mod tests;
 
-    struct FakeGateway {
-        flushed: bool,
-    }
-
-    #[async_trait]
-    impl RuntimeGateway for FakeGateway {
-        async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
-            Ok(ConfigSnapshot::default())
-        }
-        async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn get_proxies(
-            &self,
-        ) -> Result<HashMap<String, infiltrator_domain::proxy::Proxy>, PortError> {
-            Ok(HashMap::new())
-        }
-        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn test_delay(
-            &self,
-            _proxy: &str,
-            _url: &str,
-            _timeout_ms: u32,
-        ) -> Result<u32, PortError> {
-            Ok(0)
-        }
-        async fn get_proxy_providers(
-            &self,
-        ) -> Result<Vec<infiltrator_domain::runtime::ProxyProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn get_rule_providers(
-            &self,
-        ) -> Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError> {
-            Ok(Vec::new())
-        }
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn flush_fakeip_cache(&self) -> Result<(), PortError> {
-            self.flushed.then_some(()).ok_or_else(|| {
-                PortError::unsupported(Capability::Dns, "controller rejected the flush")
-            })
-        }
-        async fn get_connections(
-            &self,
-        ) -> Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError> {
-            Ok(infiltrator_domain::runtime::ConnectionSnapshot::default())
-        }
-        async fn get_memory(&self) -> Result<infiltrator_domain::runtime::MemoryData, PortError> {
-            Ok(infiltrator_domain::runtime::MemoryData::default())
-        }
-        async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn close_all_connections(&self) -> Result<(), PortError> {
-            Ok(())
-        }
-        async fn stream_logs(
-            &self,
-            _level: Option<String>,
-        ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty()))
-        }
-        async fn stream_traffic(
-            &self,
-        ) -> Result<RuntimeStream<infiltrator_domain::runtime::TrafficData>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty()))
-        }
-        async fn stream_connections(
-            &self,
-        ) -> Result<RuntimeStream<infiltrator_domain::runtime::ConnectionSnapshot>, PortError>
-        {
-            Ok(Box::pin(futures_util::stream::empty()))
-        }
-    }
-
-    struct FakeSystemCache {
-        supported: bool,
-    }
-
-    #[async_trait]
-    impl SystemDnsCachePort for FakeSystemCache {
-        async fn flush_system_cache(&self) -> Result<bool, PortError> {
-            Ok(self.supported)
-        }
-    }
-
-    #[tokio::test]
-    async fn reports_both_targets_honestly() {
-        let application = DnsCacheApplication::new(
-            Some(Arc::new(FakeGateway { flushed: true })),
-            Some(Arc::new(FakeSystemCache { supported: true })),
-        );
-        let report = application.flush_all().await.expect("flush");
-        assert_eq!(report.fake_ip, DnsFlushOutcome::Flushed);
-        assert_eq!(report.os_cache, DnsFlushOutcome::Flushed);
-        assert_eq!(application.last_report(), report);
-    }
-
-    #[tokio::test]
-    async fn a_host_without_the_os_adapter_reports_typed_unsupported() {
-        let application = DnsCacheApplication::new(
-            Some(Arc::new(FakeGateway { flushed: true })),
-            Some(Arc::new(FakeSystemCache { supported: false })),
-        );
-        let report = application.flush_all().await.expect("flush");
-        assert!(report.fake_ip.is_flushed());
-        assert!(matches!(
-            report.os_cache,
-            DnsFlushOutcome::Unsupported { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_failing_controller_is_reported_not_hidden() {
-        let application =
-            DnsCacheApplication::new(Some(Arc::new(FakeGateway { flushed: false })), None);
-        let report = application.flush_all().await.expect("flush");
-        assert!(matches!(
-            report.fake_ip,
-            DnsFlushOutcome::Unsupported { .. }
-        ));
-        assert!(matches!(
-            report.os_cache,
-            DnsFlushOutcome::Unsupported { .. }
-        ));
-        assert_eq!(application.last_report(), report);
-    }
-}
+#[cfg(test)]
+#[path = "dns_cache_behavior_test.rs"]
+mod behavior_tests;

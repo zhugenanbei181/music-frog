@@ -1,30 +1,25 @@
 //! Doctor self-diagnostics and one-shot bootstrap endpoints
 //! (`/admin/api/doctor*`, `/admin/api/bootstrap`).
 
-use std::convert::Infallible;
-use std::time::Duration;
-
-use axum::{
-    Json,
-    http::{HeaderMap, StatusCode, header},
-    response::{
-        IntoResponse, Response,
-        sse::{Event, KeepAlive, Sse},
-    },
-};
-use infiltrator_contract::doctor::{BootstrapReport, DoctorCheckMeta, DoctorFixAction};
-use tokio_stream::wrappers::UnboundedReceiverStream;
-
 use crate::admin_api::events::{AdminEvent, EVENT_DOCTOR_FIX};
 use crate::admin_api::models::{
     ApiError, DoctorFixPayload, DoctorFixProgressEvent, DoctorFixQuery, DoctorRunQuery,
     DoctorRunResponse,
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::{IntoResponse, Response};
+use axum::{Json, extract};
+use infiltrator_contract::doctor::{BootstrapReport, DoctorCheckMeta, DoctorFixAction};
+use std::convert::Infallible;
+use std::time::Duration;
+use tokio::sync::mpsc::unbounded_channel;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub async fn run_doctor_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Query(query): axum::extract::Query<DoctorRunQuery>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Query(query): extract::Query<DoctorRunQuery>,
 ) -> Result<Json<DoctorRunResponse>, ApiError> {
     let application = state
         .ctx
@@ -40,7 +35,7 @@ pub async fn run_doctor_http<C: AdminApiContext>(
 }
 
 pub async fn list_doctor_checks_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<Vec<DoctorCheckMeta>>, ApiError> {
     let application = state
         .ctx
@@ -51,8 +46,8 @@ pub async fn list_doctor_checks_http<C: AdminApiContext>(
 }
 
 pub async fn explain_doctor_check_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(check_id): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(check_id): extract::Path<String>,
 ) -> Result<Json<DoctorCheckMeta>, ApiError> {
     let application = state
         .ctx
@@ -66,9 +61,9 @@ pub async fn explain_doctor_check_http<C: AdminApiContext>(
 }
 
 pub async fn fix_doctor_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     headers: HeaderMap,
-    axum::extract::Query(query): axum::extract::Query<DoctorFixQuery>,
+    extract::Query(query): extract::Query<DoctorFixQuery>,
     payload: Option<Json<DoctorFixPayload>>,
 ) -> Result<Response, ApiError> {
     let is_stream = headers
@@ -108,7 +103,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
         return Ok((StatusCode::OK, Json(report)).into_response());
     }
 
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Event, Infallible>>();
+    let (tx, rx) = unbounded_channel::<Result<Event, Infallible>>();
     let state_events = state.events.clone();
     let application_for_stream = application.clone();
 
@@ -227,7 +222,7 @@ pub async fn fix_doctor_http<C: AdminApiContext>(
 }
 
 pub async fn run_bootstrap_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<BootstrapReport>, ApiError> {
     let application = state
         .ctx

@@ -24,6 +24,7 @@ use infiltrator_contract::protocol_trust::{
 };
 use infiltrator_domain::tls_trust;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use infiltrator_ports::error::PortError;
 use serde_yaml_ng::{Mapping, Value};
 
 /// Outcome of writing trust anchors into a profile document.
@@ -105,10 +106,7 @@ impl CertificateAuthorityApplication {
             Err(error) => {
                 // A host without a reader reports a typed *unsupported* state,
                 // not a read failure: the two must never be conflated.
-                let status = if matches!(
-                    error,
-                    infiltrator_ports::error::PortError::Unsupported { .. }
-                ) {
+                let status = if matches!(error, PortError::Unsupported { .. }) {
                     CaLoadStatus::Unsupported
                 } else {
                     CaLoadStatus::ReadFailed

@@ -1,6 +1,8 @@
 //! Behavior tests for the application connection-rate seam (DUAL-13-10/12).
 
 use super::*;
+use infiltrator_contract::capability::Availability;
+use infiltrator_contract::connection::timing_availability;
 use infiltrator_domain::connection_rate::ConnectionRate;
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 use std::time::Duration;
@@ -106,4 +108,44 @@ fn the_shared_read_model_carries_the_derived_rates() {
     assert_eq!(page.connections.len(), 2);
     assert_eq!(rates.get("c2"), ConnectionRate::default());
     assert_eq!(rates.len(), 2);
+}
+
+#[test]
+fn connection_detail_fold_preserves_identity_and_separates_copy_target_from_endpoint() {
+    let mut connection = connection("c-detail", "", "443", 17, 31);
+    connection.metadata.host.clear();
+    connection.metadata.destination_ip = "2001:db8::1234".into();
+    connection.metadata.destination_port = "443".into();
+    connection.metadata.destination_geo_ip = Some(Vec::new());
+    connection.metadata.destination_ip_asn = " ".into();
+    let facts = project_connection(&connection, ConnectionRate::default());
+    assert_eq!(facts.id, "c-detail");
+    assert_eq!(facts.destination_host, "2001:db8::1234");
+    assert_eq!(facts.host, "[2001:db8::1234]:443");
+    assert_eq!(facts.destination_geo_ip, Some(Vec::new()));
+    assert_eq!(facts.destination_ip_asn, " ");
+    assert_eq!(facts.upload_total, 17);
+    assert_eq!(facts.download_total, 31);
+    assert!(
+        matches!(timing_availability(), Availability::Unsupported { reason } if !reason.is_empty())
+    );
+}
+
+#[test]
+fn connection_rate_projection_distinguishes_unobserved_from_measured_zero() {
+    let base = Instant::now();
+    let application = ConnectionRateApplication::new();
+    let source = snapshot(
+        vec![connection("c-zero", "example.test", "443", 0, 0)],
+        0,
+        0,
+    );
+    let first = application.observe_at(base, &source.connections);
+    let first = connections_page_snapshot(&source, &first);
+    assert!(!first.connections[0].rate_observed);
+    let second = application.observe_at(base + Duration::from_secs(1), &source.connections);
+    let second = connections_page_snapshot(&source, &second);
+    assert!(second.connections[0].rate_observed);
+    assert_eq!(second.connections[0].upload_bps, 0.0);
+    assert_eq!(second.connections[0].download_bps, 0.0);
 }

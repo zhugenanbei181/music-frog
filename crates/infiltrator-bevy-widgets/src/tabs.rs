@@ -7,6 +7,9 @@
 //! **Scene Adapters**: [`segmented_control_scene`] and [`tabs_scene`] construct declarative
 //! token-spaced pill containers over official buttons with high-contrast label switching.
 
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -22,10 +25,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Pure state of a segmented control or tabs bar.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -121,6 +120,23 @@ pub fn segmented_control_scene(
     selected_index: usize,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let labels = tabs
+        .into_iter()
+        .map(|title| {
+            Box::new(bsn! {
+                Text(title) TextRole(Role::Caption) SegmentedTabLabel
+            }) as Box<dyn Scene>
+        })
+        .collect();
+    segmented_control_with_labels_scene(labels, selected_index, palette)
+}
+
+/// Keep each caller's native label scene and its localization identity intact.
+pub fn segmented_control_with_labels_scene(
+    tabs: Vec<Box<dyn Scene>>,
+    selected_index: usize,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let count = tabs.len();
     let (left_pct, width_pct) = capsule_metrics(selected_index, count);
     let edge = palette.border;
@@ -128,7 +144,7 @@ pub fn segmented_control_scene(
     let tab_scenes: Vec<Box<dyn Scene>> = tabs
         .into_iter()
         .enumerate()
-        .map(|(idx, title)| {
+        .map(|(idx, label)| {
             let is_selected = idx == selected_index;
             let ink = if is_selected {
                 palette.on_accent
@@ -148,10 +164,7 @@ pub fn segmented_control_scene(
                 Button
                 SegmentedTab(idx)
                 Children [
-                    Text(title)
-                    TextRole(Role::Caption)
-                    TextColor({ ink })
-                    SegmentedTabLabel
+                    @{ label } TextColor({ ink })
                 ]
 }) as Box<dyn Scene>
         })
@@ -294,7 +307,6 @@ pub fn advance_segmented_control(
 }
 
 /// Repaint capsule position and label inks whenever [`SegmentedControlValue`] changes.
-#[allow(clippy::type_complexity)]
 pub fn sync_segmented_control_visuals(
     palette: Res<UiPalette>,
     controls: Query<

@@ -1,6 +1,7 @@
 //! Desktop physical-link MTU observation.
 
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::mtu::PhysicalMtuSnapshot;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
@@ -9,6 +10,7 @@ use mihomo_platform::interface_watcher::{
 };
 use std::collections::HashMap;
 use std::process::Command;
+use tokio::task::spawn_blocking;
 
 /// Reads the active physical interface and its OS-reported link MTU. The
 /// application layer performs the virtual-TUN subtraction and MSS math.
@@ -40,7 +42,7 @@ impl DesktopMtuProbe {
             })?;
         let mtu = selected.mtu.ok_or_else(|| {
             PortError::unsupported(
-                infiltrator_contract::capability::Capability::Tun,
+                Capability::Tun,
                 format!("OS did not expose link MTU for interface {}", selected.name),
             )
         })?;
@@ -54,7 +56,7 @@ impl DesktopMtuProbe {
 #[async_trait]
 impl MtuProbePort for DesktopMtuProbe {
     async fn probe_physical_mtu(&self) -> Result<PhysicalMtuSnapshot, PortError> {
-        tokio::task::spawn_blocking(Self::probe_sync)
+        spawn_blocking(Self::probe_sync)
             .await
             .map_err(|error| PortError::Io(format!("physical MTU probe worker failed: {error}")))?
     }

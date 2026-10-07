@@ -1,6 +1,7 @@
 //! Filesystem sandbox path validation, portable mode detection, and crash recovery mode.
 
 use serde::{Deserialize, Serialize};
+use std::fs::{read_to_string, remove_file, write};
 use std::path::{Component, Path, PathBuf};
 
 /// The result of validating a path against a sandbox.
@@ -120,7 +121,7 @@ impl SafeModeRecovery {
 
     pub fn is_safe_mode_active(home_dir: &Path) -> bool {
         let path = home_dir.join(Self::CRASH_COUNTER_FILE);
-        if let Ok(content) = std::fs::read_to_string(&path)
+        if let Ok(content) = read_to_string(&path)
             && let Ok(count) = content.trim().parse::<u32>()
         {
             count >= Self::THRESHOLD
@@ -131,24 +132,26 @@ impl SafeModeRecovery {
 
     pub fn record_crash(home_dir: &Path) -> u32 {
         let path = home_dir.join(Self::CRASH_COUNTER_FILE);
-        let current_count: u32 = std::fs::read_to_string(&path)
+        let current_count: u32 = read_to_string(&path)
             .ok()
             .and_then(|s| s.trim().parse().ok())
             .unwrap_or(0);
         let new_count = current_count.saturating_add(1);
-        let _ = std::fs::write(&path, new_count.to_string());
+        let _ = write(&path, new_count.to_string());
         new_count
     }
 
     pub fn record_clean_exit(home_dir: &Path) {
         let path = home_dir.join(Self::CRASH_COUNTER_FILE);
-        let _ = std::fs::remove_file(path);
+        let _ = remove_file(path);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::fs::create_dir_all;
 
     #[test]
     fn test_valid_subpath_relative() {
@@ -215,7 +218,7 @@ mod tests {
         assert_eq!(PortableModeDetector::detect_portable_dir(exe_dir), None);
 
         let data_dir = exe_dir.join("data");
-        std::fs::create_dir_all(&data_dir).unwrap();
+        create_dir_all(&data_dir).unwrap();
         assert_eq!(
             PortableModeDetector::detect_portable_dir(exe_dir),
             Some(data_dir)

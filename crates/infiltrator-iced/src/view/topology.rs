@@ -4,6 +4,7 @@
 //! paints the adapter-local animated flow strip; it never reads a controller,
 //! connection list, or private runtime field.
 
+use crate::view::theme::tokens;
 use iced::widget::canvas;
 use iced::{Color, Element, Point, Rectangle, Renderer, Theme, mouse};
 use infiltrator_contract::traffic_topology::{
@@ -28,7 +29,7 @@ impl<Message> canvas::Program<Message> for TopologyFlowCanvas {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
-        let tokens = crate::view::theme::tokens(theme);
+        let tokens = tokens(theme);
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let width = bounds.width.max(1.0);
         let height = bounds.height.max(1.0);

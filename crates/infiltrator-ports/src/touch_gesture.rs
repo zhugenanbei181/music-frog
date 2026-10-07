@@ -7,10 +7,9 @@
 //! area is. A host without a touch surface keeps the typed-unsupported default
 //! instead of pretending a recognizer exists.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::shell_gesture::{SafeAreaInsets, TouchGestureSupport};
-
-use crate::error::PortError;
 
 /// What a host declares about its touch surface.
 #[derive(Clone, Copy, Debug, PartialEq)]

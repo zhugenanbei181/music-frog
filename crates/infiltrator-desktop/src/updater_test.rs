@@ -1,4 +1,5 @@
 use super::*;
+use std::cmp::Ordering;
 
 #[test]
 fn test_semver_parse_and_formatting() {
@@ -55,7 +56,7 @@ fn test_semver_precedence_and_ordering() {
 
     // Build metadata does not affect precedence
     let v8_build = SemVer::parse("1.0.0+build123").unwrap();
-    assert_eq!(v8.cmp(&v8_build), std::cmp::Ordering::Equal);
+    assert_eq!(v8.cmp(&v8_build), Ordering::Equal);
 }
 
 #[test]

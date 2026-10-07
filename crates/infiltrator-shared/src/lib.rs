@@ -1,5 +1,4 @@
-//! Code shared between the desktop clients: the iced-based native app and
-//! the legacy Tauri + Vue app.
+//! Framework-neutral localization resources and presentation utilities shared by MusicFrog products.
 
 pub mod autostart;
 pub mod country_flags;

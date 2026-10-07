@@ -11,6 +11,9 @@
 //! item is a plain node, not the official `Button`, because a nav target
 //! that routes nowhere must not pretend to be pressable.
 
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -21,10 +24,6 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
-
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Marker on the item root; [`sync_nav_visuals`] re-projects its fill and
 /// its label's ink from [`NavActive`] and the live palette.
@@ -84,7 +83,6 @@ pub fn nav_item_scene(label: String, active: bool, palette: &UiPalette) -> impl 
 /// Repaint every nav item from its [`NavActive`] bit and the live palette:
 /// root fill and label ink, compare-and-set. Unchanged frames cost
 /// nothing; a theme switch repaints items without any switch-specific hook.
-#[allow(clippy::type_complexity)]
 pub fn sync_nav_visuals(
     palette: Res<UiPalette>,
     items: Query<(Entity, &NavActive, &Children), With<NavItem>>,

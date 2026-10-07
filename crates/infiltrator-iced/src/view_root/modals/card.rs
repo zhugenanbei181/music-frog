@@ -2,30 +2,40 @@
 
 use crate::types::message::Message;
 use crate::view::theme::{HAIRLINE, R_CARD, tokens};
-use iced::widget::container;
+use iced::advanced::Renderer;
+use iced::widget::{container, mouse_area};
 use iced::{Border, Element, Length, Theme, border};
 
-pub(in crate::view_root) fn modal_backdrop<'a>(
-    dialog: Element<'a, Message>,
-) -> Element<'a, Message> {
-    container(
-        container(dialog)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
+pub(in crate::view_root) fn modal_backdrop<'a, R>(
+    dialog: Element<'a, Message, Theme, R>,
+) -> Element<'a, Message, Theme, R>
+where
+    R: Renderer + 'a,
+{
+    mouse_area(
+        container(
+            container(dialog)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|t: &Theme| container::Style {
+            background: Some(tokens(t).scrim.into()),
+            ..Default::default()
+        }),
     )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(|t: &Theme| container::Style {
-        background: Some(tokens(t).scrim.into()),
-        ..Default::default()
-    })
+    .on_press(Message::Noop)
+    .on_right_press(Message::Noop)
+    .on_middle_press(Message::Noop)
+    .on_scroll(|_| Message::Noop)
     .into()
 }
 
-pub(in crate::view_root) fn modal_card<'a>(
-    content: Element<'a, Message>,
+pub(in crate::view_root) fn modal_card<'a, R: Renderer + 'a>(
+    content: Element<'a, Message, Theme, R>,
     width: f32,
-) -> Element<'a, Message> {
+) -> Element<'a, Message, Theme, R> {
     container(content)
         .width(Length::Fixed(width))
         .padding(24)
@@ -45,3 +55,7 @@ pub(in crate::view_root) fn modal_card<'a>(
         })
         .into()
 }
+
+#[cfg(test)]
+#[path = "../../../tests/gui/modal_chrome_tests.rs"]
+mod tests;

@@ -4,7 +4,9 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::modern_scrollable;
-use crate::view::theme::{self, SP_MD};
+use crate::view::subscription_quota::subscription_quota_card;
+use crate::view::theme;
+use crate::view::theme::SP_MD;
 use iced::widget::{Space, column};
 use iced::{Element, Length};
 use infiltrator_shared::locales::Lang;
@@ -30,7 +32,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content_items.push(Space::new().height(SP_MD).into());
     content_items.push(subscription::subscription_section(state));
     content_items.push(Space::new().height(theme::SP_MD).into());
-    content_items.push(crate::view::sub_quota_card::sub_quota_card(state, &lang));
+    content_items.push(subscription_quota_card(state, &lang));
     content_items.push(Space::new().height(theme::SP_LG).into());
     content_items.push(list::profiles_section(state));
     content_items.push(Space::new().height(theme::SP_XL).into());

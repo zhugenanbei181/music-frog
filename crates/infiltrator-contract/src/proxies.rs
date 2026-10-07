@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// Five canonical proxy group classifications supported across all Mihomo kernels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -103,8 +105,8 @@ impl ProxyGroupClassification {
     }
 }
 
-impl std::fmt::Display for ProxyGroupClassification {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ProxyGroupClassification {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -229,13 +231,15 @@ impl ProxySortOrder {
     }
 }
 
-/// Snapshot of the "Filter Alive" (只看可用) state, tracking alive vs dead node counts.
+/// Controller-reported health; absence is distinct from a reported dead node.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxyFilterAliveSnapshot {
     pub enabled: bool,
     pub total_nodes: usize,
     pub alive_nodes: usize,
     pub dead_nodes: usize,
+    #[serde(default)]
+    pub unknown_nodes: usize,
 }
 
 impl ProxyFilterAliveSnapshot {
@@ -245,34 +249,38 @@ impl ProxyFilterAliveSnapshot {
             total_nodes,
             alive_nodes,
             dead_nodes,
+            unknown_nodes: total_nodes.saturating_sub(alive_nodes + dead_nodes),
         }
     }
 
-    /// Evaluates whether an individual node is considered alive and operational.
-    /// A node is alive if it is marked alive and has a non-zero test delay.
-    pub fn is_node_alive(delay_ms: Option<u32>, alive_flag: bool) -> bool {
-        alive_flag && delay_ms.is_some_and(|ms| ms > 0)
+    /// Latency does not change the controller's health observation.
+    pub fn is_node_alive(alive_flag: Option<bool>) -> bool {
+        alive_flag == Some(true)
     }
 
-    /// Derive an alive snapshot from an iterator of (delay_ms, alive_flag) tuples.
+    /// Derive counts without turning an unreported flag into failure.
     pub fn derive_from_candidates<I>(candidates: I, enabled: bool) -> Self
     where
-        I: IntoIterator<Item = (Option<u32>, bool)>,
+        I: IntoIterator<Item = Option<bool>>,
     {
         let mut total: usize = 0;
         let mut alive: usize = 0;
-        for (delay, flag) in candidates {
+        let mut dead = 0;
+        let mut unknown = 0;
+        for flag in candidates {
             total += 1;
-            if Self::is_node_alive(delay, flag) {
-                alive += 1;
+            match flag {
+                Some(true) => alive += 1,
+                Some(false) => dead += 1,
+                None => unknown += 1,
             }
         }
-        let dead = total.saturating_sub(alive);
         Self {
             enabled,
             total_nodes: total,
             alive_nodes: alive,
             dead_nodes: dead,
+            unknown_nodes: unknown,
         }
     }
 }
@@ -321,6 +329,8 @@ pub fn format_latency_standard(delay_ms: Option<u32>) -> (String, LatencyTier) {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProxyUiPreferences {
+    #[serde(default)]
+    pub search_query: String,
     /// Strategy group names currently collapsed by the user.
     pub collapsed_groups: Vec<String>,
     /// Global or active sort order.
@@ -407,166 +417,10 @@ impl ProxyUiPreferences {
     }
 }
 
-/// Detailed node telemetry for the drill-down inspector drawer (DUAL-04-11).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProxyNodeDetail {
-    pub name: String,
-    pub server: String,
-    pub port: u16,
-    pub node_type: String,
-    pub egress_ip: Option<String>,
-    pub cipher: Option<String>,
-    pub min_rtt_ms: Option<u32>,
-    pub max_rtt_ms: Option<u32>,
-    pub avg_rtt_ms: Option<u32>,
-    pub history_count: usize,
-}
-
-impl ProxyNodeDetail {
-    pub fn compute_rtt_stats(history: &[u32]) -> (Option<u32>, Option<u32>, Option<u32>) {
-        let valid: Vec<u32> = history.iter().copied().filter(|&d| d > 0).collect();
-        if valid.is_empty() {
-            (None, None, None)
-        } else {
-            let min = *valid.iter().min().unwrap();
-            let max = *valid.iter().max().unwrap();
-            let sum: u64 = valid.iter().map(|&d| d as u64).sum();
-            let avg = (sum / valid.len() as u64) as u32;
-            (Some(min), Some(max), Some(avg))
-        }
-    }
-}
-
-/// Result of a single Group 04 proxy capability scenario in the regression matrix.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProxyRegressionScenario {
-    pub id: String,
-    pub name: String,
-    pub passed: bool,
-    pub detail: String,
-}
-
-/// Comprehensive report verifying all 15 Group 04 Proxies & Sorting capabilities (DUAL-04-15).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProxyRegressionMatrixReport {
-    pub total_scenarios: usize,
-    pub passed_scenarios: usize,
-    pub scenarios: Vec<ProxyRegressionScenario>,
-}
-
-impl ProxyRegressionMatrixReport {
-    pub fn is_all_passed(&self) -> bool {
-        self.passed_scenarios == self.total_scenarios && self.total_scenarios > 0
-    }
-
-    pub fn run_deterministic_matrix() -> Self {
-        let scenarios = vec![
-            ProxyRegressionScenario {
-                id: "DUAL-04-01".to_owned(),
-                name: "策略组 5 大分类全覆盖".to_owned(),
-                passed: true,
-                detail: "Selector/URLTest/Fallback/LoadBalance/Relay 强枚举与行为区分正常"
-                    .to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-02".to_owned(),
-                name: "策略组展开/折叠状态持久化".to_owned(),
-                passed: true,
-                detail: "ProxyUiPreferences::collapsed_groups 读写记忆正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-03".to_owned(),
-                name: "节点选择状态即时回写".to_owned(),
-                passed: true,
-                detail: "SelectProxyNode 意图即时下发与在席高亮更新正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-04".to_owned(),
-                name: "节点死链一键隐藏 (Filter Alive)".to_owned(),
-                passed: true,
-                detail: "ProxyFilterAliveSnapshot 过滤超时与未测速节点正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-05".to_owned(),
-                name: "四维排序控制器".to_owned(),
-                passed: true,
-                detail: "ProxySortOrder 延迟与名称升降序比较法则正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-06".to_owned(),
-                name: "节点星标置顶与收藏".to_owned(),
-                passed: true,
-                detail: "favorite_proxies 收藏节点在任意排序下置顶锁定正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-07".to_owned(),
-                name: "协议与特性高级芯片".to_owned(),
-                passed: true,
-                detail: "format_protocol_chip 命名与 Reality/Vision/UDP/TFO 芯片渲染正常"
-                    .to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-08".to_owned(),
-                name: "节点延迟多色阶渲染".to_owned(),
-                passed: true,
-                detail: "LatencyTier 五阶色温梯队分类正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-09".to_owned(),
-                name: "单节点历史延迟 Sparkline 走势图".to_owned(),
-                passed: true,
-                detail: "LatencyTrendIcon 历史采样微折线走势指标呈现正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-10".to_owned(),
-                name: "智能拼音与协议模糊检索".to_owned(),
-                passed: true,
-                detail: "matches_proxy_filter 汉字拼音首字母与协议多模态过滤正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-11".to_owned(),
-                name: "单节点详情下钻抽屉".to_owned(),
-                passed: true,
-                detail: "ProxyNodeDetail 服务器、落地IP、加密与RTT波动区间计算正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-12".to_owned(),
-                name: "策略组自定义拖拽调序".to_owned(),
-                passed: true,
-                detail: "custom_group_order 策略组排序持久化与重置正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-13".to_owned(),
-                name: "节点卡片网格与紧凑列表无缝切换".to_owned(),
-                passed: true,
-                detail: "compact_view 响应式双列网格与单列高密度紧凑列表无缝切换正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-14".to_owned(),
-                name: "测速动态脉冲骨架屏占位".to_owned(),
-                passed: true,
-                detail: "测速期间波纹骨架屏占位与测速完毕淡入正常".to_owned(),
-            },
-            ProxyRegressionScenario {
-                id: "DUAL-04-15".to_owned(),
-                name: "双端代理操作无头行为测试闭环".to_owned(),
-                passed: true,
-                detail: "Group 04 15 项能力在 Iced 与 Bevy 双端全景无头断言 100% 绿灯".to_owned(),
-            },
-        ];
-        let total = scenarios.len();
-        let passed = scenarios.iter().filter(|s| s.passed).count();
-        Self {
-            total_scenarios: total,
-            passed_scenarios: passed,
-            scenarios,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proxy_inspection::ProxyRttStatistics;
 
     #[test]
     fn five_group_classifications_coverage() {
@@ -661,19 +515,14 @@ mod tests {
 
     #[test]
     fn filter_alive_snapshot_calculations() {
-        let nodes = vec![
-            (Some(45), true),
-            (Some(120), true),
-            (Some(0), true),   // timeout
-            (None, true),      // untested
-            (Some(80), false), // marked dead
-        ];
+        let nodes = vec![Some(true), Some(true), None, None, Some(false)];
 
         let snapshot = ProxyFilterAliveSnapshot::derive_from_candidates(nodes, true);
         assert!(snapshot.enabled);
         assert_eq!(snapshot.total_nodes, 5);
         assert_eq!(snapshot.alive_nodes, 2);
-        assert_eq!(snapshot.dead_nodes, 3);
+        assert_eq!(snapshot.dead_nodes, 1);
+        assert_eq!(snapshot.unknown_nodes, 2);
     }
 
     #[test]
@@ -721,14 +570,12 @@ mod tests {
         assert_eq!(tier, LatencyTier::Timeout);
     }
     #[test]
-    fn node_detail_and_matrix_report() {
-        let (min, max, avg) = ProxyNodeDetail::compute_rtt_stats(&[45, 120, 0, 75]);
+    fn reported_history_statistics_exclude_unresolved_zero_samples() {
+        let statistics = ProxyRttStatistics::from_history(&[45, 120, 0, 75]);
+        let (min, max, avg) = (statistics.min_ms, statistics.max_ms, statistics.avg_ms);
+        assert_eq!(statistics.valid_count, 3);
         assert_eq!(min, Some(45));
         assert_eq!(max, Some(120));
         assert_eq!(avg, Some(80));
-
-        let report = ProxyRegressionMatrixReport::run_deterministic_matrix();
-        assert!(report.is_all_passed());
-        assert_eq!(report.total_scenarios, 15);
     }
 }

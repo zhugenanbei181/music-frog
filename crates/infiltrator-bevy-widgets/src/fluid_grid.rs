@@ -5,11 +5,10 @@
 
 use crate::palette::UiPalette;
 use crate::responsive::ResponsiveContext;
-use crate::theme::Breakpoint;
-use crate::theme::space;
+use crate::theme::{Breakpoint, space};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryData, QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{ComputedNode, FlexDirection, FlexWrap, Node, Val, percent, px};
@@ -92,6 +91,22 @@ pub struct FluidCardGrid;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FluidGridItem;
 
+#[derive(QueryFilter)]
+pub struct FluidGridItemFilter {
+    with_fluid_grid_item: With<FluidGridItem>,
+    without_fluid_card_grid: Without<FluidCardGrid>,
+}
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct FluidGridLayout {
+    config: &'static FluidGridConfig,
+    tier_columns: Option<&'static FluidGridTierColumns>,
+    children: &'static Children,
+    grid_node: &'static mut Node,
+    computed_node: Option<&'static ComputedNode>,
+}
+
 /// Declarative scene constructor for a fluid adaptive card grid.
 pub fn fluid_card_grid_scene(
     items: Vec<Box<dyn Scene>>,
@@ -143,20 +158,10 @@ pub fn fluid_card_grid_scene(
 }
 
 /// System to sync child card flex basis and gaps based on breakpoint and density.
-#[allow(clippy::type_complexity)]
 pub fn sync_fluid_grid_layout(
     ctx: Option<Res<ResponsiveContext>>,
-    mut grids: Query<
-        (
-            &FluidGridConfig,
-            Option<&FluidGridTierColumns>,
-            &Children,
-            &mut Node,
-            Option<&ComputedNode>,
-        ),
-        With<FluidCardGrid>,
-    >,
-    mut items: Query<&mut Node, (With<FluidGridItem>, Without<FluidCardGrid>)>,
+    mut grids: Query<FluidGridLayout, With<FluidCardGrid>>,
+    mut items: Query<&mut Node, FluidGridItemFilter>,
 ) {
     let bp = ctx
         .as_ref()
@@ -164,7 +169,14 @@ pub fn sync_fluid_grid_layout(
         .unwrap_or(Breakpoint::Expanded);
     let density = ctx.as_ref().map(|c| c.density).unwrap_or_default();
 
-    for (config, tier_columns, children, mut grid_node, computed_node) in &mut grids {
+    for FluidGridLayoutItem {
+        config,
+        tier_columns,
+        children,
+        mut grid_node,
+        computed_node,
+    } in &mut grids
+    {
         let gap = density.gap(config.gap_px);
         let row_gap = density.gap(config.row_gap_px);
 

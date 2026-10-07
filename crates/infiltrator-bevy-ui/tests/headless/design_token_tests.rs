@@ -4,13 +4,19 @@
 //! is a real parity defect — the two surfaces would look different — so every
 //! core palette channel and every structural token is asserted here.
 
+use design_tokens::elevation::{HIGH, LOW, MEDIUM};
+use design_tokens::metrics::HAIRLINE;
+use design_tokens::radius::{CARD, CONTROL, MODAL, PILL};
+use design_tokens::space::{LG, MD, SM, XL, XS, XXL};
+use design_tokens::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG, TITLE};
+use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
 use infiltrator_bevy_widgets::theme::{
     CornerCurvature, Theme, ThemeSkin, TokenColor, elevation, metrics, radius, space, type_scale,
 };
 use infiltrator_contract::design_tokens::{
-    self, RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
+    RgbaToken, SkinCorePalette, SkinInteractionPalette, skin_core, skin_interaction,
 };
-use infiltrator_contract::theme;
+use infiltrator_contract::{design_tokens, theme};
 
 fn mirrored_skin(skin: theme::ThemeSkin) -> ThemeSkin {
     match skin {
@@ -71,28 +77,16 @@ fn assert_interaction_palette(skin: theme::ThemeSkin) {
         "disabled_ink",
     );
 
-    let palette = infiltrator_bevy_widgets::palette::UiPalette::new(&resolved);
+    let palette = UiPalette::new(&resolved);
     assert_eq!(
         palette.scrim,
-        infiltrator_bevy_widgets::palette::theme_color(resolved.scrim),
+        theme_color(resolved.scrim),
         "the palette must read the scrim token instead of deriving one"
     );
-    assert_eq!(
-        palette.focus_ring,
-        infiltrator_bevy_widgets::palette::theme_color(resolved.focus_ring)
-    );
-    assert_eq!(
-        palette.disabled_ink,
-        infiltrator_bevy_widgets::palette::theme_color(resolved.disabled_ink)
-    );
-    assert_eq!(
-        palette.hover_bg,
-        infiltrator_bevy_widgets::palette::theme_color(resolved.hover)
-    );
-    assert_eq!(
-        palette.pressed_bg,
-        infiltrator_bevy_widgets::palette::theme_color(resolved.pressed)
-    );
+    assert_eq!(palette.focus_ring, theme_color(resolved.focus_ring));
+    assert_eq!(palette.disabled_ink, theme_color(resolved.disabled_ink));
+    assert_eq!(palette.hover_bg, theme_color(resolved.hover));
+    assert_eq!(palette.pressed_bg, theme_color(resolved.pressed));
 }
 
 #[test]
@@ -126,41 +120,37 @@ fn the_mirrored_scrim_dimms_the_backdrop_on_every_skin() {
 
 #[test]
 fn the_widget_ladders_mirror_the_shared_contract_numbers() {
-    assert_eq!(space::S4, design_tokens::space::XS);
-    assert_eq!(space::S8, design_tokens::space::SM);
-    assert_eq!(space::S12, design_tokens::space::MD);
-    assert_eq!(space::S16, design_tokens::space::LG);
-    assert_eq!(space::S20, design_tokens::space::XL);
-    assert_eq!(space::S24, design_tokens::space::XXL);
-    assert_eq!(radius::XS, design_tokens::radius::XS);
-    assert_eq!(radius::SM, design_tokens::radius::SM);
-    assert_eq!(radius::CONTROL, design_tokens::radius::CONTROL);
-    assert_eq!(radius::CARD, design_tokens::radius::CARD);
-    assert_eq!(radius::MODAL, design_tokens::radius::MODAL);
-    assert_eq!(radius::PILL, design_tokens::radius::PILL);
-    assert_eq!(type_scale::DISPLAY, design_tokens::type_scale::DISPLAY);
-    assert_eq!(type_scale::TITLE, design_tokens::type_scale::TITLE);
-    assert_eq!(type_scale::HEADING, design_tokens::type_scale::HEADING);
-    assert_eq!(type_scale::BODY, design_tokens::type_scale::BODY);
-    assert_eq!(type_scale::CAPTION, design_tokens::type_scale::CAPTION);
-    assert_eq!(type_scale::TAG, design_tokens::type_scale::TAG);
-    assert_eq!(type_scale::MONO, design_tokens::type_scale::MONO);
-    assert_eq!(
-        elevation::LOW.blur_radius,
-        design_tokens::elevation::LOW.blur_radius
-    );
-    assert_eq!(
-        elevation::MEDIUM.blur_radius,
-        design_tokens::elevation::MEDIUM.blur_radius
-    );
-    assert_eq!(
-        elevation::HIGH.blur_radius,
-        design_tokens::elevation::HIGH.blur_radius
-    );
+    assert_eq!(space::S4, XS);
+    assert_eq!(space::S8, SM);
+    assert_eq!(space::S12, MD);
+    assert_eq!(space::S16, LG);
+    assert_eq!(space::S20, XL);
+    assert_eq!(space::S24, XXL);
+    let widget_xs = radius::XS;
+    let widget_sm = radius::SM;
+    {
+        use infiltrator_contract::design_tokens::radius;
+        assert_eq!(widget_xs, radius::XS);
+        assert_eq!(widget_sm, radius::SM);
+    }
+    assert_eq!(radius::CONTROL, CONTROL);
+    assert_eq!(radius::CARD, CARD);
+    assert_eq!(radius::MODAL, MODAL);
+    assert_eq!(radius::PILL, PILL);
+    assert_eq!(type_scale::DISPLAY, DISPLAY);
+    assert_eq!(type_scale::TITLE, TITLE);
+    assert_eq!(type_scale::HEADING, HEADING);
+    assert_eq!(type_scale::BODY, BODY);
+    assert_eq!(type_scale::CAPTION, CAPTION);
+    assert_eq!(type_scale::TAG, TAG);
+    assert_eq!(type_scale::MONO, MONO);
+    assert_eq!(elevation::LOW.blur_radius, LOW.blur_radius);
+    assert_eq!(elevation::MEDIUM.blur_radius, MEDIUM.blur_radius);
+    assert_eq!(elevation::HIGH.blur_radius, HIGH.blur_radius);
     let squircle = CornerCurvature::squircle(16.0);
     assert_eq!(squircle.smoothing, 0.6);
     assert_eq!(squircle.radius_px, 16.0);
-    assert_eq!(metrics::HAIRLINE, design_tokens::metrics::HAIRLINE);
+    assert_eq!(metrics::HAIRLINE, HAIRLINE);
 }
 
 /// The contract values are the Iced reference, so the two dark-ish and

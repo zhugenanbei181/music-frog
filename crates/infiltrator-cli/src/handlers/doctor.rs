@@ -1,12 +1,13 @@
-use infiltrator_application::doctor_application::DoctorApplication;
-use infiltrator_contract::doctor::{DoctorFixReport, DoctorReport, DoctorStatus};
-
 use crate::commands::DoctorAction;
+use crate::context::Runtime;
 use crate::handlers::EXIT_OK;
-use crate::output::{self, print_info, print_table};
+use crate::output;
+use crate::output::{print_info, print_table};
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_contract::doctor::{DoctorCheckMeta, DoctorFixReport, DoctorReport, DoctorStatus};
 
 pub(crate) async fn handle(action: DoctorAction) -> anyhow::Result<i32> {
-    let runtime = crate::context::Runtime::detect().await?;
+    let runtime = Runtime::detect().await?;
     let application = runtime.doctor_application();
     match action {
         DoctorAction::Run { only, json } => {
@@ -136,7 +137,7 @@ fn print_report(report: &DoctorReport) {
     }
 }
 
-pub(crate) fn render_explanation(info: &infiltrator_contract::doctor::DoctorCheckMeta) -> String {
+pub(crate) fn render_explanation(info: &DoctorCheckMeta) -> String {
     format!(
         "{}\nid: {}\ncategory: {}\nfixable: {}\ndefault: {}\nwhy: {}\nfail means: {}\nhint: {}\n",
         info.summary,

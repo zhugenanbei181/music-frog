@@ -9,6 +9,7 @@ use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::Messages;
 use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::world::World;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -85,13 +86,13 @@ fn an_empty_menu_absorbs_every_input() {
     assert_eq!(state.advance(MenuNav::Cancel), Some(MenuOutcome::Canceled));
 }
 
-fn panel_id(world: &mut bevy::ecs::world::World) -> Entity {
+fn panel_id(world: &mut World) -> Entity {
     let mut panels = world.query::<(Entity, &MenuPanel)>();
     panels.iter(world).next().expect("one menu panel").0
 }
 
 /// Fill of the row with the given entry index.
-fn row_fill(world: &mut bevy::ecs::world::World, index: usize) -> BackgroundColor {
+fn row_fill(world: &mut World, index: usize) -> BackgroundColor {
     let mut rows = world.query::<(&MenuRowIndex, &BackgroundColor)>();
     rows.iter(world)
         .find(|(row, _)| row.0 == index)

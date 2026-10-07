@@ -23,6 +23,9 @@ ManifestDPIAware true
 !ifndef OUTFILE
   !define OUTFILE "dist\Infiltrator-Setup-${ARCH}.exe"
 !endif
+!ifndef KERNEL_PATH
+  !error "KERNEL_PATH must name a verified packaged mihomo executable"
+!endif
 
 Name "Infiltrator"
 OutFile "${OUTFILE}"
@@ -75,6 +78,9 @@ Section "Infiltrator Core & GUI" SecCore
 
   SetOutPath "$INSTDIR"
   File "/oname=infiltrator-iced.exe" "${BINARY_PATH}"
+  File "/oname=mihomo.exe" "${KERNEL_PATH}"
+  File "/oname=Mihomo-LICENSE.txt" "${KERNEL_LICENSE_PATH}"
+  File "/oname=mihomo-assets.json" "${KERNEL_METADATA_PATH}"
 
   ; Write Uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -141,6 +147,9 @@ Section "Uninstall"
 
   ; Remove Installed Files
   Delete "$INSTDIR\infiltrator-iced.exe"
+  Delete "$INSTDIR\mihomo.exe"
+  Delete "$INSTDIR\Mihomo-LICENSE.txt"
+  Delete "$INSTDIR\mihomo-assets.json"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 

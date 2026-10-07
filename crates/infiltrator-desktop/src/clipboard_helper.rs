@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::from_utf8;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ClipboardContentType {
@@ -89,7 +90,7 @@ impl ClipboardHelper {
             if b == b'%' {
                 if let (Some(h1), Some(h2)) = (bytes.next(), bytes.next()) {
                     let hex_bytes = [h1, h2];
-                    if let Ok(hex_str) = std::str::from_utf8(&hex_bytes)
+                    if let Ok(hex_str) = from_utf8(&hex_bytes)
                         && let Ok(byte) = u8::from_str_radix(hex_str, 16)
                     {
                         utf8_buffer.push(byte);

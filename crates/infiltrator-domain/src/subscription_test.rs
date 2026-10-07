@@ -1,4 +1,6 @@
 use super::*;
+use flate2::write::{GzEncoder, ZlibEncoder};
+use std::str::from_utf8;
 
 #[test]
 fn test_looks_like_gzip() {
@@ -19,7 +21,7 @@ fn test_decode_utf8_text() {
 #[test]
 fn test_decode_gzip() {
     use std::io::Write;
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(b"compressed").unwrap();
     let compressed = encoder.finish().unwrap();
     let decoded = decode_subscription_bytes(compressed, Some("gzip")).unwrap();
@@ -29,7 +31,7 @@ fn test_decode_gzip() {
 #[test]
 fn test_decode_deflate() {
     use std::io::Write;
-    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(b"deflated").unwrap();
     let compressed = encoder.finish().unwrap();
     let decoded = decode_subscription_bytes(compressed, Some("deflate")).unwrap();
@@ -173,7 +175,7 @@ fn test_waf_challenge_detector() {
 #[test]
 fn test_decode_subscription_bytes_auto_gzip() {
     use std::io::Write;
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(b"hello world").unwrap();
     let compressed = encoder.finish().unwrap();
 
@@ -184,10 +186,7 @@ fn test_decode_subscription_bytes_auto_gzip() {
 #[test]
 fn test_strip_utf8_bom_exhaustive() {
     let with_bom = vec![0xEF, 0xBB, 0xBF, b'a', b'b'];
-    assert_eq!(
-        strip_utf8_bom(std::str::from_utf8(&with_bom).unwrap()),
-        "ab"
-    );
+    assert_eq!(strip_utf8_bom(from_utf8(&with_bom).unwrap()), "ab");
     assert_eq!(strip_utf8_bom("no bom"), "no bom");
     assert_eq!(strip_utf8_bom(""), "");
 }

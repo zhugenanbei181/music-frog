@@ -18,7 +18,10 @@
 //! `pre-shared-key`, `idle-timeout` vs `idle-session-timeout`) now serialize
 //! the mihomo spelling with the old spelling accepted as a serde alias.
 
-use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
+use crate::protocol_node_params::params_from_node;
+use infiltrator_contract::protocol_fidelity::{
+    ProtocolDraft, ProtocolFamily, RealityParams, SmuxParams,
+};
 use infiltrator_contract::protocol_params::EchParams;
 use infiltrator_contract::protocol_params_ext::TransportParams;
 use infiltrator_domain::profile_converter::ProxyNodeItem;
@@ -199,8 +202,7 @@ fn effective_spider_x(item: &ProxyNodeItem) -> String {
 }
 
 pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
-    let family =
-        infiltrator_contract::protocol_fidelity::ProtocolFamily::from_type_str(&item.node_type);
+    let family = ProtocolFamily::from_type_str(&item.node_type);
     let mut draft = ProtocolDraft::new(item.node_type.clone());
     draft.name = item.name.clone();
     draft.server = item.server.clone();
@@ -220,7 +222,7 @@ pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
     // `public_key` is shared by REALITY and WireGuard in the flat DTO; only the
     // families whose schema carries a REALITY block may read it as such.
     draft.reality = if family.supports_reality() {
-        infiltrator_contract::protocol_fidelity::RealityParams {
+        RealityParams {
             public_key: item
                 .get_effective_public_key()
                 .map(str::to_string)
@@ -233,7 +235,7 @@ pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
             fingerprint: item.client_fingerprint.clone().unwrap_or_default(),
         }
     } else {
-        infiltrator_contract::protocol_fidelity::RealityParams::default()
+        RealityParams::default()
     };
     draft.smux = smux_from_json(item.smux.as_ref());
     draft.tls = item.tls;
@@ -241,7 +243,7 @@ pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
     draft.alpn = item.alpn.clone().unwrap_or_default();
     // DUAL-05-09: the static hop the node dials through.
     draft.dialer_proxy = item.dialer_proxy.clone().unwrap_or_default();
-    draft.params = crate::protocol_node_params::params_from_node(item, family);
+    draft.params = params_from_node(item, family);
     let mut preserved: Vec<String> = item
         .extra
         .keys()
@@ -253,9 +255,7 @@ pub fn draft_from_node(item: &ProxyNodeItem) -> ProtocolDraft {
     draft
 }
 
-fn smux_from_json(
-    value: Option<&serde_json::Value>,
-) -> infiltrator_contract::protocol_fidelity::SmuxParams {
+fn smux_from_json(value: Option<&serde_json::Value>) -> SmuxParams {
     use infiltrator_contract::protocol_fidelity::SmuxParams;
     let Some(object) = value.and_then(serde_json::Value::as_object) else {
         return SmuxParams::default();
@@ -298,9 +298,7 @@ fn smux_from_json(
     params
 }
 
-pub(crate) fn smux_to_json(
-    params: &infiltrator_contract::protocol_fidelity::SmuxParams,
-) -> serde_json::Value {
+pub(crate) fn smux_to_json(params: &SmuxParams) -> serde_json::Value {
     serde_json::json!({
         "enabled": params.enabled,
         "protocol": params.protocol.trim(),

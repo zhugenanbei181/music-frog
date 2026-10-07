@@ -6,37 +6,29 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::speedtest::{
-    EgressCountryMatch, NodeSpeedtestResult, PacketLossRating, SpeedtestScope, SpeedtestSnapshot,
+use infiltrator_application::speedtest_summary_projection::{
+    dead_archive, history_lines, node_metrics, rating_label,
 };
+use infiltrator_contract::speedtest::{EgressCountryMatch, NodeSpeedtestResult, PacketLossRating};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-fn loss_badge(rating: PacketLossRating) -> Element<'static, Message> {
-    let (label, kind) = match rating {
-        PacketLossRating::Excellent => (rating.label(), BadgeKind::Success),
-        PacketLossRating::Good => (rating.label(), BadgeKind::Accent),
-        PacketLossRating::Fair => (rating.label(), BadgeKind::Warning),
-        PacketLossRating::Poor | PacketLossRating::Dead => (rating.label(), BadgeKind::Danger),
+fn loss_badge(rating: Option<PacketLossRating>, lang: &Lang<'_>) -> Element<'static, Message> {
+    let kind = match rating {
+        Some(PacketLossRating::Excellent) => BadgeKind::Success,
+        Some(PacketLossRating::Good) => BadgeKind::Accent,
+        Some(PacketLossRating::Fair) => BadgeKind::Warning,
+        Some(PacketLossRating::Poor | PacketLossRating::Dead) => BadgeKind::Danger,
+        None => BadgeKind::Neutral,
     };
-    badge(label.to_string(), kind)
-}
-
-fn star_label(stars: u8) -> String {
-    let filled = stars.min(5) as usize;
-    let mut out = String::new();
-    for _ in 0..filled {
-        out.push('★');
-    }
-    for _ in filled..5 {
-        out.push('☆');
-    }
-    out
+    badge(rating_label(rating, lang.0), kind)
 }
 
 /// DUAL-06-12: honest match/mismatch badge for the label-vs-egress country.
@@ -48,69 +40,6 @@ fn egress_match_badge(matched: EgressCountryMatch, lang: &Lang<'_>) -> Element<'
         EgressCountryMatch::Unknown => ("speedtest_detail_unknown", BadgeKind::Neutral),
     };
     badge(lang.tr(key).to_string(), kind)
-}
-
-fn format_scope(scope: &SpeedtestScope, lang: &Lang<'_>) -> String {
-    match scope {
-        SpeedtestScope::AllGroups => lang.tr("speedtest_scope_all_groups").to_string(),
-        SpeedtestScope::SingleGroup(group) => {
-            format!("{} {group}", lang.tr("speedtest_scope_group"))
-        }
-        SpeedtestScope::SingleNode(node) => {
-            format!("{} {node}", lang.tr("speedtest_scope_node"))
-        }
-    }
-}
-
-fn format_run_time(epoch_ms: u64) -> String {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(epoch_ms as i64)
-        .map(|dt| dt.format("%m-%d %H:%M").to_string())
-        .unwrap_or_else(|| "—".to_string())
-}
-
-/// Render one compact, honest line per persisted run from the shared snapshot.
-///
-/// The history is read straight off `snapshot.recent_history`; the view never
-/// owns a store or fabricates a run.
-pub fn shared_speedtest_history_lines(
-    snapshot: &SpeedtestSnapshot,
-    lang: &Lang<'_>,
-) -> Vec<String> {
-    snapshot
-        .recent_history
-        .iter()
-        .rev()
-        .map(|record| {
-            let bandwidth = record
-                .avg_bandwidth_mbps
-                .map(|mbps| format!("{mbps:.1} Mbps"))
-                .unwrap_or_else(|| "—".to_string());
-            let latency = record
-                .avg_latency_ms
-                .map(|ms| format!("{ms:.1} ms"))
-                .unwrap_or_else(|| "—".to_string());
-            let jitter = record
-                .avg_jitter_ms
-                .map(|ms| format!("{ms:.1} ms"))
-                .unwrap_or_else(|| "—".to_string());
-            let stars = "★".repeat(record.overall_star_rating.min(5) as usize);
-            format!(
-                "{time} · {scope} · {alive_label} {alive}/{total} · {lat_label} {latency} · {jit_label} {jitter} · {bw_label} {bandwidth} · {stars}",
-                time = format_run_time(record.timestamp_epoch_ms),
-                scope = format_scope(&record.scope, lang),
-                alive_label = lang.tr("speedtest_history_alive"),
-                alive = record.alive_nodes,
-                total = record.total_nodes,
-                lat_label = lang.tr("speedtest_history_latency"),
-                latency = latency,
-                jit_label = lang.tr("speedtest_history_jitter"),
-                jitter = jitter,
-                bw_label = lang.tr("speedtest_history_bandwidth"),
-                bandwidth = bandwidth,
-                stars = stars,
-            )
-        })
-        .collect()
 }
 
 pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -188,24 +117,10 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     });
 
     let metric_content: Element<'_, Message> = if let Some(res) = result {
-        let (bandwidth, jitter_ms, loss) = (
-            res.bandwidth_mbps,
-            res.jitter.as_ref().map(|j| j.jitter_ms),
-            res.packet_loss,
-        );
-
-        let bandwidth_text = bandwidth
-            .map(|mbps| format!("{mbps:.1} Mbps"))
-            .unwrap_or_else(|| "—".to_string());
-        let jitter_text = jitter_ms
-            .map(|ms| format!("{ms:.1} ms"))
-            .unwrap_or_else(|| "—".to_string());
-        let loss_text = res
-            .jitter
-            .as_ref()
-            .map(|j| format!("{:.1}%", j.loss_percent))
-            .unwrap_or_else(|| "—".to_string());
-
+        let metrics = node_metrics(res);
+        let bandwidth_text = metrics.bandwidth;
+        let jitter_text = metrics.jitter;
+        let loss_text = metrics.loss;
         row![
             column![
                 text(lang.tr("speedtest_bandwidth").to_string())
@@ -246,9 +161,9 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                         color: Some(tokens(t).text_secondary)
                     }),
                 row![
-                    loss_badge(loss),
+                    loss_badge(metrics.rating, lang),
                     Space::new().width(theme::SP_XS),
-                    text(star_label(res.star_rating)).size(13),
+                    text(metrics.stars).size(13),
                 ]
                 .align_y(Alignment::Center),
             ],
@@ -268,7 +183,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             .size(12)
             .font(FONT_MEDIUM),
             Space::new().width(Length::Fill),
-            text("Click to run bandwidth and packet loss benchmark")
+            text(lang.tr("speedtest_benchmark_hint").into_owned())
                 .size(11)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
@@ -280,22 +195,12 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     // Timed-out / unreachable nodes are archived in one honest region driven
     // by the shared snapshot's `dead_nodes()` — never hidden or fabricated.
-    let dead_nodes = snapshot.dead_nodes();
-    let dead_section: Element<'_, Message> = if dead_nodes.is_empty() {
+    let archive = dead_archive(snapshot, lang.0);
+    let dead_section: Element<'_, Message> = if archive.count == 0 {
         Space::new().height(0).into()
     } else {
-        let names: Vec<String> = dead_nodes
-            .iter()
-            .take(4)
-            .map(|node| node.node_name.clone())
-            .collect();
-        let extra = dead_nodes.len().saturating_sub(names.len());
-        let mut listed = names.join(" · ");
-        if extra > 0 {
-            listed.push_str(&format!(" (+{extra})"));
-        }
         row![
-            badge(dead_nodes.len().to_string(), BadgeKind::Danger),
+            badge(archive.count.to_string(), BadgeKind::Danger),
             Space::new().width(theme::SP_XS),
             text(lang.tr("speedtest_dead_archive").to_string())
                 .size(11)
@@ -303,7 +208,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     color: Some(tokens(t).text_secondary)
                 }),
             Space::new().width(theme::SP_XS),
-            text(listed)
+            text(archive.names)
                 .size(11)
                 .font(MONO)
                 .style(|t: &Theme| text::Style {
@@ -316,7 +221,7 @@ pub fn speedtest_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
 
     // Persisted history from the shared snapshot: every line is a real run,
     // never a UI-local record.
-    let history_lines = shared_speedtest_history_lines(snapshot, lang);
+    let history_lines = history_lines(snapshot, lang.0);
     let mut history_column = column![
         text(lang.tr("speedtest_history_title").to_string())
             .size(11)

@@ -1,12 +1,15 @@
 //! Canvas-based waveform and traffic charts for the Infiltrator UI.
 
+use crate::view::theme;
 use iced::widget::canvas;
 use iced::{Color, Element, Point, Rectangle, Renderer, Theme, border, mouse};
-use std::collections::VecDeque;
-
-use crate::view::theme;
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_domain::traffic_scale::compute_from_rates;
+use infiltrator_domain::traffic_waveform::smooth_dual_series;
+use std::collections::VecDeque;
 
 // ---------------------------------------------------------------------------
 // High-Fidelity GPU Canvas Traffic Chart & Waveforms
@@ -59,10 +62,13 @@ impl<Message> canvas::Program<Message> for TrafficChart {
             return vec![frame.into_geometry()];
         }
 
-        let (upload_curve, download_curve) =
-            infiltrator_domain::traffic_waveform::smooth_dual_series(&upload_raw, &download_raw, 4);
+        let left_pad = 4.0_f32;
+        let right_pad = 12.0_f32;
+        let usable_width = (width - left_pad - right_pad).max(10.0);
+
+        let (upload_curve, download_curve) = smooth_dual_series(&upload_raw, &download_raw, 4);
         let curve_count = upload_curve.len().max(download_curve.len());
-        let x_step = width / (curve_count.saturating_sub(1).max(1)) as f32;
+        let x_step = usable_width / (curve_count.saturating_sub(1).max(1)) as f32;
 
         let max_speed = self.resolved_scale(&upload_raw, &download_raw).max_bps;
 
@@ -73,12 +79,15 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
         // 2. Download area fill & glowing curve
         let down_path = canvas::Path::new(|p| {
-            p.move_to(Point::new(0.0, height));
+            p.move_to(Point::new(left_pad, height));
             for (i, down) in download_curve.iter().enumerate() {
-                p.line_to(Point::new(i as f32 * x_step, scale(*down as f64)));
+                p.line_to(Point::new(
+                    left_pad + i as f32 * x_step,
+                    scale(*down as f64),
+                ));
             }
             p.line_to(Point::new(
-                (download_curve.len() - 1) as f32 * x_step,
+                left_pad + (download_curve.len() - 1) as f32 * x_step,
                 height,
             ));
             p.close();
@@ -87,7 +96,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
         let down_line = canvas::Path::new(|p| {
             for (i, down) in download_curve.iter().enumerate() {
-                let pt = Point::new(i as f32 * x_step, scale(*down as f64));
+                let pt = Point::new(left_pad + i as f32 * x_step, scale(*down as f64));
                 if i == 0 {
                     p.move_to(pt);
                 } else {
@@ -108,18 +117,21 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
         // 3. Upload area fill & glowing curve
         let up_path = canvas::Path::new(|p| {
-            p.move_to(Point::new(0.0, height));
+            p.move_to(Point::new(left_pad, height));
             for (i, up) in upload_curve.iter().enumerate() {
-                p.line_to(Point::new(i as f32 * x_step, scale(*up as f64)));
+                p.line_to(Point::new(left_pad + i as f32 * x_step, scale(*up as f64)));
             }
-            p.line_to(Point::new((upload_curve.len() - 1) as f32 * x_step, height));
+            p.line_to(Point::new(
+                left_pad + (upload_curve.len() - 1) as f32 * x_step,
+                height,
+            ));
             p.close();
         });
         frame.fill(&up_path, Color { a: 0.08, ..success });
 
         let up_line = canvas::Path::new(|p| {
             for (i, up) in upload_curve.iter().enumerate() {
-                let pt = Point::new(i as f32 * x_step, scale(*up as f64));
+                let pt = Point::new(left_pad + i as f32 * x_step, scale(*up as f64));
                 if i == 0 {
                     p.move_to(pt);
                 } else {
@@ -142,11 +154,11 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
         // 4. Interactive cursor tracking crosshair with Micro HUD Tooltip (UI-04-04)
         if let Some(cursor_pos) = cursor.position_in(bounds) {
-            let scan_x = cursor_pos.x.clamp(0.0, width);
+            let scan_x = cursor_pos.x.clamp(left_pad, left_pad + usable_width);
             let scan_y = cursor_pos.y.clamp(0.0, height);
-            let raw_x_step = width / (upload_raw.len() - 1) as f32;
-            let sample_idx =
-                ((scan_x / raw_x_step).round() as usize).min(upload_raw.len().saturating_sub(1));
+            let raw_x_step = usable_width / (upload_raw.len().saturating_sub(1).max(1)) as f32;
+            let sample_idx = (((scan_x - left_pad).max(0.0) / raw_x_step).round() as usize)
+                .min(upload_raw.len().saturating_sub(1));
 
             if let (Some(&up_val), Some(&down_val)) =
                 (upload_raw.get(sample_idx), download_raw.get(sample_idx))
@@ -224,7 +236,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                         .with_width(1.0),
                 );
 
-                let up_text = format!("↑ {}/s", crate::utils::format_bytes(up_val as u64));
+                let up_text = format!("↑ {}/s", format_bytes(up_val as u64));
                 frame.fill_text(canvas::Text {
                     content: up_text,
                     position: Point::new(hud_x + 8.0, hud_y + 8.0),
@@ -234,7 +246,7 @@ impl<Message> canvas::Program<Message> for TrafficChart {
                     ..canvas::Text::default()
                 });
 
-                let down_text = format!("↓ {}/s", crate::utils::format_bytes(down_val as u64));
+                let down_text = format!("↓ {}/s", format_bytes(down_val as u64));
                 frame.fill_text(canvas::Text {
                     content: down_text,
                     position: Point::new(hud_x + 8.0, hud_y + 24.0),
@@ -270,9 +282,9 @@ impl<Message> canvas::Program<Message> for TrafficChart {
 
 impl TrafficChart {
     fn resolved_scale(&self, upload: &[f64], download: &[f64]) -> TrafficScaleSnapshot {
-        self.scale.clone().unwrap_or_else(|| {
-            infiltrator_domain::traffic_scale::compute_from_rates(upload, download, 0)
-        })
+        self.scale
+            .clone()
+            .unwrap_or_else(|| compute_from_rates(upload, download, 0))
     }
 
     fn raw_series(&self) -> (Vec<f64>, Vec<f64>) {
@@ -412,7 +424,7 @@ pub enum StripInk {
 }
 
 /// Full-scale bar value, straight from the shared HUD strip contract.
-const STRIP_PERMILLE: u16 = infiltrator_contract::mini_hud::MiniHudWaveformStrip::PERMILLE;
+const STRIP_PERMILLE: u16 = MiniHudWaveformStrip::PERMILLE;
 
 /// The HUD waveform strip: bars already normalized by the shared contract
 /// ([`MiniHudWaveformStrip`](infiltrator_contract::mini_hud::MiniHudWaveformStrip)),
@@ -509,8 +521,8 @@ pub fn hud_waveform<'a, Message: 'a>(bars: &[u16], ink: StripInk) -> Element<'a,
         bars: bars.to_vec(),
         ink,
     })
-    .width(infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX)
-    .height(infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX)
+    .width(MiniHudWaveformStrip::WIDTH_PX)
+    .height(MiniHudWaveformStrip::HEIGHT_PX)
     .into()
 }
 

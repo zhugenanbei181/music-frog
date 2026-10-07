@@ -3,12 +3,16 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_application::byte_format::format_bytes;
+
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, R_CONTROL, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, MONO, R_CONTROL, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::mem::take;
 
 /// 连接数 / 内存 / 上传 / 下载 tiles with mono numerals.
 ///
@@ -26,13 +30,13 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .diag
         .memory
         .as_ref()
-        .map(|memory| crate::utils::format_bytes(memory.in_use))
+        .map(|memory| format_bytes(memory.in_use))
         .unwrap_or_else(|| "—".to_string());
     let upload = state
         .diag
         .traffic
         .as_ref()
-        .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.up)))
+        .map(|traffic| format!("{}/s", format_bytes(traffic.up)))
         .unwrap_or_else(|| "—".to_string());
     let cpu = state
         .runtime
@@ -44,13 +48,13 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         .diag
         .traffic
         .as_ref()
-        .map(|traffic| format!("{}/s", crate::utils::format_bytes(traffic.down)))
+        .map(|traffic| format!("{}/s", format_bytes(traffic.down)))
         .unwrap_or_else(|| "—".to_string());
     let total = state
         .diag
         .connections
         .as_ref()
-        .map(|c| crate::utils::format_bytes(c.download_total + c.upload_total))
+        .map(|c| format_bytes(c.download_total + c.upload_total))
         .unwrap_or_else(|| "—".to_string());
 
     let tiles: Vec<Element<'a, Message>> = vec![
@@ -101,7 +105,7 @@ pub fn stats_grid<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message>
         row_tiles.push(tile);
         if row_tiles.len() == columns {
             grid = grid.push(
-                row::Row::with_children(std::mem::take(&mut row_tiles))
+                row::Row::with_children(take(&mut row_tiles))
                     .spacing(theme::SP_MD)
                     .width(Length::Fill),
             );

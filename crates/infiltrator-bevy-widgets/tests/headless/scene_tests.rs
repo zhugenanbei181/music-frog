@@ -9,13 +9,12 @@ use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
-use bevy::scene::CommandsSceneExt;
-use bevy::scene::ScenePlugin;
+use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::text::{FontSize, TextColor, TextFont};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::WidgetsPlugin;
-use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, pill_scene};
+use infiltrator_bevy_widgets::button::{ControlVisual, PillLabel, control_fill, pill_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -115,20 +114,11 @@ fn surface_scene_accepts_composed_children() {
 #[test]
 fn control_fill_layers_pressed_over_hover_over_selected() {
     let palette = UiPalette::new(&Theme::dark());
+    assert_eq!(control_fill(true, false, false, &palette), palette.accent);
+    assert_eq!(control_fill(true, true, false, &palette), palette.hover_bg);
+    assert_eq!(control_fill(true, true, true, &palette), palette.pressed_bg);
     assert_eq!(
-        infiltrator_bevy_widgets::button::control_fill(true, false, false, &palette),
-        palette.accent
-    );
-    assert_eq!(
-        infiltrator_bevy_widgets::button::control_fill(true, true, false, &palette),
-        palette.hover_bg
-    );
-    assert_eq!(
-        infiltrator_bevy_widgets::button::control_fill(true, true, true, &palette),
-        palette.pressed_bg
-    );
-    assert_eq!(
-        infiltrator_bevy_widgets::button::control_fill(false, false, false, &palette),
+        control_fill(false, false, false, &palette),
         palette.surface_elevated
     );
 }

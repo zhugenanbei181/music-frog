@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-iced"
-version = "0.20.0"
+version = "0.30.0"
 edition = "2024"
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application
@@ -89,6 +89,8 @@ openssl = { version = "0.10", optional = true }
 #   stream so journey tests drive the REAL worker chains end to end instead
 #   of re-running task bodies by hand. Same 0.14 tree as the `iced` dep.
 [dev-dependencies]
+tempfile = { workspace = true }
+mihomo-config = { path = "../mihomo-config" }
 axum = { workspace = true }
 iced_runtime = "0.14"
 infiltrator-core = { path = "../infiltrator-core" }

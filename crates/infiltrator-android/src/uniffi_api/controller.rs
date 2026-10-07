@@ -2,16 +2,15 @@
 //! composition helpers; this module only maps application results into FFI
 //! records.
 
-use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
-
-use infiltrator_contract::command::ProxyMode;
-
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{
     build_connection_application, build_proxy_application, build_runtime_query_application,
     get_runtime, map_application_failure, network_application,
 };
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_domain::runtime::Connection;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 // --- Proxies API ---
 
@@ -350,7 +349,7 @@ async fn traffic_snapshot_internal() -> Result<TrafficSnapshot, FfiStatus> {
     ))
 }
 
-fn connection_to_record(connection: infiltrator_domain::runtime::Connection) -> ConnectionRecord {
+fn connection_to_record(connection: Connection) -> ConnectionRecord {
     ConnectionRecord {
         id: connection.id,
         host: connection.metadata.host,

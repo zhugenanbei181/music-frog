@@ -4,10 +4,14 @@
 //! application; this module owns only the surface state machine around it
 //! (loading, layout, two-step rollback confirmation, protection unlock).
 
+use crate::snapshot_commands::execute;
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::snapshot_restore::RestoreAction;
 use iced::Task;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 
 impl AppState {
     pub(super) fn update_snapshot_diff(&mut self, message: Message) -> Task<Message> {
@@ -17,7 +21,6 @@ impl AppState {
                 self.editor.snapshot_diff_selected_id = Some(id.clone());
                 self.editor.snapshot_diff_loading = true;
                 self.editor.snapshot_diff_error = None;
-                self.editor.snapshot_diff_rollback_armed = false;
                 // DUAL-09-08: the modal renders the shared application's real
                 // Myers diff; it never fabricates rows.
                 let Some(profile) = self
@@ -33,13 +36,22 @@ impl AppState {
                         Some("no profile is open in the editor".to_string());
                     return Task::none();
                 };
+                let commands = self.commands.clone();
                 Task::perform(
                     async move {
-                        crate::snapshot_application::application()
-                            .await?
-                            .diff_snapshot(&profile, std::path::Path::new(&id))
-                            .await
-                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                        execute(
+                            commands,
+                            CommandIntent::LoadSnapshotDiff {
+                                profile: Some(profile),
+                                snapshot_id: Some(id),
+                            },
+                        )
+                        .await?
+                        .into_snapshot_diff()
+                        .map_err(|failure| InfiltratorError::Config(failure.message))?
+                        .ok_or_else(|| {
+                            InfiltratorError::Config("No stored snapshot is available".into())
+                        })
                     },
                     Message::SnapshotDiffLoaded,
                 )
@@ -69,14 +81,6 @@ impl AppState {
                 Some(id) => self.update_snapshot_diff(Message::OpenSnapshotDiff(id)),
                 None => Task::none(),
             },
-            Message::ArmSnapshotRollback => {
-                self.editor.snapshot_diff_rollback_armed = true;
-                Task::none()
-            }
-            Message::CancelSnapshotRollback => {
-                self.editor.snapshot_diff_rollback_armed = false;
-                Task::none()
-            }
             Message::SetProfileProtectionOverride(allow) => {
                 self.editor.profile_protection_override = allow;
                 Task::none()
@@ -86,22 +90,16 @@ impl AppState {
                 self.editor.snapshot_diff_selected_id = None;
                 self.editor.snapshot_diff = None;
                 self.editor.snapshot_diff_error = None;
-                self.editor.snapshot_diff_rollback_armed = false;
                 Task::none()
             }
             Message::RollbackToSnapshot(id) => {
-                // DUAL-09-09: the rollback only executes once the two-step
-                // confirmation has been armed; the first click never applies.
-                if !self.editor.snapshot_diff_rollback_armed {
-                    self.editor.snapshot_diff_rollback_armed = true;
+                let Some(profile) = self.editor_profile_name() else {
                     return Task::none();
-                }
-                self.editor.snapshot_diff_modal_open = false;
-                self.editor.snapshot_diff_rollback_armed = false;
-                // The shared restore executor requires the same confirmation
-                // the modal just collected.
-                self.editor.pending_restore_snapshot = Some(id.clone().into());
-                Task::done(Message::RestoreProfileSnapshot(id.into()))
+                };
+                self.update_snapshot_restore(RestoreAction::Open(SnapshotRestoreTarget {
+                    profile,
+                    snapshot_id: id,
+                }))
             }
             _ => Task::none(),
         }

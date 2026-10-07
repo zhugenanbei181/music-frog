@@ -16,11 +16,13 @@
 //! frame-rate claim is made.
 
 use crate::types::message::Message;
-use crate::view::theme::{self, MONO, tokens};
-use iced::advanced::text::LineHeight;
-use iced::widget::text_editor;
-use iced::widget::{Row, Space, column, container, row, text};
+use crate::view::theme;
+use crate::view::theme::{MONO, tokens};
+use iced::advanced::text::{LineHeight, Wrapping};
+use iced::border::Radius;
+use iced::widget::{Row, Space, column, container, row, text, text_editor};
 use iced::{Alignment, Element, Length, Pixels, Theme};
+use infiltrator_application::profile_editor_projection::viewport_range;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -102,21 +104,27 @@ pub fn editor_element<'a>(
     content: &'a text_editor::Content,
     on_action: impl Fn(text_editor::Action) -> Message + 'a,
     window_lines: usize,
+    editable: bool,
 ) -> Element<'a, Message> {
-    text_editor(content)
-        .on_action(on_action)
+    let editor = text_editor(content);
+    let editor = if editable {
+        editor.on_action(on_action)
+    } else {
+        editor
+    };
+    editor
         .font(MONO)
         .size(12.0)
         .line_height(LineHeight::Absolute(Pixels(EDITOR_LINE_HEIGHT_PX)))
         .padding(EDITOR_PADDING_PX as u16)
-        .wrapping(iced::advanced::text::Wrapping::None)
+        .wrapping(Wrapping::None)
         .height(Length::Fixed(editor_box_height_px(window_lines)))
         .into()
 }
 
 /// One gutter row: the document line number plus the shared indentation rail.
 fn gutter_row<'a>(line: usize, indent_level: usize) -> Element<'a, Message> {
-    let number_style = |t: &Theme| iced::widget::text::Style {
+    let number_style = |t: &Theme| text::Style {
         color: Some(tokens(t).text_tertiary),
     };
     let rail: Vec<Element<'a, Message>> = (0..indent_level)
@@ -181,7 +189,7 @@ pub fn gutter<'a>(
             container::Style {
                 background: Some(tk.chip_bg.into()),
                 border: iced::Border {
-                    radius: iced::border::Radius::from(theme::R_CONTROL),
+                    radius: Radius::from(theme::R_CONTROL),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -202,10 +210,10 @@ pub fn viewport_label(
     let label = format!(
         "{} {} · {}",
         lang.tr("editor_viewport_label"),
-        viewport.range_label(),
+        viewport_range(&viewport, lang.0),
         window_note(viewport, lang)
     );
-    let style = |t: &Theme| iced::widget::text::Style {
+    let style = |t: &Theme| text::Style {
         color: Some(tokens(t).text_tertiary),
     };
     Some(
@@ -216,7 +224,7 @@ pub fn viewport_label(
                 container::Style {
                     background: Some(tk.chip_bg.into()),
                     border: iced::Border {
-                        radius: iced::border::Radius::from(theme::R_CHIP),
+                        radius: Radius::from(theme::R_CHIP),
                         ..Default::default()
                     },
                     ..Default::default()

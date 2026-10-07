@@ -1,12 +1,14 @@
 //! Web-admin handlers: admin toggle/port input, persistence of the admin
 //! settings slice, server lifecycle results and opening the web admin.
 
+use crate::settings_store::update;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_domain::settings::AdminServerConfig;
-use infiltrator_shared::locales::Localizer;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
     /// Parse the admin port input; `None` when it is not a usable TCP port.
@@ -22,12 +24,13 @@ impl AppState {
             port: self.shell.admin_port,
         };
         Task::perform(
-            async move { crate::settings_store::update(|settings| settings.admin = admin).await },
+            async move { update(|settings| settings.admin = admin).await },
             Message::AdminSettingsSaved,
         )
     }
 
     pub(super) fn update_admin(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::SetAdminEnabled(enabled) => {
                 self.shell.admin_enabled = enabled;
@@ -53,7 +56,7 @@ impl AppState {
                         ])
                     }
                     None => {
-                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let lang = Lang(&self.shell.lang);
                         Task::done(Message::ShowToast(
                             lang.tr("settings_admin_invalid_port").into_owned(),
                             ToastStatus::Error,
@@ -66,13 +69,17 @@ impl AppState {
                 Err(e) => {
                     self.set_error(&e);
                     Task::done(Message::ShowToast(
-                        format!("Web 管理端设置保存失败: {e}"),
+                        localize(
+                            &copy_locale,
+                            "admin_settings_save_failed",
+                            &[("reason", e.to_string())],
+                        ),
                         ToastStatus::Error,
                     ))
                 }
             },
             Message::AdminServerStarted(result) => {
-                let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                let lang = Lang(&self.shell.lang);
                 self.refresh_tray();
                 match result {
                     Ok(url) => Task::done(Message::ShowToast(

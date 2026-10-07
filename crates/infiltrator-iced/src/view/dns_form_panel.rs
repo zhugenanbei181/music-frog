@@ -14,13 +14,20 @@ use crate::view::component_forms::{
 use crate::view::components::{BadgeKind, chip, icon_button, segmented_control};
 use crate::view::dns::{
     append_item_to_list, dns_protocol_chip, parse_item_list, remove_item_from_list,
-    server_tag_label,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::dns_latency_projection::server_tags_text;
+#[cfg(test)]
+use infiltrator_application::dns_status_projection::flush_outcome;
+use infiltrator_application::dns_status_projection::flush_summary;
+use infiltrator_application::dns_status_projection::{field_label, form_issue};
 use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
+#[cfg(test)]
+use infiltrator_contract::dns_cache::DnsFlushOutcome;
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -40,7 +47,7 @@ pub(crate) fn token_row<'a>(
     let mut meta = row![tag].spacing(4).align_y(Alignment::Center);
     if !is_domain {
         for server_tag in DnsServerTag::classify(item, false) {
-            meta = meta.push(chip(server_tag_label(server_tag, lang)));
+            meta = meta.push(chip(server_tags_text(&[server_tag], lang.0)));
         }
     }
     let address = text(item.to_string())
@@ -92,7 +99,7 @@ pub(crate) fn quick_template_chips<'a>(
 }
 
 pub(crate) fn dynamic_token_section<'a>(
-    label: &str,
+    label: impl Into<String>,
     raw_list: &'a str,
     placeholder: &str,
     templates: &[&'static str],
@@ -101,7 +108,7 @@ pub(crate) fn dynamic_token_section<'a>(
     on_update: impl Fn(String) -> Message + 'a + Copy,
 ) -> Element<'a, Message> {
     let items = parse_item_list(raw_list);
-    let mut col = column![form_field_label(label.to_string())].spacing(theme::SP_XS);
+    let mut col = column![form_field_label(label)].spacing(theme::SP_XS);
     if !templates.is_empty() {
         col = col.push(quick_template_chips(templates, raw_list, on_update));
     }
@@ -166,34 +173,40 @@ pub(crate) fn dns_form_field_widget<'a>(
     lang: &Lang<'a>,
 ) -> Element<'a, Message> {
     match field {
-        DnsFormField::Enable => {
-            form_toggle_row("enable", form.switches.enable, Message::UpdateDnsFormEnable)
-        }
-        DnsFormField::Ipv6 => {
-            form_toggle_row("ipv6", form.switches.ipv6, Message::UpdateDnsFormIpv6)
-        }
-        DnsFormField::Cache => {
-            form_toggle_row("cache", form.switches.cache, Message::UpdateDnsFormCache)
-        }
+        DnsFormField::Enable => form_toggle_row(
+            field_label(field, lang.0),
+            form.switches.enable,
+            Message::UpdateDnsFormEnable,
+        ),
+        DnsFormField::Ipv6 => form_toggle_row(
+            field_label(field, lang.0),
+            form.switches.ipv6,
+            Message::UpdateDnsFormIpv6,
+        ),
+        DnsFormField::Cache => form_toggle_row(
+            field_label(field, lang.0),
+            form.switches.cache,
+            Message::UpdateDnsFormCache,
+        ),
         DnsFormField::UseHosts => form_toggle_row(
-            "use_hosts",
+            field_label(field, lang.0),
             form.switches.use_hosts,
             Message::UpdateDnsFormUseHosts,
         ),
         DnsFormField::UseSystemHosts => form_toggle_row(
-            "use_system_hosts",
+            field_label(field, lang.0),
             form.switches.use_system_hosts,
             Message::UpdateDnsFormUseSystemHosts,
         ),
         DnsFormField::RespectRules => form_toggle_row(
-            "respect_rules",
+            field_label(field, lang.0),
             form.switches.respect_rules,
             Message::UpdateDnsFormRespectRules,
         ),
         DnsFormField::EnhancedMode => domain_mapping_mode_control(form.enhanced_mode, lang),
         DnsFormField::FilterMode => filter_mode_control(form.filter_mode, lang),
         DnsFormField::BootstrapNameserver => dynamic_token_section(
-            "default_nameserver (bootstrap, pure IP)",
+            field_label(field, lang.0),
             &form.bootstrap_nameserver,
             "223.5.5.5, 119.29.29.29",
             &["223.5.5.5", "119.29.29.29"],
@@ -202,7 +215,7 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormBootstrapNameserver,
         ),
         DnsFormField::Nameserver => dynamic_token_section(
-            "nameserver (DoH/DoT/DoQ/UDP)",
+            field_label(field, lang.0),
             &form.nameserver,
             "https://dns.google/dns-query, 1.1.1.1",
             &[
@@ -216,7 +229,7 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormNameserver,
         ),
         DnsFormField::Fallback => dynamic_token_section(
-            "fallback",
+            field_label(field, lang.0),
             &form.fallback,
             "https://1.0.0.1/dns-query",
             &[
@@ -230,12 +243,12 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormFallback,
         ),
         DnsFormField::FallbackGeoip => form_toggle_row(
-            "fallback_filter.geoip",
+            field_label(field, lang.0),
             form.fallback_policy.geoip,
             Message::UpdateDnsFormFallbackGeoip,
         ),
         DnsFormField::FallbackGeoipCode => column![
-            form_field_label("fallback_filter.geoip_code (ISO country)"),
+            form_field_label(field_label(field, lang.0)),
             text_input("CN", &form.fallback_policy.geoip_code)
                 .on_input(Message::UpdateDnsFormFallbackGeoipCode)
                 .padding([8, 12])
@@ -246,7 +259,7 @@ pub(crate) fn dns_form_field_widget<'a>(
         .spacing(theme::SP_XS)
         .into(),
         DnsFormField::FallbackTriggerIp => dynamic_token_section(
-            "fallback_filter.ipcidr (GEOIP trigger)",
+            field_label(field, lang.0),
             &form.fallback_policy.trigger_ipcidr,
             "240.0.0.0/4, 192.168.0.0/16",
             &["240.0.0.0/4", "192.168.0.0/16", "10.0.0.0/8"],
@@ -255,7 +268,7 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormFallbackTrigger,
         ),
         DnsFormField::FakeIpRange => column![
-            form_field_label("fake_ip_range".to_string()),
+            form_field_label(field_label(field, lang.0)),
             text_input("198.18.0.1/16", &form.fake_ip_range)
                 .on_input(Message::UpdateDnsFormFakeIpRange)
                 .padding([8, 12])
@@ -266,7 +279,7 @@ pub(crate) fn dns_form_field_widget<'a>(
         .spacing(theme::SP_XS)
         .into(),
         DnsFormField::FakeIpFilter => dynamic_token_section(
-            "fake_ip_filter",
+            field_label(field, lang.0),
             &form.fake_ip_filter,
             "*.lan, localhost.ptlogin2.qq.com",
             &["*.lan", "localhost.ptlogin2.qq.com", "*.local"],
@@ -275,7 +288,7 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormFakeIpFilter,
         ),
         DnsFormField::ProxyServerNameserver => dynamic_token_section(
-            "proxy_server_nameserver",
+            field_label(field, lang.0),
             &form.proxy_server_nameserver,
             "tls://223.5.5.5:853",
             &[
@@ -288,7 +301,7 @@ pub(crate) fn dns_form_field_widget<'a>(
             Message::UpdateDnsFormProxyServerNameserver,
         ),
         DnsFormField::DirectNameserver => dynamic_token_section(
-            "direct_nameserver",
+            field_label(field, lang.0),
             &form.direct_nameserver,
             "system",
             &["system", "223.5.5.5"],
@@ -306,28 +319,10 @@ pub(crate) fn form_issue_banner(
 ) -> Element<'static, Message> {
     let detail = issues
         .iter()
-        .map(|issue| localized_form_issue(issue, lang))
+        .map(|issue| form_issue(issue, lang.0))
         .collect::<Vec<_>>()
         .join(" · ");
     banner_alert(BadgeKind::Warning, lang.tr("dns_form_issues"), detail, None)
-}
-
-pub(crate) fn localized_form_issue(issue: &DnsFormIssue, lang: &Lang<'_>) -> String {
-    match issue {
-        DnsFormIssue::UnsupportedScheme { field, entry } => lang
-            .tr("dns_form_err_scheme")
-            .replace("{field}", field.key())
-            .replace("{entry}", entry),
-        DnsFormIssue::BootstrapNotIp { entry } => {
-            lang.tr("dns_form_err_bootstrap").replace("{entry}", entry)
-        }
-        DnsFormIssue::InvalidTriggerCidr { entry } => {
-            lang.tr("dns_form_err_cidr").replace("{entry}", entry)
-        }
-        DnsFormIssue::InvalidGeoipCode { value } => {
-            lang.tr("dns_form_err_geoip_code").replace("{value}", value)
-        }
-    }
 }
 
 /// Honest last DNS cache flush status for the Fake-IP panel.
@@ -336,13 +331,7 @@ pub(crate) fn dns_cache_flush_status<'a>(
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     let report = &state.diag.dns_cache_flush;
-    let line = format!(
-        "{}: {} · {}: {}",
-        lang.tr("dns_flush_target_fakeip"),
-        flush_outcome_label(&report.fake_ip, lang),
-        lang.tr("dns_flush_target_os"),
-        flush_outcome_label(&report.os_cache, lang),
-    );
+    let line = flush_summary(report, lang.0);
     text(line)
         .size(11)
         .style(|t: &Theme| text::Style {
@@ -351,19 +340,7 @@ pub(crate) fn dns_cache_flush_status<'a>(
         .into()
 }
 
-pub(crate) fn flush_outcome_label(
-    outcome: &infiltrator_contract::dns::DnsFlushOutcome,
-    lang: &Lang<'_>,
-) -> String {
-    use infiltrator_contract::dns::DnsFlushOutcome;
-    match outcome {
-        DnsFlushOutcome::NotRequested => lang.tr("dns_flush_not_requested").to_string(),
-        DnsFlushOutcome::Flushed => lang.tr("dns_flush_flushed").to_string(),
-        DnsFlushOutcome::Unsupported { reason } => {
-            format!("{} ({reason})", lang.tr("dns_flush_unsupported"))
-        }
-        DnsFlushOutcome::Failed { message } => {
-            format!("{} ({message})", lang.tr("dns_flush_failed"))
-        }
-    }
+#[cfg(test)]
+pub(crate) fn flush_outcome_label(outcome: &DnsFlushOutcome, lang: &Lang<'_>) -> String {
+    flush_outcome(outcome, lang.0)
 }

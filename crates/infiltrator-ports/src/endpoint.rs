@@ -2,8 +2,8 @@ use crate::error::PortError;
 use async_trait::async_trait;
 
 /// Controller URL plus its authentication material. Secrets are carried only
-/// between an outbound adapter and its private client; they never enter a UI
-/// projection or process handle.
+/// between host adapters, private transport clients and private application
+/// redaction; they never enter a UI projection or process handle.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ControllerEndpoint {
     pub url: String,

@@ -2,7 +2,8 @@
 
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::surface_snapshot::{PageStatus, SurfaceSnapshot};
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
 use infiltrator_contract::system_proxy::SystemProxyStatus;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 
@@ -23,20 +24,18 @@ impl SystemToggleApplication {
                 failure: failure.clone(),
             },
         };
-        let tun = match (
-            &snapshot.pages.settings.status,
-            &snapshot.pages.settings.data,
-        ) {
-            (PageStatus::Ready | PageStatus::Empty, Some(settings)) => {
-                SystemToggleState::from_enabled(settings.tun_enabled)
-            }
-            (PageStatus::Unavailable { failure }, _) => SystemToggleState::Unsupported {
+        let tun = match &snapshot.runtime_control.status {
+            RuntimeControlStatus::Ready => snapshot
+                .runtime_control
+                .tun_enabled
+                .map_or(SystemToggleState::Unknown, SystemToggleState::from_enabled),
+            RuntimeControlStatus::Unsupported { failure } => SystemToggleState::Unsupported {
                 failure: failure.clone(),
             },
-            (PageStatus::Failed { failure }, _) => SystemToggleState::Failed {
+            RuntimeControlStatus::Failed { failure } => SystemToggleState::Failed {
                 failure: failure.clone(),
             },
-            _ => SystemToggleState::Unknown,
+            RuntimeControlStatus::Unobserved => SystemToggleState::Unknown,
         };
         SystemToggleSnapshot {
             system_proxy,

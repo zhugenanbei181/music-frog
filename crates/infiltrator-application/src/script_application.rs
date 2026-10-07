@@ -1,13 +1,16 @@
 //! Application service for sandboxed directive-DSL execution, validation,
 //! presets, diffing, and the shared script-sandbox read model.
 //!
-//! Runtime truth: no JavaScript engine is bundled. `ScriptEngine` recognises
-//! known directives with regexes; this service projects what really ran into
-//! the shared [`ScriptSandboxSnapshot`] both surfaces render, and caches the
-//! latest projection so the Bevy surface (which owns no engine) reads exactly
-//! what Iced computed.
+//! The selected backend executes through `ScriptEnginePort`: the directive DSL
+//! remains the default, and the optional Boa backend provides ECMAScript.
+//! This service publishes the actual result as one [`ScriptSandboxSnapshot`]
+//! consumed by both peer products; neither frontend owns the engine or fold.
 
+use crate::script_engine_direct::DirectiveDslScriptEngine;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::script_run::{
+    ScriptClearReceipt, ScriptOperationId, ScriptRunObservation, ScriptRunRequest, ScriptRunResult,
+};
 use infiltrator_contract::script_sandbox::{
     ScriptCircuitBreakerSnapshot, ScriptDirectiveMatch, ScriptEngineCapabilities, ScriptEngineKind,
     ScriptLogEntry, ScriptLogLevel, ScriptPresetSummary, ScriptSandboxSnapshot,
@@ -19,48 +22,23 @@ use infiltrator_domain::script_engine::{
     ScriptExecutionResult, ScriptValidationResult,
 };
 use infiltrator_ports::script_engine::ScriptEnginePort;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
-
-use crate::script_engine_direct::DirectiveDslScriptEngine;
+#[cfg(test)]
+#[path = "script_test_clock.rs"]
+mod test_clock;
 
 /// Thread-safe application service for managing directive-DSL scripts and sandboxes.
 #[derive(Clone)]
 pub struct ScriptApplication {
     engine: Arc<dyn ScriptEnginePort>,
     circuit_breaker: Arc<Mutex<ScriptCircuitBreaker>>,
+    observation: Arc<Mutex<ScriptRunObservation>>,
 }
 
 impl Default for ScriptApplication {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// DUAL-10-05/14: process-wide cache of the last sandbox projection. Iced runs
-/// the shared service and publishes; the surface reader republishes the same
-/// snapshot so Bevy renders one source of truth.
-fn sandbox_cache() -> &'static Mutex<Option<ScriptSandboxSnapshot>> {
-    static SANDBOX: OnceLock<Mutex<Option<ScriptSandboxSnapshot>>> = OnceLock::new();
-    SANDBOX.get_or_init(|| Mutex::new(None))
-}
-
-/// The last script-sandbox projection computed in this process, if any.
-pub fn last_script_sandbox() -> Option<ScriptSandboxSnapshot> {
-    sandbox_cache().lock().ok().and_then(|cache| cache.clone())
-}
-
-/// Replace the process-wide script-sandbox projection.
-pub fn publish_script_sandbox(snapshot: ScriptSandboxSnapshot) {
-    if let Ok(mut cache) = sandbox_cache().lock() {
-        *cache = Some(snapshot);
-    }
-}
-
-/// Drop the cached projection (a fresh clear makes it stale).
-pub fn clear_script_sandbox() {
-    if let Ok(mut cache) = sandbox_cache().lock() {
-        *cache = None;
     }
 }
 
@@ -75,6 +53,7 @@ impl ScriptApplication {
         Self {
             engine: Arc::new(engine),
             circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
+            observation: Arc::default(),
         }
     }
 
@@ -85,6 +64,7 @@ impl ScriptApplication {
         Self {
             engine,
             circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
+            observation: Arc::default(),
         }
     }
 
@@ -129,10 +109,89 @@ impl ScriptApplication {
         input_yaml: &str,
         preset: Option<&str>,
     ) -> ScriptSandboxSnapshot {
-        let stage = Self::stage_for_preset(preset);
-        let snapshot = self.run_sandbox_at_stage(script, input_yaml, preset, stage);
-        publish_script_sandbox(snapshot.clone());
-        snapshot
+        self.run_observed(
+            &ScriptRunRequest {
+                operation: ScriptOperationId(1),
+                script_code: script.to_owned(),
+                input_yaml: input_yaml.to_owned(),
+                preset: preset.map(str::to_owned),
+            },
+            false,
+        )
+        .expect("sandbox observation revision")
+        .snapshot
+    }
+
+    pub fn observation(&self) -> ScriptRunObservation {
+        self.observation
+            .lock()
+            .expect("sandbox observation")
+            .clone()
+    }
+
+    pub fn clear(&self, operation: ScriptOperationId) -> Result<ScriptClearReceipt, Failure> {
+        if operation.0 == 0 {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "Invalid sandbox clear identity",
+                false,
+            ));
+        }
+        let mut observation = self.observation.lock().expect("sandbox observation");
+        observation.revision = observation.revision.checked_add(1).ok_or_else(|| {
+            Failure::new(ErrorCode::InvalidState, "Sandbox revision exhausted", false)
+        })?;
+        observation.result = None;
+        // Clearing a report never clears admission protection or engine failure history.
+        Ok(ScriptClearReceipt {
+            operation,
+            revision: observation.revision,
+        })
+    }
+
+    pub fn run_request(&self, request: &ScriptRunRequest) -> Result<ScriptRunResult, Failure> {
+        request.validate()?;
+        if request
+            .preset
+            .as_deref()
+            .is_some_and(|id| ScriptEngine::find_preset(id).is_none())
+        {
+            return Err(Failure::new(
+                ErrorCode::InvalidInput,
+                "Unknown sandbox preset",
+                false,
+            ));
+        }
+        self.run_observed(request, true)
+    }
+
+    fn run_observed(
+        &self,
+        request: &ScriptRunRequest,
+        validate_result: bool,
+    ) -> Result<ScriptRunResult, Failure> {
+        // Serialize the entire check/execute/publish path, including cloned service handles.
+        let mut observation = self.observation.lock().expect("sandbox observation");
+        let revision = observation.revision.checked_add(1).ok_or_else(|| {
+            Failure::new(ErrorCode::InvalidState, "Sandbox revision exhausted", false)
+        })?;
+        let snapshot = self.run_sandbox_at_stage(
+            &request.script_code,
+            &request.input_yaml,
+            request.preset.as_deref(),
+            Self::stage_for_preset(request.preset.as_deref()),
+        );
+        let result = ScriptRunResult {
+            operation: request.operation,
+            revision,
+            snapshot,
+        };
+        if validate_result {
+            result.validate(request)?;
+        }
+        observation.revision = revision;
+        observation.result = Some(result.clone());
+        Ok(result)
     }
 
     /// Execute a test run at an explicit lifecycle stage (DUAL-10-02).
@@ -437,12 +496,19 @@ mod tests {
         assert_eq!(snapshot.engine_kind, ScriptEngineKind::DirectiveDsl);
         assert!(!snapshot.engine_kind.is_real_javascript());
         // Published for the other surface.
-        assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
+        assert_eq!(
+            app.observation()
+                .result
+                .as_ref()
+                .map(|result| &result.snapshot),
+            Some(&snapshot)
+        );
     }
 
     #[test]
     fn run_sandbox_at_stage_reports_the_requested_hook() {
-        let app = ScriptApplication::new();
+        let app =
+            ScriptApplication::with_engine(Arc::new(test_clock::ClockedDirectiveEngine::default()));
         let snapshot = app.run_sandbox_at_stage(
             "function main(config) { return config; }",
             "port: 7890\n",
@@ -452,6 +518,34 @@ mod tests {
         assert_eq!(snapshot.status, ScriptSandboxStatus::Success);
         assert_eq!(snapshot.hook_stage, "post_download");
         assert!(snapshot.hook_stage_label.contains("Post-Download"));
+    }
+
+    #[test]
+    fn virtual_execution_clock_preserves_the_real_transform_and_the_500ms_budget_boundary() {
+        use std::time::Duration;
+        for (elapsed, status) in [
+            (500, ScriptSandboxStatus::Success),
+            (501, ScriptSandboxStatus::Timeout),
+        ] {
+            let app = ScriptApplication::with_engine(Arc::new(test_clock::ClockedDirectiveEngine(
+                Duration::from_millis(elapsed),
+            )));
+            let snapshot = app.run_sandbox_at_stage(
+                "function main(config) { return config; }",
+                "port: 7890\n",
+                None,
+                HookStage::PostDownload,
+            );
+            assert_eq!(snapshot.status, status);
+            assert_eq!(snapshot.timeout_limit_ms, 500);
+            assert_eq!(snapshot.hook_stage, "post_download");
+            if elapsed == 500 {
+                assert_eq!(snapshot.transformed_yaml.as_deref(), Some("port: 7890\n"));
+            } else {
+                assert!(snapshot.transformed_yaml.is_none());
+                assert!(snapshot.error_detail.unwrap().contains("500"));
+            }
+        }
     }
 
     #[test]
@@ -566,6 +660,12 @@ mod tests {
                 .contains("JavaScript syntax supported")
         );
         // The projection published for the Bevy surface carries the same fact.
-        assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
+        assert_eq!(
+            app.observation()
+                .result
+                .as_ref()
+                .map(|result| &result.snapshot),
+            Some(&snapshot)
+        );
     }
 }

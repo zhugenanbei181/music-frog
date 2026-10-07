@@ -6,13 +6,12 @@
 //! `supports_javascript_syntax = false`, so the shared read model can never
 //! imply that arbitrary JavaScript executed.
 
-use std::time::Duration;
-
 use infiltrator_contract::script_sandbox::{ScriptEngineCapabilities, ScriptEngineKind};
 use infiltrator_domain::script_engine::{
     HookStage, ScriptEngine, ScriptError, ScriptExecutionResult,
 };
 use infiltrator_ports::script_engine::ScriptEnginePort;
+use std::time::Duration;
 
 /// The default engine: the bundled directive DSL.
 #[derive(Clone, Debug)]

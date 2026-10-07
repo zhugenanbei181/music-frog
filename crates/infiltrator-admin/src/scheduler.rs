@@ -24,20 +24,16 @@
 //! runtime (the admin embedders do this from their async setup): it seeds
 //! one job per already-enabled profile and keeps the WebDAV ticker alive.
 
-use std::sync::OnceLock;
-use std::time::Duration;
-
-use chrono::{DateTime, Utc};
-use log::warn;
-use tokio::sync::watch;
-use tokio::time::{Instant, interval};
-
-use infiltrator_domain::subscription_scheduler_policy::{CronSchedule, SubscriptionSchedule};
-
+use self::job_scheduler::JobScheduler;
 use self::sync::run_sync_tick;
 use crate::admin_api::state::AdminApiContext;
-
-use self::job_scheduler::JobScheduler;
+use chrono::{DateTime, Utc};
+use infiltrator_domain::subscription_scheduler_policy::{CronSchedule, SubscriptionSchedule};
+use log::warn;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tokio::sync::watch;
+use tokio::time::{Instant, interval};
 
 mod job_scheduler;
 pub mod subscription;

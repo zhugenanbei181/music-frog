@@ -3,33 +3,40 @@
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
-use crate::types::message::Message;
+use crate::types::message::{Message, MtuProbeCompletion};
 use iced::Task;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::privileged_network_application::PrivilegedNetworkApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
 use infiltrator_contract::lan::LanCredentials;
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState, PhysicalMtuSnapshot};
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
+use std::sync::Arc;
 
 impl AppState {
     fn run_privileged_network_regression(&mut self) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         let Some(runtime) = self.runtime.runtime.clone() else {
             let snapshot = PrivilegedNetworkSnapshot::unsupported(
                 self.runtime.privileged_network.revision.saturating_add(1),
-                "当前宿主未注入特权网络回归适配器",
+                Lang(&copy_locale)
+                    .tr("privileged_network_unavailable")
+                    .as_ref(),
             );
             return Task::done(Message::PrivilegedNetworkRegressionUpdated(Ok(snapshot)));
         };
         let Some(port) = runtime.privileged_network_port() else {
             let snapshot = PrivilegedNetworkSnapshot::unsupported(
                 self.runtime.privileged_network.revision.saturating_add(1),
-                "当前宿主未注入特权网络回归适配器",
+                Lang(&copy_locale)
+                    .tr("privileged_network_unavailable")
+                    .as_ref(),
             );
             return Task::done(Message::PrivilegedNetworkRegressionUpdated(Ok(snapshot)));
         };
@@ -55,13 +62,16 @@ impl AppState {
         &mut self,
         result: Result<PrivilegedNetworkSnapshot, InfiltratorError>,
     ) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match result {
             Ok(snapshot) => {
                 let clean = snapshot.is_clean();
                 self.runtime.privileged_network = snapshot;
                 if clean {
                     Task::done(Message::ShowToast(
-                        "特权网络回归已注入、回读并完成清理".to_owned(),
+                        Lang(&copy_locale)
+                            .tr("privileged_network_verified")
+                            .into_owned(),
                         ToastStatus::Success,
                     ))
                 } else {
@@ -81,15 +91,16 @@ impl AppState {
     }
 
     fn apply_lan_sharing(&mut self) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         if self.shell.demo {
             return Task::none();
         }
         let Some(runtime) = self.runtime.runtime.clone() else {
-            return self.runtime_unavailable("应用局域网共享设置");
+            return self.runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan").as_ref());
         };
         let generation = runtime.generation();
         let desired = self.runtime.lan_sharing.clone();
-        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
                 RuntimeQueryApplication::new(gateway)
@@ -102,11 +113,13 @@ impl AppState {
     }
 
     fn apply_lan_security(&mut self) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         if self.shell.demo {
             return Task::none();
         }
         let Some(runtime) = self.runtime.runtime.clone() else {
-            return self.runtime_unavailable("应用局域网 ACL 与认证设置");
+            return self
+                .runtime_unavailable(Lang(&copy_locale).tr("runtime_action_lan_access").as_ref());
         };
         let generation = runtime.generation();
         let desired = self.runtime.lan_security.clone();
@@ -117,7 +130,7 @@ impl AppState {
             username: desired.auth_username.clone(),
             password: desired.auth_password.clone(),
         });
-        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
                 RuntimeQueryApplication::new(gateway)
@@ -136,92 +149,13 @@ impl AppState {
     }
 
     pub(super) fn update_ui_wave5(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::RunPrivilegedNetworkRegression => self.run_privileged_network_regression(),
             Message::PrivilegedNetworkRegressionUpdated(result) => {
                 self.finish_privileged_network_regression(result)
             }
-            Message::AuditStaleRules => {
-                // Project the shared hit-audit read model onto the locally loaded
-                // rule list. Every index comes from real counter/shadow facts —
-                // never from an `idx % 2` fabrication.
-                let dead: std::collections::HashSet<&str> = self
-                    .editor
-                    .rule_hit_audit
-                    .audit
-                    .dead_rules
-                    .iter()
-                    .map(|entry| entry.rule_raw.as_str())
-                    .collect();
-                let zero_hits: Vec<usize> = self
-                    .editor
-                    .rules
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, rule)| dead.contains(rule.rule.as_str()))
-                    .map(|(index, _)| index)
-                    .collect();
-                let count = zero_hits.len();
-                let total_rules = self.editor.rules.len();
-                self.editor.rule_hit_audit.zero_hit_rule_indices = zero_hits;
-                self.editor.rule_hit_audit.is_auditing = false;
-                self.editor.rule_hit_audit.audit_summary = Some(if total_rules == 0 {
-                    "No rules loaded for audit".to_string()
-                } else {
-                    format!("Audit complete: {count}/{total_rules} rules have 0 hits")
-                });
-                Task::none()
-            }
-            Message::DisableZeroHitRules => {
-                let mut disabled_count = 0;
-                for idx in &self.editor.rule_hit_audit.zero_hit_rule_indices {
-                    if let Some(r) = self.editor.rules.get_mut(*idx) {
-                        r.enabled = false;
-                        disabled_count += 1;
-                    }
-                }
-                self.editor.rules_dirty = true;
-                Task::done(Message::ShowToast(
-                    format!("Disabled {disabled_count} stale rules"),
-                    ToastStatus::Success,
-                ))
-            }
-            Message::SelectRadarNode(name) => {
-                self.runtime.latency_radar.selected_node = name;
-                self.runtime.latency_radar.samples = vec![42, 38, 45, 39, 41, 40];
-                self.runtime.latency_radar.avg_ms = 40.8;
-                self.runtime.latency_radar.min_ms = 38;
-                self.runtime.latency_radar.max_ms = 45;
-                self.runtime.latency_radar.jitter_ms = 2.1;
-                self.runtime.latency_radar.stability_score = 5;
-                Task::none()
-            }
-            Message::RecordRadarLatencySample { node, latency_ms } => {
-                if self.runtime.latency_radar.selected_node == node {
-                    self.runtime.latency_radar.samples.push(latency_ms);
-                    if self.runtime.latency_radar.samples.len() > 10 {
-                        self.runtime.latency_radar.samples.remove(0);
-                    }
-                    let sum: u64 = self.runtime.latency_radar.samples.iter().sum();
-                    self.runtime.latency_radar.avg_ms =
-                        sum as f64 / self.runtime.latency_radar.samples.len() as f64;
-                    self.runtime.latency_radar.min_ms = *self
-                        .runtime
-                        .latency_radar
-                        .samples
-                        .iter()
-                        .min()
-                        .unwrap_or(&0);
-                    self.runtime.latency_radar.max_ms = *self
-                        .runtime
-                        .latency_radar
-                        .samples
-                        .iter()
-                        .max()
-                        .unwrap_or(&0);
-                }
-                Task::none()
-            }
+            Message::RuleStatistics(action) => self.update_rule_statistics(action),
             Message::SelectTunStack(stack) => {
                 self.runtime.tun_stack_config.active_stack = stack;
                 Task::none()
@@ -244,19 +178,19 @@ impl AppState {
                     return Task::done(Message::MtuProbed(optimal_mtu));
                 }
                 let Some(runtime) = self.runtime.runtime.clone() else {
-                    return self.runtime_unavailable("探测物理链路 MTU");
+                    return self.runtime_unavailable(
+                        Lang(&copy_locale).tr("runtime_action_mtu_probe").as_ref(),
+                    );
                 };
                 let Some(port) = runtime.mtu_probe_port() else {
                     let error = InfiltratorError::Privilege(
-                        "当前宿主未提供物理链路 MTU 探测能力".to_owned(),
+                        Lang(&copy_locale).tr("mtu_probe_unavailable").into_owned(),
                     );
                     self.set_error(&error);
                     return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
                 };
                 let application = MtuApplication::new(port);
-                let gateway: std::sync::Arc<
-                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
-                > = runtime.clone();
+                let gateway: Arc<dyn RuntimeGateway> = runtime.clone();
                 let generation = runtime.generation();
                 let session_token = self.runtime.core_session_token;
                 self.runtime.mtu = application.probing_snapshot();
@@ -264,7 +198,7 @@ impl AppState {
                 Task::perform(
                     async move { application.probe_and_apply(gateway).await },
                     move |snapshot| {
-                        Message::MtuProbeFinished(crate::types::message::MtuProbeCompletion {
+                        Message::MtuProbeFinished(MtuProbeCompletion {
                             snapshot,
                             generation,
                             session_token,
@@ -302,11 +236,15 @@ impl AppState {
                         Task::none()
                     }
                     MtuProbeState::Unsupported => Task::done(Message::ShowToast(
-                        "当前宿主不支持物理链路 MTU 探测".to_owned(),
+                        Lang(&copy_locale).tr("mtu_probe_unsupported").into_owned(),
                         ToastStatus::Warning,
                     )),
                     MtuProbeState::Failed { failure } => Task::done(Message::ShowToast(
-                        format!("MTU 探测失败: {}", failure.message),
+                        localize(
+                            &copy_locale,
+                            "mtu_probe_failed_notice",
+                            &[("reason", failure.message.clone())],
+                        ),
                         ToastStatus::Error,
                     )),
                     MtuProbeState::Unknown | MtuProbeState::Probing => Task::none(),
@@ -316,22 +254,6 @@ impl AppState {
             | Message::PurgeRuleProviderCache
             | Message::RuleProviderUnpacked(_)
             | Message::RuleProviderCachePurged(_) => self.update_rule_provider(message),
-            Message::TriggerAtomicConfigApply => {
-                self.runtime.apply_guard.stage =
-                    crate::types::runtime::ApplyTransactionStage::Preflight;
-                self.runtime.apply_guard.staging_config_saved = true;
-                self.runtime.apply_guard.health_probe_passed = true;
-                self.runtime.apply_guard.stage =
-                    crate::types::runtime::ApplyTransactionStage::Committed;
-                Task::done(Message::ShowToast(
-                    "Config apply transaction committed safely".into(),
-                    ToastStatus::Success,
-                ))
-            }
-            Message::ApplyTransactionStageChanged(st) => {
-                self.runtime.apply_guard.stage = st;
-                Task::none()
-            }
             Message::ToggleLanSharing(on) => {
                 self.runtime.lan_sharing.allow_lan = on;
                 if self.runtime.lan_sharing.mixed_port == 0 {
@@ -370,7 +292,7 @@ impl AppState {
                         self.runtime.lan_sharing_committed = self.runtime.lan_sharing.clone();
                         self.runtime.lan_sharing_dirty = false;
                         Task::done(Message::ShowToast(
-                            "局域网监听设置已应用并完成回读".to_owned(),
+                            Lang(&copy_locale).tr("lan_listen_verified").into_owned(),
                             ToastStatus::Success,
                         ))
                     }
@@ -437,7 +359,7 @@ impl AppState {
                         self.runtime.lan_sharing.acl_whitelist_cidrs =
                             self.runtime.lan_security.allowed_ips.clone();
                         Task::done(Message::ShowToast(
-                            "局域网 ACL 与认证设置已应用并完成回读".to_owned(),
+                            Lang(&copy_locale).tr("lan_access_verified").into_owned(),
                             ToastStatus::Success,
                         ))
                     }

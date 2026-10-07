@@ -112,17 +112,6 @@ impl FormatSkipReason {
                 | Self::UnclassifiedTopLevelLine
         )
     }
-
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::AnchorsPresent => "文档含锚点/别名，已跳过键排序以保持引用顺序",
-            Self::RootSequence => "顶层是序列，无键排序可言",
-            Self::MergeKey => "文档含合并键 `<<:`，已跳过键排序",
-            Self::UnclassifiedTopLevelLine => "顶层存在无法按行模型分类的写法，已跳过键排序",
-            Self::NothingToOrder => "顶层少于两个键，无需排序",
-            Self::EmptyDocument => "文档为空，未做改动",
-        }
-    }
 }
 
 /// Result of one formatting pass.

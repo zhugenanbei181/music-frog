@@ -1,38 +1,40 @@
 //! System integration cards: shell exports, inbounds, system proxy and
 //! appearance/autostart settings.
 
-use super::format::format_port_conflicts;
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
-    form_field_label, form_input_style, form_pick_style, form_toggle_row, responsive_form_row,
+    form_field_label, form_input_style, form_toggle_row, responsive_form_row,
     responsive_form_toggle_row, row_card_surface, style_accent, style_danger, style_ghost,
     text_btn,
 };
-use crate::view::components::{BadgeKind, badge, card, kbd_badge, segmented_control, status_dot};
+use crate::view::components::{BadgeKind, badge, kbd_badge, segmented_control, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::network_status_projection::system_proxy_status;
+use infiltrator_application::settings_status_projection::format_port_conflicts;
+use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct SettingsChoice {
     pub(super) value: &'static str,
 }
 
-impl std::fmt::Display for SettingsChoice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SettingsChoice {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.value)
     }
 }
 
-pub(super) const LANGUAGE_OPTIONS: &[SettingsChoice] = &[
-    SettingsChoice { value: "zh-CN" },
-    SettingsChoice { value: "en-US" },
-];
 pub(super) const CORE_CHANNEL_OPTIONS: &[SettingsChoice] = &[
     SettingsChoice { value: "stable" },
     SettingsChoice { value: "alpha" },
@@ -60,7 +62,7 @@ pub(super) fn shell_export_row<'a>(
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     let copy_msg = Message::ShowToast(
-        infiltrator_shared::i18n_interpolator::interpolate(
+        interpolate(
             &lang.tr("settings_copied_env"),
             &[("shell_name", shell_name)],
         ),
@@ -216,11 +218,16 @@ pub(super) fn system_proxy_card<'a>(
         lang.tr("settings_mode_manual").to_string(),
         "PAC".to_string(),
     ];
-    let port_status = format_port_conflicts(&state.runtime.port_conflicts);
+    let port_status = format_port_conflicts(&state.runtime.port_conflicts, lang.0);
 
     card(
         Some(lang.tr("system_proxy").to_string()),
         column![
+            secondary_text(system_proxy_status(
+                &state.runtime.system_proxy,
+                &state.runtime.system_proxy_recovery,
+                lang.0,
+            )),
             form_toggle_row(
                 lang.tr("settings_sys_proxy").to_string(),
                 state.runtime.system_toggles.system_proxy.is_enabled(),
@@ -252,7 +259,7 @@ pub(super) fn system_proxy_card<'a>(
             ]
             .align_y(Alignment::Center),
             row![
-                text("Port conflicts")
+                text(lang.tr("settings_port_conflict_title").into_owned())
                     .size(13)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary)
@@ -297,7 +304,6 @@ pub(super) fn system_integration_card<'a>(
     lang: &Lang<'a>,
     _is_en: bool,
     theme_selector: Element<'a, Message>,
-    selected_language: Option<SettingsChoice>,
 ) -> Element<'a, Message> {
     card(
         Some(lang.tr("settings_system_integration").to_string()),
@@ -329,22 +335,6 @@ pub(super) fn system_integration_card<'a>(
                 lang.tr("theme").to_string(),
                 None::<&str>,
                 theme_selector,
-            ),
-            responsive_form_row(
-                state.shell.viewport.tier,
-                lang.tr("settings_lang_label").to_string(),
-                None::<&str>,
-                pick_list(
-                    LANGUAGE_OPTIONS,
-                    selected_language,
-                    |choice: SettingsChoice| Message::SetLanguage(choice.value.to_string()),
-                )
-                .width(if state.shell.viewport.tier.is_compact() {
-                    Length::Fill
-                } else {
-                    Length::Shrink
-                })
-                .style(form_pick_style),
             ),
             Space::new().height(theme::SP_SM),
             row![

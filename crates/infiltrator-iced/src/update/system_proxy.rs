@@ -11,9 +11,12 @@ use infiltrator_contract::system_proxy::{
     SystemProxySnapshot, SystemProxyStatus,
 };
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
     pub(super) fn set_system_proxy(&mut self, enabled: bool) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         if self.runtime.system_proxy_pending {
             return Task::none();
         }
@@ -24,10 +27,7 @@ impl AppState {
         ) {
             let error = InfiltratorError::Privilege(failure.message);
             self.set_error(&error);
-            return Task::done(Message::ShowToast(
-                error.to_string(),
-                crate::types::app::ToastStatus::Error,
-            ));
+            return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         }
         self.runtime.system_proxy_enabled = enabled;
         self.runtime.system_proxy_pending = true;
@@ -47,11 +47,19 @@ impl AppState {
         Task::perform(
             async move {
                 let application = proxy_application.ok_or_else(|| {
-                    InfiltratorError::Privilege("当前宿主未提供系统代理控制能力".to_owned())
+                    InfiltratorError::Privilege(
+                        Lang(&copy_locale)
+                            .tr("system_proxy_control_unavailable")
+                            .into_owned(),
+                    )
                 })?;
                 let endpoint = if enabled {
                     let runtime = runtime.ok_or_else(|| {
-                        InfiltratorError::Privilege("内核未运行，无法确定系统代理端口".to_string())
+                        InfiltratorError::Privilege(
+                            Lang(&copy_locale)
+                                .tr("system_proxy_requires_core")
+                                .into_owned(),
+                        )
                     })?;
                     runtime
                         .http_proxy_endpoint()
@@ -59,7 +67,9 @@ impl AppState {
                         .map_err(|error| InfiltratorError::Privilege(error.to_string()))?
                         .ok_or_else(|| {
                             InfiltratorError::Privilege(
-                                "当前配置未提供 port 或 mixed-port".to_string(),
+                                Lang(&copy_locale)
+                                    .tr("system_proxy_port_missing")
+                                    .into_owned(),
                             )
                         })?
                 } else {
@@ -112,20 +122,29 @@ impl AppState {
         &mut self,
         snapshot: SystemProxyRecoverySnapshot,
     ) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         self.runtime.system_proxy_recovery = snapshot.clone();
         match &snapshot.status {
             SystemProxyRecoveryStatus::Restored { .. } => Task::done(Message::ShowToast(
-                "已恢复上次异常退出遗留的系统代理设置".to_owned(),
+                Lang(&copy_locale)
+                    .tr("system_proxy_orphan_restored")
+                    .into_owned(),
                 ToastStatus::Warning,
             )),
             SystemProxyRecoveryStatus::SkippedExternal { .. } => Task::done(Message::ShowToast(
-                "检测到外部系统代理修改，未覆盖该设置".to_owned(),
+                Lang(&copy_locale)
+                    .tr("system_proxy_external_preserved")
+                    .into_owned(),
                 ToastStatus::Warning,
             )),
             SystemProxyRecoveryStatus::Failed { failure } => {
                 self.set_error(&failure.message);
                 Task::done(Message::ShowToast(
-                    format!("系统代理启动恢复失败: {}", failure.message),
+                    localize(
+                        &copy_locale,
+                        "system_proxy_recovery_failed_notice",
+                        &[("reason", failure.message.clone())],
+                    ),
                     ToastStatus::Error,
                 ))
             }
@@ -139,6 +158,7 @@ impl AppState {
         &mut self,
         snapshot: SystemProxySnapshot,
     ) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         self.runtime.system_proxy = snapshot.clone();
         if matches!(
             &snapshot.status,
@@ -156,7 +176,9 @@ impl AppState {
         {
             self.runtime.system_proxy_last_repair_count = snapshot.repair_count;
             Task::done(Message::ShowToast(
-                "系统代理设置被其他程序修改，已自动恢复".to_owned(),
+                Lang(&copy_locale)
+                    .tr("system_proxy_owned_restored")
+                    .into_owned(),
                 ToastStatus::Warning,
             ))
         } else {

@@ -6,12 +6,10 @@
 //! the core publishes it, the application projects it, and both UI surfaces
 //! render the same fact instead of inferring a rollback from an error string.
 //!
-//! The publisher is deliberately process-wide: one host process runs one core,
-//! and the surfaces must not disagree about whether the live config is the
-//! config the user asked for.
+//! The host owns observations per runtime instance; this contract contains immutable data only.
 
 use serde::{Deserialize, Serialize};
-use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Terminal stage of one apply transaction.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,15 +33,6 @@ impl ApplyTransactionStage {
             Self::Committed => "committed",
             Self::RolledBack => "rolled_back",
             Self::RollbackFailed => "rollback_failed",
-        }
-    }
-
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::Idle => "尚无应用记录",
-            Self::Committed => "已提交生效",
-            Self::RolledBack => "已自动回滚到上一版本",
-            Self::RollbackFailed => "回滚失败：核心不可用，请立即处理",
         }
     }
 
@@ -110,59 +99,12 @@ impl ApplyTransactionSnapshot {
     pub fn is_failure(&self) -> bool {
         self.stage.is_failure()
     }
-
-    /// Honest one-line summary both surfaces can render.
-    pub fn summary_zh(&self) -> String {
-        match self.stage {
-            ApplyTransactionStage::Idle => "尚无应用记录".to_owned(),
-            ApplyTransactionStage::Committed => match &self.method {
-                Some(method) => format!("{} · 已提交生效（{method}）", self.profile),
-                None => format!("{} · 已提交生效", self.profile),
-            },
-            ApplyTransactionStage::RolledBack => {
-                format!("{} · 已自动回滚到上一版本：{}", self.profile, self.detail)
-            }
-            ApplyTransactionStage::RollbackFailed => format!(
-                "{} · 回滚失败：{}（{}）",
-                self.profile,
-                self.detail,
-                self.rollback_error.as_deref().unwrap_or("原因未记录")
-            ),
-        }
-    }
 }
 
 /// Wall-clock milliseconds since the Unix epoch (0 on a pre-epoch clock).
 pub fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as i64)
         .unwrap_or(0)
-}
-
-fn transaction_cache() -> &'static Mutex<Option<ApplyTransactionSnapshot>> {
-    static RECORD: OnceLock<Mutex<Option<ApplyTransactionSnapshot>>> = OnceLock::new();
-    RECORD.get_or_init(|| Mutex::new(None))
-}
-
-/// Publish the outcome of the transaction that just finished.
-pub fn record_apply_transaction(snapshot: ApplyTransactionSnapshot) {
-    if let Ok(mut record) = transaction_cache().lock() {
-        *record = Some(snapshot);
-    }
-}
-
-/// The last recorded apply transaction, if any.
-pub fn last_apply_transaction() -> Option<ApplyTransactionSnapshot> {
-    transaction_cache()
-        .lock()
-        .ok()
-        .and_then(|record| record.clone())
-}
-
-/// Drop the record (used by tests and by hosts that reset their state).
-pub fn clear_apply_transaction() {
-    if let Ok(mut record) = transaction_cache().lock() {
-        *record = None;
-    }
 }

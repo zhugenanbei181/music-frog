@@ -2,20 +2,32 @@
 //! here; the traffic / connections / delay / logs sections are built by the
 //! sibling section modules and composed into one page-level scrollable.
 
+use crate::view::pcap_panel::pcap_card;
+use infiltrator_application::proxy_mode_projection::mode_status_copy;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::proxy_mode::ProxyModeStatus;
+use std::fmt;
+use std::fmt::{Display, Formatter};
+pub(crate) mod connection_search;
 mod connections;
+pub(crate) mod connections_controls;
 mod delay;
-mod logs;
+pub(crate) mod logs;
+pub(crate) mod logs_controls;
 mod traffic;
+pub(crate) mod traffic_legend;
 
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     form_pick_style, style_accent, style_danger, style_ghost, text_btn,
 };
-use crate::view::components::{card, empty_state, icon_button, modern_scrollable, toggle_switch};
+use crate::view::components::{empty_state, icon_button, modern_scrollable, toggle_switch};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, SP_LG, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -28,8 +40,8 @@ struct ModeOption {
     label: String,
 }
 
-impl std::fmt::Display for ModeOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ModeOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.label)
     }
 }
@@ -41,7 +53,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         state.runtime.status,
         RuntimeStatus::Running | RuntimeStatus::Starting
     ) {
-        return container(card(
+        let stopped = card(
             None,
             column![
                 empty_state(Icon::Plug, lang.tr("proxy_not_running").as_ref(), ""),
@@ -53,11 +65,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ),
             ]
             .align_x(Alignment::Center),
-        ))
-        .width(Length::Fill)
+        );
+        return modern_scrollable(
+            column![
+                stopped,
+                card(None, logs::logs_section(state, Lang(&state.shell.lang)))
+            ]
+            .spacing(SP_LG),
+        )
+        .id("runtime-scroll")
         .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
         .into();
     }
 
@@ -79,6 +96,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             label: lang.tr("proxy_mode_script").to_string(),
         },
     ];
+    let mode_options: Vec<_> = mode_options
+        .into_iter()
+        .filter(|option| {
+            ProxyMode::from_wire(option.value)
+                .is_some_and(|mode| state.runtime.proxy_mode_state.is_mode_selectable(mode))
+        })
+        .collect();
     let selected_mode = mode_options
         .iter()
         .find(|option| Some(option.value) == state.runtime.proxy_mode.as_deref())
@@ -152,12 +176,26 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_secondary),
             }),
         Space::new().width(theme::SP_SM),
-        pick_list(mode_options, selected_mode, |mode: ModeOption| {
-            Message::SetProxyMode(mode.value.to_string())
-        })
-        .text_size(12)
-        .width(Length::Shrink)
-        .style(form_pick_style),
+        if state.runtime.proxy_mode_state.status == ProxyModeStatus::Ready
+            && state.runtime.pending_runtime_patch.is_none()
+        {
+            Element::from(
+                pick_list(mode_options, selected_mode, |mode: ModeOption| {
+                    Message::SetProxyMode(mode.value.to_string())
+                })
+                .text_size(12)
+                .width(Length::Shrink)
+                .style(form_pick_style),
+            )
+        } else {
+            Element::from(
+                text(mode_status_copy(
+                    &state.runtime.proxy_mode_state,
+                    &state.shell.lang,
+                ))
+                .size(12),
+            )
+        },
         Space::new().width(theme::SP_LG),
         text(lang.tr("runtime_auto_refresh").to_string())
             .size(12)
@@ -275,7 +313,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         header,
         runtime_proxy_selector,
         traffic::traffic_section(state, Lang(&state.shell.lang)),
-        crate::view::pcap_panel::pcap_card(state, &lang),
+        pcap_card(state, &lang),
         card(
             None,
             connections::connections_section(state, Lang(&state.shell.lang))
@@ -288,5 +326,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // Page-level scrolling (same idiom as overview/dns): sections keep their
     // natural height, so the Fill-height scrollables inside Shrink-height
     // cards can no longer collapse to blank slivers.
-    modern_scrollable(content).height(Length::Fill).into()
+    modern_scrollable(content)
+        .id("runtime-scroll")
+        .height(Length::Fill)
+        .into()
 }

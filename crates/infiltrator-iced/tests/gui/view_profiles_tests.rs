@@ -1,6 +1,7 @@
-use super::helpers::{format_bytes, format_datetime, traffic_row, ua_preset_chip};
+use super::helpers::{format_datetime, traffic_row, ua_preset_chip};
 use super::*;
 use chrono::DateTime;
+use infiltrator_application::byte_format::format_bytes;
 use infiltrator_domain::profiles::ProfileInfo;
 
 #[test]

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
+use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, PartialEq)]

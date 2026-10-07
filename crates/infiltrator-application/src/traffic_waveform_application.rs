@@ -45,7 +45,7 @@ mod tests {
             revision: 0,
             proxy_mode: None,
             core_version: None,
-            sampled_at_epoch_ms: None,
+            sampled_at_epoch_ms: Some(1),
             failure: None,
             upload_bps: 10.0,
             download_bps: 20.0,

@@ -5,6 +5,8 @@
 //! counts; an offline/unsupported/failed snapshot renders an honest typed
 //! status line instead.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::rules::RulesProjectionUpdated;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -18,18 +20,20 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::rule_mrs_projection::{
+    mrs_acceleration_item_label, mrs_acceleration_status_line,
+};
+use infiltrator_application::rule_provider_projection::provider_cache_line;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::mrs_acceleration::{
-    MrsAccelerationSnapshot, MrsAccelerationStatus, MrsItemSnapshot,
-};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::rules::RulesProjectionUpdated;
+use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+use infiltrator_shared::locales::Lang;
 
 /// Marker for the MRS ruleset engine card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -61,34 +65,6 @@ pub struct RulesMrsState {
     pub provider_name: Option<String>,
 }
 
-/// Honest one-line cache fact: directory, file count and bytes as observed.
-pub(crate) fn provider_cache_line(
-    cache: &infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
-) -> String {
-    use infiltrator_contract::provider_cache::RuleProviderCacheState;
-    match cache.state {
-        RuleProviderCacheState::Ready | RuleProviderCacheState::Empty => format!(
-            "内核规则集缓存 · {} · {} 个文件 · {} 字节",
-            cache.directory.as_deref().unwrap_or("目录未知"),
-            cache.file_count,
-            cache.total_bytes
-        ),
-        RuleProviderCacheState::Unsupported => format!(
-            "规则集缓存：宿主未声明缓存目录{}",
-            cache
-                .failure
-                .as_deref()
-                .map(|reason| format!("（{reason}）"))
-                .unwrap_or_default()
-        ),
-        RuleProviderCacheState::Failed => format!(
-            "规则集缓存不可读：{}",
-            cache.failure.as_deref().unwrap_or("未知错误")
-        ),
-        RuleProviderCacheState::Unknown => "规则集缓存状态未知".to_owned(),
-    }
-}
-
 /// Marker on the MRS status/aggregate line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MrsStatusText;
@@ -97,72 +73,21 @@ pub struct MrsStatusText;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MrsItemText(pub usize);
 
-/// Honest one-line status for the shared MRS read model.
-pub(crate) fn mrs_status_line(mrs: &MrsAccelerationSnapshot) -> String {
-    match mrs.status {
-        MrsAccelerationStatus::Ready => format!(
-            "MRS 加速就绪 · {} 个规则集 · {} 条规则 · 节省内存 {} · mmap {}",
-            mrs.total_providers,
-            mrs.total_accelerated_rules,
-            mrs.total_memory_saved_bytes,
-            if mrs.mmap_acceleration_active {
-                "已启用"
-            } else {
-                "未启用"
-            }
-        ),
-        MrsAccelerationStatus::Empty => "MRS 加速：当前配置未声明二进制规则集".to_owned(),
-        MrsAccelerationStatus::Unsupported => format!(
-            "MRS 加速不受支持：{}",
-            mrs.failure.as_deref().unwrap_or("宿主未提供")
-        ),
-        MrsAccelerationStatus::Failed => format!(
-            "MRS 加速失败：{}",
-            mrs.failure.as_deref().unwrap_or("未知错误")
-        ),
-        MrsAccelerationStatus::Unknown => format!(
-            "MRS 加速不可用：{}",
-            mrs.failure.as_deref().unwrap_or("内核未运行")
-        ),
-    }
-}
-
-/// One MRS item line: name, behavior, count, compression and integrity facts.
-pub(crate) fn mrs_item_label(item: &MrsItemSnapshot) -> String {
-    let digest = item
-        .sha256_digest
-        .as_deref()
-        .map(|value| format!("sha256 {}", value.chars().take(12).collect::<String>()))
-        .unwrap_or_else(|| "sha256 —".to_owned());
-    format!(
-        "{} ({} 条目 · {} · {} · {})",
-        item.name,
-        item.rule_count,
-        item.behavior.as_str(),
-        if item.is_valid {
-            "校验通过"
-        } else {
-            "校验失败"
-        },
-        digest
-    )
-}
-
 /// Scene constructor for the MRS Ruleset Engine card.
 pub fn rules_mrs_scene(
     palette: &UiPalette,
     mrs: &MrsAccelerationSnapshot,
-    provider_cache: &infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    provider_cache: &RuleProviderCacheSnapshot,
 ) -> impl Scene + use<> {
-    let status_line = mrs_status_line(mrs);
-    let cache_line = provider_cache_line(provider_cache);
+    let status_line = mrs_acceleration_status_line(&Lang("en-US"), mrs);
+    let cache_line = provider_cache_line(provider_cache, &Lang("en-US"));
 
     let item_scenes: Vec<Box<dyn Scene>> = mrs
         .items
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let label = mrs_item_label(item);
+            let label = mrs_acceleration_item_label(&Lang("en-US"), item);
             Box::new(bsn! {
                 Node {
                     width: percent(100),
@@ -197,7 +122,7 @@ pub fn rules_mrs_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                                     --
-                                    Text({ "MRS 二进制规则集治理与解构 (MRS Ruleset Engine)".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_mrs_engine_title") TextRole(Role::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -216,7 +141,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     UpgradeGeoDatabasesButton
                                     Children [
-                                        Text({ "更新 Geo 数据库".to_owned() }) TextRole(Role::Body)
+                                        LocalizedText::plain("rules_update_geo_btn") TextRole(Role::Body)
                                     ]
                                     --
                                     Node {
@@ -230,7 +155,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     PurgeRuleProviderCacheButton
                                     Children [
-                                        Text({ "清理规则集本地缓存".to_owned() }) TextRole(Role::Body)
+                                        LocalizedText::plain("provider_btn_purge_cache") TextRole(Role::Body)
                                     ]
                                     --
                                     Node {
@@ -244,7 +169,7 @@ pub fn rules_mrs_scene(
                                     Button
                                     UnpackRuleProviderButton
                                     Children [
-                                        Text({ "一键解构导入为本地规则".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("rules_mrs_import_action") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -279,12 +204,13 @@ pub fn rules_mrs_scene(
 /// Restamp the MRS status line and item rows from the shared snapshot.
 pub fn apply_mrs_projection(
     update: On<RulesProjectionUpdated>,
+    locale: Res<UiLocale>,
     mut status: Query<(&mut Text, &MrsStatusText), Without<MrsItemText>>,
     mut items: Query<(&mut Text, &MrsItemText), Without<MrsStatusText>>,
     mut state: ResMut<RulesMrsState>,
 ) {
     let mrs = &update.0.mrs_acceleration;
-    let want_status = mrs_status_line(mrs);
+    let want_status = mrs_acceleration_status_line(&Lang(locale.code()), mrs);
     for (mut text, _) in &mut status {
         if text.0 != want_status {
             text.0 = want_status.clone();
@@ -292,7 +218,7 @@ pub fn apply_mrs_projection(
     }
     for (mut text, marker) in &mut items {
         if let Some(item) = mrs.items.get(marker.0) {
-            let want = mrs_item_label(item);
+            let want = mrs_acceleration_item_label(&Lang(locale.code()), item);
             if text.0 != want {
                 text.0 = want;
             }
@@ -309,9 +235,10 @@ pub fn apply_mrs_projection(
 /// DUAL-11-07: restamp the observed provider-cache fact line.
 pub fn apply_provider_cache_projection(
     update: On<RulesProjectionUpdated>,
+    locale: Res<UiLocale>,
     mut cache_texts: Query<(&mut Text, &ProviderCacheText)>,
 ) {
-    let want = provider_cache_line(&update.0.provider_cache);
+    let want = provider_cache_line(&update.0.provider_cache, &Lang(locale.code()));
     for (mut text, _) in &mut cache_texts {
         if text.0 != want {
             text.0 = want.clone();
@@ -350,12 +277,15 @@ pub(crate) fn on_rules_mrs_action_activated(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::mrs_acceleration::MrsBehaviorKind;
     use infiltrator_contract::mrs_acceleration::MrsCompressionKind;
+    use infiltrator_contract::mrs_acceleration::MrsItemSnapshot;
 
     fn item(name: &str) -> MrsItemSnapshot {
         MrsItemSnapshot {
             name: name.to_owned(),
-            behavior: infiltrator_contract::mrs_acceleration::MrsBehaviorKind::Domain,
+            behavior: MrsBehaviorKind::Domain,
             format_version: 1,
             compression: MrsCompressionKind::None,
             rule_count: 42,
@@ -375,20 +305,20 @@ mod tests {
     #[test]
     fn status_line_is_honest_for_every_state() {
         let ready = MrsAccelerationSnapshot::ready(1, 1, vec![item("a.mrs")], true);
-        assert!(mrs_status_line(&ready).contains("MRS 加速就绪"));
-        assert!(mrs_status_line(&ready).contains("1 个规则集"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &ready).contains("MRS 加速就绪"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &ready).contains("1 个规则集"));
         let empty = MrsAccelerationSnapshot::empty(1, 1);
-        assert!(mrs_status_line(&empty).contains("未声明"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &empty).contains("未声明"));
         let unsupported = MrsAccelerationSnapshot::unsupported(1, 1, "无网关");
-        assert!(mrs_status_line(&unsupported).contains("不受支持"));
-        assert!(mrs_status_line(&unsupported).contains("无网关"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &unsupported).contains("不受支持"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &unsupported).contains("无网关"));
         let failed = MrsAccelerationSnapshot::failed(1, 1, "解析失败");
-        assert!(mrs_status_line(&failed).contains("失败"));
+        assert!(mrs_acceleration_status_line(&Lang("zh-CN"), &failed).contains("失败"));
     }
 
     #[test]
     fn item_label_reports_integrity_and_digest_prefix() {
-        let label = mrs_item_label(&item("geoip.mrs"));
+        let label = mrs_acceleration_item_label(&Lang("zh-CN"), &item("geoip.mrs"));
         assert!(label.contains("geoip.mrs"));
         assert!(label.contains("42 条目"));
         assert!(label.contains("domain"));

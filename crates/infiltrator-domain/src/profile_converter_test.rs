@@ -1,6 +1,9 @@
 use super::*;
+use crate::profile_converter::ReservedField;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use serde_json::Value;
+use std::slice::from_ref;
 
 #[test]
 fn test_parse_yaml() {
@@ -76,8 +79,7 @@ fn test_roundtrip_json() {
     node.alpn = Some(vec!["h2".to_string(), "http/1.1".to_string()]);
     node.network = Some("ws".to_string());
 
-    let json = ProfileConverter::export_nodes(std::slice::from_ref(&node), ProfileFormat::RawJson)
-        .unwrap();
+    let json = ProfileConverter::export_nodes(from_ref(&node), ProfileFormat::RawJson).unwrap();
     let parsed = ProfileConverter::parse_nodes(&json, ProfileFormat::RawJson).unwrap();
 
     assert_eq!(parsed.len(), 1);
@@ -96,11 +98,8 @@ fn test_roundtrip_uri_base64() {
     node.uuid = Some("b831381d-6324-4d53-ad4f-8cda48b30811".to_string());
     node.tls = true;
 
-    let b64 = ProfileConverter::export_nodes(
-        std::slice::from_ref(&node),
-        ProfileFormat::Base64Subscription,
-    )
-    .unwrap();
+    let b64 =
+        ProfileConverter::export_nodes(from_ref(&node), ProfileFormat::Base64Subscription).unwrap();
     let parsed = ProfileConverter::parse_nodes(&b64, ProfileFormat::Base64Subscription).unwrap();
 
     assert_eq!(parsed.len(), 1);
@@ -273,12 +272,7 @@ fn test_parse_wireguard() {
     assert_eq!(node.ip.as_deref(), Some("10.0.0.2"));
     assert_eq!(node.ipv6.as_deref(), Some("fd00::2"));
     assert_eq!(node.mtu, Some(1420));
-    assert_eq!(
-        node.reserved,
-        Some(crate::profile_converter::ReservedField::Array(vec![
-            1, 2, 3
-        ]))
-    );
+    assert_eq!(node.reserved, Some(ReservedField::Array(vec![1, 2, 3])));
     assert_eq!(node.udp, Some(true));
 
     let exported = ProfileConverter::export_uri(&node).unwrap();
@@ -367,7 +361,7 @@ fn test_detect_and_convert() {
     assert!(yaml_out2.contains("hysteria2"));
 
     // 3. Base64 subscription to Clash YAML
-    let b64_input = base64::engine::general_purpose::STANDARD.encode(
+    let b64_input = STANDARD.encode(
         "trojan://pass@trojan.com:443#Trojan-Sub
 ",
     );

@@ -1,10 +1,12 @@
+use crate::verify;
 use futures_util::StreamExt;
 use mihomo_api::error::{MihomoError, Result};
+use std::env::consts::{ARCH, OS};
 use std::path::Path;
+use std::process::id;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-
-use crate::verify;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DownloadProgress {
@@ -65,7 +67,7 @@ impl Downloader {
         C: Fn() -> bool,
     {
         if is_cancelled() {
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
         let platform = Self::detect_platform();
         let os_name = Self::get_os_name();
@@ -97,7 +99,7 @@ impl Downloader {
         let mut stream = resp.bytes_stream();
         while let Some(chunk) = stream.next().await {
             if is_cancelled() {
-                return Err(MihomoError::Version("下载已取消".to_string()));
+                return Err(MihomoError::Canceled);
             }
             let chunk = chunk?;
             downloaded += chunk.len() as u64;
@@ -106,7 +108,7 @@ impl Downloader {
         }
 
         if is_cancelled() {
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
         Self::install_archive(&bytes, expected_digest, &filename, dest).await
     }
@@ -143,11 +145,11 @@ impl Downloader {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("mihomo");
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
             .unwrap_or(0);
-        let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", std::process::id()));
+        let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", id()));
 
         let write = async {
             let mut file = fs::File::create(&tmp).await?;
@@ -178,7 +180,7 @@ impl Downloader {
     }
 
     pub(crate) fn get_os_name() -> &'static str {
-        match std::env::consts::OS {
+        match OS {
             "linux" => "linux",
             "macos" => "darwin",
             "windows" => "windows",
@@ -187,7 +189,7 @@ impl Downloader {
     }
 
     pub(crate) fn detect_platform() -> String {
-        let arch = std::env::consts::ARCH;
+        let arch = ARCH;
         match arch {
             "x86_64" => "amd64",
             "aarch64" => "arm64",
@@ -198,7 +200,7 @@ impl Downloader {
     }
 
     pub(crate) fn get_file_extension() -> &'static str {
-        match std::env::consts::OS {
+        match OS {
             "windows" => "zip",
             _ => "gz",
         }
@@ -254,6 +256,12 @@ impl Default for Downloader {
 mod tests {
     use super::*;
     use crate::verify::sha256_hex;
+    #[cfg(test)]
+    use std::fs::metadata;
+    #[cfg(test)]
+    use std::fs::read;
+    #[cfg(test)]
+    use std::fs::read_dir;
 
     fn gz_archive(content: &[u8]) -> Vec<u8> {
         use flate2::Compression;
@@ -276,14 +284,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(std::fs::read(&dest).unwrap(), content);
+        assert_eq!(read(&dest).unwrap(), content);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&dest).unwrap().permissions().mode();
+            let mode = metadata(&dest).unwrap().permissions().mode();
             assert_eq!(mode & 0o777, 0o755);
         }
-        let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+        let leftovers: Vec<_> = read_dir(dir.path())
             .unwrap()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_name().to_string_lossy().contains(".tmp-"))

@@ -6,6 +6,7 @@
 //! form. The host supports `fake-ip`/`redir-host` enhanced modes and
 //! `blacklist`/`whitelist`/`rule` filter modes.
 
+use crate::dns_hosts::DnsHostEntry;
 use serde::{Deserialize, Serialize};
 
 /// Domain mapping mode (`dns.enhanced-mode`).
@@ -399,46 +400,18 @@ impl DnsFallbackPolicy {
     }
 }
 
-/// Outcome of one DNS cache flush target.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DnsFlushOutcome {
-    /// No flush has been requested in this session.
-    #[default]
-    NotRequested,
-    /// The target accepted the flush.
-    Flushed,
-    /// The host has no drivable flush for this target.
-    Unsupported { reason: String },
-    /// The flush ran and failed.
-    Failed { message: String },
-}
-
-impl DnsFlushOutcome {
-    pub fn is_flushed(&self) -> bool {
-        matches!(self, Self::Flushed)
-    }
-}
-
-/// Honest per-target report of the last DNS cache flush.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DnsCacheFlushReport {
-    /// The running core's Fake-IP mapping cache.
-    pub fake_ip: DnsFlushOutcome,
-    /// The operating system resolver cache.
-    pub os_cache: DnsFlushOutcome,
-}
-
-impl DnsCacheFlushReport {
-    /// Whether any target has a recorded outcome (a flush was requested).
-    pub fn is_requested(&self) -> bool {
-        self.fake_ip != DnsFlushOutcome::NotRequested
-            || self.os_cache != DnsFlushOutcome::NotRequested
-    }
-}
-
 /// A partial DNS settings patch submitted by either surface.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsSettingsPatch {
+    /// Refuse a stale editor when the current profile changed.
+    #[serde(default)]
+    pub expected_profile: Option<String>,
+    /// Preserve concurrent edits by refusing a changed root mapping.
+    #[serde(default)]
+    pub expected_hosts: Option<Vec<DnsHostEntry>>,
+    /// Explicitly migrate obsolete dns.hosts only when the user previews and applies it.
+    #[serde(default)]
+    pub remove_legacy_hosts: bool,
     pub switches: Option<DnsCoreSwitches>,
     pub enhanced_mode: Option<DnsEnhancedMode>,
     pub filter_mode: Option<DnsFakeIpFilterMode>,
@@ -542,141 +515,6 @@ impl FakeIpMappingPool {
             })
             .collect()
     }
-}
-
-/// DUAL-14-11: one `dns.hosts` mapping row.
-///
-/// The address token follows the host's own `hosts` value grammar: an IP
-/// literal, the `lan` keyword, or an alias domain. A domain with several IPs
-/// is published as one row per address so the editor round-trips losslessly.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DnsHostEntry {
-    pub domain: String,
-    pub address: String,
-}
-
-/// DUAL-14-11: a locally detected hosts-editor issue.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DnsHostsIssue {
-    /// The value is neither an IP literal, `lan`, nor a domain alias.
-    InvalidAddress { address: String },
-    /// The mapping key is empty or carries whitespace.
-    InvalidDomain { domain: String },
-}
-
-impl DnsHostsIssue {
-    /// The offending token, for localized copy.
-    pub fn token(&self) -> &str {
-        match self {
-            Self::InvalidAddress { address } => address,
-            Self::InvalidDomain { domain } => domain,
-        }
-    }
-}
-
-/// Parse a shared hosts editor into mapping rows.
-///
-/// Rows are separated by newlines or `;` (so a single-line text field on one
-/// surface and a multi-line editor on the other parse identically). Each row is
-/// `address domain [domain ...]`, hosts-file order; `#` starts a comment.
-pub fn parse_hosts_editor(raw: &str) -> Vec<DnsHostEntry> {
-    let mut entries = Vec::new();
-    for row in raw.split(['\n', ';']) {
-        let row = row.split('#').next().unwrap_or("").trim();
-        if row.is_empty() {
-            continue;
-        }
-        let mut tokens = row.split_whitespace();
-        let Some(address) = tokens.next() else {
-            continue;
-        };
-        for domain in tokens {
-            entries.push(DnsHostEntry {
-                domain: domain.to_owned(),
-                address: address.to_owned(),
-            });
-        }
-    }
-    entries
-}
-
-/// The canonical editor string for a hosts mapping (one row per entry).
-pub fn hosts_editor_text(entries: &[DnsHostEntry]) -> String {
-    entries
-        .iter()
-        .map(|entry| format!("{} {}", entry.address, entry.domain))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Append one `address domain` row, ignoring an exact duplicate.
-pub fn append_host_row(raw: &str, address: &str, domain: &str) -> String {
-    let address = address.trim();
-    let domain = domain.trim();
-    if address.is_empty() || domain.is_empty() {
-        return raw.to_owned();
-    }
-    let mut entries = parse_hosts_editor(raw);
-    if !entries
-        .iter()
-        .any(|entry| entry.domain.eq_ignore_ascii_case(domain) && entry.address == address)
-    {
-        entries.push(DnsHostEntry {
-            domain: domain.to_owned(),
-            address: address.to_owned(),
-        });
-    }
-    hosts_editor_text(&entries)
-}
-
-/// Remove one row from the raw hosts editor string.
-pub fn remove_host_at(raw: &str, index: usize) -> String {
-    let mut entries = parse_hosts_editor(raw);
-    if index < entries.len() {
-        entries.remove(index);
-    }
-    hosts_editor_text(&entries)
-}
-
-/// Whether a hosts value follows the host's accepted grammar.
-pub fn is_valid_hosts_address(address: &str) -> bool {
-    let value = address.trim();
-    if value.is_empty() {
-        return false;
-    }
-    if value.eq_ignore_ascii_case("lan") {
-        return true;
-    }
-    if value.parse::<std::net::Ipv4Addr>().is_ok() || value.parse::<std::net::Ipv6Addr>().is_ok() {
-        return true;
-    }
-    // The host resolves a value with two or more labels as an alias domain.
-    !value.contains(char::is_whitespace)
-        && value.split('.').filter(|part| !part.is_empty()).count() >= 2
-}
-
-/// Whether a hosts mapping key is acceptable for the host trie.
-pub fn is_valid_hosts_domain(domain: &str) -> bool {
-    let value = domain.trim();
-    !value.is_empty() && !value.contains(char::is_whitespace) && !value.contains(':')
-}
-
-/// Validate a hosts mapping; both surfaces localize the returned issues.
-pub fn validate_hosts(entries: &[DnsHostEntry]) -> Vec<DnsHostsIssue> {
-    let mut issues = Vec::new();
-    for entry in entries {
-        if !is_valid_hosts_domain(&entry.domain) {
-            issues.push(DnsHostsIssue::InvalidDomain {
-                domain: entry.domain.clone(),
-            });
-        }
-        if !is_valid_hosts_address(&entry.address) {
-            issues.push(DnsHostsIssue::InvalidAddress {
-                address: entry.address.clone(),
-            });
-        }
-    }
-    issues
 }
 
 #[cfg(test)]
@@ -844,67 +682,5 @@ mod tests {
                 reason: "no running core connection feed on this host".to_owned()
             }
         );
-    }
-
-    #[test]
-    fn hosts_editor_round_trips_rows_without_ambiguity() {
-        let raw = "127.0.0.1 localhost\n# comment\n192.168.1.1 router.lan *.router.lan";
-        let entries = parse_hosts_editor(raw);
-        assert_eq!(entries.len(), 3);
-        assert_eq!(entries[0].address, "127.0.0.1");
-        assert_eq!(entries[2].domain, "*.router.lan");
-        let text = hosts_editor_text(&entries);
-        assert_eq!(parse_hosts_editor(&text), entries);
-        // A single-line surface separates rows with `;` and parses identically.
-        assert_eq!(
-            parse_hosts_editor("1.1.1.1 a.com; 8.8.8.8 b.com"),
-            vec![
-                DnsHostEntry {
-                    domain: "a.com".to_owned(),
-                    address: "1.1.1.1".to_owned()
-                },
-                DnsHostEntry {
-                    domain: "b.com".to_owned(),
-                    address: "8.8.8.8".to_owned()
-                },
-            ]
-        );
-        let appended = append_host_row(&text, "10.0.0.1", "nas.lan");
-        assert_eq!(remove_host_at(&appended, 0), remove_host_at(&appended, 0));
-        assert_eq!(append_host_row(&appended, "10.0.0.1", "nas.lan"), appended);
-        assert_eq!(append_host_row(text.as_str(), " ", "x"), text);
-    }
-
-    #[test]
-    fn hosts_validation_accepts_host_grammar_only() {
-        assert!(is_valid_hosts_address("1.2.3.4"));
-        assert!(is_valid_hosts_address("2001:db8::1"));
-        assert!(is_valid_hosts_address("lan"));
-        assert!(is_valid_hosts_address("target.example.com"));
-        assert!(!is_valid_hosts_address("notadomain"));
-        assert!(!is_valid_hosts_address("has space"));
-        assert!(!is_valid_hosts_address(""));
-        assert!(is_valid_hosts_domain("*.example.com"));
-        assert!(!is_valid_hosts_domain("bad domain"));
-        assert!(!is_valid_hosts_domain("host:53"));
-
-        let issues = validate_hosts(&[
-            DnsHostEntry {
-                domain: "ok.example.com".to_owned(),
-                address: "1.2.3.4".to_owned(),
-            },
-            DnsHostEntry {
-                domain: "bad domain".to_owned(),
-                address: "nope".to_owned(),
-            },
-        ]);
-        assert_eq!(issues.len(), 2);
-        assert!(issues.contains(&DnsHostsIssue::InvalidDomain {
-            domain: "bad domain".to_owned()
-        }));
-        assert!(issues.contains(&DnsHostsIssue::InvalidAddress {
-            address: "nope".to_owned()
-        }));
-        assert_eq!(issues[0].token(), issues[0].token());
     }
 }

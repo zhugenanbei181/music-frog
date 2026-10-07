@@ -1,20 +1,21 @@
 //! Profile card list with quota/expiry detail.
 
+use super::helpers::{format_datetime, traffic_row};
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_ghost, text_btn};
 use crate::view::components::{
-    BadgeKind, badge, card, chip, empty_state, icon_button, kbd_badge, section_header,
+    BadgeKind, badge, chip, empty_state, icon_button, kbd_badge, section_header,
 };
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CARD, SP_MD, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CARD, SP_MD, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-use super::helpers::{format_datetime, traffic_row};
 
 pub(super) fn profiles_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);

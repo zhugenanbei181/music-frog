@@ -1,10 +1,14 @@
 use super::*;
+use iced::advanced::widget::Tree;
+use infiltrator_application::dns_hosts_projection::issue_text;
+use infiltrator_contract::dns::FakeIpMappingPool;
+use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
 
 // ===========================================================================
 // DUAL-14-06 / 14-10 / 14-11: Fake-IP pool, latency policy & hosts editor
 // ===========================================================================
 
-fn fake_ip_pool() -> infiltrator_contract::dns::FakeIpMappingPool {
+fn fake_ip_pool() -> FakeIpMappingPool {
     use infiltrator_contract::dns::{FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource};
     FakeIpMappingPool {
         source: FakeIpMappingSource::LiveConnections,
@@ -23,8 +27,8 @@ fn fake_ip_pool() -> infiltrator_contract::dns::FakeIpMappingPool {
     }
 }
 
-fn host_row(domain: &str, address: &str) -> infiltrator_contract::dns::DnsHostEntry {
-    infiltrator_contract::dns::DnsHostEntry {
+fn host_row(domain: &str, address: &str) -> DnsHostEntry {
+    DnsHostEntry {
         domain: domain.to_owned(),
         address: address.to_owned(),
     }
@@ -35,19 +39,36 @@ fn test_dns_fake_ip_pool_panel_filters_the_observed_subset() {
     let (mut state, _) = AppState::new();
     state.editor.dns_fake_ip_pool = fake_ip_pool();
     state.editor.dns_fake_ip_query = "cdn".to_owned();
-    let matches = state
-        .editor
-        .dns_fake_ip_pool
-        .filter(&state.editor.dns_fake_ip_query);
-    assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].address, "198.18.0.7");
-    // Both locales render the panel (the copy is localized, not hardcoded).
-    let _ = fake_ip_pool_panel(&state, &Lang("zh-CN"));
-    let _ = fake_ip_pool_panel(&state, &Lang("en-US"));
-
-    // An unavailable host never renders a fabricated binding.
+    fn mounted(tree: &Tree) -> usize {
+        1 + tree.children.iter().map(mounted).sum::<usize>()
+    }
+    let original = state.editor.dns_fake_ip_pool.clone();
+    for code in ["zh-CN", "en-US"] {
+        let lang = Lang(code);
+        let _ = state.update(Message::UpdateDnsFakeIpQuery(String::new()));
+        let all = mounted(&Tree::new(fake_ip_pool_panel(&state, &lang).as_widget()));
+        let _ = state.update(Message::UpdateDnsFakeIpQuery("cdn".into()));
+        assert_eq!(state.editor.dns_fake_ip_query, "cdn");
+        let one = mounted(&Tree::new(fake_ip_pool_panel(&state, &lang).as_widget()));
+        assert!(one < all, "the native panel mounts only the matching row");
+        assert_eq!(
+            project_mappings(&original, "cdn", code).rows[0].address,
+            "198.18.0.7"
+        );
+        let _ = state.update(Message::UpdateDnsFakeIpQuery("missing".into()));
+        let empty = mounted(&Tree::new(fake_ip_pool_panel(&state, &lang).as_widget()));
+        assert!(empty < one, "no-match panel retires the mapping row");
+        assert_eq!(
+            state.editor.dns_fake_ip_pool, original,
+            "local filter cannot mutate observed bindings"
+        );
+    }
     state.editor.dns_fake_ip_pool = Default::default();
-    let _ = fake_ip_pool_panel(&state, &Lang("zh-CN"));
+    assert!(
+        project_mappings(&state.editor.dns_fake_ip_pool, "", "en-US")
+            .rows
+            .is_empty()
+    );
 }
 
 #[test]
@@ -70,11 +91,11 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
     let unsupported = DnsLatencyReport::unsupported("no prober on this host");
     assert_eq!(
         unsupported.summary(),
-        infiltrator_contract::dns_latency::DnsLatencySummary::Unsupported {
+        DnsLatencySummary::Unsupported {
             reason: "no prober on this host".to_owned()
         }
     );
-    assert!(latency_result_lines(&unsupported, &zh).is_empty());
+    assert!(latency_result_lines(project_dns_latency(&unsupported, zh.0).rows).is_empty());
     let _ = latency_policy_line(&unsupported, None, false, &zh);
     let _ = latency_policy_line(&unsupported, None, false, &en);
 
@@ -115,8 +136,8 @@ fn test_dns_latency_policy_line_is_localized_and_honest() {
             total: 3
         }
     ));
-    let zh_lines = latency_result_lines(&report, &zh);
-    let en_lines = latency_result_lines(&report, &en);
+    let zh_lines = latency_result_lines(project_dns_latency(&report, zh.0).rows);
+    let en_lines = latency_result_lines(project_dns_latency(&report, en.0).rows);
     assert_eq!(zh_lines.len(), 3);
     assert_eq!(en_lines.len(), 3);
     let _ = latency_policy_line(&report, Some(Message::RunDnsLatencyProbe), false, &zh);
@@ -163,45 +184,52 @@ fn test_dns_self_heal_panel_renders_every_observed_check() {
 #[test]
 fn test_dns_hosts_panel_add_remove_rows_uses_the_shared_draft() {
     let (mut state, _) = AppState::new();
+    let _ = state.update(Message::OpenDnsHostsEditor);
     let _ = state.update(Message::UpdateDnsHostsAddress("192.168.1.1".to_owned()));
     let _ = state.update(Message::UpdateDnsHostsDomain("router.lan".to_owned()));
     let _ = state.update(Message::AddDnsHostRow);
     assert_eq!(
-        state.editor.dns_hosts,
+        state
+            .editor
+            .dns_hosts_editor
+            .rows
+            .iter()
+            .map(|row| row.entry.clone())
+            .collect::<Vec<_>>(),
         vec![host_row("router.lan", "192.168.1.1")]
     );
-    assert!(state.editor.dns_hosts_dirty);
+    assert!(state.editor.dns_hosts_editor.dirty);
 
     // An exact duplicate row is not added twice.
     let _ = state.update(Message::UpdateDnsHostsAddress("192.168.1.1".to_owned()));
     let _ = state.update(Message::UpdateDnsHostsDomain("router.lan".to_owned()));
     let _ = state.update(Message::AddDnsHostRow);
-    assert_eq!(state.editor.dns_hosts.len(), 1);
+    assert_eq!(state.editor.dns_hosts_editor.rows.len(), 1);
 
     // The add form is cleared after a successful insert.
-    assert!(state.editor.dns_hosts_address.is_empty());
-    assert!(state.editor.dns_hosts_domain.is_empty());
+    assert!(state.editor.dns_hosts_editor.address.is_empty());
+    assert!(state.editor.dns_hosts_editor.domain.is_empty());
 
     let _ = state.update(Message::RemoveDnsHostRow(0));
-    assert!(state.editor.dns_hosts.is_empty());
+    assert!(state.editor.dns_hosts_editor.rows.is_empty());
 
     // Both locales render the editor and the shared validation copy.
-    state.editor.dns_hosts = vec![host_row("bad domain", "nope")];
-    let issues = infiltrator_contract::dns::validate_hosts(&state.editor.dns_hosts);
+    let invalid = vec![host_row("bad domain", "nope")];
+    let issues = validate_hosts(&invalid);
     assert_eq!(issues.len(), 2);
     let _ = hosts_panel(&state, &Lang("zh-CN"));
     let _ = hosts_panel(&state, &Lang("en-US"));
     for issue in &issues {
         let zh = Lang("zh-CN");
         let en = Lang("en-US");
-        let _ = hosts_issue_line(issue, &zh);
-        let _ = hosts_issue_line(issue, &en);
+        let _ = issue_text(issue, zh.0);
+        let _ = issue_text(issue, en.0);
     }
 }
 
 #[test]
 fn test_dns_hosts_issue_copy_is_localized() {
-    use infiltrator_contract::dns::DnsHostsIssue;
+    use infiltrator_contract::dns_hosts::DnsHostsIssue;
     let zh = Lang("zh-CN");
     let en = Lang("en-US");
     let address_zh = zh.tr("dns_hosts_issue_address").replace("{value}", "nope");
@@ -213,10 +241,10 @@ fn test_dns_hosts_issue_copy_is_localized() {
             .chars()
             .any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c))
     );
-    let _ = hosts_issue_line(
+    let _ = issue_text(
         &DnsHostsIssue::InvalidDomain {
             domain: "bad domain".to_owned(),
         },
-        &zh,
+        zh.0,
     );
 }

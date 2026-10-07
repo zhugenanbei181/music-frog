@@ -12,5 +12,14 @@ pub mod editor;
 pub mod message;
 pub mod options;
 pub mod perf;
+pub mod rule_list;
+pub mod rule_trace;
 pub mod rules;
 pub mod runtime;
+
+pub mod dns_query;
+
+pub mod script;
+pub mod snapshot_restore;
+
+pub mod profile_edit;

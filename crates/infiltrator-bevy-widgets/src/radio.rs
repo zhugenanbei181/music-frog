@@ -8,6 +8,9 @@
 //! [`sync_radio_visuals`] re-projects ring fill and outline from `Checked`
 //! and the live palette every pass (compare-and-set).
 
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -22,10 +25,6 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Checked};
 use bevy::ui_widgets::{RadioButton, RadioGroup};
-
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Marker on the visual ring child of a radio row.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -383,7 +382,6 @@ pub fn advance_radio_group_navigation(
 /// Repaint every radio ring from the row's `Checked` state and the live
 /// palette. Compare-and-set: a ring whose fill already matches is left
 /// untouched, so unchanged frames produce no change detection noise.
-#[allow(clippy::type_complexity)]
 pub fn sync_radio_visuals(
     palette: Res<UiPalette>,
     rows: Query<(&Children, Has<Checked>), With<RadioButton>>,

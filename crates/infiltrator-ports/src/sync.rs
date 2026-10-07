@@ -1,11 +1,10 @@
 //! Runtime-neutral WebDAV synchronization port.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::sync::{SyncProgress, SyncReport, SyncTransferReport};
 use infiltrator_domain::settings::WebDavConfig;
 use std::sync::Arc;
-
-use crate::error::PortError;
 
 #[derive(Clone, Debug)]
 pub struct SyncRequest {

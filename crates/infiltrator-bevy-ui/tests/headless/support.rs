@@ -3,6 +3,7 @@ use bevy::app::App;
 use bevy::asset::{AssetApp, AssetPlugin};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::scene::ScenePlugin;
@@ -24,7 +25,7 @@ pub fn page_root(world: &mut World) -> (Entity, Route) {
 }
 
 pub fn content_slot(world: &mut World) -> Entity {
-    let mut query = world.query_filtered::<Entity, bevy::ecs::query::With<ContentSlot>>();
+    let mut query = world.query_filtered::<Entity, With<ContentSlot>>();
     query.single(world).expect("single ContentSlot in shell")
 }
 

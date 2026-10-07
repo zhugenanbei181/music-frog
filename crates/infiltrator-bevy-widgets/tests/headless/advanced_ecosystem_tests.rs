@@ -1,10 +1,11 @@
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::math::Vec2;
-
+use bevy::ui::{BorderColor, Val};
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
 use infiltrator_bevy_widgets::desktop::{FramelessWindowConfig, TrayBadgeState, WindowHitZone};
-use infiltrator_bevy_widgets::editor::{CodeEditorState, SyntaxTokenKind, tokenize_yaml_line};
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::editor::{CodeEditorGutter, SyntaxTokenKind, tokenize_yaml_line};
 use infiltrator_bevy_widgets::focus::{FocusDirection, find_spatial_neighbor};
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PullToRefreshState, SafeAreaInsets, SwipeToActionItem,
@@ -14,6 +15,7 @@ use infiltrator_bevy_widgets::i18n::{
     Locale, LocaleKey, TranslationRepo, format_bytes, format_duration_secs, format_rate,
 };
 use infiltrator_bevy_widgets::motion::{Easing, Spring, lerp_color, lerp_f32};
+use infiltrator_bevy_widgets::theme::Theme;
 
 #[test]
 fn test_touch_gesture_recognizer_tap_long_press_swipe() {
@@ -123,9 +125,13 @@ fn test_i18n_formatting_and_locales() {
     assert_eq!(format_rate(2048.0), "2.00 KB/s");
     assert_eq!(format_duration_secs(3665), "01:01:05");
 
-    let repo = TranslationRepo::new(Locale::ZhCn);
+    let mut repo = TranslationRepo::new(Locale::ZhCn);
     assert_eq!(repo.translate(LocaleKey::Overview), "核心概览");
     assert_eq!(repo.translate(LocaleKey::Settings), "系统设置");
+    repo.current_locale = Locale::EnUs;
+    assert_eq!(repo.translate(LocaleKey::Overview), "Overview");
+    assert_eq!(repo.translate(LocaleKey::Settings), "Settings");
+    assert_eq!(repo.translate(LocaleKey::ActionCancel), "Cancel");
 }
 
 #[test]
@@ -185,6 +191,7 @@ fn test_frame_pacing_cadence() {
     assert!(!FramePacingMode::Suspended.is_active());
 }
 
+use crate::support::headless_app;
 use bevy::app::Startup;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::CommandsSceneExt;
@@ -194,8 +201,6 @@ use infiltrator_bevy_widgets::editor::code_editor_scene;
 use infiltrator_bevy_widgets::focus::{FocusRingStyle, focus_ring_scene};
 use infiltrator_bevy_widgets::gesture::{PullToRefreshIndicator, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
-
-use crate::support::headless_app;
 
 #[test]
 fn test_cadence_governor_lifecycle_and_decay() {
@@ -231,13 +236,13 @@ fn test_pull_to_refresh_and_swipe_action_scenes() {
     let world = app.world_mut();
     let mut indicators = world.query::<(&PullToRefreshIndicator, &Node)>();
     let (_, node) = indicators.iter(world).next().expect("indicator mounted");
-    assert!(matches!(node.height, bevy::ui::Val::Px(h) if h > 0.0));
+    assert!(matches!(node.height, Val::Px(h) if h > 0.0));
 }
 
 #[test]
 fn test_focus_ring_and_code_editor_scenes() {
     let mut app = headless_app();
-    let dark_palette = UiPalette::new(&infiltrator_bevy_widgets::theme::Theme::dark());
+    let dark_palette = UiPalette::new(&Theme::dark());
     app.add_systems(
         Startup,
         |mut commands: Commands, palette: Res<UiPalette>| {
@@ -249,14 +254,14 @@ fn test_focus_ring_and_code_editor_scenes() {
     app.update();
 
     let world = app.world_mut();
-    let mut rings = world.query::<(&FocusRingStyle, &bevy::ui::BorderColor)>();
+    let mut rings = world.query::<(&FocusRingStyle, &BorderColor)>();
     let (style, border) = rings.iter(world).next().expect("focus ring mounted");
     assert_eq!(style.width_px, 2.0);
     assert_eq!(style.offset_px, 2.0);
     assert_eq!(border.top, dark_palette.focus_ring);
     assert_eq!(border.bottom, dark_palette.focus_ring);
 
-    let mut gutters = world.query::<(&infiltrator_bevy_widgets::editor::CodeEditorGutter, &Node)>();
+    let mut gutters = world.query::<(&CodeEditorGutter, &Node)>();
     let (_, gutter_node) = gutters.iter(world).next().expect("gutter mounted");
-    assert_eq!(gutter_node.width, bevy::ui::Val::Px(48.0));
+    assert_eq!(gutter_node.width, Val::Px(48.0));
 }

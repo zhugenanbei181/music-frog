@@ -4,12 +4,12 @@
 //! managed by `launchd` / `SMJobBless` / `SMAppService`, including Code Signing
 //! Designated Requirements, LaunchDaemon property lists, and secure XPC protocol framing.
 
+use super::{ServiceCommand, ServiceResponsePayload};
+use crate::tun_service::{ServiceModeStatus, UnsupportedPlatformError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-use super::{ServiceCommand, ServiceResponsePayload};
-use crate::tun_service::{ServiceModeStatus, UnsupportedPlatformError};
+use std::process::id;
 
 pub const DEFAULT_MACOS_HELPER_BUNDLE_ID: &str = "com.musicfrog.infiltrator.helper";
 pub const DEFAULT_MACOS_APP_BUNDLE_ID: &str = "com.musicfrog.infiltrator";
@@ -200,7 +200,7 @@ impl XpcMessage {
             protocol_version: 1,
             message_id: message_id.into(),
             required_right,
-            client_pid: std::process::id(),
+            client_pid: id(),
             client_bundle_id: client_bundle_id.into(),
             command,
         }

@@ -74,6 +74,12 @@ pub fn bridge_shutdown() -> FfiStatus {
 mod tests {
     use super::*;
     use crate::ffi::FfiErrorCode;
+    #[cfg(test)]
+    use infiltrator_domain::dns::FallbackFilter;
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use tokio::sync::MutexGuard;
 
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::paths::set_home_dir_override;
@@ -84,7 +90,7 @@ mod tests {
     /// 串行化全局 home override：doctor.rs / support.rs 的测试同样切换
     /// override 并以 TEST_LOCK 互斥，这里保持同一把锁，避免并行测试在
     /// 「写配置 → 读回」之间被换走 home 目录。
-    async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    async fn test_lock() -> MutexGuard<'static, ()> {
         TEST_LOCK.lock().await
     }
 
@@ -93,7 +99,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("infiltrator-android-{tag}-{unique}"));
+        let path = temp_dir().join(format!("infiltrator-android-{tag}-{unique}"));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("create test home dir");
         path
@@ -235,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_dns_fallback_filter_roundtrip_record_conversion() {
-        let core = infiltrator_domain::dns::DnsFallbackFilter {
+        let core = FallbackFilter {
             geoip: Some(false),
             geoip_code: Some("US".to_string()),
             ipcidr: Some(vec!["198.18.0.0/16".to_string()]),

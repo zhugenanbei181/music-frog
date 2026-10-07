@@ -15,12 +15,14 @@
 //! submodule paths below (`handlers::config::get_dns_config_http`, ...), so
 //! route paths, methods, and handler names are unchanged.
 
-use std::sync::Arc;
-
-use axum::{body::Body, http::Request, middleware::Next, response::Response};
-use log::{info, warn};
-
 use crate::admin_api::state::{AdminApiContext, RebuildStatus};
+use axum::body::Body;
+use axum::http::Request;
+use axum::middleware::Next;
+use axum::response::Response;
+use log::{info, warn};
+use std::sync::Arc;
+use std::time::Instant;
 
 pub mod audit;
 pub mod auth;
@@ -43,7 +45,7 @@ pub async fn log_admin_request(req: Request<Body>, next: Next) -> Response {
         .query()
         .map(|q| format!("?{}", q))
         .unwrap_or_default();
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     let response = next.run(req).await;
     let status = response.status();
     let elapsed = start.elapsed();

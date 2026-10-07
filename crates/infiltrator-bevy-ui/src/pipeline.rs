@@ -10,18 +10,17 @@
 //!   tasks without leaking threads.
 //! - MultiPageCadenceGovernor: route-aware and focus-aware polling throttling (0.00% CPU when minimized).
 
-use std::marker::PhantomData;
-use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
-use bevy::app::{App, Plugin, Update};
-use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res, ResMut};
-
 use crate::controller::FailureDwell;
 use crate::domain_state::{DomainPhase, DomainResource, DomainState, DomainStateUpdated};
 use crate::route::Route;
+use bevy::app::{App, Plugin, Update};
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Res, ResMut};
+use std::marker::PhantomData;
+use std::mem::replace;
+use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError, sync_channel};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// Default capacity for async-to-ecs drain pipelines.
 pub const DEFAULT_PIPELINE_CAPACITY: usize = 16;
@@ -257,8 +256,7 @@ impl<T> BatchEventCoalescer<T> {
             None
         } else {
             self.first_arrival = None;
-            let batch =
-                std::mem::replace(&mut self.pending, Vec::with_capacity(self.max_batch_size));
+            let batch = replace(&mut self.pending, Vec::with_capacity(self.max_batch_size));
             Some(batch)
         }
     }

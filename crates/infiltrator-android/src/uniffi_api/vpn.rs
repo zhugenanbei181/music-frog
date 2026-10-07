@@ -2,17 +2,6 @@
 //! status via the Android bridge, and the persisted VPN TUN settings
 //! (MTU/routes/stack plus DNS servers patched into the DNS config).
 
-#[cfg(target_os = "android")]
-use serde_yaml_ng::Value;
-
-use mihomo_platform::android_bridge::get_android_bridge;
-
-use infiltrator_application::vpn_application::VpnServiceApplication;
-use infiltrator_contract::vpn::VpnSessionState;
-#[cfg(target_os = "android")]
-use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnStartRequest};
-use infiltrator_domain::{dns, tun};
-
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
 use crate::host_support::build_config_manager;
@@ -20,7 +9,21 @@ use crate::host_support::{
     build_configuration_application, get_runtime, map_application_failure, map_mihomo_error,
     normalize_optional_string,
 };
+#[cfg(target_os = "android")]
+use crate::vpn_route::VpnRouteConfig;
 use crate::vpn_service::AndroidVpnServicePort;
+use infiltrator_application::vpn_application::VpnServiceApplication;
+use infiltrator_contract::vpn;
+use infiltrator_contract::vpn::VpnSessionState;
+#[cfg(target_os = "android")]
+use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnStartRequest};
+use infiltrator_domain::{dns, tun};
+use mihomo_platform::android_bridge::get_android_bridge;
+#[cfg(target_os = "android")]
+use serde_yaml_ng::Value;
+#[cfg(target_os = "android")]
+use std::net::IpAddr;
+use std::sync::Arc;
 
 #[uniffi::export]
 pub fn start_vpn(fd: i32) -> FfiStatus {
@@ -39,8 +42,7 @@ pub fn start_vpn(fd: i32) -> FfiStatus {
             Ok(request) => request,
             Err(status) => return status,
         };
-        let application =
-            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
+        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.start(request)) {
             Ok(snapshot) if snapshot.is_running() => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
@@ -73,8 +75,7 @@ pub fn prepare_vpn() -> FfiStatus {
             Ok(configuration) => configuration,
             Err(status) => return status,
         };
-        let application =
-            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
+        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.prepare(configuration)) {
             Ok(snapshot) if snapshot.foreground => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
@@ -101,8 +102,7 @@ pub fn prepare_vpn() -> FfiStatus {
 pub fn stop_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let application =
-            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
+        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.stop()) {
             Ok(snapshot)
                 if matches!(
@@ -133,8 +133,7 @@ pub fn stop_vpn() -> FfiStatus {
 pub fn revoke_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
-        let application =
-            VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
+        let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
         return match get_runtime().block_on(application.revoke()) {
             Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
@@ -209,8 +208,7 @@ pub struct VpnSessionResult {
 pub async fn vpn_session_status() -> VpnSessionResult {
     get_runtime()
         .spawn(async move {
-            let application =
-                VpnServiceApplication::new(std::sync::Arc::new(AndroidVpnServicePort::shared()));
+            let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
             let snapshot = application.snapshot().await;
             let status = match &snapshot.state {
                 VpnSessionState::Unsupported { reason } => {
@@ -234,7 +232,7 @@ pub async fn vpn_session_status() -> VpnSessionResult {
         })
 }
 
-fn map_vpn_snapshot(snapshot: infiltrator_contract::vpn::VpnSessionSnapshot) -> VpnSessionSnapshot {
+fn map_vpn_snapshot(snapshot: vpn::VpnSessionSnapshot) -> VpnSessionSnapshot {
     VpnSessionSnapshot {
         state: match snapshot.state {
             VpnSessionState::Idle => "idle",
@@ -405,9 +403,9 @@ async fn build_vpn_configuration(proxy_endpoint: String) -> Result<VpnConfigurat
     let dns_servers = settings
         .dns_servers
         .into_iter()
-        .filter(|server| server.parse::<std::net::IpAddr>().is_ok())
+        .filter(|server| server.parse::<IpAddr>().is_ok())
         .collect::<Vec<_>>();
-    let route_plan = crate::vpn_route::VpnRouteConfig {
+    let route_plan = VpnRouteConfig {
         bypass_lan: false,
         bypass_china: false,
         custom_dns: dns_servers.clone(),

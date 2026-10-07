@@ -1,9 +1,8 @@
 //! Host-owned privileged service-mode operations.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::service_mode::ServiceModeSnapshot;
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait ServiceModePort: Send + Sync {

@@ -1,9 +1,10 @@
 //! Runtime observation use-cases over the controller gateway.
 
 use infiltrator_contract::command::{CoreLogLevel, ProxyMode};
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::mtu::{MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use infiltrator_contract::tun::TunStack;
-use infiltrator_domain::runtime::{MemoryData, TrafficData};
+use infiltrator_domain::runtime::{ConfigSnapshot, MemoryData, TrafficData};
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -25,10 +26,16 @@ pub(crate) mod tests {
     use super::*;
     use crate::resource_application::ResourceApplication;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use futures_util::stream::empty;
     use infiltrator_contract::command::CoreLogLevel;
+    #[cfg(test)]
+    use infiltrator_contract::error::ErrorCode;
     use infiltrator_contract::lan::LanCredentials;
     use infiltrator_contract::resources::{CORE_MEMORY_SOFT_LIMIT_BYTES, CoreGcStatus};
     use infiltrator_domain::proxy::Proxy;
+    #[cfg(test)]
+    use infiltrator_domain::runtime::TunSnapshot;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
@@ -89,23 +96,23 @@ pub(crate) mod tests {
                 tun: {
                     let (auto_route, strict_route) =
                         *self.tun_routing.lock().expect("tun routing lock");
-                    Some(infiltrator_domain::runtime::TunSnapshot {
-                        enable: *self.tun_enabled.lock().expect("tun enabled lock"),
-                        stack: self.tun_stack.lock().expect("stack lock").clone(),
-                        auto_route,
-                        strict_route,
+                    Some(TunSnapshot {
+                        enable: Some(*self.tun_enabled.lock().expect("tun enabled lock")),
+                        stack: Some(self.tun_stack.lock().expect("stack lock").clone()),
+                        auto_route: Some(auto_route),
+                        strict_route: Some(strict_route),
                         mtu: *self.tun_mtu.lock().expect("tun mtu lock"),
                     })
                 },
                 allow_lan: lan.allow_lan,
-                ipv6: lan.ipv6_enabled,
+                ipv6: Some(lan.ipv6_enabled),
                 mixed_port: lan.mixed_port,
-                bind_address: lan.bind_address,
-                lan_allowed_ips: lan.allowed_ips,
-                lan_disallowed_ips: lan.disallowed_ips,
-                skip_auth_prefixes: lan.skip_auth_prefixes,
-                authentication_enabled: lan.authentication_enabled,
-                authentication_user_count: lan.authentication_user_count,
+                bind_address: Some(lan.bind_address),
+                lan_allowed_ips: Some(lan.allowed_ips),
+                lan_disallowed_ips: Some(lan.disallowed_ips),
+                skip_auth_prefixes: Some(lan.skip_auth_prefixes),
+                authentication_enabled: Some(lan.authentication_enabled),
+                authentication_user_count: Some(lan.authentication_user_count),
                 authentication_username: lan.authentication_username,
                 ..ConfigSnapshot::default()
             })
@@ -215,10 +222,7 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
+        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
             Ok(())
         }
 
@@ -281,21 +285,15 @@ pub(crate) mod tests {
             &self,
             _level: Option<String>,
         ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<String>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<String>>()))
         }
 
         async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<TrafficData>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<TrafficData>>()))
         }
 
         async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<ConnectionSnapshot>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<ConnectionSnapshot>>()))
         }
     }
 
@@ -336,10 +334,7 @@ pub(crate) mod tests {
             .set_core_log_level(CoreLogLevel::Debug)
             .await
             .unwrap_err();
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidState
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidState);
     }
 
     #[tokio::test]
@@ -401,10 +396,7 @@ pub(crate) mod tests {
         .set_tun_stack(TunStack::Lwip)
         .await
         .unwrap_err();
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::Unsupported
-        );
+        assert_eq!(failure.code, ErrorCode::Unsupported);
     }
 
     #[tokio::test]
@@ -444,10 +436,7 @@ pub(crate) mod tests {
         .set_tun_mtu(1279)
         .await
         .expect_err("out-of-range MTU must fail before I/O");
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidInput
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidInput);
 
         let failure = RuntimeQueryApplication::new(Arc::new(TestGateway {
             level: Arc::new(Mutex::new("info".to_owned())),
@@ -463,10 +452,7 @@ pub(crate) mod tests {
         .set_tun_mtu(1420)
         .await
         .expect_err("ignored patch must fail readback");
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidState
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidState);
     }
 
     #[tokio::test]
@@ -515,10 +501,7 @@ pub(crate) mod tests {
             .set_tun_strict_route(true)
             .await
             .expect_err("ignored strict-route patch must fail readback");
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidState
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidState);
     }
 
     #[tokio::test]
@@ -589,19 +572,13 @@ pub(crate) mod tests {
             .set_lan_sharing(true, 0, "*")
             .await
             .expect_err("enabled LAN sharing needs a port");
-        assert_eq!(
-            zero_port.code,
-            infiltrator_contract::error::ErrorCode::InvalidInput
-        );
+        assert_eq!(zero_port.code, ErrorCode::InvalidInput);
 
         let invalid_address = application
             .set_lan_sharing(false, 7890, "192.168.1.0/24")
             .await
             .expect_err("bind-address cannot be a CIDR");
-        assert_eq!(
-            invalid_address.code,
-            infiltrator_contract::error::ErrorCode::InvalidInput
-        );
+        assert_eq!(invalid_address.code, ErrorCode::InvalidInput);
     }
 
     #[tokio::test]
@@ -657,10 +634,7 @@ pub(crate) mod tests {
             .set_lan_security(&["192.168.0.0/16".to_owned()], &[], &[], true, None)
             .await
             .expect_err("auth cannot be enabled without credentials");
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidInput
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidInput);
     }
 }
 
@@ -677,10 +651,30 @@ impl RuntimeQueryApplication {
     }
 
     pub async fn set_proxy_mode(&self, mode: ProxyMode) -> Result<(), Failure> {
+        self.set_proxy_mode_verified(mode).await.map(|_| ())
+    }
+
+    pub async fn set_proxy_mode_verified(
+        &self,
+        mode: ProxyMode,
+    ) -> Result<ConfigSnapshot, Failure> {
         self.gateway
             .set_proxy_mode(mode)
             .await
-            .map_err(Failure::from)
+            .map_err(Failure::from)?;
+        let observed = self.gateway.get_config().await.map_err(Failure::from)?;
+        if ProxyMode::from_wire(&observed.mode) != Some(mode) {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                format!(
+                    "Proxy mode readback mismatch: requested {}, observed {}",
+                    mode.to_wire(),
+                    observed.mode
+                ),
+                true,
+            ));
+        }
+        Ok(observed)
     }
 
     /// Toggle the controller-owned TUN ingress and verify the live value.
@@ -690,10 +684,10 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        let observed_enabled = observed.tun.as_ref().map(|tun| tun.enable);
+        let observed_enabled = observed.tun.as_ref().and_then(|tun| tun.enable);
         if observed_enabled != Some(enabled) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "TUN enable readback mismatch: requested {enabled}, observed {}",
                     observed_enabled
@@ -717,7 +711,7 @@ impl RuntimeQueryApplication {
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
         if CoreLogLevel::parse(&observed.log_level) != Some(level) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "core log level readback mismatch: requested {}, observed {}",
                     level.as_str(),
@@ -746,16 +740,17 @@ impl RuntimeQueryApplication {
         let observed_stack = observed
             .tun
             .as_ref()
-            .and_then(|tun| TunStack::parse(&tun.stack));
+            .and_then(|tun| tun.stack.as_deref())
+            .and_then(TunStack::parse);
         if observed_stack != Some(stack) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "TUN stack readback mismatch: requested {}, observed {}",
                     stack.as_str(),
                     observed
                         .tun
-                        .map(|tun| tun.stack)
+                        .and_then(|tun| tun.stack)
                         .unwrap_or_else(|| "missing".to_owned())
                 ),
                 true,
@@ -768,16 +763,12 @@ impl RuntimeQueryApplication {
     /// reports the same value. This keeps adaptive negotiation from becoming
     /// a UI-only calculation when the host has a live gateway.
     pub async fn set_tun_mtu(&self, mtu: u32) -> Result<(), Failure> {
-        if !(infiltrator_contract::mtu::MIN_TUN_MTU_BYTES
-            ..=infiltrator_contract::mtu::MAX_TUN_MTU_BYTES)
-            .contains(&mtu)
-        {
+        if !(MIN_TUN_MTU_BYTES..=MAX_TUN_MTU_BYTES).contains(&mtu) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidInput,
+                ErrorCode::InvalidInput,
                 format!(
                     "TUN MTU {mtu} is outside the supported range {}..={}",
-                    infiltrator_contract::mtu::MIN_TUN_MTU_BYTES,
-                    infiltrator_contract::mtu::MAX_TUN_MTU_BYTES
+                    MIN_TUN_MTU_BYTES, MAX_TUN_MTU_BYTES
                 ),
                 false,
             ));
@@ -790,7 +781,7 @@ impl RuntimeQueryApplication {
         let observed_mtu = observed.tun.as_ref().and_then(|tun| tun.mtu);
         if observed_mtu != Some(mtu) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "TUN MTU readback mismatch: requested {mtu}, observed {}",
                     observed_mtu
@@ -823,10 +814,10 @@ impl RuntimeQueryApplication {
         let config = self.gateway.get_config().await.map_err(Failure::from)?;
         config
             .tun
-            .map(|tun| (tun.auto_route, tun.strict_route))
+            .and_then(|tun| tun.auto_route.zip(tun.strict_route))
             .ok_or_else(|| {
                 Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                    ErrorCode::NotReady,
                     "TUN configuration is unavailable",
                     true,
                 )
@@ -844,10 +835,12 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        let observed = observed.tun.map(|tun| (tun.auto_route, tun.strict_route));
+        let observed = observed
+            .tun
+            .and_then(|tun| tun.auto_route.zip(tun.strict_route));
         if observed != Some((auto_route, strict_route)) {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "TUN routing readback mismatch: requested auto-route={auto_route}, strict-route={strict_route}; observed {observed:?}"
                 ),

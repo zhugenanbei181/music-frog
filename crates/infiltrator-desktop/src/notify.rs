@@ -14,9 +14,16 @@
 //!   spamming the notification daemon.
 //! - **Timeout**: Guarded process execution with timeouts to prevent UI hangs.
 
+use infiltrator_domain::redact::redact_line;
 use std::io::Result;
 use std::process::Command;
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::thread::Builder;
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(target_os = "windows")]
@@ -150,7 +157,7 @@ impl SystemNotification {
 
 /// Redact credentials, tokens, passwords, and URL secrets from a string.
 pub fn sanitize_text(text: &str) -> String {
-    infiltrator_domain::redact::redact_line(text, &[])
+    redact_line(text, &[])
 }
 
 /// Throttled warning logger: ensures that notification backend failures do not spam logs.
@@ -403,10 +410,10 @@ pub fn build_linux_command_for(notification: &SystemNotification) -> Command {
 /// notification may already be gone, and both are fine.
 #[cfg(all(unix, not(target_os = "macos")))]
 fn spawn_linux_notification_closer(notification_id: u32, timeout_ms: u32) {
-    let _ = std::thread::Builder::new()
+    let _ = Builder::new()
         .name("notify-close".to_owned())
         .spawn(move || {
-            std::thread::sleep(Duration::from_millis(u64::from(timeout_ms)));
+            sleep(Duration::from_millis(u64::from(timeout_ms)));
             let id = notification_id.to_string();
 
             let busctl_args = [
@@ -421,8 +428,8 @@ fn spawn_linux_notification_closer(notification_id: u32, timeout_ms: u32) {
             ];
             let closed = Command::new("busctl")
                 .args(busctl_args)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status()
                 .map(|status| status.success())
                 .unwrap_or(false);
@@ -443,8 +450,8 @@ fn spawn_linux_notification_closer(notification_id: u32, timeout_ms: u32) {
             ];
             let _ = Command::new("gdbus")
                 .args(gdbus_args)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status();
         });
 }
@@ -458,8 +465,7 @@ fn spawn_linux_notification_closer(notification_id: u32, timeout_ms: u32) {
 fn dispatch_command(cmd: &mut Command, notification: &SystemNotification) -> Result<()> {
     use std::io::Read;
 
-    cmd.stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null());
+    cmd.stdout(Stdio::piped()).stderr(Stdio::null());
     let timeout_ms = notification.level.display_timeout_ms();
     match cmd.spawn() {
         Ok(mut child) => {
@@ -579,7 +585,7 @@ impl SystemNotifier {
                         );
                         return Ok(false);
                     }
-                    std::thread::sleep(Duration::from_millis(20));
+                    sleep(Duration::from_millis(20));
                 }
             }
         }

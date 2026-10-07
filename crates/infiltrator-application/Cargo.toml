@@ -24,9 +24,12 @@ futures-util = { workspace = true }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-ports = { path = "../infiltrator-ports" }
+infiltrator-shared = { path = "../infiltrator-shared" }
 log = { workspace = true }
 serde_yaml_ng = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }
+url = { workspace = true }
+unicode-segmentation = { workspace = true }
 [dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }

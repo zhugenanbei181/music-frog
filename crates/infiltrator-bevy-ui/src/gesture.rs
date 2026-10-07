@@ -23,8 +23,8 @@
 //! Bevy 0.20 exposes no safe-area API, so insets default to zero and a mobile
 //! composition root must inject the real values through [`GestureHostReport`].
 
-use std::collections::BTreeMap;
-
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::route::{ActiveRoute, Route};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::MessageReader;
@@ -36,21 +36,20 @@ use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
 use bevy::time::Time;
 use bevy::ui::prelude::{Display, Node, Val};
-use bevy::ui::widget::Text;
-
 use infiltrator_bevy_widgets::gesture;
 use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, GestureRecognizer, PinchZoomController, PullToRefreshIndicator,
     PullToRefreshSpring, PullToRefreshState, PullToRefreshText, SwipeActionDrawer,
     SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
+use infiltrator_bevy_widgets::localization::{
+    LocaleCopySet, LocalizedText, WidgetLocalizationPlugin,
+};
 use infiltrator_contract::shell_gesture::{
     GesturePoint, GestureSemanticEvent, GestureSnapshot, GestureTouchPhase, SafeAreaInsets,
     TouchGestureSupport,
 };
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{ActiveRoute, Route};
+use std::collections::BTreeMap;
 
 /// Maximum simultaneous touches tracked; extra fingers are ignored so the
 /// active set can never grow without bound.
@@ -168,6 +167,9 @@ pub struct ShellGesturePlugin;
 
 impl Plugin for ShellGesturePlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<WidgetLocalizationPlugin>() {
+            app.add_plugins(WidgetLocalizationPlugin);
+        }
         // Headless compositions have no `InputPlugin`, so register the touch
         // message channel and the resources here (registration is idempotent
         // when `DefaultPlugins` already did it).
@@ -180,7 +182,7 @@ impl Plugin for ShellGesturePlugin {
                 (
                     consume_touch_input,
                     sync_gesture_capability,
-                    sync_pull_to_refresh_indicators,
+                    sync_pull_to_refresh_indicators.before(LocaleCopySet),
                     sync_swipe_to_action_items,
                 )
                     .chain(),
@@ -444,11 +446,9 @@ fn sync_gesture_capability(
 }
 
 /// Synchronize pull-to-refresh indicators with the live gesture state using spring physics.
-#[allow(clippy::too_many_arguments)]
 pub fn sync_pull_to_refresh_indicators(
     time: Option<Res<Time>>,
     gesture_state: Res<ShellGestureState>,
-    _snapshot: Res<ShellGestureSnapshot>,
     active_route: Option<Res<ActiveRoute>>,
     command_sink: Option<Res<CommandSinkHandle>>,
     mut last_refreshing: Local<bool>,
@@ -456,7 +456,7 @@ pub fn sync_pull_to_refresh_indicators(
         (&mut Node, &mut PullToRefreshSpring, &Children),
         With<PullToRefreshIndicator>,
     >,
-    mut texts: Query<&mut Text, With<PullToRefreshText>>,
+    mut texts: Query<&mut LocalizedText, With<PullToRefreshText>>,
 ) {
     let dt = time
         .as_ref()
@@ -499,13 +499,7 @@ pub fn sync_pull_to_refresh_indicators(
         0.0
     };
 
-    let label = if is_refreshing {
-        "正在更新..."
-    } else if pull.pull_offset >= pull.threshold {
-        "释放以刷新"
-    } else {
-        "下拉刷新"
-    };
+    let key = pull.label_key();
 
     for (mut node, mut spring_tracker, children) in &mut indicators {
         spring_tracker.spring.target = target_height;
@@ -519,16 +513,15 @@ pub fn sync_pull_to_refresh_indicators(
 
         for child in children.iter() {
             if let Ok(mut text) = texts.get_mut(*child)
-                && text.0 != label
+                && text.key != key
             {
-                text.0 = label.to_owned();
+                text.key = key;
             }
         }
     }
 }
 
 /// Synchronize swipe-to-action item displacement using spring dynamics.
-#[allow(clippy::type_complexity)]
 pub fn sync_swipe_to_action_items(
     time: Option<Res<Time>>,
     gesture_state: Res<ShellGestureState>,

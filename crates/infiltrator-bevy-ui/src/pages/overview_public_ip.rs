@@ -1,6 +1,8 @@
 //! The Overview page's public-IP probe card: address, location, ISP, provider
 //! and the refresh affordance, projected from the shared probe snapshot.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::overview::{AccentContainerFill, SurfaceElevatedFill};
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -15,14 +17,12 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::overview::{AccentContainerFill, SurfaceElevatedFill};
+use infiltrator_contract::public_ip::{PublicIpProbeSnapshot, PublicIpProbeStatus};
 
 /// Public IP probe card (BEVY-GAP-023 / DUAL-03-11).
 pub fn public_ip_probe_card_scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -35,7 +35,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut a11y = accesskit::Node::new(accesskit::Role::Region);
-    a11y.set_label("公网 IP 隐私归属探针");
+    a11y.set_label(UiLocale::default().text("overview_public_ip_label"));
     let ip = public_ip_text_value(snapshot, PublicIpTextKind::Ip);
     let location = public_ip_text_value(snapshot, PublicIpTextKind::Location);
     let isp = public_ip_text_value(snapshot, PublicIpTextKind::Isp);
@@ -49,7 +49,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S8),
                     }
-                    AccessibilityNode(a11y)
+                    AccessibilityNode(a11y) LocalizedLabel::plain("overview_public_ip_label")
                     PublicIpProbeCard
                     Children [
                         Node {
@@ -65,7 +65,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
                                 --
-                                Text({ "当前公网 IP (Public IP Probe)".to_owned() }) TextRole(Role::Heading)
+                                LocalizedText::plain("overview_public_ip_title") TextRole(Role::Heading)
                             ]
                             --
                             Node {
@@ -96,7 +96,7 @@ pub fn public_ip_probe_card_scene_with_snapshot(
                                 Children [
                                     @{ icon_scene(IconId::Activity, 12.0, palette.ink) }
                                     --
-                                    Text({ "刷新".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink })
+                                    LocalizedText::plain("refresh") TextRole(Role::Caption) TextColor({ palette.ink })
                                 ]
                             ]
                         ]
@@ -170,7 +170,7 @@ pub enum PublicIpTextKind {
 }
 
 pub(crate) fn public_ip_text_value(
-    snapshot: &infiltrator_contract::public_ip::PublicIpProbeSnapshot,
+    snapshot: &PublicIpProbeSnapshot,
     kind: PublicIpTextKind,
 ) -> String {
     match kind {
@@ -190,23 +190,15 @@ pub(crate) fn public_ip_text_value(
             .unwrap_or("ipapi.is")
             .to_owned(),
         PublicIpTextKind::Status => match snapshot.status {
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Ready => {
-                "probe · ready".to_owned()
-            }
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Probing => {
-                "probe · probing...".to_owned()
-            }
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Empty => {
-                "probe · empty".to_owned()
-            }
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Unknown => {
-                "probe · not requested".to_owned()
-            }
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Unsupported => snapshot
+            PublicIpProbeStatus::Ready => "probe · ready".to_owned(),
+            PublicIpProbeStatus::Probing => "probe · probing...".to_owned(),
+            PublicIpProbeStatus::Empty => "probe · empty".to_owned(),
+            PublicIpProbeStatus::Unknown => "probe · not requested".to_owned(),
+            PublicIpProbeStatus::Unsupported => snapshot
                 .failure
                 .clone()
                 .unwrap_or_else(|| "probe · unsupported".to_owned()),
-            infiltrator_contract::public_ip::PublicIpProbeStatus::Failed => snapshot
+            PublicIpProbeStatus::Failed => snapshot
                 .failure
                 .clone()
                 .unwrap_or_else(|| "probe · failed".to_owned()),

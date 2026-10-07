@@ -9,12 +9,13 @@
 //! `proxies` sequence), then the mixin overlay deep-merges over the result.
 
 use crate::filter::{
-    ContentDedupStrategy, DeduplicationStrategy, FilterReport, FilterRule, MultiplierRule,
-    NodeMutatorConfig, NodeSortOrder, RenameRule, SubscriptionFilterPipeline,
+    ContentDedupStrategy, DeduplicationStrategy, FilterRule, MultiplierRule, NodeMutatorConfig,
+    NodeSortOrder, RenameRule, SubscriptionFilterPipeline,
 };
-use crate::mixin::MixinConfig;
+use crate::mixin::{MixinConfig, merge_profile_with_config, merge_profile_with_config_fidelity};
+use crate::yaml_edit::SourceDoc;
 use anyhow::{Context, anyhow};
-use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_contract::subscription_filter_result::FilterReport;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
@@ -24,7 +25,7 @@ use std::path::{Path, PathBuf};
 /// Serializable mirror of [`FilterRule`]: the regex fields are stored as
 /// strings and compiled on demand by [`FilterSpec::to_rule`].
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case", default)]
+#[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct FilterSpec {
     #[serde(default)]
     pub include_keywords: Vec<String>,
@@ -66,7 +67,7 @@ fn is_default_content_dedup(dedup: &ContentDedupStrategy) -> bool {
 
 /// Stored form of a multiplier override rule.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct MultiplierSpec {
     #[serde(default)]
     pub pattern: String,
@@ -107,11 +108,14 @@ impl FilterSpec {
             && self.deduplication == FilterDedup::Disabled
             && !self.normalize_country_code
             && !self.remove_emojis
-            && self.allowed_ports.as_ref().is_none_or(|v| v.is_empty())
+            && self.allowed_ports.is_none()
             && self.blocked_ports.as_ref().is_none_or(|v| v.is_empty())
             && !self.drop_private_ip
             && self.multiplier_rules.is_empty()
-            && self.node_mutator.is_none()
+            && self
+                .node_mutator
+                .as_ref()
+                .is_none_or(|mutator| *mutator == NodeMutatorConfig::default())
             && self.sort_by == NodeSortOrder::Preserve
             && self.content_dedup == ContentDedupStrategy::Disabled
     }
@@ -121,6 +125,15 @@ impl FilterSpec {
     /// stored spec surfaces as an actionable error instead of silently
     /// passing every proxy through.
     pub fn to_rule(&self) -> anyhow::Result<FilterRule> {
+        if self
+            .allowed_ports
+            .iter()
+            .chain(self.blocked_ports.iter())
+            .flatten()
+            .any(|port| *port == 0)
+        {
+            anyhow::bail!("Filter ports must be between 1 and 65535");
+        }
         let mut include = Vec::new();
         for pattern in &self.include_keywords {
             include.push(
@@ -145,6 +158,9 @@ impl FilterSpec {
         }
         let mut multipliers = Vec::new();
         for spec in &self.multiplier_rules {
+            if !spec.multiplier.is_finite() || spec.multiplier <= 0.0 {
+                anyhow::bail!("Filter multiplier must be finite and greater than zero");
+            }
             multipliers.push(MultiplierRule {
                 pattern: Regex::new(&spec.pattern)
                     .with_context(|| format!("倍率重写规则不是有效的正则: {}", spec.pattern))?,
@@ -252,11 +268,11 @@ pub fn compose_content(
     if !mixin_is_default(&options.mixin) {
         if report.is_none() {
             return Ok((
-                crate::mixin::merge_profile_with_config_fidelity(&current, &options.mixin)?,
+                merge_profile_with_config_fidelity(&current, &options.mixin)?,
                 None,
             ));
         }
-        current = crate::mixin::merge_profile_with_config(&current, &options.mixin)?;
+        current = merge_profile_with_config(&current, &options.mixin)?;
     }
     Ok((current, report))
 }
@@ -271,7 +287,7 @@ pub fn strip_rule_lines(content: &str, removals: &[String]) -> String {
     if removals.is_empty() {
         return content.to_string();
     }
-    if let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(content) {
+    if let Ok(mut doc) = SourceDoc::parse(content) {
         let mut any_removed = false;
         for target in removals {
             while doc.remove_rule(target).is_ok() {
@@ -300,117 +316,5 @@ pub fn strip_rule_lines(content: &str, removals: &[String]) -> String {
     match serde_yaml_ng::to_string(&doc) {
         Ok(out) => out,
         Err(_) => content.to_string(),
-    }
-}
-
-/// Split a free-text keyword field on commas (ASCII or full-width) and
-/// newlines, dropping blanks. Shared by every surface's filter editor.
-pub fn split_filter_keywords(raw: &str) -> Vec<String> {
-    raw.split([',', '\n', '，'])
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
-/// DUAL-07-08: compile a surface filter draft into the stored [`FilterSpec`].
-///
-/// Every regex is compiled here (via `to_rule` at apply time) but the rename
-/// syntax is validated now so a malformed `pattern => replacement` line
-/// surfaces as an actionable error rather than silently dropping the rename.
-pub fn filter_spec_from_draft(draft: &SubscriptionFilterDraft) -> anyhow::Result<FilterSpec> {
-    let mut spec = FilterSpec {
-        include_keywords: split_filter_keywords(&draft.include),
-        exclude_keywords: split_filter_keywords(&draft.exclude),
-        exclude_types: split_filter_keywords(&draft.exclude_types),
-        ..FilterSpec::default()
-    };
-    for line in draft.renames.split(['\n', ';']) {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Some((pattern, replacement)) = line.split_once("=>") else {
-            anyhow::bail!("重命名规则格式错误（应为 模式 => 替换）: {line}");
-        };
-        spec.rename_rules.push(RenameSpec {
-            pattern: pattern.trim().to_string(),
-            replacement: replacement.trim().to_string(),
-        });
-    }
-    spec.deduplication = match draft.dedup_index {
-        1 => FilterDedup::KeepFirst,
-        2 => FilterDedup::KeepLast,
-        3 => FilterDedup::AppendIndex,
-        _ => FilterDedup::Disabled,
-    };
-    Ok(spec)
-}
-
-/// Render a stored [`FilterSpec`] back into the surface-editable draft.
-pub fn filter_spec_to_draft(spec: &FilterSpec) -> SubscriptionFilterDraft {
-    SubscriptionFilterDraft {
-        include: spec.include_keywords.join(", "),
-        exclude: spec.exclude_keywords.join(", "),
-        exclude_types: spec.exclude_types.join(", "),
-        renames: spec
-            .rename_rules
-            .iter()
-            .map(|rule| format!("{} => {}", rule.pattern, rule.replacement))
-            .collect::<Vec<_>>()
-            .join("\n"),
-        dedup_index: match spec.deduplication {
-            FilterDedup::Disabled => 0,
-            FilterDedup::KeepFirst => 1,
-            FilterDedup::KeepLast => 2,
-            FilterDedup::AppendIndex => 3,
-        },
-    }
-}
-
-#[cfg(test)]
-mod draft_tests {
-    use super::*;
-
-    #[test]
-    fn draft_round_trips_keywords_and_rename_rules() {
-        let draft = SubscriptionFilterDraft {
-            include: "香港, 新加坡\n日本".to_string(),
-            exclude: "广告".to_string(),
-            exclude_types: "ss, vmess".to_string(),
-            renames: "旧前缀 => 新前缀\n(?i)test => prod".to_string(),
-            dedup_index: 2,
-        };
-        let spec = filter_spec_from_draft(&draft).expect("valid draft");
-        assert_eq!(spec.include_keywords.len(), 3);
-        assert_eq!(spec.exclude_types, vec!["ss", "vmess"]);
-        assert_eq!(spec.rename_rules.len(), 2);
-        assert_eq!(spec.deduplication, FilterDedup::KeepLast);
-
-        let rendered = filter_spec_to_draft(&spec);
-        assert_eq!(rendered.include, "香港, 新加坡, 日本");
-        assert_eq!(rendered.dedup_index, 2);
-        assert!(rendered.renames.contains("旧前缀 => 新前缀"));
-    }
-
-    #[test]
-    fn malformed_rename_line_is_rejected_honestly() {
-        let draft = SubscriptionFilterDraft {
-            renames: "this line has no arrow".to_string(),
-            ..SubscriptionFilterDraft::default()
-        };
-        assert!(filter_spec_from_draft(&draft).is_err());
-    }
-
-    #[test]
-    fn empty_draft_is_detected() {
-        assert!(SubscriptionFilterDraft::default().is_empty());
-        assert!(
-            !SubscriptionFilterDraft {
-                exclude: "ad".to_string(),
-                ..SubscriptionFilterDraft::default()
-            }
-            .is_empty()
-        );
     }
 }

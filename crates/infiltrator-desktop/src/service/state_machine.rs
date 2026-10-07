@@ -4,10 +4,10 @@
 //! services across Windows, Linux, and macOS. Validates lifecycle transitions,
 //! records state transition history, and manages ordered execution of command sequences.
 
-use std::fmt;
-use std::time::Instant;
-
 use super::{ServiceCommand, ServiceResponsePayload};
+use std::mem::replace;
+use std::time::Instant;
+use std::{error, fmt};
 
 /// Represents the exhaustive lifecycle state of the background privileged service.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,7 +161,7 @@ impl fmt::Display for InvalidTransitionError {
     }
 }
 
-impl std::error::Error for InvalidTransitionError {}
+impl error::Error for InvalidTransitionError {}
 
 /// Records an entry in the state machine's transition history.
 #[derive(Debug, Clone)]
@@ -489,7 +489,7 @@ impl ServiceStateMachine {
         event: LifecycleEvent,
     ) -> Result<&LifecycleState, InvalidTransitionError> {
         let next = self.next_state(&event)?;
-        let prev = std::mem::replace(&mut self.current_state, next);
+        let prev = replace(&mut self.current_state, next);
 
         self.history.push(TransitionRecord {
             from: prev,

@@ -1,15 +1,16 @@
 //! YAML-level subscription filtering and proxy-name evaluation.
 
-use anyhow::{Context, Result};
-use regex::Regex;
-use serde_yaml_ng::Value;
-use std::collections::{HashMap, HashSet};
-
 use super::{
-    ContentDedupStrategy, DeduplicationStrategy, FilterReport, FilterRule, NodeSortOrder,
+    ContentDedupStrategy, DeduplicationStrategy, FilterRule, NodeSortOrder,
     SubscriptionFilterPipeline, extract_country_code, extract_multiplier, is_private_ip,
     normalize_country_code, strip_emojis,
 };
+use anyhow::{Context, Result};
+use infiltrator_contract::subscription_filter_result::FilterReport;
+use regex::Regex;
+use serde_yaml_ng::Value;
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 
 impl SubscriptionFilterPipeline {
     pub fn new(rule: FilterRule) -> Self {
@@ -358,7 +359,7 @@ impl SubscriptionFilterPipeline {
                             .unwrap_or("");
                         let ma = extract_multiplier(na).unwrap_or(1.0);
                         let mb = extract_multiplier(nb).unwrap_or(1.0);
-                        ma.partial_cmp(&mb).unwrap_or(std::cmp::Ordering::Equal)
+                        ma.partial_cmp(&mb).unwrap_or(Ordering::Equal)
                     });
                 }
                 NodeSortOrder::MultiplierDesc => {
@@ -375,7 +376,7 @@ impl SubscriptionFilterPipeline {
                             .unwrap_or("");
                         let ma = extract_multiplier(na).unwrap_or(1.0);
                         let mb = extract_multiplier(nb).unwrap_or(1.0);
-                        mb.partial_cmp(&ma).unwrap_or(std::cmp::Ordering::Equal)
+                        mb.partial_cmp(&ma).unwrap_or(Ordering::Equal)
                     });
                 }
             }

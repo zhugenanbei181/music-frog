@@ -7,10 +7,21 @@
 //! submits the shared command; the surface never deduplicates, clusters, or
 //! synthesizes groups locally.
 
+use infiltrator_application::aggregation_preview_projection::{
+    aggregation_counters, aggregation_custom_groups, aggregation_groups, aggregation_regions,
+    aggregation_templates, aggregation_yaml_preview,
+};
+
+use crate::localized_widgets::{localized_checkbox_scene, localized_field_scene};
+use crate::pages::profiles::LastProfilesProjection;
+use crate::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated};
+use crate::pages::profiles_aggregator_wizard::AggregatorComposerState;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::Query;
+use bevy::ecs::query::{With, Without};
+use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -21,15 +32,13 @@ use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::pages::profiles::ProfilesProjection;
 use infiltrator_contract::aggregator::{
-    AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationReport,
+    AggregationDraft, AggregationRenameRule, AggregationReport,
 };
 
 /// Marker for the profile aggregator card root.
@@ -143,153 +152,6 @@ pub struct DeleteAggregationTemplateButton;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AggregatorStatusText;
 
-/// DUAL-08: the counters line for one shared report.
-pub fn aggregation_counters(report: Option<&AggregationReport>) -> String {
-    let Some(report) = report else {
-        return "聚合预览：尚未生成（点击「预览聚合结果」）".to_owned();
-    };
-    let master = report
-        .master_group()
-        .map(|group| format!(" · 主选择器级联 {} 项", group.members.len()))
-        .unwrap_or_default();
-    let missing = if report.missing_sources.is_empty() {
-        String::new()
-    } else {
-        format!(" · 未能读取: {}", report.missing_sources.join(" / "))
-    };
-    format!(
-        "聚合预览：输入 {} · 去重 {} · 归一化 {} · 规则重命名 {} · 预检剔除 {} · 输出 {} 节点 · 区域 {}{}{}",
-        report.input_nodes,
-        report.duplicates_removed,
-        report.renamed_nodes,
-        report.rule_renamed_nodes,
-        report.invalid_nodes_removed,
-        report.total_nodes,
-        report.regions.len(),
-        master,
-        missing
-    )
-}
-
-/// DUAL-08-03: every region cluster as one preview line.
-pub fn aggregation_regions(report: Option<&AggregationReport>) -> String {
-    let Some(report) = report else {
-        return "区域归类：等待预览".to_owned();
-    };
-    if report.regions.is_empty() {
-        return "区域归类：未识别到任何 ISO 区域".to_owned();
-    }
-    report
-        .regions
-        .iter()
-        .map(|region| {
-            format!(
-                "{} {} {} → {}（{} 节点）",
-                region.flag,
-                region.iso,
-                region.label,
-                region.group_name,
-                region.node_names.len()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// DUAL-08-04/08-05/08-10: the synthesized group cascade as one preview block.
-pub fn aggregation_groups(report: Option<&AggregationReport>) -> String {
-    let Some(report) = report else {
-        return "策略组拓扑：等待预览".to_owned();
-    };
-    if report.groups.is_empty() {
-        return "策略组拓扑：未生成策略组".to_owned();
-    }
-    report
-        .groups
-        .iter()
-        .map(|group| {
-            let kind = if group.group_type == "url-test" {
-                "自动测速"
-            } else {
-                "手动选择"
-            };
-            let master = if group.is_master {
-                " [主选择器]"
-            } else {
-                ""
-            };
-            let custom = if group.is_custom { " [自定义]" } else { "" };
-            format!(
-                "{}{}{} · {} · {} 成员",
-                group.name,
-                master,
-                custom,
-                kind,
-                group.members.len()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// DUAL-08-11: the generated YAML structure, rendered from the shared report.
-pub fn aggregation_yaml_preview(report: Option<&AggregationReport>) -> String {
-    let Some(report) = report else {
-        return "聚合 YAML 结构：等待预览".to_owned();
-    };
-    let total = report.yaml.lines().count();
-    format!(
-        "聚合 YAML 结构（共 {total} 行）:\n{}",
-        report.yaml_preview(40)
-    )
-}
-
-/// DUAL-08-10: the appended custom groups awaiting the next submit.
-pub fn aggregation_custom_groups(groups: &[AggregationCustomGroup]) -> String {
-    if groups.is_empty() {
-        return "自定义策略组：尚未追加".to_owned();
-    }
-    groups
-        .iter()
-        .map(|group| {
-            let keywords = if group.member_keywords.is_empty() {
-                "全部节点".to_owned()
-            } else {
-                group.member_keywords.join(", ")
-            };
-            format!(
-                "自定义策略组：{} · {} · {}",
-                group.name, group.group_type, keywords
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// DUAL-08-13: the persisted template library with its target profiles.
-pub fn aggregation_templates(projection: &ProfilesProjection) -> String {
-    if !projection.aggregation_templates_available {
-        return "历史聚合模板：宿主未提供模板存储（不支持）".to_owned();
-    }
-    if projection.aggregation_templates.is_empty() {
-        return "历史聚合模板：暂无（填写模板名称后点击「保存为模板」）".to_owned();
-    }
-    projection
-        .aggregation_templates
-        .iter()
-        .map(|template| {
-            format!(
-                "{} → {}（更新于 {}，{} 个源）",
-                template.name,
-                template.draft.target_name,
-                template.updated_at,
-                template.draft.source_profiles.len()
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 fn selected_source_of(report: Option<&AggregationReport>, name: &str) -> bool {
     match report {
         Some(report) => report.draft.source_profiles.iter().any(|s| s == name),
@@ -307,12 +169,17 @@ pub fn profiles_aggregator_scene(
     projection: &ProfilesProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let locale = UiLocale::default();
     let report = projection.aggregation.as_ref();
-    let counters = aggregation_counters(report);
-    let regions = aggregation_regions(report);
-    let groups = aggregation_groups(report);
-    let yaml = aggregation_yaml_preview(report);
-    let templates = aggregation_templates(projection);
+    let counters = aggregation_counters(report, locale.code());
+    let regions = aggregation_regions(report, locale.code());
+    let groups = aggregation_groups(report, locale.code());
+    let yaml = aggregation_yaml_preview(report, locale.code());
+    let templates = aggregation_templates(
+        projection.aggregation_templates_available,
+        &projection.aggregation_templates,
+        locale.code(),
+    );
     // Mount-time view of the appended custom groups: the last shared preview
     // when there is one, otherwise an empty editor state (the wizard's own
     // accumulation restamps this line on every add/clear/template action).
@@ -320,6 +187,7 @@ pub fn profiles_aggregator_scene(
         report
             .map(|report| report.draft.custom_groups.as_slice())
             .unwrap_or_default(),
+        locale.code(),
     );
     let name = report
         .map(|report| report.draft.target_name.clone())
@@ -355,8 +223,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::Deduplicate)
                     Children [
-                        @{ checkbox_scene(
-                                "跨订阅节点自动去重".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_dedup"),
                                 switch_of(report, |draft| draft.deduplicate),
                                 palette,
                         ) }
@@ -366,8 +233,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::GeoCluster)
                     Children [
-                        @{ checkbox_scene(
-                                "区域节点自动归类".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_geo_cluster"),
                                 switch_of(report, |draft| draft.geo_cluster),
                                 palette,
                         ) }
@@ -377,8 +243,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::GenerateGroups)
                     Children [
-                        @{ checkbox_scene(
-                                "生成区域测速策略组".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_generate_groups"),
                                 switch_of(report, |draft| draft.generate_groups),
                                 palette,
                         ) }
@@ -388,8 +253,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::RemoveEmojis)
                     Children [
-                        @{ checkbox_scene(
-                                "清洗节点名 emoji".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_remove_emojis"),
                                 switch_of(report, |draft| draft.remove_emojis),
                                 palette,
                         ) }
@@ -399,8 +263,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::AvailabilityPrecheck)
                     Children [
-                        @{ checkbox_scene(
-                                "节点可用性预检过滤".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_availability_precheck"),
                                 switch_of(report, |draft| draft.availability_precheck),
                                 palette,
                         ) }
@@ -410,8 +273,7 @@ pub fn profiles_aggregator_scene(
                     Node { align_items: AlignItems::Center }
                     AggregatorSwitch(AggregatorSwitchKind::ActivateAfterCreate)
                     Children [
-                        @{ checkbox_scene(
-                                "创建后设为当前配置".to_owned(),
+                        @{ localized_checkbox_scene(LocalizedText::plain("aggregator_activate_after_create"),
                                 switch_of(report, |draft| draft.activate_after_create),
                                 palette,
                         ) }
@@ -437,7 +299,7 @@ pub fn profiles_aggregator_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
-                                    Text({ "多订阅节点聚合器 (Profile Aggregator)".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("profiles_aggregator_title") TextRole(Role::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -456,7 +318,7 @@ pub fn profiles_aggregator_scene(
                                     Button
                                     PreviewAggregationButton
                                     Children [
-                                        Text({ "预览聚合结果".to_owned() }) TextRole(Role::Body)
+                                        LocalizedText::plain("aggregator_btn_preview") TextRole(Role::Body)
                                     ]
                                     --
                                     Node {
@@ -470,7 +332,7 @@ pub fn profiles_aggregator_scene(
                                     Button
                                     SaveAggregatedProfileButton
                                     Children [
-                                        Text({ "保存为新配置".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("aggregator_btn_save") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -479,9 +341,7 @@ pub fn profiles_aggregator_scene(
                             Node { width: percent(100) }
                             AggregatorNameField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        name,
-                                        "聚合配置名称 (例如: Aggregated-All)".to_owned(),
+                                @{ localized_field_scene(name, LocalizedText::plain("aggregator_name_placeholder"),
                                         palette,
                                 ) }
                             ]
@@ -490,9 +350,7 @@ pub fn profiles_aggregator_scene(
                             Node { width: percent(100) }
                             AggregatorRenamesField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        renames,
-                                        "节点重命名规则: 模式 => 替换（多条用 ; 分隔）".to_owned(),
+                                @{ localized_field_scene(renames, LocalizedText::plain("aggregator_renames_ph"),
                                         palette,
                                 ) }
                             ]
@@ -501,9 +359,7 @@ pub fn profiles_aggregator_scene(
                             Node { width: percent(100) }
                             AggregatorCustomGroupNameField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        String::new(),
-                                        "自定义策略组名称 (例如: 流媒体专用)".to_owned(),
+                                @{ localized_field_scene(String::new(), LocalizedText::plain("aggregator_custom_name_ph"),
                                         palette,
                                 ) }
                             ]
@@ -512,9 +368,7 @@ pub fn profiles_aggregator_scene(
                             Node { width: percent(100) }
                             AggregatorCustomGroupKeywordsField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        String::new(),
-                                        "成员关键词，逗号分隔（留空 = 全部节点）".to_owned(),
+                                @{ localized_field_scene(String::new(), LocalizedText::plain("aggregator_custom_keywords_ph"),
                                         palette,
                                 ) }
                             ]
@@ -537,7 +391,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 AddAggregatorCustomGroupButton
                                 Children [
-                                    Text({ "追加自定义策略组".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_add_group") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -551,7 +405,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 ClearAggregatorCustomGroupsButton
                                 Children [
-                                    Text({ "清空自定义策略组".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_clear_groups") TextRole(Role::Body)
                                 ]
                             ]
             }),
@@ -570,9 +424,7 @@ pub fn profiles_aggregator_scene(
                             Node { width: percent(100) }
                             AggregatorTemplateNameField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        String::new(),
-                                        "模板名称（复用/重新聚合均按此名称查找）".to_owned(),
+                                @{ localized_field_scene(String::new(), LocalizedText::plain("field_aggregation_template"),
                                         palette,
                                 ) }
                             ]
@@ -595,7 +447,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 SaveAggregationTemplateButton
                                 Children [
-                                    Text({ "保存为模板".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("aggregator_template_save") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -609,7 +461,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 UseAggregationTemplateButton
                                 Children [
-                                    Text({ "复用模板".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_reuse_template") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -623,7 +475,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 ReAggregateTemplateButton
                                 Children [
-                                    Text({ "重新聚合".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("aggregator_template_reaggregate") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -637,7 +489,7 @@ pub fn profiles_aggregator_scene(
                                 Button
                                 DeleteAggregationTemplateButton
                                 Children [
-                                    Text({ "删除模板".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_aggregator_delete_template") TextRole(Role::Body)
                                 ]
                             ]
             }),
@@ -673,7 +525,7 @@ pub fn profiles_aggregator_scene(
                                 AggregatorCustomGroupsText
                                 TextRole(Role::Caption)
                                 --
-                                Text({ "聚合向导：编辑后点击预览，可保存为新配置或设为当前配置".to_owned() })
+                                LocalizedText::plain("profiles_aggregator_wizard_hint")
                                 AggregatorStatusText
                                 TextRole(Role::Caption)
                             ]
@@ -686,7 +538,7 @@ pub fn profiles_aggregator_scene(
                                 padding: UiRect::top(Val::Px(space::S4)),
                             }
                             Children [
-                                Text({ "聚合源订阅（勾选后点击预览）".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_aggregator_sources_label") TextRole(Role::BodyStrong)
                                 --
                                 { source_rows }
                             ]
@@ -699,18 +551,70 @@ pub fn profiles_aggregator_scene(
 /// DUAL-08: restamp the preview from the shared report carried by the surface
 /// snapshot. The card keeps no second aggregation state.
 pub(super) fn sync_aggregation_preview(
-    update: On<crate::pages::profiles::ProfilesProjectionUpdated>,
+    update: On<ProfilesProjectionUpdated>,
+    locale: Option<Res<UiLocale>>,
     mut lines: Query<(&mut Text, &AggregatorPreviewText)>,
 ) {
+    let fallback = UiLocale::default();
+    let locale = locale.as_deref().unwrap_or(&fallback);
     let projection = &update.0;
-    let report = projection.aggregation.as_ref();
     for (mut line, marker) in &mut lines {
-        line.0 = match marker.0 {
-            AggregatorPreviewKind::Counters => aggregation_counters(report),
-            AggregatorPreviewKind::Regions => aggregation_regions(report),
-            AggregatorPreviewKind::Groups => aggregation_groups(report),
-            AggregatorPreviewKind::Yaml => aggregation_yaml_preview(report),
-            AggregatorPreviewKind::Templates => aggregation_templates(projection),
-        };
+        line.0 = preview_line(marker.0, projection, locale.code());
+    }
+}
+
+fn preview_line(
+    kind: AggregatorPreviewKind,
+    projection: &ProfilesProjection,
+    code: &str,
+) -> String {
+    let report = projection.aggregation.as_ref();
+    match kind {
+        AggregatorPreviewKind::Counters => aggregation_counters(report, code),
+        AggregatorPreviewKind::Regions => aggregation_regions(report, code),
+        AggregatorPreviewKind::Groups => aggregation_groups(report, code),
+        AggregatorPreviewKind::Yaml => aggregation_yaml_preview(report, code),
+        AggregatorPreviewKind::Templates => aggregation_templates(
+            projection.aggregation_templates_available,
+            &projection.aggregation_templates,
+            code,
+        ),
+    }
+}
+
+pub(crate) fn replay_aggregation_copy(
+    locale: Res<UiLocale>,
+    last: Option<Res<LastProfilesProjection>>,
+    composer: Option<Res<AggregatorComposerState>>,
+    mut lines: Query<(&mut Text, &AggregatorPreviewText), Without<AggregatorCustomGroupsText>>,
+    mut custom: Query<
+        &mut Text,
+        (
+            With<AggregatorCustomGroupsText>,
+            Without<AggregatorPreviewText>,
+        ),
+    >,
+) {
+    if !locale.is_changed()
+        && !last.as_ref().is_some_and(|value| value.is_changed())
+        && !composer.as_ref().is_some_and(|value| value.is_changed())
+    {
+        return;
+    }
+    if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
+        for (mut text, marker) in &mut lines {
+            let value = preview_line(marker.0, projection, locale.code());
+            if text.0 != value {
+                text.0 = value
+            }
+        }
+    }
+    if let Some(composer) = composer {
+        let value = aggregation_custom_groups(&composer.custom_groups, locale.code());
+        for mut text in &mut custom {
+            if text.0 != value {
+                text.0 = value.clone()
+            }
+        }
     }
 }

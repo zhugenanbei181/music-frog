@@ -3,6 +3,13 @@
 //! Subtree scenes composing the topology chain, subscription quota,
 //! active exit node card (BEVY-GAP-019), and system proxy / TUN master cards (BEVY-GAP-021).
 
+use crate::pages::overview::{AccentContainerFill, AccentFill, BorderFill, SurfaceElevatedFill};
+use crate::pages::overview_restamp::{
+    ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, OverviewMasterSwitchText,
+    OverviewMasterSwitchTextKind, SubscriptionQuotaCard, SubscriptionQuotaProgress,
+    SubscriptionQuotaText, SubscriptionQuotaTextKind, active_exit_text_value,
+    master_switch_status_color, master_switch_text_value, subscription_quota_text_value,
+};
 use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -15,27 +22,19 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::proxy_mode_projection::mode_copy_key;
+use infiltrator_application::subscription_quota_projection::{QuotaGrade, project_quota};
+use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::pages::overview::{
-    AccentContainerFill, AccentFill, BorderFill, SurfaceElevatedFill, mode_label,
-};
-use crate::pages::overview_restamp::{
-    ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, OverviewMasterSwitchText,
-    OverviewMasterSwitchTextKind, SubscriptionQuotaCard, SubscriptionQuotaProgress,
-    SubscriptionQuotaText, SubscriptionQuotaTextKind, active_exit_text_value,
-    master_switch_text_value, subscription_quota_text_value,
-};
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
-use infiltrator_contract::subscription_quota::{
-    SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
-};
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 
 /// Marker on active exit node card (BEVY-GAP-019).
@@ -61,14 +60,15 @@ pub fn subscription_quota_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut quota_a11y = accesskit::Node::new(accesskit::Role::Region);
-    quota_a11y.set_label("订阅配额");
-    let profile = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Profile);
-    let expiry = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Expiry);
-    let metrics = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Metrics);
-    let reset = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Reset);
-    let status = subscription_quota_text_value(snapshot, SubscriptionQuotaTextKind::Status);
-    let status_color = quota_status_color(snapshot.status, palette);
-    let progress_percent = snapshot.usage_fraction() * 100.0;
+    quota_a11y.set_label(UiLocale::default().text("overview_subscription_quota"));
+    let quota = project_quota(snapshot, UiLocale::default().code());
+    let profile = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Profile);
+    let expiry = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Expiry);
+    let metrics = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Metrics);
+    let reset = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Reset);
+    let status = subscription_quota_text_value(&quota, SubscriptionQuotaTextKind::Status);
+    let status_color = quota_status_color(quota.grade, palette);
+    let progress_percent = quota.fraction.unwrap_or(0.0) * 100.0;
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -77,7 +77,7 @@ pub fn subscription_quota_scene_with_snapshot(
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S8),
                     }
-                    AccessibilityNode(quota_a11y)
+                    AccessibilityNode(quota_a11y) LocalizedLabel::plain("overview_subscription_quota")
                     SubscriptionQuotaCard
                     Children [
                         Node {
@@ -88,7 +88,7 @@ pub fn subscription_quota_scene_with_snapshot(
                         Children [
                             @{ icon_scene(IconId::FileText, 16.0, palette.accent) }
                             --
-                            Text({ "订阅配额".to_owned() }) TextRole(Role::Caption)
+                            LocalizedText::plain("overview_subscription_quota") TextRole(Role::Caption)
                         ]
                         --
                         Node {
@@ -155,17 +155,12 @@ pub fn subscription_quota_scene_with_snapshot(
     )
 }
 
-pub(crate) fn quota_status_color(status: SubscriptionQuotaStatus, palette: &UiPalette) -> Color {
-    match status {
-        SubscriptionQuotaStatus::Critical
-        | SubscriptionQuotaStatus::Exhausted
-        | SubscriptionQuotaStatus::Expired => palette.danger,
-        SubscriptionQuotaStatus::Warning | SubscriptionQuotaStatus::ExpiringSoon => palette.warning,
-        SubscriptionQuotaStatus::Ready => palette.success,
-        SubscriptionQuotaStatus::Unknown
-        | SubscriptionQuotaStatus::Empty
-        | SubscriptionQuotaStatus::Unsupported
-        | SubscriptionQuotaStatus::Failed => palette.ink_dim,
+pub(crate) fn quota_status_color(grade: QuotaGrade, palette: &UiPalette) -> Color {
+    match grade {
+        QuotaGrade::Danger => palette.danger,
+        QuotaGrade::Warning => palette.warning,
+        QuotaGrade::Observed => palette.accent,
+        QuotaGrade::Unknown => palette.ink_dim,
     }
 }
 
@@ -181,7 +176,7 @@ pub fn active_exit_node_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut a11y = accesskit::Node::new(accesskit::Role::Region);
-    a11y.set_label("当前主出口节点");
+    a11y.set_label(UiLocale::default().text("overview_active_exit_label"));
     let delay_color = if snapshot.delay_ms.is_some() {
         palette.success
     } else {
@@ -201,7 +196,7 @@ pub fn active_exit_node_scene_with_snapshot(
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S8),
                     }
-                    AccessibilityNode(a11y)
+                    AccessibilityNode(a11y) LocalizedLabel::plain("overview_active_exit_label")
                     ActiveExitNodeCard
                     Children [
                         Node {
@@ -217,7 +212,7 @@ pub fn active_exit_node_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Globe, 16.0, palette.accent) }
                                 --
-                                Text({ "当前主出口节点 (Active Exit Node)".to_owned() }) TextRole(Role::Heading)
+                                LocalizedText::plain("overview_active_exit_title") TextRole(Role::Heading)
                             ]
                             --
                             Node {
@@ -297,10 +292,10 @@ pub fn master_switches_scene_with_snapshot(
                 row_gap: Val::Px(space::S8),
             }
             Children [
-                @{ single_master_card_scene("系统代理 (System Proxy)", "接管系统 HTTP/SOCKS 端口", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
+                @{ single_master_card_scene("overview_system_proxy_label", "overview_system_proxy_description", IconId::Settings, SystemToggle::SystemProxy, snapshot, palette) }
                 SystemProxyMasterCard
                 --
-                @{ single_master_card_scene("TUN 模式 (TUN Virtual Interface)", "gVisor 虚拟网卡全量接管", IconId::Network, SystemToggle::Tun, snapshot, palette) }
+                @{ single_master_card_scene("overview_tun_label", "overview_tun_description", IconId::Network, SystemToggle::Tun, snapshot, palette) }
                 TunMasterCard
             ]
     }
@@ -317,12 +312,19 @@ fn single_master_card_scene(
     let state = snapshot.state(toggle);
     let enabled = state.is_enabled();
     let can_toggle = state.can_toggle();
-    let status_text =
-        master_switch_text_value(snapshot, toggle, OverviewMasterSwitchTextKind::Status);
-    let action_text =
-        master_switch_text_value(snapshot, toggle, OverviewMasterSwitchTextKind::Action);
-    let status_color =
-        crate::pages::overview_restamp::master_switch_status_color(snapshot, toggle, palette);
+    let status_text = master_switch_text_value(
+        snapshot,
+        toggle,
+        OverviewMasterSwitchTextKind::Status,
+        UiLocale::default().code(),
+    );
+    let action_text = master_switch_text_value(
+        snapshot,
+        toggle,
+        OverviewMasterSwitchTextKind::Action,
+        UiLocale::default().code(),
+    );
+    let status_color = master_switch_status_color(snapshot, toggle, palette);
     let dot_color = if enabled {
         palette.success
     } else {
@@ -351,7 +353,7 @@ fn single_master_card_scene(
                             Children [
                                 @{ icon_scene(icon, 16.0, palette.accent) }
                                 --
-                                Text({ title.to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain(title) TextRole(Role::BodyStrong)
                             ]
                             --
                             Node {
@@ -376,7 +378,7 @@ fn single_master_card_scene(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            Text({ desc.to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                            LocalizedText::plain(desc) TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             --
                             Node {
                                 padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S2)),
@@ -407,6 +409,9 @@ pub struct OverviewModeSegmentPill(pub ProxyMode);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModeSegmentText(pub ProxyMode);
 
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct OverviewModeCaption;
+
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn mode_segmented_controller_scene(palette: &UiPalette) -> impl Scene + use<> {
     mode_segmented_controller_scene_with_snapshot(&ProxyModeSnapshot::demo_fixture(), palette)
@@ -418,14 +423,7 @@ pub fn mode_segmented_controller_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
-    header_a11y.set_label("代理运行模式");
-
-    let status_str = match snapshot.status {
-        ProxyModeStatus::Ready => "就绪",
-        ProxyModeStatus::Pending => "切换中",
-        ProxyModeStatus::Unsupported => "不可用",
-        ProxyModeStatus::Failed => "失败",
-    };
+    header_a11y.set_label("overview_proxy_mode_title");
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -435,7 +433,7 @@ pub fn mode_segmented_controller_scene_with_snapshot(
                         row_gap: Val::Px(space::S12),
                     }
                     AccessibilityNode(header_a11y)
-                    ProxyModeSegmentCard
+                    ProxyModeSegmentCard LocalizedLabel::plain("overview_proxy_mode_title")
                     Children [
                         Node {
                             width: percent(100),
@@ -450,7 +448,7 @@ pub fn mode_segmented_controller_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Settings, 16.0, palette.accent) }
                                 --
-                                Text({ "代理运行模式 (Proxy Mode)".to_owned() }) TextRole(Role::Heading)
+                                LocalizedText::plain("overview_proxy_mode_title") TextRole(Role::Heading)
                             ]
                             --
                             Node {
@@ -460,7 +458,7 @@ pub fn mode_segmented_controller_scene_with_snapshot(
                             BackgroundColor({ palette.accent_container })
                             AccentContainerFill
                             Children [
-                                Text({ format!("{} · {}", mode_label(snapshot.current), status_str) }) TextRole(Role::Caption) TextColor({ palette.accent })
+                                Text({ String::new() }) OverviewModeCaption TextRole(Role::Caption) TextColor({ palette.accent })
                             ]
                         ]
                         --
@@ -491,7 +489,7 @@ fn single_mode_pill_scene(
     snapshot: &ProxyModeSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let is_current = snapshot.current == mode;
+    let is_current = snapshot.current == Some(mode);
     let selectable = snapshot.is_mode_selectable(mode);
     let bg = if is_current {
         palette.accent
@@ -507,18 +505,20 @@ fn single_mode_pill_scene(
     } else {
         palette.ink_dim
     };
-    let label = mode_label(mode).to_owned();
+    let semantic = accesskit::Node::new(accesskit::Role::Button);
+    let label_key = mode_copy_key(mode);
 
     bsn! {
             Node {
                 padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S6)),
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
             }
-            OverviewModeSegmentPill(mode)
+            OverviewModeSegmentPill(mode) LocalizedLabel::plain(label_key) AccessibilityNode(semantic)
+            ButtonDisabled({ !selectable }) ControlVisual(is_current)
             Button
             BackgroundColor({ bg })
             Children [
-                Text({ label }) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink })
+                LocalizedText::plain(label_key) OverviewModeSegmentText(mode) TextRole(Role::Body) TextColor({ ink })
             ]
     }
 }

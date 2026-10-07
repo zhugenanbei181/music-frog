@@ -1,12 +1,21 @@
 //! Host-owned runtime handle exposed to inbound surfaces.
 
+use crate::certificate_authority::CertificateAuthorityPort;
 use crate::core_lifecycle::CoreLifecyclePort;
+use crate::dns_latency::DnsLatencyProbePort;
+use crate::dns_leak::DnsLeakProbePort;
+use crate::mini_hud_window::MiniHudWindowPort;
 use crate::mtu_probe::MtuProbePort;
 use crate::network_roaming::NetworkRoamingPort;
 use crate::pac::PacServicePort;
 use crate::privileged_network::PrivilegedNetworkPort;
+use crate::rule_provider_cache::RuleProviderCachePort;
 use crate::runtime_gateway::ManagedRuntime;
+use crate::script_export::ScriptExportPort;
 use crate::service_mode::ServiceModePort;
+use crate::speedtest::SpeedtestPort;
+use crate::stun_probe::StunEgressProbePort;
+use crate::system_dns_cache::SystemDnsCachePort;
 use crate::system_proxy::SystemProxyPort;
 use crate::vpn_service::VpnServicePort;
 use std::path::PathBuf;
@@ -64,9 +73,7 @@ pub trait HostRuntime: ManagedRuntime {
     }
     /// DUAL-05-13: optional CA-bundle file reader. Hosts without one surface a
     /// typed unsupported certificate state instead of claiming a CA was loaded.
-    fn certificate_authority_port(
-        &self,
-    ) -> Option<Arc<dyn crate::certificate_authority::CertificateAuthorityPort>> {
+    fn certificate_authority_port(&self) -> Option<Arc<dyn CertificateAuthorityPort>> {
         None
     }
     /// Optional native VPN service adapter. Desktop/iOS hosts return `None`
@@ -76,39 +83,31 @@ pub trait HostRuntime: ManagedRuntime {
     }
     /// Optional speedtest / jitter / packet-loss engine adapter. Hosts without
     /// one surface a typed unsupported state instead of fabricating metrics.
-    fn speedtest_port(&self) -> Option<Arc<dyn crate::speedtest::SpeedtestPort>> {
-        None
-    }
-    /// Optional live rule tracer adapter backed by the shared AST simulation
-    /// engine. Hosts without one surface a typed unsupported state instead of
-    /// replaying a UI-local decision chain.
-    fn rule_tracer_port(&self) -> Option<Arc<dyn crate::rule_tracer::RuleTracerPort>> {
+    fn speedtest_port(&self) -> Option<Arc<dyn SpeedtestPort>> {
         None
     }
     /// Optional operating-system resolver cache adapter. Hosts without one
     /// surface a typed unsupported OS-cache outcome instead of claiming the
     /// system cache was refreshed.
-    fn system_dns_cache_port(
-        &self,
-    ) -> Option<Arc<dyn crate::system_dns_cache::SystemDnsCachePort>> {
+    fn system_dns_cache_port(&self) -> Option<Arc<dyn SystemDnsCachePort>> {
         None
     }
     /// Optional floating Mini HUD window adapter. Hosts that cannot move an
     /// always-on-top frameless window omit it; the persisted placement still
     /// round-trips through settings and is reported as typed unsupported.
-    fn mini_hud_window_port(&self) -> Option<Arc<dyn crate::mini_hud_window::MiniHudWindowPort>> {
+    fn mini_hud_window_port(&self) -> Option<Arc<dyn MiniHudWindowPort>> {
         None
     }
     /// DUAL-14-10: optional per-nameserver latency prober. Hosts without one
     /// publish a typed unsupported latency status instead of a made-up number.
-    fn dns_latency_probe_port(&self) -> Option<Arc<dyn crate::dns_latency::DnsLatencyProbePort>> {
+    fn dns_latency_probe_port(&self) -> Option<Arc<dyn DnsLatencyProbePort>> {
         None
     }
     /// DUAL-14-08: optional DNS leak cross-source probe. Hosts without a
     /// controlled echo authority (and a configured source) inject nothing and
     /// both surfaces publish the typed unsupported state instead of a leak
     /// verdict.
-    fn dns_leak_probe_port(&self) -> Option<Arc<dyn crate::dns_leak::DnsLeakProbePort>> {
+    fn dns_leak_probe_port(&self) -> Option<Arc<dyn DnsLeakProbePort>> {
         None
     }
     /// DUAL-14-09 (re-scoped): optional STUN UDP-egress probe. Hosts without a
@@ -116,21 +115,19 @@ pub trait HostRuntime: ManagedRuntime {
     /// unsupported state instead of a fabricated public mapping. The
     /// observation is this host/process's own UDP egress, never a browser
     /// WebRTC result.
-    fn stun_egress_probe_port(&self) -> Option<Arc<dyn crate::stun_probe::StunEgressProbePort>> {
+    fn stun_egress_probe_port(&self) -> Option<Arc<dyn StunEgressProbePort>> {
         None
     }
     /// DUAL-11-06/07: the kernel's local rule-provider files. Hosts without a
     /// resolvable kernel home directory omit it instead of reporting a purge
     /// that never happened.
-    fn rule_provider_cache_port(
-        &self,
-    ) -> Option<Arc<dyn crate::rule_provider_cache::RuleProviderCachePort>> {
+    fn rule_provider_cache_port(&self) -> Option<Arc<dyn RuleProviderCachePort>> {
         None
     }
     /// DUAL-10-12: the host save-file adapter for script/Mixin exports. Hosts
     /// with no file dialog and no writable export directory omit it and every
     /// export answers a typed unsupported outcome instead of a fake path.
-    fn script_export_port(&self) -> Option<Arc<dyn crate::script_export::ScriptExportPort>> {
+    fn script_export_port(&self) -> Option<Arc<dyn ScriptExportPort>> {
         None
     }
     fn lifecycle_port(&self) -> Arc<dyn CoreLifecyclePort>;

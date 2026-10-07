@@ -6,9 +6,11 @@
 //! there against a real temporary directory.
 
 use super::*;
-use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
+use infiltrator_contract::script_export::{
+    ScriptExportKind, ScriptExportOutcome, ScriptExportReceipt,
+};
 use infiltrator_domain::script_engine::HookStage;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Host double: records the exact request it was handed and answers a receipt.
 #[derive(Default)]
@@ -23,13 +25,10 @@ impl RecordingExportPort {
 }
 
 impl ScriptExportPort for RecordingExportPort {
-    fn save_export(
-        &self,
-        request: &ScriptExportRequest,
-    ) -> Result<infiltrator_contract::script_export::ScriptExportReceipt, PortError> {
+    fn save_export(&self, request: &ScriptExportRequest) -> Result<ScriptExportReceipt, PortError> {
         let mut saved = self.saved.lock().expect("recording lock");
         saved.push(request.clone());
-        Ok(infiltrator_contract::script_export::ScriptExportReceipt {
+        Ok(ScriptExportReceipt {
             path: format!("/fake/exports/{}", request.file_name),
             bytes_written: request.byte_len(),
         })
@@ -52,7 +51,7 @@ fn package() -> ExtensionPackage {
 
 #[test]
 fn a_host_with_a_save_port_persists_the_real_artifact_and_reports_the_path() {
-    let port = std::sync::Arc::new(RecordingExportPort::default());
+    let port = Arc::new(RecordingExportPort::default());
     let application = ScriptExportApplication::new(Some(port.clone()));
     assert!(application.has_host_port());
 
@@ -85,7 +84,7 @@ fn a_host_with_a_save_port_persists_the_real_artifact_and_reports_the_path() {
     assert_eq!(saved[0].content, snapshot.content);
     assert_eq!(saved[0].media_type, "text/plain");
     // The shared projection is the same fact the Bevy surface reads.
-    assert_eq!(last_script_export().as_ref(), Some(&snapshot));
+    assert_eq!(application.snapshot().as_ref(), Some(&snapshot));
 
     // The overlay export goes through the same port with its real YAML bytes.
     let overlay = application
@@ -124,12 +123,12 @@ fn a_host_without_a_save_port_reports_typed_unsupported_without_losing_content()
     // The composed bytes survive the unsupported host outcome.
     assert!(snapshot.content.contains("function main(config)"));
     assert_eq!(snapshot.byte_len(), snapshot.content.len());
-    assert_eq!(last_script_export().as_ref(), Some(&snapshot));
+    assert_eq!(application.snapshot().as_ref(), Some(&snapshot));
 }
 
 #[test]
 fn invalid_drafts_are_refused_before_any_port_call() {
-    let port = std::sync::Arc::new(RecordingExportPort::default());
+    let port = Arc::new(RecordingExportPort::default());
     let application = ScriptExportApplication::new(Some(port.clone()));
     assert!(
         application
@@ -151,13 +150,13 @@ fn export_projection_clears_and_republishes() {
             None,
         )
         .expect("export");
-    assert_eq!(last_script_export().as_ref(), Some(&first));
-    clear_script_export();
-    assert!(last_script_export().is_none());
+    assert_eq!(application.snapshot().as_ref(), Some(&first));
+    application.clear_history();
+    assert!(application.snapshot().is_none());
     let second = application
         .export_preset("remove-ads")
         .expect("preset export");
     assert_eq!(second.file_name, "remove-ads.js");
-    assert_eq!(last_script_export().as_ref(), Some(&second));
+    assert_eq!(application.snapshot().as_ref(), Some(&second));
     assert_ne!(first, second);
 }

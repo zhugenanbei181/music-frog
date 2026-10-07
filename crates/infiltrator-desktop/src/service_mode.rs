@@ -5,6 +5,7 @@
 //! contract and never reports preparation as successful unless the post-check
 //! reaches a ready state.
 
+use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
@@ -12,8 +13,6 @@ use infiltrator_contract::service_mode::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::service_mode::ServiceModePort;
 use std::path::{Path, PathBuf};
-
-use crate::tun_service::{ServiceModeStatus, TunServiceManager};
 
 pub struct DesktopServiceMode {
     binary_path: PathBuf,

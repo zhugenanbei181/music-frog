@@ -2,6 +2,7 @@
 //! validation (stack/MTU) and persistence.
 
 use super::profile_apply::save_task_with_strategy;
+use crate::configuration::application;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, TunFormDraft};
@@ -9,9 +10,14 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
+use iced::widget::text_editor::Content;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::tun::TunStack;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::tun::{TunConfig, TunConfigPatch, apply_tun_patch_to_yaml};
+use std::time::Instant;
+use tokio::time;
+use tokio::time::sleep;
 
 impl AppState {
     pub(super) fn ensure_tun_editor_loaded(&mut self) {
@@ -20,17 +26,13 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
-        self.editor.tun_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.tun_json_cache);
+        let start = Instant::now();
+        self.editor.tun_json_content = Content::with_text(&self.editor.tun_json_cache);
         self.editor.tun_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_tun_form_from_config(
-        &mut self,
-        config: &infiltrator_domain::tun::TunConfig,
-    ) {
+    pub(super) fn apply_tun_form_from_config(&mut self, config: &TunConfig) {
         self.editor.tun_form = TunFormDraft {
             enable: config.enable.unwrap_or(false),
             stack: config.stack.clone().unwrap_or_else(|| "gvisor".to_string()),
@@ -45,9 +47,7 @@ impl AppState {
         };
     }
 
-    fn tun_patch_from_form(
-        &self,
-    ) -> Result<infiltrator_domain::tun::TunConfigPatch, InfiltratorError> {
+    fn tun_patch_from_form(&self) -> Result<TunConfigPatch, InfiltratorError> {
         let stack_text = self.editor.tun_form.stack.trim();
         let stack = if stack_text.is_empty() {
             None
@@ -79,7 +79,7 @@ impl AppState {
             ));
         }
 
-        Ok(infiltrator_domain::tun::TunConfigPatch {
+        Ok(TunConfigPatch {
             enable: Some(self.editor.tun_form.enable),
             stack,
             mtu,
@@ -116,7 +116,7 @@ impl AppState {
         match message {
             Message::RefreshTunOnly => Task::perform(
                 async {
-                    let config = crate::configuration::application()
+                    let config = application()
                         .await?
                         .load_tun_config()
                         .await
@@ -132,24 +132,22 @@ impl AppState {
             }
             Message::TunConfigJsonLoaded(result) => {
                 match result {
-                    Ok(json) => {
-                        match serde_json::from_str::<infiltrator_domain::tun::TunConfig>(&json) {
-                            Ok(config) => {
-                                self.editor.advanced_configs_loaded_once = true;
-                                self.editor.tun_json_cache = json;
-                                self.apply_tun_form_from_config(&config);
-                                if self.editor.tun_editor_state == EditorLazyState::Loaded {
-                                    self.ensure_tun_editor_loaded();
-                                }
-                                self.editor.tun_json_dirty = false;
-                                self.editor.tun_form_dirty = false;
-                                self.editor.advanced_validation.tun = None;
+                    Ok(json) => match serde_json::from_str::<TunConfig>(&json) {
+                        Ok(config) => {
+                            self.editor.advanced_configs_loaded_once = true;
+                            self.editor.tun_json_cache = json;
+                            self.apply_tun_form_from_config(&config);
+                            if self.editor.tun_editor_state == EditorLazyState::Loaded {
+                                self.ensure_tun_editor_loaded();
                             }
-                            Err(e) => {
-                                self.set_error(&e);
-                            }
+                            self.editor.tun_json_dirty = false;
+                            self.editor.tun_form_dirty = false;
+                            self.editor.advanced_validation.tun = None;
                         }
-                    }
+                        Err(e) => {
+                            self.set_error(&e);
+                        }
+                    },
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()
@@ -206,7 +204,7 @@ impl AppState {
                     self.ensure_tun_editor_loaded();
                     let text = self.editor.tun_json_content.text();
                     self.editor.tun_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_domain::tun::TunConfigPatch>(&text)
+                    serde_json::from_str::<TunConfigPatch>(&text)
                         .map_err(|e| InfiltratorError::Config(format!("Invalid TUN JSON: {}", e)))
                 };
                 let patch = match patch {
@@ -224,7 +222,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -234,7 +232,7 @@ impl AppState {
                 save_task_with_strategy(
                     self.runtime.runtime.clone(),
                     ApplyStrategy::AlwaysRestart,
-                    move |content| infiltrator_domain::tun::apply_tun_patch_to_yaml(content, patch),
+                    move |content| apply_tun_patch_to_yaml(content, patch),
                     Message::TunConfigSaved,
                 )
             }
@@ -262,7 +260,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),

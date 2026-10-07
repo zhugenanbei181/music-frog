@@ -12,11 +12,12 @@
 //! Red line: everything in this module is pure data plus pure functions —
 //! no app-state access, no I/O, no backend calls.
 
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
-
+use infiltrator_contract::tray_status::TrayRateBadge;
 use infiltrator_contract::version::InstalledCoreVersion;
 use infiltrator_domain::profiles::ProfileInfo;
+use std::env::{current_dir, current_exe};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::Receiver;
 
 /// Stable menu action id, shared by the spec builder, both backends and the
 /// update handlers. Never reuse a number; the mapping is part of the contract.
@@ -433,7 +434,7 @@ pub struct TraySpecContext<'a> {
     /// sample ([`infiltrator_contract::tray_status::TrayRateBadge`]); `None`
     /// until the host delivers a real sample, so no surface ever fabricates a
     /// `0 B/s` badge.
-    pub rate_badge: Option<infiltrator_contract::tray_status::TrayRateBadge>,
+    pub rate_badge: Option<TrayRateBadge>,
 }
 
 /// The controller handle handed to the app on a successful tray startup.
@@ -470,10 +471,10 @@ pub enum TrayStartup {
 /// directory shipped next to the binary (cwd-relative or exe-relative).
 pub fn load_icon_rgba() -> Option<TrayIconData> {
     let mut icon_dirs = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icons")];
-    if let Ok(cwd) = std::env::current_dir() {
+    if let Ok(cwd) = current_dir() {
         icon_dirs.push(cwd.join("icons"));
     }
-    if let Ok(exe) = std::env::current_exe()
+    if let Ok(exe) = current_exe()
         && let Some(dir) = exe.parent()
     {
         icon_dirs.push(dir.join("icons"));

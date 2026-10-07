@@ -1,11 +1,16 @@
-use std::time::Duration;
-use tokio::io::BufReader;
-
 use super::state_machine::{CommandSequence, SequenceExecutionResult};
 use super::{
     AuthToken, IpcEndpoint, ServiceCommand, ServiceError, ServiceRequest, ServiceResponse,
     ServiceResponsePayload, ServiceState, ServiceStatusInfo, recv_framed_json, send_framed_json,
 };
+use std::time::Duration;
+use tokio::io::BufReader;
+#[cfg(windows)]
+use tokio::io::split;
+use tokio::net::UnixStream;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::ClientOptions;
+use tokio::time::timeout;
 
 pub struct ServiceClient {
     endpoint: IpcEndpoint,
@@ -184,15 +189,14 @@ impl ServiceClient {
                 if !path.exists() {
                     return Err(ServiceError::NotRunning);
                 }
-                let stream =
-                    tokio::time::timeout(self.timeout, tokio::net::UnixStream::connect(path))
-                        .await
-                        .map_err(|_| ServiceError::Timeout)?
-                        .map_err(|e| ServiceError::ConnectionFailed(e.to_string()))?;
+                let stream = timeout(self.timeout, UnixStream::connect(path))
+                    .await
+                    .map_err(|_| ServiceError::Timeout)?
+                    .map_err(|e| ServiceError::ConnectionFailed(e.to_string()))?;
                 let (reader, mut writer) = stream.into_split();
                 let mut buf_reader = BufReader::new(reader);
                 send_framed_json(&mut writer, request).await?;
-                tokio::time::timeout(
+                timeout(
                     self.timeout,
                     recv_framed_json::<_, ServiceResponse>(&mut buf_reader),
                 )
@@ -201,13 +205,13 @@ impl ServiceClient {
             }
             #[cfg(windows)]
             IpcEndpoint::NamedPipe(pipe_name) => {
-                let client = tokio::net::windows::named_pipe::ClientOptions::new()
+                let client = ClientOptions::new()
                     .open(pipe_name)
                     .map_err(|e| ServiceError::ConnectionFailed(e.to_string()))?;
-                let (reader, mut writer) = tokio::io::split(client);
+                let (reader, mut writer) = split(client);
                 let mut buf_reader = BufReader::new(reader);
                 send_framed_json(&mut writer, request).await?;
-                tokio::time::timeout(
+                timeout(
                     self.timeout,
                     recv_framed_json::<_, ServiceResponse>(&mut buf_reader),
                 )

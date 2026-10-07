@@ -6,9 +6,8 @@
 //! application then reports the request as typed unsupported instead of
 //! claiming the CA was loaded.
 
-use infiltrator_contract::capability::Capability;
-
 use crate::error::PortError;
+use infiltrator_contract::capability::Capability;
 
 /// One CA bundle the host really read.
 #[derive(Clone, Debug, PartialEq, Eq)]

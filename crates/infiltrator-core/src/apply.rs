@@ -16,23 +16,35 @@
 //! anchors (`&anchor`), alias references (`*alias`), and custom formatting are 100%
 //! preserved during configuration edits and profile switches.
 
-use std::path::Path;
-use std::time::Duration;
-
+use crate::history::{DEFAULT_KEEP, prune_snapshots, save_snapshot};
 use async_trait::async_trait;
-use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::client::MihomoClient;
-use mihomo_config::manager::ConfigManager;
-use tokio::io::AsyncWriteExt;
-use yaml_rust2::{Yaml, YamlLoader};
-
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::rule_source::RuleSourceIdentity;
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::yaml_edit::SourceDoc;
+use infiltrator_domain::mixin::{MixinConfig, merge_profile_with_config};
+use infiltrator_domain::rules::source_identity::identify_rules_document;
+use infiltrator_domain::yaml_edit::mixin_fidelity::{
+    apply_mixin_to_doc, can_apply_mixin_via_fidelity,
+};
+use infiltrator_domain::yaml_edit::{SourceDoc, YamlEditError};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::client::MihomoClient;
+use mihomo_api::error::MihomoError;
+use mihomo_config::manager::ConfigManager;
+use std::ffi::OsStr;
+use std::io::ErrorKind;
+use std::path::Path;
+use std::process::id;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{io, result};
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use yaml_rust2::{Yaml, YamlLoader};
 
 const DEFAULT_RESTART_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -102,6 +114,10 @@ pub enum ApplyError {
     Validation(String),
     #[error("failed to write config atomically: {0}")]
     Write(String),
+    #[error("profile transaction permission denied: {0}")]
+    Permission(String),
+    #[error("source profile changed; inspect and confirm the current document again")]
+    SourceChanged,
     #[error("core is {status:?}; wait for the transition to finish before applying")]
     Busy { status: CoreLifecycle },
     #[error("apply failed, previous config restored and core recovered: {cause}")]
@@ -112,7 +128,7 @@ pub enum ApplyError {
     Lifecycle(String),
 }
 
-pub type ApplyResult<T> = std::result::Result<T, ApplyError>;
+pub type ApplyResult<T> = result::Result<T, ApplyError>;
 
 /// Asks a *running* core to load the config file at `path` without a process
 /// restart. Abstracted so ordinary tests exercise the transaction with a
@@ -127,11 +143,11 @@ pub trait ConfigReloader: Send + Sync {
 /// deliberately independent of the lifecycle owner so CoreApplication and
 /// any lifecycle owner can share the same transaction.
 pub struct EndpointConfigReloader {
-    endpoints: std::sync::Arc<dyn EndpointSource>,
+    endpoints: Arc<dyn EndpointSource>,
 }
 
 impl EndpointConfigReloader {
-    pub fn new(endpoints: std::sync::Arc<dyn EndpointSource>) -> Self {
+    pub fn new(endpoints: Arc<dyn EndpointSource>) -> Self {
         Self { endpoints }
     }
 }
@@ -159,7 +175,7 @@ impl ConfigReloader for EndpointConfigReloader {
 /// Lightweight structural validation performed before any disk write. Deep
 /// validation is the core's job: if mihomo rejects the file on reload or
 /// boot, the transaction rolls back — that is the safety net, not this check.
-fn validate_config(content: &str) -> Result<(), String> {
+pub(crate) fn validate_config(content: &str) -> Result<(), String> {
     let docs =
         YamlLoader::load_from_str(content).map_err(|err| format!("YAML parse failed: {err}"))?;
     match docs.first() {
@@ -171,36 +187,33 @@ fn validate_config(content: &str) -> Result<(), String> {
 
 /// Write via a temp file in the same directory plus rename: interrupted
 /// writes and crashes leave the previous config intact.
-async fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
-    let dir = path.parent().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "config path has no parent",
-        )
-    })?;
+async fn atomic_write(path: &Path, content: &str) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "config path has no parent"))?;
     let file_name = path
         .file_name()
-        .and_then(std::ffi::OsStr::to_str)
+        .and_then(OsStr::to_str)
         .unwrap_or("config.yaml");
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
         .unwrap_or(0);
-    let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", std::process::id()));
+    let tmp = dir.join(format!(".{file_name}.tmp-{}-{nanos}", id()));
 
     let write = async {
-        let mut file = tokio::fs::File::create(&tmp).await?;
+        let mut file = fs::File::create(&tmp).await?;
         file.write_all(content.as_bytes()).await?;
         file.sync_all().await?;
-        Ok::<_, std::io::Error>(())
+        Ok::<_, io::Error>(())
     }
     .await;
     if let Err(err) = write {
-        let _ = tokio::fs::remove_file(&tmp).await;
+        let _ = fs::remove_file(&tmp).await;
         return Err(err);
     }
-    if let Err(err) = tokio::fs::rename(&tmp, path).await {
-        let _ = tokio::fs::remove_file(&tmp).await;
+    if let Err(err) = fs::rename(&tmp, path).await {
+        let _ = fs::remove_file(&tmp).await;
         return Err(err);
     }
     Ok(())
@@ -209,7 +222,7 @@ async fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
 /// Hot-reload path: keep the process, reload, then prove the controller is
 /// still healthy. Returns `Err(cause)` when either step fails; the caller
 /// falls back to the restart path without rolling back yet.
-async fn reload_and_check(
+pub(crate) async fn reload_and_check(
     session: &impl CoreLifecyclePort,
     reloader: &dyn ConfigReloader,
     path: &Path,
@@ -241,7 +254,7 @@ async fn reload_and_check(
     })
 }
 
-async fn restart_and_check(
+pub(crate) async fn restart_and_check(
     session: &impl CoreLifecyclePort,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, ApplyError> {
@@ -263,7 +276,7 @@ async fn restart_and_check(
     })
 }
 
-async fn start_and_check(
+pub(crate) async fn start_and_check(
     session: &impl CoreLifecyclePort,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, ApplyError> {
@@ -305,6 +318,37 @@ pub async fn apply_current_profile<S: SecureStore>(
     new_content: &str,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
+    apply_profile_transaction(session, config, reloader, new_content, params, None).await
+}
+
+/// Apply only the profile and exact bytes that the user inspected and confirmed.
+pub async fn apply_confirmed_profile<S: SecureStore>(
+    session: &impl CoreLifecyclePort,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    new_content: &str,
+    params: ApplyParams,
+    expected: &RuleSourceIdentity,
+) -> ApplyResult<ApplyOutcome> {
+    apply_profile_transaction(
+        session,
+        config,
+        reloader,
+        new_content,
+        params,
+        Some(expected),
+    )
+    .await
+}
+
+async fn apply_profile_transaction<S: SecureStore>(
+    session: &impl CoreLifecyclePort,
+    config: &ConfigManager<S>,
+    reloader: &dyn ConfigReloader,
+    new_content: &str,
+    params: ApplyParams,
+    expected: Option<&RuleSourceIdentity>,
+) -> ApplyResult<ApplyOutcome> {
     validate_config(new_content).map_err(ApplyError::Validation)?;
 
     let status = session.lifecycle();
@@ -313,22 +357,40 @@ pub async fn apply_current_profile<S: SecureStore>(
     }
     let was_running = matches!(status, CoreLifecycle::Ready | CoreLifecycle::Running);
 
-    let current = config
-        .get_current()
-        .await
-        .map_err(|err| ApplyError::Write(err.to_string()))?;
-    let old_content = match config.load_backup(&current).await {
-        Ok(Some(backup)) => Some(backup),
-        Ok(None) | Err(_) => config.load(&current).await.ok(),
+    let write_guard = config.lock_profile_writes().await;
+    let current = config.get_current().await.map_err(config_apply_error)?;
+    let observed = config.load(&current).await.map_err(config_apply_error)?;
+    if expected
+        .is_some_and(|expected| *expected != identify_rules_document(current.clone(), &observed))
+    {
+        return Err(ApplyError::SourceChanged);
+    }
+    let old_content = if expected.is_some() {
+        Some(observed)
+    } else {
+        match config.load_backup(&current).await {
+            Ok(Some(backup)) => Some(backup),
+            Ok(None) | Err(_) => Some(observed),
+        }
     };
+    // Pin the validated path to this profile; a second current-profile lookup
+    // must never redirect already validated rule bytes into another profile.
     let path = config
-        .get_current_path()
+        .existing_profile_yaml_path(&current)
         .await
-        .map_err(|err| ApplyError::Write(err.to_string()))?;
+        .map_err(config_apply_error)?;
+    if expected.is_some() && config.get_current().await.map_err(config_apply_error)? != current {
+        return Err(ApplyError::SourceChanged);
+    }
 
-    atomic_write(&path, new_content)
-        .await
-        .map_err(|err| ApplyError::Write(format!("{}: {err}", path.display())))?;
+    atomic_write(&path, new_content).await.map_err(|error| {
+        if error.kind() == ErrorKind::PermissionDenied {
+            ApplyError::Permission(format!("{}: {error}", path.display()))
+        } else {
+            ApplyError::Write(format!("{}: {error}", path.display()))
+        }
+    })?;
+    drop(write_guard);
 
     let outcome: Result<ApplyOutcome, String> = if !was_running {
         start_and_check(session, &params).await
@@ -353,16 +415,10 @@ pub async fn apply_current_profile<S: SecureStore>(
             if params.snapshot_history
                 && let Some(config_dir) = path.parent()
             {
-                let current = config.get_current().await.unwrap_or_default();
-                match crate::history::save_snapshot(config_dir, &current, new_content).await {
+                match save_snapshot(config_dir, &current, new_content).await {
                     Ok(meta) => {
                         log::info!("config snapshot stored: {}", meta.path.display());
-                        if let Err(err) = crate::history::prune_snapshots(
-                            config_dir,
-                            &current,
-                            crate::history::DEFAULT_KEEP,
-                        )
-                        .await
+                        if let Err(err) = prune_snapshots(config_dir, &current, DEFAULT_KEEP).await
                         {
                             log::warn!("snapshot prune failed: {err}");
                         }
@@ -372,7 +428,7 @@ pub async fn apply_current_profile<S: SecureStore>(
             }
             // DUAL-09-11: both surfaces read the same typed outcome instead of
             // inferring a rollback from an error string.
-            record_transaction(ApplyTransactionSnapshot::committed(
+            config.record_apply_transaction(ApplyTransactionSnapshot::committed(
                 &current,
                 outcome.method.as_str(),
             ));
@@ -384,9 +440,25 @@ pub async fn apply_current_profile<S: SecureStore>(
     // Rollback: restore the previous file; bring the core back if it had
     // been serving before this transaction.
     if let Some(old) = old_content {
+        let _write_guard = config.lock_profile_writes().await;
+        match fs::read_to_string(&path).await {
+            Ok(observed) if observed == new_content => {}
+            observed => {
+                let rollback = match observed {
+                    Ok(_) => {
+                        "profile changed after publication; refusing to overwrite it".to_string()
+                    }
+                    Err(error) => format!("cannot confirm profile before rollback: {error}"),
+                };
+                config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
+                    &current, &cause, &rollback,
+                ));
+                return Err(ApplyError::RollbackFailed { cause, rollback });
+            }
+        }
         if let Err(err) = atomic_write(&path, &old).await {
             let rollback = format!("restoring {}: {err}", path.display());
-            record_transaction(ApplyTransactionSnapshot::rollback_failed(
+            config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
                 &current, &cause, &rollback,
             ));
             return Err(ApplyError::RollbackFailed { cause, rollback });
@@ -401,26 +473,32 @@ pub async fn apply_current_profile<S: SecureStore>(
     if was_running {
         match restart_and_check(session, &params).await {
             Ok(_) => {
-                record_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
+                config.record_apply_transaction(ApplyTransactionSnapshot::rolled_back(
+                    &current, &cause,
+                ));
                 Err(ApplyError::RolledBack { cause })
             }
             Err(err) => {
                 let rollback = err.to_string();
-                record_transaction(ApplyTransactionSnapshot::rollback_failed(
+                config.record_apply_transaction(ApplyTransactionSnapshot::rollback_failed(
                     &current, &cause, &rollback,
                 ));
                 Err(ApplyError::RollbackFailed { cause, rollback })
             }
         }
     } else {
-        record_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
+        config.record_apply_transaction(ApplyTransactionSnapshot::rolled_back(&current, &cause));
         Err(ApplyError::RolledBack { cause })
     }
 }
 
-/// Publish one transaction outcome for the surface read model.
-fn record_transaction(snapshot: ApplyTransactionSnapshot) {
-    infiltrator_contract::apply_transaction::record_apply_transaction(snapshot);
+fn config_apply_error(error: MihomoError) -> ApplyError {
+    match error {
+        MihomoError::Io(error) if error.kind() == ErrorKind::PermissionDenied => {
+            ApplyError::Permission(error.to_string())
+        }
+        other => ApplyError::Write(other.to_string()),
+    }
 }
 
 // ---- SourceDoc Fidelity Track Integration ----------------------------------
@@ -451,7 +529,7 @@ pub async fn apply_profile_edit<S: SecureStore, F>(
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome>
 where
-    F: FnOnce(&mut SourceDoc) -> Result<(), infiltrator_domain::yaml_edit::YamlEditError>,
+    F: FnOnce(&mut SourceDoc) -> Result<(), YamlEditError>,
 {
     let current = config
         .get_current()
@@ -557,7 +635,7 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
     session: &impl CoreLifecyclePort,
     config: &ConfigManager<S>,
     reloader: &dyn ConfigReloader,
-    mixin: &infiltrator_domain::mixin::MixinConfig,
+    mixin: &MixinConfig,
     params: ApplyParams,
 ) -> ApplyResult<ApplyOutcome> {
     let current = config
@@ -569,16 +647,15 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
         Err(err) => return Err(ApplyError::Write(err.to_string())),
     };
 
-    if infiltrator_domain::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(mixin)
+    if can_apply_mixin_via_fidelity(mixin)
         && let Ok(mut doc) = SourceDoc::parse(&content)
-        && infiltrator_domain::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, mixin)
-            .is_ok()
+        && apply_mixin_to_doc(&mut doc, mixin).is_ok()
     {
         let new_content = doc.render();
         return apply_current_profile(session, config, reloader, &new_content, params).await;
     }
 
-    let new_content = infiltrator_domain::mixin::merge_profile_with_config(&content, mixin)
+    let new_content = merge_profile_with_config(&content, mixin)
         .map_err(|err| ApplyError::Validation(format!("mixin merge failed: {err}")))?;
     apply_current_profile(session, config, reloader, &new_content, params).await
 }
@@ -587,6 +664,5 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
 // serialize through a lock; they run on a current-thread runtime, so holding
 // the guard across an await cannot deadlock.
 #[cfg(test)]
-#[allow(clippy::await_holding_lock)]
 #[path = "apply_test.rs"]
 mod apply_test;

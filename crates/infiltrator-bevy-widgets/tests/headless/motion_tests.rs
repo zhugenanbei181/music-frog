@@ -1,7 +1,6 @@
 //! Headless tests for spring physics and animation systems in `infiltrator-bevy-widgets`.
 
 use std::time::Duration;
-
 use bevy::app::{App, Update};
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::ResMut;
@@ -9,10 +8,7 @@ use bevy::picking::hover::PickingInteraction;
 use bevy::time::{Time, TimePlugin};
 use bevy::transform::components::Transform;
 use bevy::ui::prelude::{Node, Val};
-use infiltrator_bevy_widgets::motion::{
-    SpringAnimationPlugin, SpringButtonPop, SpringRouteTransition, SpringToggleKnob,
-    sync_spring_button_pop,
-};
+use infiltrator_bevy_widgets::motion::{SpringAnimationPlugin, SpringButtonPop, SpringRouteTransition, SpringToggleKnob, sync_spring_button_pop};
 
 #[test]
 fn test_spring_animation_plugin_systems_execution() {

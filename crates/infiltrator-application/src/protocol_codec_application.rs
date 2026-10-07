@@ -11,23 +11,23 @@
 //! The application layer stays executor-neutral: everything here is sync and
 //! free of Tokio, so both surfaces (and the host command path) share it.
 
-use std::sync::{Mutex, OnceLock};
-
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::protocol_fidelity::{
-    CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
-};
-use infiltrator_contract::protocol_trust::CaTrustReport;
-use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
-use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use serde_yaml_ng::{Mapping, Value};
-
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
 use crate::protocol_node_params::node_from_draft;
 use crate::protocol_node_projection::{
     DRAFT_NESTED_KEYS, draft_from_node, is_typed_extra_key_for, owned_keys,
 };
+use infiltrator_contract::dialer_chain::DialerChainReport;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::protocol_fidelity::{
+    CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFamily, ProtocolFidelityReport,
+    ProtocolStudioSnapshot,
+};
+use infiltrator_contract::protocol_trust::{CaTrustReport, TlsTrustParams};
+use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
+use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use serde_yaml_ng::{Mapping, Value};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
 #[path = "protocol_codec_application_test.rs"]
@@ -45,7 +45,7 @@ pub struct ProtocolCommit {
     pub node_count: usize,
     /// DUAL-05-09/10: the dialer chains + loop findings of the produced
     /// document, so the caller sees a loop the save would introduce.
-    pub dialer: infiltrator_contract::dialer_chain::DialerChainReport,
+    pub dialer: DialerChainReport,
 }
 
 impl ProtocolCommit {
@@ -191,7 +191,18 @@ impl ProtocolCodecApplication {
         let dialer = studio_snapshot()
             .map(|previous| previous.dialer)
             .unwrap_or_default();
-        let snapshot = ProtocolStudioSnapshot {
+        let mut snapshot = Self::project_draft(draft, uri_preview);
+        snapshot.dialer = dialer;
+        publish_studio(snapshot.clone());
+        snapshot
+    }
+
+    /// Fold a staged draft without publishing or touching persistent storage.
+    pub fn project_draft(
+        draft: ProtocolDraft,
+        uri_preview: Option<String>,
+    ) -> ProtocolStudioSnapshot {
+        ProtocolStudioSnapshot {
             report: Some(draft.report()),
             uri_preview,
             uri_gaps: Self::uri_fidelity_gaps(&draft),
@@ -199,18 +210,14 @@ impl ProtocolCodecApplication {
             audit: None,
             last_error: None,
             last_saved_node: None,
-            dialer,
+            dialer: DialerChainReport::default(),
             ca_trust: CaTrustReport::default(),
-        };
-        publish_studio(snapshot.clone());
-        snapshot
+        }
     }
 
     /// DUAL-05-09/10: analyse a profile document's dialer/relay graph and
     /// publish the chains + loop findings for both surfaces.
-    pub fn publish_dialer_report(
-        profile_yaml: &str,
-    ) -> Result<infiltrator_contract::dialer_chain::DialerChainReport, Failure> {
+    pub fn publish_dialer_report(profile_yaml: &str) -> Result<DialerChainReport, Failure> {
         let report = DialerChainApplication::analyze_profile(profile_yaml)?;
         let mut studio = last_studio().lock().unwrap_or_else(|e| e.into_inner());
         let mut next = studio.take().unwrap_or_default();
@@ -221,7 +228,7 @@ impl ProtocolCodecApplication {
 
     /// DUAL-05-10: the dialer report both surfaces render (empty until a
     /// profile was analysed).
-    pub fn dialer_report() -> infiltrator_contract::dialer_chain::DialerChainReport {
+    pub fn dialer_report() -> DialerChainReport {
         studio_snapshot()
             .map(|studio| studio.dialer)
             .unwrap_or_default()
@@ -231,7 +238,7 @@ impl ProtocolCodecApplication {
     /// publish the outcome. A host without a reader publishes the typed
     /// unsupported state instead of a claimed load.
     pub fn publish_ca_trust(
-        params: &infiltrator_contract::protocol_trust::TlsTrustParams,
+        params: &TlsTrustParams,
         port: Option<&dyn CertificateAuthorityPort>,
     ) -> CaTrustReport {
         let report = CertificateAuthorityApplication::resolve(params, port);
@@ -386,18 +393,22 @@ impl ProtocolCodecApplication {
             node_count,
             dialer: dialer.clone(),
         };
+        Ok(commit)
+    }
+
+    /// Publish saved facts only after the caller's persistence transaction succeeds.
+    pub fn publish_commit(commit: &ProtocolCommit) {
         publish_studio(ProtocolStudioSnapshot {
-            draft: Some(draft.clone()),
+            draft: Some(commit.draft.clone()),
             report: Some(commit.report.clone()),
-            uri_preview: Self::uri_from_draft(draft).ok(),
+            uri_preview: Self::uri_from_draft(&commit.draft).ok(),
             audit: Some(commit.audit.clone()),
             last_error: None,
-            last_saved_node: Some(draft.name.trim().to_string()),
-            uri_gaps: Self::uri_fidelity_gaps(draft),
-            dialer,
+            last_saved_node: Some(commit.draft.name.trim().to_string()),
+            uri_gaps: Self::uri_fidelity_gaps(&commit.draft),
+            dialer: commit.dialer.clone(),
             ca_trust: CaTrustReport::default(),
         });
-        Ok(commit)
     }
 
     /// DUAL-05-14: audit a node codec conversion without touching any profile.
@@ -538,7 +549,7 @@ fn proxies_sequence_mut(document: &mut Value) -> Result<&mut Vec<Value>, Failure
 fn merge_preserving_unknown(
     previous: &Value,
     node: &Value,
-    family: infiltrator_contract::protocol_fidelity::ProtocolFamily,
+    family: ProtocolFamily,
     unknown_fields: &mut Vec<String>,
 ) -> Value {
     let Some(previous_map) = previous.as_mapping() else {
@@ -637,9 +648,7 @@ fn collect_unknown_fields(nodes: &[ProxyNodeItem]) -> Vec<String> {
     let mut fields: Vec<String> = nodes
         .iter()
         .flat_map(|node| {
-            let family = infiltrator_contract::protocol_fidelity::ProtocolFamily::from_type_str(
-                &node.node_type,
-            );
+            let family = ProtocolFamily::from_type_str(&node.node_type);
             node.extra
                 .keys()
                 .filter(|key| !is_typed_extra_key_for(key, family))

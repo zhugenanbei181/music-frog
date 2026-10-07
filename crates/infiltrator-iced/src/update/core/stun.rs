@@ -10,15 +10,15 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::stun_probe_application::NO_STUN_PORT_REASON;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
 
 impl AppState {
     /// Publish the shared STUN report into the render state. A probe in flight
     /// keeps the local optimistic report until the reader publishes the same
     /// fact.
-    pub(crate) fn apply_stun_snapshot(
-        &mut self,
-        dns: &infiltrator_contract::surface_snapshot::DnsPageSnapshot,
-    ) {
+    pub(crate) fn apply_stun_snapshot(&mut self, dns: &DnsPageSnapshot) {
         if !self.diag.is_probing_stun || dns.stun.is_reported() {
             self.editor.dns_stun = dns.stun.clone();
         }
@@ -35,21 +35,15 @@ impl AppState {
                     return Task::none();
                 };
                 let Some(port) = runtime.stun_egress_probe_port() else {
-                    return Task::done(Message::StunProbed(Err(
-                        infiltrator_contract::error::Failure::unsupported(
-                            infiltrator_application::stun_probe_application::NO_STUN_PORT_REASON,
-                        ),
-                    )));
+                    return Task::done(Message::StunProbed(Err(Failure::unsupported(
+                        NO_STUN_PORT_REASON,
+                    ))));
                 };
                 self.diag.is_probing_stun = true;
                 Task::perform(
                     async move {
                         port.probe().await.map_err(|error| {
-                            infiltrator_contract::error::Failure::new(
-                                error.error_code(),
-                                error.to_string(),
-                                false,
-                            )
+                            Failure::new(error.error_code(), error.to_string(), false)
                         })
                     },
                     Message::StunProbed,

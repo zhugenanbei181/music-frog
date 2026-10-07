@@ -73,8 +73,6 @@ pub struct SnifferConfigPatch {
     pub parse_pure_ip: Option<bool>,
 }
 
-pub type SnifferConfigPayload = SnifferConfigPatch;
-
 impl From<SnifferConfig> for SnifferConfigPatch {
     fn from(c: SnifferConfig) -> Self {
         Self {

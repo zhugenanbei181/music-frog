@@ -12,10 +12,11 @@
 //! A host without two successive observations publishes honest zeros; the
 //! mapper never invents a rate.
 
+use crate::connection_search::display_endpoint;
 use infiltrator_contract::surface_snapshot;
-use infiltrator_domain::connection_rate::{ConnectionRateDiffer, ConnectionRates};
+use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRateDiffer, ConnectionRates};
 use infiltrator_domain::connection_view::ConnectionView;
-use infiltrator_domain::runtime::ConnectionSnapshot;
+use infiltrator_domain::runtime::{Connection, ConnectionSnapshot};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -63,43 +64,45 @@ pub fn connections_page_snapshot(
         connections: connections
             .connections
             .iter()
-            .map(|connection| {
-                let rate = rates.get(&connection.id);
-                surface_snapshot::ConnectionSnapshot {
-                    id: connection.id.clone(),
-                    host: if connection.metadata.destination_port.is_empty() {
-                        connection.metadata.host.clone()
-                    } else {
-                        format!(
-                            "{}:{}",
-                            connection.metadata.host, connection.metadata.destination_port
-                        )
-                    },
-                    process: if connection.metadata.process_path.is_empty() {
-                        "unknown".to_owned()
-                    } else {
-                        connection.metadata.process_path.clone()
-                    },
-                    rule: connection.rule.clone(),
-                    rule_payload: connection.rule_payload.clone(),
-                    chain: connection.chains.join(" -> "),
-                    chains: connection.chains.clone(),
-                    network: connection.metadata.network.clone(),
-                    source_ip: connection.metadata.source_ip.clone(),
-                    source_port: connection.metadata.source_port.clone(),
-                    destination_ip: connection.metadata.destination_ip.clone(),
-                    destination_port: connection.metadata.destination_port.clone(),
-                    // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation
-                    // results for the target IP, carried through untouched.
-                    destination_geo_ip: connection.metadata.destination_geo_ip.clone(),
-                    destination_ip_asn: connection.metadata.destination_ip_asn.clone(),
-                    upload_bps: rate.upload_bps,
-                    download_bps: rate.download_bps,
-                    upload_total: connection.upload,
-                    download_total: connection.download,
-                }
-            })
+            .map(|connection| project_connection(connection, rates.get(&connection.id)))
             .collect(),
+    }
+}
+
+/// Fold endpoint identity once; display hosts and copy targets are distinct facts.
+pub fn project_connection(
+    connection: &Connection,
+    rate: ConnectionRate,
+) -> surface_snapshot::ConnectionSnapshot {
+    let metadata = &connection.metadata;
+    let destination_host = if metadata.host.is_empty() {
+        &metadata.destination_ip
+    } else {
+        &metadata.host
+    };
+    let host = display_endpoint(destination_host, &metadata.destination_port);
+    surface_snapshot::ConnectionSnapshot {
+        id: connection.id.clone(),
+        start: connection.start.clone(),
+        destination_host: destination_host.clone(),
+        host,
+        process: metadata.process_path.clone(),
+        rule: connection.rule.clone(),
+        rule_payload: connection.rule_payload.clone(),
+        chain: connection.chains.join(" -> "),
+        chains: connection.chains.clone(),
+        network: metadata.network.clone(),
+        source_ip: metadata.source_ip.clone(),
+        source_port: metadata.source_port.clone(),
+        destination_ip: metadata.destination_ip.clone(),
+        destination_port: metadata.destination_port.clone(),
+        destination_geo_ip: metadata.destination_geo_ip.clone(),
+        destination_ip_asn: metadata.destination_ip_asn.clone(),
+        rate_observed: rate.observed,
+        upload_bps: rate.upload_bps,
+        download_bps: rate.download_bps,
+        upload_total: connection.upload,
+        download_total: connection.download,
     }
 }
 

@@ -1,6 +1,7 @@
 //! DUAL-05-13 contract tests: the typed certificate-trust vocabulary.
 
 use super::*;
+use std::str::from_utf8;
 
 fn valid_fingerprint() -> String {
     "AB".repeat(32)
@@ -46,7 +47,7 @@ fn invalid_values_are_refused_with_real_reasons() {
     params.fingerprint = valid_fingerprint()
         .as_bytes()
         .chunks(2)
-        .map(|pair| std::str::from_utf8(pair).expect("ascii"))
+        .map(|pair| from_utf8(pair).expect("ascii"))
         .collect::<Vec<_>>()
         .join(":");
     let mut issues = Vec::new();

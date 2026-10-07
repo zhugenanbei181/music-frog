@@ -1,15 +1,13 @@
 //! Pure topology derivation from Mihomo runtime observations.
 
-use std::collections::{BTreeMap, HashMap};
-
+use crate::proxy::Proxy;
+use crate::runtime::{ConfigSnapshot, Connection};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus, adjacent_links,
 };
-
-use crate::proxy::Proxy;
-use crate::runtime::{ConfigSnapshot, Connection};
+use std::collections::{BTreeMap, HashMap};
 
 /// The transport-neutral input to topology derivation.
 pub struct TrafficTopologyInput<'a> {
@@ -135,13 +133,14 @@ fn sanitize_rate(rate: f64) -> f64 {
 
 fn inbound_detail(config: &ConfigSnapshot) -> String {
     if let Some(tun) = &config.tun
-        && tun.enable
+        && tun.enable == Some(true)
     {
-        let stack = if tun.stack.trim().is_empty() {
-            "unknown"
-        } else {
-            tun.stack.trim()
-        };
+        let stack = tun
+            .stack
+            .as_deref()
+            .map(str::trim)
+            .filter(|stack| !stack.is_empty())
+            .unwrap_or("unknown");
         return format!("TUN · {stack}");
     }
     if config.mixed_port != 0 {
@@ -254,6 +253,10 @@ fn proxy_detail(name: &str, proxies: &HashMap<String, Proxy>) -> String {
 mod tests {
     use super::*;
     use crate::proxy::{ProxyBase, ProxyGroup, Shadowsocks};
+    #[cfg(test)]
+    use crate::runtime::SnifferSnapshot;
+    #[cfg(test)]
+    use crate::runtime::TunSnapshot;
     use crate::runtime::{ConfigSnapshot, ConnectionMetadata};
 
     fn connection(chains: &[&str], rule: &str) -> Connection {
@@ -298,7 +301,7 @@ mod tests {
     fn derives_five_stage_live_chain_from_connections_and_config() {
         let config = ConfigSnapshot {
             mixed_port: 7890,
-            sniffer: Some(crate::runtime::SnifferSnapshot { enable: true }),
+            sniffer: Some(SnifferSnapshot { enable: true }),
             ..Default::default()
         };
         let connections = vec![connection(&["GLOBAL", "香港 01"], "MATCH")];
@@ -333,9 +336,9 @@ mod tests {
     #[test]
     fn empty_connections_keep_real_config_but_disable_flow() {
         let config = ConfigSnapshot {
-            tun: Some(crate::runtime::TunSnapshot {
-                enable: true,
-                stack: "gvisor".to_owned(),
+            tun: Some(TunSnapshot {
+                enable: Some(true),
+                stack: Some("gvisor".to_owned()),
                 ..Default::default()
             }),
             ..Default::default()

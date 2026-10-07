@@ -1,32 +1,45 @@
 //! Bevy Settings controls for Mihomo Allow-LAN listener settings.
 
+#[path = "settings_lan_query_access.rs"]
+pub mod query_access;
+use self::query_access::{LanProjectionTargets, LanSecurityControls};
+
+use super::SettingsProjectionUpdated;
+use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
+use super::settings_runtime::{RuntimeField, RuntimePolicy};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::BorderRadius;
-use bevy::ui::Checked;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button, Checkbox, ValueChange};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use bevy::ui::{BorderRadius, Checked};
+use bevy::ui_widgets::{Activate, Button, ValueChange};
+use infiltrator_application::settings_status_projection::format_lan_auth;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_bevy_widgets::text_input::{
-    TextField, password_field_scene, text_field_with_placeholder_scene,
+    TextField, TextFieldFocused, password_field_scene, text_field_with_placeholder_scene,
 };
 use infiltrator_bevy_widgets::theme::space;
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
-use crate::command::{CommandSinkHandle, UiCommand};
 use infiltrator_contract::lan::LanCredentials;
+use std::collections::HashMap;
+
+#[derive(Resource, Default)]
+pub(super) struct LanFieldObservations(HashMap<Entity, String>);
+#[derive(Component, Clone, Debug, Default)]
+pub(super) struct LanFieldBaseline(pub String);
 
 /// Parent marker for the Allow-LAN checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -67,24 +80,32 @@ pub struct LanAuthPasswordField;
 pub struct LanSecurityApplyButton;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let mixed_port = projection.mixed_port.to_string();
-    let bind_address = projection.lan_bind_address.clone();
-    let allowed_ips = projection.lan_security.allowed_ips.join(", ");
-    let disallowed_ips = projection.lan_security.disallowed_ips.join(", ");
-    let skip_auth_prefixes = projection.lan_security.skip_auth_prefixes.join(", ");
+    let mixed_port = projection
+        .mixed_port
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let bind_address = projection.lan_bind_address.clone().unwrap_or_default();
+    let allowed_ips = projection
+        .lan_security
+        .as_ref()
+        .map(|value| value.allowed_ips.join(", "))
+        .unwrap_or_default();
+    let disallowed_ips = projection
+        .lan_security
+        .as_ref()
+        .map(|value| value.disallowed_ips.join(", "))
+        .unwrap_or_default();
+    let skip_auth_prefixes = projection
+        .lan_security
+        .as_ref()
+        .map(|value| value.skip_auth_prefixes.join(", "))
+        .unwrap_or_default();
     let auth_username = projection
         .lan_security
-        .authentication_username
-        .clone()
-        .unwrap_or_else(|| "musicfrog".to_owned());
-    let auth_status = if projection.lan_security.authentication_enabled {
-        format!(
-            "已启用 · {} 个账号",
-            projection.lan_security.authentication_user_count
-        )
-    } else {
-        "未启用".to_owned()
-    };
+        .as_ref()
+        .and_then(|value| value.authentication_username.clone())
+        .unwrap_or_default();
+    let auth_status = format_lan_auth(projection.lan_security.as_ref(), UiLocale::default().code());
     Box::new(surface_scene(
         vec![
             Box::new(bsn! {
@@ -93,7 +114,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "局域网共享代理 (Allow LAN)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_allow_lan_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -109,7 +130,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 LanSharingToggle
                                 Children [
-                                    @{ checkbox_scene("开启局域网共享 (Allow LAN)".to_owned(), projection.allow_lan, palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("lan_allow_sharing"), projection.allow_lan == Some(true), palette) }
                                 ]
                                 --
                                 Node {
@@ -121,12 +142,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(180.0) }
                                     LanMixedPortField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(mixed_port, "7890".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(mixed_port.clone(), "7890".to_owned(), palette) } LanFieldBaseline({ mixed_port.clone() })
                                     ]
                                 ]
                                 --
@@ -139,12 +160,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "绑定地址 (Bind Address)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_bind_address_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(300.0) }
                                     LanBindAddressField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(bind_address.clone(), "* / 192.168.1.10 / [::1]".to_owned(), palette) } LanFieldBaseline({ bind_address.clone() })
                                     ]
                                 ]
                                 --
@@ -155,7 +176,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     padding: UiRect::all(Val::Px(space::S8)),
                                 }
                                 Children [
-                                    Text({ "当前绑定".to_owned() }) TextRole(Role::Caption)
+                                    LocalizedText::plain("settings_current_bind_label") TextRole(Role::Caption)
                                     --
                                     Text({ bind_address.clone() }) SettingsLine(SettingsLineKind::LanBindAddress) TextRole(Role::Mono)
                                     --
@@ -170,7 +191,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     LanSharingApplyButton
                                     Button
                                     Children [
-                                        Text({ "应用并回读 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_apply_readback_action") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                                 --
@@ -179,7 +200,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     padding: UiRect::top(Val::Px(space::S8)),
                                 }
                                 Children [
-                                    Text({ "接入 ACL 与 HTTP 基本认证".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("settings_lan_access_control_title") TextRole(Role::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -191,12 +212,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "允许网段 (Allowed CIDR)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_allowed_cidr_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(360.0) }
                                     LanAllowedIpsField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(allowed_ips, "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(allowed_ips.clone(), "192.168.0.0/16, 10.0.0.0/8".to_owned(), palette) } LanFieldBaseline({ allowed_ips.clone() })
                                     ]
                                 ]
                                 --
@@ -209,12 +230,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "拒绝网段 (Denied CIDR)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_denied_cidr_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(360.0) }
                                     LanDisallowedIpsField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(disallowed_ips, "192.168.1.10/32".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(disallowed_ips.clone(), "192.168.1.10/32".to_owned(), palette) } LanFieldBaseline({ disallowed_ips.clone() })
                                     ]
                                 ]
                                 --
@@ -227,12 +248,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "免认证网段 (Skip Auth CIDR)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_skip_auth_cidr_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(360.0) }
                                     LanSkipAuthPrefixesField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(skip_auth_prefixes, "127.0.0.0/8, ::1/128".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(skip_auth_prefixes.clone(), "127.0.0.0/8, ::1/128".to_owned(), palette) } LanFieldBaseline({ skip_auth_prefixes.clone() })
                                     ]
                                 ]
                                 --
@@ -244,7 +265,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 LanAuthenticationToggle
                                 Children [
-                                    @{ checkbox_scene("启用 HTTP 基本认证 (HTTP Basic Auth)".to_owned(), projection.lan_security.authentication_enabled, palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("lan_require_basic_auth"), projection.lan_security.as_ref().is_some_and(|value| value.authentication_enabled), palette) }
                                     --
                                     Text({ auth_status }) SettingsLine(SettingsLineKind::LanSecurity) TextRole(Role::Mono)
                                 ]
@@ -258,12 +279,12 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "认证用户名 (Username)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_auth_username_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(240.0) }
                                     LanAuthUsernameField
                                     Children [
-                                        @{ text_field_with_placeholder_scene(auth_username, "musicfrog".to_owned(), palette) }
+                                        @{ text_field_with_placeholder_scene(auth_username.clone(), "musicfrog".to_owned(), palette) } LanFieldBaseline({ auth_username.clone() })
                                     ]
                                 ]
                                 --
@@ -276,7 +297,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "认证密码 (Password)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_auth_password_label") TextRole(Role::Body)
                                     --
                                     Node { width: px(240.0) }
                                     LanAuthPasswordField
@@ -303,7 +324,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                     LanSecurityApplyButton
                                     Button
                                     Children [
-                                        Text({ "应用 ACL 与认证 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_lan_access_apply_action") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -313,15 +334,29 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
     ))
 }
 
+#[derive(SystemParam)]
+pub struct LanListenerInputs<'w, 's> {
+    mixed_fields: Query<'w, 's, &'static Children, With<LanMixedPortField>>,
+    bind_fields: Query<'w, 's, &'static Children, With<LanBindAddressField>>,
+    text_fields: Query<'w, 's, &'static TextField>,
+}
+
 pub(super) fn on_toggle_changed(
     change: On<ValueChange<bool>>,
     parents: Query<&ChildOf>,
     toggles: Query<(), With<LanSharingToggle>>,
-    mixed_fields: Query<&Children, With<LanMixedPortField>>,
-    bind_fields: Query<&Children, With<LanBindAddressField>>,
-    text_fields: Query<&TextField>,
     handle: Option<Res<CommandSinkHandle>>,
+    policy: RuntimePolicy,
+    inputs: LanListenerInputs,
 ) {
+    let LanListenerInputs {
+        mixed_fields,
+        bind_fields,
+        text_fields,
+    } = inputs;
+    if !policy.available(RuntimeField::Lan) {
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
@@ -339,17 +374,23 @@ pub(super) fn on_toggle_changed(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn on_apply_activated(
     activate: On<Activate>,
     apply_buttons: Query<(), With<LanSharingApplyButton>>,
-    mixed_fields: Query<&Children, With<LanMixedPortField>>,
-    bind_fields: Query<&Children, With<LanBindAddressField>>,
-    text_fields: Query<&TextField>,
     toggles: Query<&Children, With<LanSharingToggle>>,
-    checkboxes: Query<&bevy::ui::Checked>,
+    checkboxes: Query<&Checked>,
     handle: Option<Res<CommandSinkHandle>>,
+    policy: RuntimePolicy,
+    inputs: LanListenerInputs,
 ) {
+    let LanListenerInputs {
+        mixed_fields,
+        bind_fields,
+        text_fields,
+    } = inputs;
+    if !policy.available(RuntimeField::Lan) {
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
@@ -363,21 +404,28 @@ pub(super) fn on_apply_activated(
     submit_lan_command(&handle, enabled, &mixed_fields, &bind_fields, &text_fields);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn on_security_apply_activated(
     activate: On<Activate>,
-    apply_buttons: Query<(), With<LanSecurityApplyButton>>,
-    allowed_fields: Query<&Children, With<LanAllowedIpsField>>,
-    disallowed_fields: Query<&Children, With<LanDisallowedIpsField>>,
-    skip_fields: Query<&Children, With<LanSkipAuthPrefixesField>>,
-    auth_toggles: Query<&Children, With<LanAuthenticationToggle>>,
-    username_fields: Query<&Children, With<LanAuthUsernameField>>,
-    password_fields: Query<&Children, With<LanAuthPasswordField>>,
-    checkboxes: Query<&Checked>,
-    text_fields: Query<&TextField>,
     handle: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
+    policy: RuntimePolicy,
+    targets: LanSecurityControls,
 ) {
+    let LanSecurityControls {
+        apply_buttons,
+        allowed_fields,
+        disallowed_fields,
+        skip_fields,
+        auth_toggles,
+        username_fields,
+        password_fields,
+        checkboxes,
+        text_fields,
+    } = targets;
+
+    if !policy.available(RuntimeField::Security) {
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
@@ -413,28 +461,37 @@ pub(super) fn on_security_apply_activated(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn apply_projection(
     update: On<SettingsProjectionUpdated>,
-    lan_toggles: Query<&Children, With<LanSharingToggle>>,
-    auth_toggles: Query<&Children, With<LanAuthenticationToggle>>,
-    checkboxes: Query<(bevy::ecs::entity::Entity, bevy::ecs::query::Has<Checked>), With<Checkbox>>,
-    mixed_fields: Query<&Children, With<LanMixedPortField>>,
-    bind_fields: Query<&Children, With<LanBindAddressField>>,
-    allowed_fields: Query<&Children, With<LanAllowedIpsField>>,
-    disallowed_fields: Query<&Children, With<LanDisallowedIpsField>>,
-    skip_fields: Query<&Children, With<LanSkipAuthPrefixesField>>,
-    username_fields: Query<&Children, With<LanAuthUsernameField>>,
-    mut text_fields: Query<&mut TextField>,
+    mut observations: ResMut<LanFieldObservations>,
     mut commands: Commands,
+    targets: LanProjectionTargets,
 ) {
+    let LanProjectionTargets {
+        lan_toggles,
+        auth_toggles,
+        checkboxes,
+        mixed_fields,
+        bind_fields,
+        allowed_fields,
+        disallowed_fields,
+        skip_fields,
+        username_fields,
+        mut text_fields,
+        focus,
+        initial,
+    } = targets;
+
+    observations
+        .0
+        .retain(|entity, _| text_fields.contains(*entity));
     let projection = &update.0;
     for children in &lan_toggles {
         for child in children.iter() {
             if let Ok((entity, checked)) = checkboxes.get(*child)
-                && checked != projection.allow_lan
+                && checked != (projection.allow_lan == Some(true))
             {
-                if projection.allow_lan {
+                if projection.allow_lan == Some(true) {
                     commands.entity(entity).insert(Checked);
                 } else {
                     commands.entity(entity).remove::<Checked>();
@@ -445,9 +502,17 @@ pub(super) fn apply_projection(
     for children in &auth_toggles {
         for child in children.iter() {
             if let Ok((entity, checked)) = checkboxes.get(*child)
-                && checked != projection.lan_security.authentication_enabled
+                && checked
+                    != projection
+                        .lan_security
+                        .as_ref()
+                        .is_some_and(|value| value.authentication_enabled)
             {
-                if projection.lan_security.authentication_enabled {
+                if projection
+                    .lan_security
+                    .as_ref()
+                    .is_some_and(|value| value.authentication_enabled)
+                {
                     commands.entity(entity).insert(Checked);
                 } else {
                     commands.entity(entity).remove::<Checked>();
@@ -458,42 +523,100 @@ pub(super) fn apply_projection(
     restamp_field(
         &mixed_fields,
         &mut text_fields,
-        &projection.mixed_port.to_string(),
+        &focus,
+        &initial,
+        &mut observations,
+        &projection
+            .mixed_port
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
     );
-    restamp_field(&bind_fields, &mut text_fields, &projection.lan_bind_address);
+    restamp_field(
+        &bind_fields,
+        &mut text_fields,
+        &focus,
+        &initial,
+        &mut observations,
+        projection.lan_bind_address.as_deref().unwrap_or_default(),
+    );
     restamp_field(
         &allowed_fields,
         &mut text_fields,
-        &projection.lan_security.allowed_ips.join(", "),
+        &focus,
+        &initial,
+        &mut observations,
+        &projection
+            .lan_security
+            .as_ref()
+            .map(|value| value.allowed_ips.join(", "))
+            .unwrap_or_default(),
     );
     restamp_field(
         &disallowed_fields,
         &mut text_fields,
-        &projection.lan_security.disallowed_ips.join(", "),
+        &focus,
+        &initial,
+        &mut observations,
+        &projection
+            .lan_security
+            .as_ref()
+            .map(|value| value.disallowed_ips.join(", "))
+            .unwrap_or_default(),
     );
     restamp_field(
         &skip_fields,
         &mut text_fields,
-        &projection.lan_security.skip_auth_prefixes.join(", "),
+        &focus,
+        &initial,
+        &mut observations,
+        &projection
+            .lan_security
+            .as_ref()
+            .map(|value| value.skip_auth_prefixes.join(", "))
+            .unwrap_or_default(),
     );
-    if let Some(username) = projection.lan_security.authentication_username.as_deref() {
-        restamp_field(&username_fields, &mut text_fields, username);
+    if let Some(username) = projection
+        .lan_security
+        .as_ref()
+        .and_then(|value| value.authentication_username.as_deref())
+    {
+        restamp_field(
+            &username_fields,
+            &mut text_fields,
+            &focus,
+            &initial,
+            &mut observations,
+            username,
+        );
     }
 }
 
 fn restamp_field<T: Component>(
     fields: &Query<&Children, With<T>>,
     text_fields: &mut Query<&mut TextField>,
+    focus: &Query<&TextFieldFocused>,
+    initial: &Query<&LanFieldBaseline>,
+    observations: &mut LanFieldObservations,
     value: &str,
 ) {
     for children in fields.iter() {
         for child in children.iter() {
-            if let Ok(mut text_field) = text_fields.get_mut(*child)
-                && text_field.0.text() != value
-            {
-                text_field
+            if let Ok(mut field) = text_fields.get_mut(*child) {
+                let previous = observations
                     .0
-                    .apply(TextFieldInput::SetText(value.to_owned()));
+                    .insert(*child, value.into())
+                    .or_else(|| initial.get(*child).ok().map(|baseline| baseline.0.clone()));
+                let unchanged_input = previous
+                    .as_deref()
+                    .is_some_and(|previous| field.0.text() == previous);
+                let changed_fact = previous
+                    .as_deref()
+                    .is_some_and(|previous| previous != value);
+                let editing =
+                    focus.get(*child).is_ok_and(|focus| focus.0) || !field.0.preedit().is_empty();
+                if changed_fact && unchanged_input && !editing {
+                    field.0.apply(TextFieldInput::SetText(value.into()));
+                }
             }
         }
     }
@@ -546,14 +669,4 @@ fn split_values(value: &str) -> Vec<String> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .collect()
-}
-
-pub(super) fn format_auth_status(
-    snapshot: &infiltrator_contract::lan::LanSecuritySnapshot,
-) -> String {
-    if snapshot.authentication_enabled {
-        format!("已启用 · {} 个账号", snapshot.authentication_user_count)
-    } else {
-        "未启用".to_owned()
-    }
 }

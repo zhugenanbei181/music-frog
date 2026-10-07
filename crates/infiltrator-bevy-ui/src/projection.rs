@@ -22,7 +22,23 @@
 //! never fabricates zeros for a core it could not reach — rates and
 //! connection counts are only meaningful in a successful state.
 
+use infiltrator_application::shell_readout_projection::observed_rate;
+use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::overview_layout::OverviewLayoutSnapshot;
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
+use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
+use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::Sender;
@@ -71,10 +87,10 @@ pub enum SourceKind {
 /// any surface that consumes the shared seam.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OverviewProjection {
+    pub lifecycle: CoreLifecycle,
+    pub readout: ShellReadoutSnapshot,
     /// The typed run-state this snapshot encodes.
     pub state: OverviewState,
-    /// The proxy mode reported by the core (last known when unavailable).
-    pub mode: ProxyMode,
     /// Uplink throughput in bytes per second (0.0 when not running).
     pub upload_bps: f64,
     /// Downlink throughput in bytes per second (0.0 when not running).
@@ -98,25 +114,25 @@ pub struct OverviewProjection {
     /// shows the real version only when a real core reported one.
     pub core_version: Option<String>,
     /// Application-owned live samples used by the shared waveform renderer.
-    pub traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot,
+    pub traffic_waveform: TrafficWaveformSnapshot,
     /// Shared dynamic max/unit/tick scale for the waveform.
-    pub traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
+    pub traffic_scale: TrafficScaleSnapshot,
     /// Shared live routing chain for the Overview topology card.
-    pub traffic_topology: infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    pub traffic_topology: TrafficTopologySnapshot,
     /// Shared selected outbound node for the Overview exit card.
-    pub active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot,
-    pub public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot,
-    pub layout: infiltrator_contract::overview_layout::OverviewLayoutSnapshot,
-    pub reconnect_mask: infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot,
-    pub viewport: infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot,
+    pub active_exit: ActiveExitSnapshot,
+    pub public_ip: PublicIpProbeSnapshot,
+    pub layout: OverviewLayoutSnapshot,
+    pub reconnect_mask: ReconnectMaskSnapshot,
+    pub viewport: ResponsiveViewportSnapshot,
     /// Shared active subscription quota dashboard.
-    pub subscription_quota: infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot,
+    pub subscription_quota: SubscriptionQuotaSnapshot,
     /// Shared system proxy/TUN state used by Overview master controls.
-    pub system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot,
+    pub system_toggles: SystemToggleSnapshot,
     /// Shared proxy mode snapshot used by Overview mode segment controls.
-    pub proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot,
+    pub proxy_mode: ProxyModeSnapshot,
     /// Shared speedtest engine read model driving the Overview speedtest button.
-    pub speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot,
+    pub speedtest: SpeedtestSnapshot,
     /// CPU utilization percentage, if observed.
     pub cpu_percent: Option<f32>,
     /// Cumulative session traffic in bytes, if observed.
@@ -130,7 +146,8 @@ impl OverviewProjection {
     pub fn unavailable(origin: OverviewOrigin, reason: impl Into<String>) -> Self {
         Self {
             state: OverviewState::Unavailable,
-            mode: ProxyMode::default(),
+            lifecycle: CoreLifecycle::Failed,
+            readout: Default::default(),
             upload_bps: 0.0,
             download_bps: 0.0,
             active_connections: 0,
@@ -153,17 +170,6 @@ impl OverviewProjection {
             speedtest: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
-        }
-    }
-
-    /// The failure text the page should show: the reason when
-    /// unavailable, an empty string otherwise (the row stays mounted and
-    /// simply carries no copy — never a fabricated status).
-    pub fn failure_text(&self) -> &str {
-        match (&self.state, self.failure.as_deref()) {
-            (OverviewState::Unavailable, Some(reason)) if !reason.trim().is_empty() => reason,
-            (OverviewState::Unavailable, _) => "core unavailable",
-            _ => "",
         }
     }
 }
@@ -198,8 +204,10 @@ pub trait OverviewSource: Send + Sync {
     /// `Err(reason)` when the core refused / the command could not be
     /// delivered. Dropping `ack` without sending is a bug — the UI's
     /// in-flight latch would never clear.
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<(), String>>) {
-        let _ = ack.send(Err("此数据源不支持模式切换".to_owned()));
+    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
+        let _ = ack.send(Err(Failure::unsupported(
+            "This data source cannot switch proxy mode",
+        )));
     }
 }
 
@@ -275,8 +283,17 @@ impl OverviewSource for DemoOverviewSource {
         let mode = ProxyMode::from_index(self.mode.load(Ordering::Relaxed));
         let live = state == OverviewState::Running;
         OverviewProjection {
+            lifecycle: match state {
+                OverviewState::Running => CoreLifecycle::Running,
+                OverviewState::Stopped => CoreLifecycle::Stopped,
+                OverviewState::Unavailable => CoreLifecycle::Failed,
+            },
+            readout: ShellReadoutSnapshot {
+                upload_bps: observed_rate(live.then_some(DEMO_UPLOAD_BPS)),
+                download_bps: observed_rate(live.then_some(DEMO_DOWNLOAD_BPS)),
+                ..Default::default()
+            },
             state,
-            mode,
             upload_bps: if live { DEMO_UPLOAD_BPS } else { 0.0 },
             download_bps: if live { DEMO_DOWNLOAD_BPS } else { 0.0 },
             active_connections: if live { DEMO_CONNECTIONS } else { 0 },
@@ -290,22 +307,19 @@ impl OverviewSource for DemoOverviewSource {
             core_version: None,
             traffic_waveform: Default::default(),
             traffic_scale: Default::default(),
-            traffic_topology:
-                infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture(),
-            active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture(),
-            public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::demo_fixture(),
+            traffic_topology: TrafficTopologySnapshot::demo_fixture(),
+            active_exit: ActiveExitSnapshot::demo_fixture(),
+            public_ip: PublicIpProbeSnapshot::demo_fixture(),
             layout: Default::default(),
             reconnect_mask: Default::default(),
             viewport: Default::default(),
-            subscription_quota:
-                infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture(),
-            system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
-                true,
-                Some(false),
-                1,
-            ),
-            proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot::demo_fixture(),
-            speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture(),
+            subscription_quota: SubscriptionQuotaSnapshot::demo_fixture(),
+            system_toggles: SystemToggleSnapshot::from_legacy(true, Some(false), 1),
+            proxy_mode: ProxyModeSnapshot {
+                current: Some(mode),
+                ..ProxyModeSnapshot::demo_fixture()
+            },
+            speedtest: SpeedtestSnapshot::demo_fixture(),
             cpu_percent: live.then_some(2.4),
             total_traffic_bytes: live.then_some(1024 * 1024 * 1024 * 12 + 1024 * 1024 * 512),
         }
@@ -314,8 +328,8 @@ impl OverviewSource for DemoOverviewSource {
     /// Flip the fixture's mode and acknowledge immediately — the demo has
     /// no controller to refuse, so the receipt is always `Ok` and the very
     /// next [`OverviewSource::current`] read reports the new mode.
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<(), String>>) {
+    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
         self.mode.store(mode.to_index(), Ordering::Relaxed);
-        let _ = ack.send(Ok(()));
+        let _ = ack.send(Ok(mode));
     }
 }

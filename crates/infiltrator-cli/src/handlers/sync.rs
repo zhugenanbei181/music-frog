@@ -106,7 +106,17 @@ mod tests {
         clear_webdav_password, load_settings, save_settings, save_webdav_password,
     };
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
+    #[cfg(test)]
+    use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
+    #[cfg(test)]
+    use std::collections::HashMap;
+    #[cfg(test)]
+    use std::fs::read_to_string;
+    #[cfg(test)]
+    use std::result;
+    #[cfg(test)]
+    use std::sync::Mutex;
 
     use super::{SyncSummary, dav_config, dav_password, render_summary};
 
@@ -158,13 +168,13 @@ mod tests {
     /// 内存凭据存储（仿 core settings.rs 的 MemoryStore 先例），避免测试
     /// 触碰真实 OS keyring。
     struct MemoryStore {
-        entries: std::sync::Mutex<std::collections::HashMap<String, String>>,
+        entries: Mutex<HashMap<String, String>>,
     }
 
     impl Default for MemoryStore {
         fn default() -> Self {
             Self {
-                entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+                entries: Mutex::new(HashMap::new()),
             }
         }
     }
@@ -181,11 +191,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SecureStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+        async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
             Ok(self.peek(service, key))
         }
 
@@ -194,7 +200,7 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        ) -> result::Result<(), PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -202,11 +208,7 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -230,7 +232,7 @@ mod tests {
             ..WebDavConfig::default()
         });
         save_settings(&file, &settings).await.unwrap();
-        let raw = std::fs::read_to_string(&file).unwrap();
+        let raw = read_to_string(&file).unwrap();
         assert!(!raw.contains("password"), "plaintext leaked: {raw}");
         assert!(!raw.contains("s3cret"), "plaintext leaked: {raw}");
 

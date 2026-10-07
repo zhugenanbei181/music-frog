@@ -7,6 +7,7 @@
 //! harnesses (see `tests/common`, `tests/headless`, `tests/gui`) exercise the
 //! public surface directly.
 
+use infiltrator_application::surface_application::SurfacePump;
 pub mod accessibility;
 pub mod admin_server;
 pub mod app;
@@ -25,7 +26,7 @@ pub mod port_conflict_application;
 pub mod routing_application;
 pub mod settings_store;
 pub mod shortcuts_store;
-pub mod snapshot_application;
+pub mod snapshot_commands;
 pub mod state;
 pub(crate) mod state_ops;
 pub mod subscription;
@@ -62,9 +63,7 @@ pub fn run() -> iced::Result {
 
 /// Run Iced with a host-composed application surface pump. This is the
 /// symmetric counterpart to Bevy's `run_with_application_surface_pump`.
-pub fn run_with_surface_pump(
-    pump: infiltrator_application::surface_application::SurfacePump,
-) -> iced::Result {
+pub fn run_with_surface_pump(pump: SurfacePump) -> iced::Result {
     desktop_composition::run_with_surface_pump(pump)
 }
 

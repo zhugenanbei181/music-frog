@@ -67,7 +67,7 @@ impl ShellPage {
         }
     }
 
-    /// Iced locale key for the page's navigation copy.
+    /// Shared locale key for the page's navigation copy.
     pub const fn title_key(self) -> &'static str {
         match self {
             Self::Overview => "cmd_nav_overview",
@@ -84,7 +84,7 @@ impl ShellPage {
         }
     }
 
-    /// Bare-Chinese copy for the Bevy surface (existing convention).
+    /// Chinese search aliases retained for shared substring and pinyin matching.
     pub const fn title_zh(self) -> &'static str {
         match self {
             Self::Overview => "前往 核心概览",
@@ -113,7 +113,7 @@ pub enum CommandCategory {
 }
 
 impl CommandCategory {
-    /// Iced locale key for the category badge.
+    /// Shared locale key for the category badge.
     pub const fn label_key(self) -> &'static str {
         match self {
             Self::Navigation => "cmd_cat_nav",
@@ -186,7 +186,7 @@ impl CommandTarget {
 pub struct CommandEntry {
     pub id: String,
     pub category: CommandCategory,
-    /// Iced locale key (profile rows reuse the category key).
+    /// Shared locale key (profile rows reuse the category key).
     pub title_key: &'static str,
     /// Fully resolved bare-Chinese copy for the Bevy surface.
     pub title_zh: String,

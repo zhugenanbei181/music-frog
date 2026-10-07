@@ -2,26 +2,28 @@
 //!
 //! The mutation itself is the shared `infiltrator_domain::rules::edit`
 //! reduction; this module only owns the row controls and forwards a typed
-//! intent through the command bus so the application persists the change.
+//! identity to the draft owner. Only explicit Save persists the change.
 
+use crate::pages::rules_draft::RulesDraftState;
+use crate::pages::rules_statistics::RulesStatisticsState;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui_widgets::Activate;
+use infiltrator_contract::rule_document::RuleRowId;
+use infiltrator_contract::rule_edit::RuleMoveDirection;
 
-use crate::command::{CommandSinkHandle, UiCommand};
-
-/// Marker on a rule row's enable/disable switch; payload is the row index.
+/// Marker on a rule row's enable/disable switch; payload is its stable draft identity.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleToggleButton(pub usize);
+pub struct RuleToggleButton(pub Option<RuleRowId>);
 
 /// Marker on a rule row's "move up" control.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleMoveUpButton(pub usize);
+pub struct RuleMoveUpButton(pub Option<RuleRowId>);
 
 /// Marker on a rule row's "move down" control.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct RuleMoveDownButton(pub usize);
+pub struct RuleMoveDownButton(pub Option<RuleRowId>);
 
 /// DUAL-11-09/10: submit the shared toggle/reorder intent for the clicked row.
 pub(crate) fn on_rules_row_edit_activated(
@@ -29,20 +31,27 @@ pub(crate) fn on_rules_row_edit_activated(
     toggles: Query<&RuleToggleButton>,
     move_up: Query<&RuleMoveUpButton>,
     move_down: Query<&RuleMoveDownButton>,
-    handle: Option<Res<CommandSinkHandle>>,
+    mut state: ResMut<RulesDraftState>,
+    statistics: Option<Res<RulesStatisticsState>>,
 ) {
-    let Some(handle) = handle else {
+    if statistics.is_some_and(|state| state.model.confirmation.is_some()) || state.input_composing {
         return;
-    };
+    }
     if let Ok(button) = toggles.get(activate.entity) {
-        handle.submit(UiCommand::ToggleRuleEnabled(button.0));
+        if let Some(id) = button.0 {
+            state.repaint |= state.model.toggle(id);
+        }
         return;
     }
     if let Ok(button) = move_up.get(activate.entity) {
-        handle.submit(UiCommand::MoveRuleUp(button.0));
+        if let Some(id) = button.0 {
+            state.repaint |= state.model.move_rule(id, RuleMoveDirection::Up);
+        }
         return;
     }
-    if let Ok(button) = move_down.get(activate.entity) {
-        handle.submit(UiCommand::MoveRuleDown(button.0));
+    if let Ok(button) = move_down.get(activate.entity)
+        && let Some(id) = button.0
+    {
+        state.repaint |= state.model.move_rule(id, RuleMoveDirection::Down);
     }
 }

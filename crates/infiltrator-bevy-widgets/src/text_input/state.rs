@@ -4,15 +4,13 @@
 //! [`FieldVisual`], and [`field_visual`] — the zero-Bevy editing core that
 //! hosts drive from whatever input seam they own.
 
-use bevy::ecs::component::Component;
-
-use unicode_segmentation::UnicodeSegmentation;
-
-use crate::palette::UiPalette;
-
 use super::ime::{
     ImeTransaction, PreeditStateMachine, find_next_word_boundary, find_prev_word_boundary,
 };
+use crate::palette::UiPalette;
+use bevy::color::Color;
+use bevy::ecs::component::Component;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Validation status of an input field.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -34,7 +32,7 @@ pub fn validation_border_color(
     status: ValidationStatus,
     is_focused: bool,
     palette: &UiPalette,
-) -> bevy::color::Color {
+) -> Color {
     match status {
         ValidationStatus::Normal => {
             if is_focused {
@@ -237,6 +235,17 @@ impl TextFieldState {
     /// Set disabled.
     pub fn set_disabled(&mut self, disabled: bool) {
         self.is_disabled = disabled;
+    }
+
+    /// Restore an owner's draft when mounting or explicitly discarding a form.
+    /// User input still goes through `apply` and its disabled/read-only checks.
+    pub fn restore_text(&mut self, text: String) -> bool {
+        let changed = self.ime_transaction.is_some() || self.text != text || self.anchor.is_some();
+        self.set_full_text(text);
+        self.cursor = self.text.chars().count();
+        self.anchor = None;
+        self.ime_transaction = None;
+        self.clear_preedit() || changed
     }
 
     /// The active IME composition string, if any.

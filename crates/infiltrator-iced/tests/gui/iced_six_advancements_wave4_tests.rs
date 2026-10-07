@@ -6,7 +6,14 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view_root::modals::log_export::tests::exercise_redacted_export;
+use infiltrator_contract::network_roaming::{
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
+    NetworkRoamingStatus,
+};
 use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
+use infiltrator_contract::vpn::VpnSessionSnapshot;
+use std::fs::read;
 
 #[test]
 fn test_advancement_w4_1_network_roaming_and_gateway_recovery() {
@@ -38,28 +45,26 @@ fn test_advancement_w4_1_network_roaming_and_gateway_recovery() {
     assert_eq!(state.runtime.network_roaming.route_repair_count, 1);
     assert!(matches!(
         state.runtime.network_roaming.last_event,
-        Some(infiltrator_contract::network_roaming::NetworkRoamingEvent::RoutesRepaired { .. })
+        Some(NetworkRoamingEvent::RoutesRepaired { .. })
     ));
 }
 
 #[test]
 fn test_live_network_roaming_snapshot_updates_the_iced_projection_without_fallbacks() {
     let (mut state, _) = AppState::new();
-    let snapshot = infiltrator_contract::network_roaming::NetworkRoamingSnapshot {
-        status: infiltrator_contract::network_roaming::NetworkRoamingStatus::Stable,
-        interfaces: vec![
-            infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
-                name: "wlan0".to_owned(),
-                kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Wifi,
-                is_up: true,
-                is_default_gateway: true,
-                gateway_ip: Some("198.51.100.1".to_owned()),
-                ip_addresses: vec!["198.51.100.20/24".to_owned()],
-                mtu: Some(1400),
-                metric: Some(200),
-                dns_servers: Vec::new(),
-            },
-        ],
+    let snapshot = NetworkRoamingSnapshot {
+        status: NetworkRoamingStatus::Stable,
+        interfaces: vec![NetworkInterfaceSnapshot {
+            name: "wlan0".to_owned(),
+            kind: NetworkInterfaceKind::Wifi,
+            is_up: true,
+            is_default_gateway: true,
+            gateway_ip: Some("198.51.100.1".to_owned()),
+            ip_addresses: vec!["198.51.100.20/24".to_owned()],
+            mtu: Some(1400),
+            metric: Some(200),
+            dns_servers: Vec::new(),
+        }],
         active_interface: Some("wlan0".to_owned()),
         default_gateway: Some("198.51.100.1".to_owned()),
         physical_mtu: Some(1400),
@@ -81,14 +86,7 @@ fn test_live_network_roaming_snapshot_updates_the_iced_projection_without_fallba
 #[test]
 fn test_vpn_session_snapshot_updates_the_iced_projection() {
     let (mut state, _) = AppState::new();
-    let snapshot = infiltrator_contract::vpn::VpnSessionSnapshot::running(
-        4,
-        1500,
-        2,
-        vec!["1.1.1.1".to_owned()],
-        true,
-        true,
-    );
+    let snapshot = VpnSessionSnapshot::running(4, 1500, 2, vec!["1.1.1.1".to_owned()], true, true);
     let _ = state.update(Message::VpnSessionUpdated(Ok(snapshot.clone())));
     assert_eq!(state.runtime.vpn, snapshot);
     assert!(state.runtime.vpn.is_running());
@@ -123,8 +121,8 @@ fn test_advancement_w4_2_crash_watchdog_and_forensics_lifecycle() {
         Some("/tmp/infiltrator_crash_diagnostics.json")
     );
 
-    let json_bytes = std::fs::read("/tmp/infiltrator_crash_diagnostics.json")
-        .expect("Diagnostics JSON must exist");
+    let json_bytes =
+        read("/tmp/infiltrator_crash_diagnostics.json").expect("Diagnostics JSON must exist");
     assert!(!json_bytes.is_empty());
 }
 
@@ -152,47 +150,58 @@ fn test_advancement_w4_4_log_regex_and_redacted_export() {
     let _ = state.update(Message::SetLogLevelFilter("WARN".to_string()));
     assert_eq!(state.diag.log_filter.level_filter, "WARN");
 
-    // Populate mock raw logs with access tokens
-    state.diag.logs.push_back(
-        "GET https://api.sub.lan/token?token=secret_sub_token_123456 HTTP/1.1".to_string(),
-    );
-
-    // Export redacted logs
-    let _ = state.update(Message::ExportRedactedLogs);
-    assert_eq!(
-        state.diag.log_filter.exported_redacted_path.as_deref(),
-        Some("/tmp/infiltrator_redacted_logs.log")
-    );
-
-    let exported = std::fs::read_to_string("/tmp/infiltrator_redacted_logs.log")
-        .expect("Redacted log file must exist");
-    assert!(!exported.contains("secret_sub_token_123456"));
-    assert!(exported.contains("token=***"));
+    exercise_redacted_export(&mut state);
 }
 
 #[test]
 fn test_advancement_w4_5_subscription_quota_and_cron_matrix() {
+    use infiltrator_application::subscription_quota_projection::project_quota;
+    use infiltrator_contract::subscription_quota::{
+        SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
+    };
     let (mut state, _) = AppState::new();
-
-    // Evaluate subscription quota
-    let _ = state.update(Message::EvaluateSubscriptionQuota);
     assert_eq!(
-        state.profile.quota_schedule.used_bytes,
-        1024 * 1024 * 1024 * 45
+        state.runtime.subscription_quota.status,
+        SubscriptionQuotaStatus::Unknown
+    );
+    let unknown = project_quota(&state.runtime.subscription_quota, "en-US");
+    assert_eq!(unknown.used, "—");
+    assert_eq!(unknown.total, "—");
+    assert_eq!(unknown.fraction, None);
+    state.runtime.subscription_quota = SubscriptionQuotaSnapshot {
+        status: SubscriptionQuotaStatus::Ready,
+        profile_name: Some("provider {usage}".into()),
+        used_bytes: Some(0),
+        total_bytes: Some(100),
+        remaining_bytes: Some(100),
+        usage_percent: Some(0.0),
+        remaining_percent: Some(100.0),
+        ..Default::default()
+    };
+    assert_eq!(
+        state
+            .update(Message::UpdateSubscriptionInterval("12".into()))
+            .units(),
+        0
+    );
+    assert_eq!(state.profile.subscription_update_interval_hours, "12");
+    assert_eq!(state.runtime.subscription_quota.used_bytes, Some(0));
+    assert_eq!(state.runtime.subscription_quota.total_bytes, Some(100));
+    assert_eq!(
+        project_quota(&state.runtime.subscription_quota, "en-US").usage,
+        "0.0%"
     );
     assert_eq!(
-        state.profile.quota_schedule.total_bytes,
-        1024 * 1024 * 1024 * 100
+        state
+            .update(Message::UpdateSubscriptionInterval("6".into()))
+            .units(),
+        0
     );
-    assert_eq!(state.profile.quota_schedule.remaining_percent, 55.0);
-    assert_eq!(state.profile.quota_schedule.warning_tier, "Normal");
-
-    // Update cron interval
-    let _ = state.update(Message::UpdateCronScheduleHours(12));
-    assert_eq!(state.profile.quota_schedule.cron_interval_hours, 12);
-
-    let _ = state.update(Message::UpdateCronScheduleHours(6));
-    assert_eq!(state.profile.quota_schedule.cron_interval_hours, 6);
+    assert_eq!(state.profile.subscription_update_interval_hours, "6");
+    assert_eq!(
+        project_quota(&state.runtime.subscription_quota, "zh-CN").profile,
+        "provider {usage}"
+    );
 }
 
 #[test]

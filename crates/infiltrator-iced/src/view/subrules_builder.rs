@@ -7,18 +7,21 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{form_field_label, form_input_style, style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card, icon_button};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::components::{BadgeKind, badge, icon_button};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_application::logical_rule_projection::project_logical_rule;
 use infiltrator_domain::rules::logical;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let draft = &state.editor.subrule_draft;
-    let issue = logical::draft_issue(draft);
+    let projection = project_logical_rule(draft, lang.0);
 
     let mut op_selector = row![
         text(lang.tr("subrules_operator").to_string())
@@ -108,27 +111,15 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
     ]
     .align_y(Alignment::Center);
 
-    let preview_text = logical::draft_expression(draft);
-    let status_row: Element<'a, Message> = match &issue {
-        None => row![badge(
-            lang.tr("subrules_validate_ok").to_string(),
+    let preview_text = projection.expression.clone();
+    let status_row: Element<'a, Message> = badge(
+        projection.issue,
+        if projection.valid {
             BadgeKind::Success
-        )]
-        .align_y(Alignment::Center)
-        .into(),
-        Some(issue) => row![
-            badge(
-                lang.tr("subrules_validate_failed").to_string(),
-                BadgeKind::Danger
-            ),
-            Space::new().width(theme::SP_SM),
-            text(issue.clone()).size(11).style(|t: &Theme| text::Style {
-                color: Some(tokens(t).danger)
-            }),
-        ]
-        .align_y(Alignment::Center)
-        .into(),
-    };
+        } else {
+            BadgeKind::Danger
+        },
+    );
 
     let preview_card = container(
         column![
@@ -155,7 +146,7 @@ pub fn subrules_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
                     .align_y(Alignment::Center)
                 )
                 .padding([4, 10])
-                .style(if issue.is_none() {
+                .style(if projection.valid {
                     style_accent
                 } else {
                     style_ghost

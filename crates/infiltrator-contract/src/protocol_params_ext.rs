@@ -4,12 +4,10 @@
 //! budget; the aggregate [`crate::protocol_params::ProtocolParams`] re-uses
 //! these blocks and keeps the validation/report logic in one place.
 
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
-
 use crate::protocol_fidelity::{ProtocolFamily, ProtocolIssue, ShadowsocksCipher};
 use crate::protocol_params::{KNOWN_SIP003_PLUGINS, KNOWN_TRANSPORT_NETWORKS, XHTTP_MODES};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub(crate) fn push(issues: &mut Vec<ProtocolIssue>, field: &str, message: impl Into<String>) {
     issues.push(ProtocolIssue::new(field, message));

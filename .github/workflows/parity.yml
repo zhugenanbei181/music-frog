@@ -1,0 +1,66 @@
+name: full surface parity
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_JOBS: 4
+  LIBGL_ALWAYS_SOFTWARE: 1
+  WGPU_BACKEND: vulkan
+
+jobs:
+  parity:
+    name: All interactions, both peers and viewports
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Enforce repository quality
+        run: bash scripts/test.sh --guards-only
+      - uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          components: rustfmt, clippy
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: surface-parity
+      - name: Install build and private compositor dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libglib2.0-dev libfontconfig1-dev libwayland-dev \
+            libxkbcommon-dev libasound2-dev libudev-dev libssl-dev pkg-config \
+            libdisplay-info-dev libinput-dev libgbm-dev libseat-dev \
+            libpango1.0-dev libdbus-1-dev libsystemd-dev clang \
+            kwin-wayland dbus-x11 libegl-mesa0 mesa-vulkan-drivers jq
+          python -m pip install Pillow
+      - name: Install the capture compositor
+        run: cargo install --git https://github.com/niri-wm/niri --rev 8ed0da44d974c32c6877d2f4630c314da0717ecb --locked --bin niri
+      - name: Enforce formatting and strict lints
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+      - name: Verify every interaction against fresh behavior and pixels
+        run: dbus-run-session -- bash scripts/parity/accept-surface-interactions.sh --all
+      - name: Preserve acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-surface-parity
+          include-hidden-files: true
+          path: |
+            .evidence/
+            target/parity/
+            target/iced-evidence/
+            target/bevy-evidence/
+          if-no-files-found: error

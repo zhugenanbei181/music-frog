@@ -11,6 +11,11 @@
 //! The tray is a pure enhancement: any startup failure degrades to a
 //! window-only app with a warning and never fails or panics the process.
 
+use iced::futures::channel::mpsc;
+use infiltrator_domain::proxy::Proxy;
+use std::cmp::Ordering;
+use std::time::Instant;
+use tokio::time::sleep;
 pub mod spec;
 
 mod menu;
@@ -87,17 +92,14 @@ impl Recipe for TrayEventsRecipe {
 
     fn stream(self: Box<Self>, _input: EventStream) -> BoxStream<'static, Message> {
         let receiver = self.receiver;
-        let channel = stream::channel(
-            100,
-            move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                loop {
-                    for event in drain_tray_events(&receiver) {
-                        let _ = output.try_send(Message::TrayEvent(event));
-                    }
-                    tokio::time::sleep(Duration::from_millis(20)).await;
+        let channel = stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
+            loop {
+                for event in drain_tray_events(&receiver) {
+                    let _ = output.try_send(Message::TrayEvent(event));
                 }
-            },
-        );
+                sleep(Duration::from_millis(20)).await;
+            }
+        });
         Box::pin(channel)
     }
 }
@@ -195,7 +197,7 @@ impl AppState {
     /// per second so the D-Bus menu never floods. Returns whether a spec was
     /// actually pushed.
     pub fn refresh_tray_throttled(&mut self) -> bool {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         if self
             .shell
             .tray_refresh_cooldown
@@ -294,7 +296,7 @@ impl AppState {
     /// determinism, capped at [`TRAY_MAX_GROUPS`], each node annotated with
     /// its latest measured delay.
     fn tray_proxy_groups(&self) -> Vec<TrayProxyGroup> {
-        let mut groups: Vec<&infiltrator_domain::proxy::Proxy> = self
+        let mut groups: Vec<&Proxy> = self
             .runtime
             .proxies
             .values()
@@ -303,8 +305,8 @@ impl AppState {
         groups.sort_by(|a, b| {
             let (name_a, name_b) = (a.name(), b.name());
             match (name_a == "GLOBAL", name_b == "GLOBAL") {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
                 _ => name_a.cmp(name_b),
             }
         });

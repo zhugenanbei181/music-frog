@@ -2,49 +2,49 @@
 //! port conflict detector, DNS poisoning leak check, and one-click repair.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`DoctorLine`],
-//! [`CheckStateText`], [`CheckDetailText`]). The page self-registers
-//! [`apply_doctor_projection`] and action observers once per world via
-//! [`DoctorPageRoot`]. When [`DoctorProjectionUpdated`] fires, texts, state colors,
+//! [`CheckStateText`], [`CheckDetailText`]). [`DoctorPagePlugin`] registers
+//! [`apply_doctor_projection`] and action observers once at product
+//! assembly. When [`DoctorProjectionUpdated`] fires, texts, state colors,
 //! and check items restamp in place without tree rebuilds.
 
+use crate::localized_widgets::localized_button_scene;
+use crate::pages::doctor_actions::{BootstrapDoctorButton, DoctorFeedbackText, RetryDoctorButton};
+use crate::pages::doctor_rows::{DoctorRows, check_row_scene, refresh_rows};
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
+use bevy::ui::FlexWrap;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, FlexDirection, JustifyContent, Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Button, ScrollArea};
+use infiltrator_application::doctor_projection::{summary, watchdog_status_text};
+use infiltrator_bevy_widgets::button::{ButtonDisabled, ButtonVariant};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{PageRoot, Route};
+use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
+use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Root marker on the Doctor page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_doctor_page)]
 pub struct DoctorPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct DoctorPageBound;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -63,64 +63,51 @@ pub enum DoctorLineKind {
 }
 
 /// Marker for a check item's status text and color.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CheckStateText(pub usize);
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct CheckStateText(pub String);
 
 /// Marker for a check item's detail description text.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CheckDetailText(pub usize);
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct CheckDetailText(pub String);
 
 /// Marker for "Run Doctor Diagnostics" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Button, ButtonDisabled)]
 pub struct RunDoctorDiagnosticsButton;
 
 /// Marker for "Repair All Doctor Issues" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Button, ButtonDisabled)]
 pub struct RepairAllDoctorButton;
 
 /// Marker for repairing a specific check issue.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+#[require(Button, ButtonDisabled)]
 pub struct RepairDoctorRowButton {
     pub check_id: String,
-    pub check_idx: usize,
-}
-
-/// State of an individual diagnostic check.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum DoctorCheckState {
-    #[default]
-    Pass,
-    Warning,
-    Fail,
-}
-
-impl DoctorCheckState {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Pass => "正常 (PASS)",
-            Self::Warning => "警告 (WARN)",
-            Self::Fail => "异常 (FAIL)",
-        }
-    }
 }
 
 /// Color for check state tag.
-pub fn check_state_color(state: DoctorCheckState, palette: &UiPalette) -> Color {
+pub fn check_state_color(state: DoctorStatus, palette: &UiPalette) -> Color {
     match state {
-        DoctorCheckState::Pass => palette.success,
-        DoctorCheckState::Warning => palette.warning,
-        DoctorCheckState::Fail => palette.danger,
+        DoctorStatus::Pass => palette.success,
+        DoctorStatus::Warn => palette.warning,
+        DoctorStatus::Fail => palette.danger,
+        DoctorStatus::Skip => palette.ink_dim,
     }
 }
 
 /// An individual diagnostic check item.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoctorCheckItem {
+    pub kind: Option<DoctorCheckKind>,
+    pub detail_copy_key: Option<String>,
     pub id: String,
     pub name: String,
     pub category: String,
-    pub state: DoctorCheckState,
+    pub state: DoctorStatus,
     pub detail: String,
+    pub hint: Option<String>,
     pub fix_available: bool,
 }
 
@@ -128,6 +115,7 @@ pub struct DoctorCheckItem {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoctorProjection {
     pub overall_healthy: bool,
+    pub report_finished_at: Option<u64>,
     pub last_run: String,
     pub checks: Vec<DoctorCheckItem>,
     pub watchdog: CoreWatchdogSnapshot,
@@ -138,54 +126,109 @@ impl DoctorProjection {
     pub fn demo() -> Self {
         Self {
             overall_healthy: true,
+            report_finished_at: Some(1788344070),
             last_run: "2026-09-02 10:14:30".to_owned(),
             checks: vec![
                 DoctorCheckItem {
                     id: "chk-1".to_owned(),
-                    name: "TUN 虚拟网卡与路由表健康度".to_owned(),
-                    category: "网络栈".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "utun9 设备正常就绪，默认路由接管生效中".to_owned(),
+                    kind: Some(DoctorCheckKind::TunHealth),
+                    detail_copy_key: Some(DoctorCheckKind::TunHealth.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::TunHealth.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::TunHealth.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::TunHealth.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
                 DoctorCheckItem {
                     id: "chk-2".to_owned(),
-                    name: "系统代理注册与回退探测".to_owned(),
-                    category: "系统集成".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "HTTP/SOCKS5 代理注册 127.0.0.1:7890 正常".to_owned(),
+                    kind: Some(DoctorCheckKind::SystemProxy),
+                    detail_copy_key: Some(DoctorCheckKind::SystemProxy.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::SystemProxy.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::SystemProxy.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::SystemProxy.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
                 DoctorCheckItem {
                     id: "chk-3".to_owned(),
-                    name: "核心端口独占性 (7890 / 9090)".to_owned(),
-                    category: "端口绑定".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "端口无外部进程抢占冲突".to_owned(),
+                    kind: Some(DoctorCheckKind::Ports),
+                    detail_copy_key: Some(DoctorCheckKind::Ports.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Ports.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Ports.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Ports.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
                 DoctorCheckItem {
                     id: "chk-4".to_owned(),
-                    name: "DNS 污染与泄露防护测试".to_owned(),
-                    category: "DNS 安全".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "Fake-IP 198.18.0.0/16 隔离良好，无真实 IP 泄露".to_owned(),
+                    kind: Some(DoctorCheckKind::DnsPrivacy),
+                    detail_copy_key: Some(DoctorCheckKind::DnsPrivacy.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::DnsPrivacy.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::DnsPrivacy.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::DnsPrivacy.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
                 DoctorCheckItem {
                     id: "chk-5".to_owned(),
-                    name: "进程管理员特权与 CAP_NET_ADMIN".to_owned(),
-                    category: "权限环境".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "Linux Capabilities 网络配置权限满足".to_owned(),
+                    kind: Some(DoctorCheckKind::Privileges),
+                    detail_copy_key: Some(DoctorCheckKind::Privileges.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Privileges.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Privileges.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Privileges.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
                 DoctorCheckItem {
                     id: "chk-6".to_owned(),
-                    name: "配置文件语法与规则集合规性".to_owned(),
-                    category: "配置校验".to_owned(),
-                    state: DoctorCheckState::Pass,
-                    detail: "3 份 MRS 规则集校验通过，0 语法警告".to_owned(),
+                    kind: Some(DoctorCheckKind::Configuration),
+                    detail_copy_key: Some(DoctorCheckKind::Configuration.copy_keys().2.into()),
+                    name: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Configuration.copy_keys().0)
+                        .into_owned(),
+                    category: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Configuration.copy_keys().1)
+                        .into_owned(),
+                    state: DoctorStatus::Pass,
+                    detail: Lang(UiLocale::default().code())
+                        .tr(DoctorCheckKind::Configuration.copy_keys().2)
+                        .into_owned(),
+                    hint: None,
                     fix_available: false,
                 },
             ],
@@ -196,7 +239,7 @@ impl DoctorProjection {
     pub fn passed_count(&self) -> usize {
         self.checks
             .iter()
-            .filter(|c| c.state == DoctorCheckState::Pass)
+            .filter(|c| c.state == DoctorStatus::Pass)
             .count()
     }
 }
@@ -212,19 +255,23 @@ pub struct LastDoctorProjection(pub Option<DoctorProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!(
-        "自愈诊断 · 健康评估 ({} / {} 项检查通过)",
-        projection.passed_count(),
-        projection.checks.len()
+    let code = UiLocale::default();
+    let summary = summary(
+        projection.checks.iter().map(|check| check.state),
+        projection.report_finished_at,
+        code.code(),
     );
-    let last_run_str = format!("最近诊断: {}", projection.last_run);
-    let watchdog_str = watchdog_status_text(&projection.watchdog);
+    let last_run_str = localize(
+        code.code(),
+        "doctor_last_run_value",
+        &[("time", projection.last_run.clone())],
+    );
+    let watchdog_str = watchdog_status_text(&projection.watchdog, code.code());
 
     let check_scenes: Vec<Box<dyn Scene>> = projection
         .checks
         .iter()
-        .enumerate()
-        .map(|(idx, item)| Box::new(check_row_scene(idx, item, palette)) as Box<dyn Scene>)
+        .map(|item| Box::new(check_row_scene(item, palette, code.code())) as Box<dyn Scene>)
         .collect();
 
     bsn! {
@@ -240,6 +287,7 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
             }
             PageRoot(Route::Doctor)
             DoctorPageRoot
+            ScrollArea
             Children [
                 @{ header_card_scene(summary, last_run_str, watchdog_str, palette) }
                 --
@@ -254,95 +302,60 @@ fn header_card_scene(
     watchdog: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("自愈诊断概览");
+    let header_a11y = accesskit::Node::new(accesskit::Role::Header);
 
     surface_scene(
-        vec![Box::new(bsn! {
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
-                    }
-                    AccessibilityNode(header_a11y)
-                    Children [
+        vec![
+            Box::new(bsn! {
                         Node {
+                            width: percent(100),
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(space::S12),
                         }
-                        Children [
-                            @{ icon_tile_scene(IconId::Activity, 36.0, palette) }
-                            --
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading)
-                                --
-                                Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption)
-                                --
-                                Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption)
-                            ]
-                        ]
-                        --
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
+                        AccessibilityNode(header_a11y) LocalizedLabel::plain("doctor_header_label")
                         Children [
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
                                 align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                column_gap: Val::Px(space::S12),
                             }
-                            BackgroundColor({ palette.accent })
-                            RunDoctorDiagnosticsButton
-                            Button
                             Children [
-                                Text({ "立即诊断".to_owned() }) TextRole(Role::BodyStrong)
+                                @{ icon_tile_scene(IconId::Activity, 36.0, palette) }
+                                --
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    row_gap: Val::Px(space::S4),
+                                }
+                                Children [
+                                    Text(summary) DoctorLine(DoctorLineKind::Summary) TextRole(Role::Heading)
+                                    --
+                                    Text(last_run) DoctorLine(DoctorLineKind::LastRun) TextRole(Role::Caption)
+                                    --
+                                    Text(watchdog) DoctorLine(DoctorLineKind::Watchdog) TextRole(Role::Caption)
+                                ]
                             ]
                             --
                             Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
                                 align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
+                                flex_wrap: FlexWrap::Wrap,
+                                row_gap: px(space::S8),
+                                column_gap: Val::Px(space::S8),
                             }
-                            BackgroundColor({ palette.surface_elevated })
-                            RepairAllDoctorButton
-                            Button
                             Children [
-                                Text({ "一键修复".to_owned() }) TextRole(Role::Body)
+                                @{ (localized_button_scene(LocalizedText::plain("doctor_diagnose_action"), ButtonVariant::Primary, palette), bsn! { RunDoctorDiagnosticsButton }) }
+                                --
+                                @{ (localized_button_scene(LocalizedText::plain("doctor_btn_fix"), ButtonVariant::Default, palette), bsn! { RepairAllDoctorButton }) }
+                                --
+                                @{ (localized_button_scene(LocalizedText::plain("doctor_btn_bootstrap"), ButtonVariant::Default, palette), bsn! { BootstrapDoctorButton }) }
+                                --
+                                @{ (localized_button_scene(LocalizedText::plain("doctor_retry_action"), ButtonVariant::Default, palette), bsn! { RetryDoctorButton }) }
                             ]
                         ]
-                    ]
-        })],
+            }),
+            Box::new(bsn! { Text::default() DoctorFeedbackText TextRole(Role::Caption) }),
+        ],
         palette,
     )
-}
-
-fn watchdog_status_text(snapshot: &CoreWatchdogSnapshot) -> String {
-    match &snapshot.state {
-        CoreWatchdogState::Idle => "核心看门狗：待机".to_owned(),
-        CoreWatchdogState::Waiting {
-            attempt,
-            retry_in_ms,
-        } => format!("核心看门狗：第 {attempt} 次重启将在 {retry_in_ms} ms 后执行"),
-        CoreWatchdogState::Restarting { attempt } => {
-            format!("核心看门狗：正在执行第 {attempt} 次重启")
-        }
-        CoreWatchdogState::Recovered { attempts } => {
-            format!("核心看门狗：已恢复（重启 {attempts} 次）")
-        }
-        CoreWatchdogState::Tripped { attempts } => {
-            format!("核心看门狗：熔断（已失败 {attempts} 次）")
-        }
-    }
 }
 
 fn checks_container_scene(
@@ -359,9 +372,9 @@ fn checks_container_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "诊断检查清单 (Diagnostic Suite)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("doctor_suite_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ "涵盖网络栈、系统代理、端口、DNS 与权限".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("doctor_suite_hint") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -370,6 +383,7 @@ fn checks_container_scene(
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S8),
                             }
+                            DoctorRows
                             Children [
                                 { check_scenes }
                             ]
@@ -379,133 +393,47 @@ fn checks_container_scene(
     )
 }
 
-fn check_row_scene(idx: usize, check: &DoctorCheckItem, palette: &UiPalette) -> impl Scene + use<> {
-    let name = format!("[{}] {}", check.category, check.name);
-    let detail = check.detail.clone();
-    let state_str = check.state.label().to_owned();
-    let state_col = check_state_color(check.state, palette);
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-    bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::all(Val::Px(space::S8)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ palette.surface_elevated })
-            Children [
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(space::S4),
-                }
-                Children [
-                    Text(name) TextRole(Role::BodyStrong)
-                    --
-                    Text(detail) CheckDetailText(idx) TextRole(Role::Caption)
-                ]
-                --
-                Text(state_str)
-                CheckStateText(idx)
-                TextRole(Role::BodyStrong)
-                TextColor(state_col)
-            ]
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct DoctorPagePlugin;
+
+impl Plugin for DoctorPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(apply_doctor_projection);
+        app.add_observer(refresh_rows);
     }
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
-
-fn bind_doctor_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<DoctorPageBound>().is_some() {
-        return;
-    }
-    let mut commands = world.commands();
-    commands.insert_resource(DoctorPageBound);
-    commands.add_observer(apply_doctor_projection);
-    commands.add_observer(on_doctor_action_activated);
-}
-
-pub(crate) fn on_doctor_action_activated(
-    activate: On<Activate>,
-    diag_buttons: Query<(), With<RunDoctorDiagnosticsButton>>,
-    repair_all_buttons: Query<(), With<RepairAllDoctorButton>>,
-    repair_row_buttons: Query<&RepairDoctorRowButton>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
-    let Some(handle) = handle else {
-        return;
-    };
-    if diag_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::RunDoctorDiagnostics);
-    } else if repair_all_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::RepairAllDoctorIssues);
-    } else if let Ok(btn) = repair_row_buttons.get(activate.entity) {
-        handle.submit(UiCommand::RepairDoctorIssue {
-            check_id: btn.check_id.clone(),
-        });
-    }
-}
-
-#[allow(clippy::type_complexity)]
 pub(crate) fn apply_doctor_projection(
     update: On<DoctorProjectionUpdated>,
-    palette: Res<UiPalette>,
     mut last: Option<ResMut<LastDoctorProjection>>,
-    mut lines: Query<
-        (&mut Text, &DoctorLine),
-        (
-            With<DoctorLine>,
-            Without<CheckStateText>,
-            Without<CheckDetailText>,
-        ),
-    >,
-    mut states: Query<
-        (&mut Text, &mut TextColor, &CheckStateText),
-        (
-            With<CheckStateText>,
-            Without<DoctorLine>,
-            Without<CheckDetailText>,
-        ),
-    >,
-    mut details: Query<
-        (&mut Text, &CheckDetailText),
-        (
-            With<CheckDetailText>,
-            Without<DoctorLine>,
-            Without<CheckStateText>,
-        ),
-    >,
+    locale: Option<Res<UiLocale>>,
+    mut lines: Query<(&mut Text, &DoctorLine), With<DoctorLine>>,
 ) {
+    let code = locale.as_ref().map_or("zh-CN", |locale| locale.code());
     let projection = &update.0;
 
     for (mut text, line) in &mut lines {
         match line.0 {
             DoctorLineKind::Summary => {
-                text.0 = format!(
-                    "自愈诊断 · 健康评估 ({} / {} 项检查通过)",
-                    projection.passed_count(),
-                    projection.checks.len()
+                text.0 = summary(
+                    projection.checks.iter().map(|check| check.state),
+                    projection.report_finished_at,
+                    code,
                 );
             }
             DoctorLineKind::LastRun => {
-                text.0 = format!("最近诊断: {}", projection.last_run);
+                text.0 = localize(
+                    code,
+                    "doctor_last_run_value",
+                    &[("time", projection.last_run.clone())],
+                );
             }
             DoctorLineKind::Watchdog => {
-                text.0 = watchdog_status_text(&projection.watchdog);
+                text.0 = watchdog_status_text(&projection.watchdog, code);
             }
-        }
-    }
-
-    for (mut text, mut color, marker) in &mut states {
-        if let Some(check) = projection.checks.get(marker.0) {
-            text.0 = check.state.label().to_owned();
-            color.0 = check_state_color(check.state, &palette);
-        }
-    }
-
-    for (mut text, marker) in &mut details {
-        if let Some(check) = projection.checks.get(marker.0) {
-            text.0 = check.detail.clone();
         }
     }
 
@@ -527,6 +455,6 @@ mod tests {
         assert_eq!(proj.checks[0].id, "chk-1");
         assert_eq!(proj.checks[0].name, "TUN 虚拟网卡与路由表健康度");
         assert_eq!(proj.checks[0].category, "网络栈");
-        assert_eq!(proj.checks[0].state, DoctorCheckState::Pass);
+        assert_eq!(proj.checks[0].state, DoctorStatus::Pass);
     }
 }

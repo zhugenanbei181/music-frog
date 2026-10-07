@@ -3,6 +3,11 @@
 //! Charter (docs/BEVY_UI_FRONTEND.md):
 //! Pure state machine with analytical edge clamping and declarative `bsn!` overlay panel.
 
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -16,12 +21,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// An individual action entry inside a context menu.
 #[derive(Clone, Debug, PartialEq, Eq)]

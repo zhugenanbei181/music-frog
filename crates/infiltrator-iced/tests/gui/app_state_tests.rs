@@ -4,19 +4,30 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
-use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress};
+use crate::test_mounts::profile_edit_fixture;
+use crate::tray::spec::{TRAY_ACTION_QUIT, TrayEvent, TrayIntent, resolve_tray_event};
+use crate::types::app::{ConfirmAction, CoreDownloadProgress, Route, SyncProgress, ToastStatus};
 use crate::types::dns::DnsTab;
 use crate::types::message::Message;
+use crate::types::profile_edit::ProfileEditReply;
 use crate::types::runtime::{
-    IpProbeResult, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState,
+    IpProbeResult, RebuildFlowState, RuntimePatchSnapshot, RuntimeStatus, RuntimeStreamKind,
+    RuntimeStreamState,
 };
-use crate::types::runtime::{RebuildFlowState, RuntimeConfig};
 use iced::widget::text_editor;
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
 use infiltrator_contract::rules_workspace::{RulesJsonSection, RulesTab};
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_contract::system_toggle::SystemToggleState;
+use infiltrator_domain::connection_rate::pulse_intensity;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::TrafficData;
+use infiltrator_domain::runtime::{ConfigSnapshot, DnsSnapshot, SnifferSnapshot, TunSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -73,27 +84,33 @@ fn test_runtime_config_sync() {
 
     // Simulate config fetch
     let _ = state.update(Message::RuntimeConfigFetched(
-        Ok(RuntimeConfig {
+        Ok(ConfigSnapshot {
             mode: "global".into(),
-            ipv6_enabled: false,
             allow_lan: false,
             mixed_port: 7890,
-            bind_address: "*".into(),
-            lan_allowed_ips: vec!["192.168.0.0/16".into()],
-            lan_disallowed_ips: vec![],
-            skip_auth_prefixes: vec!["127.0.0.0/8".into()],
-            authentication_enabled: false,
-            authentication_user_count: 0,
+            bind_address: Some("*".into()),
+            lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
+            lan_disallowed_ips: Some(vec![]),
+            skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
+            authentication_enabled: Some(false),
+            authentication_user_count: Some(0),
             authentication_username: None,
-            script_block_present: true,
-            tun_enabled: true,
-            dns_nameservers: vec!["1.1.1.1".into()],
-            dns_fallback: vec!["8.8.8.8".into()],
-            dns_enhanced_mode: "fake-ip".into(),
-            tun_stack: "gvisor".into(),
-            tun_auto_route: true,
-            tun_strict_route: false,
-            sniffer_enabled: true,
+            ipv6: Some(false),
+            script: Some(serde_json::json!({"code": "fixture"})),
+            tun: Some(TunSnapshot {
+                enable: Some(true),
+                stack: Some("gvisor".into()),
+                auto_route: Some(true),
+                strict_route: Some(false),
+                ..Default::default()
+            }),
+            dns: Some(DnsSnapshot {
+                nameserver: vec!["1.1.1.1".into()],
+                fallback: vec!["8.8.8.8".into()],
+                enhanced_mode: "fake-ip".into(),
+            }),
+            sniffer: Some(SnifferSnapshot { enable: true }),
+            ..Default::default()
         }),
         generation,
     ));
@@ -105,21 +122,102 @@ fn test_runtime_config_sync() {
 }
 
 #[test]
+fn runtime_config_replay_preserves_missing_fields_and_typed_failure_blocks_last_observed_tun() {
+    let (mut state, _) = AppState::new();
+    let generation = state.runtime.runtime_generation;
+    state.editor.tun_stack = "draft-stack".into();
+    let _ = state.update(Message::RuntimeConfigFetched(
+        Ok(ConfigSnapshot {
+            mode: "direct".into(),
+            tun: Some(TunSnapshot::default()),
+            ..Default::default()
+        }),
+        generation,
+    ));
+    assert_eq!(state.runtime.tun_enabled, None);
+    assert_eq!(state.runtime.system_toggles.tun, SystemToggleState::Unknown);
+    assert_eq!(state.runtime.runtime_control.tun_stack, None);
+    assert_eq!(state.runtime.runtime_control.ipv6_routing, None);
+    assert_eq!(state.editor.tun_stack, "draft-stack");
+    let _ = state.update(Message::RuntimeConfigFetched(
+        Ok(ConfigSnapshot {
+            mode: "global".into(),
+            ipv6: Some(false),
+            tun: Some(TunSnapshot {
+                enable: Some(false),
+                stack: Some("system".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        generation,
+    ));
+    assert_eq!(state.runtime.tun_enabled, Some(false));
+    assert_eq!(state.editor.tun_stack, "system");
+    let failure = Failure::new(ErrorCode::Authentication, "read denied", false);
+    let _ = state.update(Message::RuntimeConfigFetched(
+        Err(failure.clone()),
+        generation,
+    ));
+    assert_eq!(
+        state.runtime.runtime_control.status,
+        RuntimeControlStatus::Failed {
+            failure: failure.clone()
+        }
+    );
+    assert_eq!(state.runtime.tun_enabled, Some(false));
+    assert_eq!(
+        state.runtime.runtime_control.tun_stack.as_deref(),
+        Some("system")
+    );
+    assert_eq!(
+        state.runtime.system_toggles.tun,
+        SystemToggleState::Failed {
+            failure: failure.clone()
+        }
+    );
+    assert!(!state.runtime.system_toggles.tun.can_toggle());
+    assert_eq!(state.runtime.proxy_mode_state.failure, Some(failure));
+    let before = state.runtime.runtime_control.clone();
+    let _ = state.update(Message::RuntimeConfigFetched(
+        Ok(ConfigSnapshot {
+            mode: "rule".into(),
+            ..Default::default()
+        }),
+        generation.wrapping_add(1),
+    ));
+    assert_eq!(state.runtime.runtime_control, before);
+}
+
+#[test]
 fn test_mode_set_interactions() {
     let (mut state, _) = AppState::new();
 
-    // Success path (should trigger a re-fetch)
-    let _task = state.update(Message::ModeSetResult(Ok(())));
+    let generation = state.runtime.runtime_generation;
+    state
+        .runtime
+        .mode_actions
+        .observe(generation, 1, ProxyModeSnapshot::demo_fixture());
+    let request = state.runtime.mode_actions.begin(ProxyMode::Global).unwrap();
+    let _ = state.update(Message::ProxyModeFinished {
+        request,
+        result: Ok(ProxyMode::Global),
+    });
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
     assert!(state.shell.error_msg.is_none());
-
-    // Failure path
-    let _ = state.update(Message::ModeSetResult(Err(InfiltratorError::Mihomo(
-        "API Error".into(),
-    ))));
+    let request = state.runtime.mode_actions.begin(ProxyMode::Direct).unwrap();
+    let failure = Failure::new(ErrorCode::Network, "API Error", true);
+    let _ = state.update(Message::ProxyModeFinished {
+        request,
+        result: Err(failure.clone()),
+    });
+    assert_eq!(state.runtime.mode_actions.failure, Some(failure));
     assert_eq!(
-        state.shell.error_msg.as_ref().unwrap(),
-        "Mihomo API error: API Error"
+        state.runtime.mode_actions.retry_target(),
+        Some(ProxyMode::Direct)
     );
+    assert_eq!(state.runtime.proxy_mode.as_deref(), Some("global"));
+    assert!(state.shell.error_msg.is_none());
 }
 
 #[test]
@@ -229,11 +327,11 @@ fn test_profiles_and_rules_loading() {
     assert!(!state.profile.is_loading_profiles);
 
     // Rules loaded
-    let _ = state.update(Message::RulesLoaded(Ok(vec![RuleEntry {
+    let _ = state.update(Message::RulesLoaded(Ok(list_document(vec![RuleEntry {
         rule: "DOMAIN,example.com,DIRECT".into(),
         enabled: true,
-    }])));
-    assert_eq!(state.editor.rules.len(), 1);
+    }]))));
+    assert_eq!(state.editor.rule_list.draft.len(), 1);
 }
 
 #[test]
@@ -250,12 +348,12 @@ fn test_proxy_lifecycle_messages() {
 #[test]
 fn test_rebuild_flow_state_transitions() {
     let (mut state, _) = AppState::new();
-    state.editor.rules = vec![RuleEntry {
+    state.editor.rule_list.draft = vec![RuleEntry {
         rule: "MATCH,DIRECT".into(),
         enabled: true,
     }];
 
-    let _ = state.update(Message::SaveRules);
+    let _ = state.update(Message::SaveDns);
     assert!(matches!(
         state.runtime.rebuild_flow,
         RebuildFlowState::Saving { .. }
@@ -291,10 +389,12 @@ fn test_editor_actions() {
     let (mut state, _) = AppState::new();
 
     // Simulate successful load
-    let _ = state.update(Message::ProfileContentLoaded(Ok((
+    let reply = profile_edit_fixture::document(
+        &mut state,
         PathBuf::from("config.yaml"),
         "proxies: []".into(),
-    ))));
+    );
+    let _ = state.update(reply);
     assert_eq!(
         state.editor.editor_path.as_ref().unwrap().to_str().unwrap(),
         "config.yaml"
@@ -307,9 +407,22 @@ fn test_editor_actions() {
     )));
     assert_ne!(state.editor.editor_content.text(), "proxies: []");
 
-    // Save success
+    // An unrelated old result cannot claim this draft saved.
     state.shell.current_route = Route::Editor;
-    let _ = state.update(Message::ProfileSaved(Ok(())));
+    let pending = state
+        .editor
+        .document_session
+        .begin_document("proxies: []".into(), false)
+        .unwrap();
+    let _ = state.update(Message::ProfileSaved(ProfileEditReply {
+        pending,
+        result: Ok(CommandOutput::Unit),
+    }));
+    assert_eq!(
+        state.editor.document_session.failure.as_ref().unwrap().code,
+        ErrorCode::InvalidState
+    );
+    assert!(!state.editor.document_session.saved);
     assert_eq!(state.shell.current_route, Route::Editor);
 }
 
@@ -319,26 +432,22 @@ fn test_tray_and_exit() {
 
     // Tray events shouldn't crash and must map onto the same actions as the
     // old muda menu ids: icon click shows the window, quit requests exit.
-    let _ = state.update(Message::TrayEvent(
-        crate::tray::spec::TrayEvent::IconActivated,
-    ));
+    let _ = state.update(Message::TrayEvent(TrayEvent::IconActivated));
     assert_eq!(
-        crate::tray::spec::resolve_tray_event(
-            &crate::tray::spec::TrayEvent::MenuActivated {
-                id: crate::tray::spec::TRAY_ACTION_QUIT,
+        resolve_tray_event(
+            &TrayEvent::MenuActivated {
+                id: TRAY_ACTION_QUIT,
                 payload: None,
             },
             false,
             false,
         ),
-        Some(crate::tray::spec::TrayIntent::Exit)
+        Some(TrayIntent::Exit)
     );
-    let _ = state.update(Message::TrayEvent(
-        crate::tray::spec::TrayEvent::MenuActivated {
-            id: crate::tray::spec::TRAY_ACTION_QUIT,
-            payload: None,
-        },
-    ));
+    let _ = state.update(Message::TrayEvent(TrayEvent::MenuActivated {
+        id: TRAY_ACTION_QUIT,
+        payload: None,
+    }));
 
     let _ = state.update(Message::Exit);
 }
@@ -381,7 +490,7 @@ fn test_error_and_toast_redaction() {
     // Every toast funnels through Message::ShowToast and is redacted there.
     let _ = state.update(Message::ShowToast(
         "secret: supersecret42".into(),
-        crate::types::app::ToastStatus::Error,
+        ToastStatus::Error,
     ));
     let (content, _) = state.shell.toasts[0].clone();
     assert_eq!(content, "secret: ***");
@@ -453,8 +562,21 @@ fn test_p0_ip_probe_metadata_and_explicit_language() {
         Some("2026-08-30 12:00:00")
     );
 
-    let _ = state.update(Message::SetLanguage("en-US".to_string()));
-    assert_eq!(state.shell.lang, "en-US");
+    let original_language = state.shell.lang.clone();
+    assert_eq!(
+        state
+            .update(Message::SetLanguage("en-US".to_string()))
+            .units(),
+        0
+    );
+    assert_eq!(
+        state.shell.lang, original_language,
+        "an uncomposed host cannot claim a persisted language change"
+    );
+    assert_eq!(
+        state.shell.language_choice.failure.as_ref().unwrap().code,
+        ErrorCode::NotReady
+    );
 }
 
 #[test]
@@ -508,6 +630,7 @@ fn test_p0_runtime_patch_failure_restores_the_previous_snapshot() {
     state.runtime.proxy_mode = Some("rule".to_string());
     state.runtime.pending_runtime_patch = Some(RuntimePatchSnapshot {
         proxy_mode: Some("rule".to_string()),
+        proxy_mode_state: Default::default(),
         ipv6_enabled: true,
         tun_enabled: Some(false),
         tun_stack: "gvisor".to_string(),
@@ -682,7 +805,7 @@ fn connection_instantaneous_rates_derive_from_successive_snapshots() {
     let _ = state.update(Message::TickFrame(base + Duration::from_millis(1_500)));
     assert!(state.diag.connection_pulse_phase > 0.0);
     assert!(
-        infiltrator_domain::connection_rate::pulse_intensity(
+        pulse_intensity(
             rate.upload_bps,
             rate.download_bps,
             state.diag.connection_pulse_phase

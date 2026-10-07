@@ -5,10 +5,11 @@
 //! state through the shared tracker.
 
 use bevy::MinimalPlugins;
-use bevy::app::App;
+use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
+use bevy::ecs::system::{Commands, Res};
 use bevy::math::Vec2;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::window::{Ime, PrimaryWindow, Window};
@@ -18,7 +19,8 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::ime::ImeCursorArea;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused, text_field_scene};
-use infiltrator_contract::ime::{ImeCursorSource, ImePhase};
+use infiltrator_contract::ime::{ImeCursorSource, ImePhase, ImeViewport};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 
 fn ime_app() -> App {
     let mut app = App::new();
@@ -159,12 +161,7 @@ fn a_caret_outside_the_window_is_clamped_before_it_reaches_the_os() {
         .resource::<ImeHostReport>()
         .cursor()
         .expect("an enabled plan has a caret");
-    assert!(
-        cursor.is_inside(infiltrator_contract::ime::ImeViewport::new(
-            viewport.width(),
-            viewport.height()
-        ))
-    );
+    assert!(cursor.is_inside(ImeViewport::new(viewport.width(), viewport.height())));
     assert_eq!(window_state.ime_position, Vec2::new(cursor.x, cursor.y));
     assert!(
         window_state.ime_position.x < viewport.width(),
@@ -309,15 +306,11 @@ fn a_mounted_shell_keeps_its_ime_disabled_until_a_field_is_focused() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     app.world_mut().spawn((Window::default(), PrimaryWindow));
     app.add_systems(
-        bevy::app::Startup,
-        |mut commands: bevy::ecs::system::Commands, palette: bevy::ecs::system::Res<UiPalette>| {
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
             commands.spawn_scene(text_field_scene(String::new(), &palette));
         },
     );

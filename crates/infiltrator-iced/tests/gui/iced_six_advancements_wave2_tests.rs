@@ -6,6 +6,11 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_contract::aggregator::{
+    AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
+};
+use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::connection_view::ConnectionGroupingMode;
 use infiltrator_domain::profiles::ProfileInfo;
 
@@ -172,7 +177,7 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
 
     let (mut state, _) = AppState::new();
     let report = AggregationReport {
-        draft: infiltrator_contract::aggregator::AggregationDraft {
+        draft: AggregationDraft {
             source_profiles: vec!["Airport-HK".to_string()],
             target_name: "Merged-New".to_string(),
             deduplicate: true,
@@ -180,11 +185,11 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
             geo_cluster: true,
             generate_groups: true,
             remove_emojis: true,
-            rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+            rename_rules: vec![AggregationRenameRule {
                 pattern: "-Pro$".to_string(),
                 replacement: String::new(),
             }],
-            custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+            custom_groups: vec![AggregationCustomGroup {
                 name: "流媒体专用".to_string(),
                 group_type: "select".to_string(),
                 member_keywords: vec!["HK".to_string()],
@@ -264,27 +269,26 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     let _ = state.update(Message::UpdateAggregatorCustomGroupName(String::new()));
 
     // DUAL-08-13: applying a saved template prefills the wizard fields.
-    state.profile.aggregator_templates =
-        vec![infiltrator_contract::aggregator::AggregationTemplate {
-            name: "My-Template".to_string(),
-            draft: infiltrator_contract::aggregator::AggregationDraft {
-                source_profiles: vec!["Airport-HK".to_string()],
-                target_name: "From-Template".to_string(),
-                deduplicate: false,
-                deduplicate_names: true,
-                geo_cluster: false,
-                generate_groups: true,
-                remove_emojis: false,
-                rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
-                    pattern: "x".to_string(),
-                    replacement: "y".to_string(),
-                }],
-                custom_groups: Vec::new(),
-                availability_precheck: false,
-                activate_after_create: true,
-            },
-            updated_at: "2026-09-22T11:00:00+00:00".to_string(),
-        }];
+    state.profile.aggregator_templates = vec![AggregationTemplate {
+        name: "My-Template".to_string(),
+        draft: AggregationDraft {
+            source_profiles: vec!["Airport-HK".to_string()],
+            target_name: "From-Template".to_string(),
+            deduplicate: false,
+            deduplicate_names: true,
+            geo_cluster: false,
+            generate_groups: true,
+            remove_emojis: false,
+            rename_rules: vec![AggregationRenameRule {
+                pattern: "x".to_string(),
+                replacement: "y".to_string(),
+            }],
+            custom_groups: Vec::new(),
+            availability_precheck: false,
+            activate_after_create: true,
+        },
+        updated_at: "2026-09-22T11:00:00+00:00".to_string(),
+    }];
     let _ = state.update(Message::ApplyAggregatorTemplate("My-Template".to_string()));
     assert_eq!(state.profile.aggregator_name_input, "From-Template");
     assert!(!state.profile.aggregator_deduplicate);
@@ -315,7 +319,7 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
     // A typed failure clears the in-flight flag without faking a report.
     state.profile.aggregator_report = None;
     let _ = state.update(Message::AggregationPreviewFinished(Err(
-        infiltrator_contract::error::InfiltratorError::Internal("boom".to_string()),
+        InfiltratorError::Internal("boom".to_string()),
     )));
     assert!(state.profile.aggregator_report.is_none());
 }
@@ -323,10 +327,12 @@ fn test_advancement_w2_3b_aggregator_preview_lifecycle_is_shared() {
 #[test]
 fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
     let (mut state, _) = AppState::new();
+    let document = list_document(state.editor.rule_list.draft.clone());
+    state.editor.rule_list.observe(Some(&document), None);
 
     // Default grouping mode
     assert_eq!(
-        state.diag.connection_grouping_mode,
+        state.diag.connection_groups.mode(),
         ConnectionGroupingMode::Flat
     );
 
@@ -335,7 +341,7 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
         ConnectionGroupingMode::ByProcess,
     ));
     assert_eq!(
-        state.diag.connection_grouping_mode,
+        state.diag.connection_groups.mode(),
         ConnectionGroupingMode::ByProcess
     );
 
@@ -344,12 +350,12 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
         ConnectionGroupingMode::ByHost,
     ));
     assert_eq!(
-        state.diag.connection_grouping_mode,
+        state.diag.connection_groups.mode(),
         ConnectionGroupingMode::ByHost
     );
 
     // Initial rules count
-    let initial_rule_count = state.editor.rules.len();
+    let initial_rule_count = state.editor.rule_list.draft.len();
 
     // Add quick rule from an inspected connection
     let _ = state.update(Message::AddQuickRuleFromConnection {
@@ -357,11 +363,16 @@ fn test_advancement_w2_4_connection_grouping_and_quick_rule() {
         target: "DIRECT".to_string(),
     });
 
-    assert_eq!(state.editor.rules.len(), initial_rule_count + 1);
-    let added_rule = state.editor.rules.last().expect("rule must be appended");
+    assert_eq!(state.editor.rule_list.draft.len(), initial_rule_count + 1);
+    let added_rule = state
+        .editor
+        .rule_list
+        .draft
+        .last()
+        .expect("rule must be appended");
     assert_eq!(added_rule.rule, "DOMAIN-SUFFIX,steamcommunity.com,DIRECT");
     assert!(added_rule.enabled);
-    assert!(state.editor.rules_dirty);
+    assert!(state.editor.rule_list.dirty());
 }
 
 #[test]

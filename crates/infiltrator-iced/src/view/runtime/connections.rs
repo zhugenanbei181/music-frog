@@ -8,21 +8,26 @@ use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
 use crate::types::runtime::RuntimeStreamState;
-use crate::utils::format_bytes;
-use crate::view::component_forms::{
-    row_card_surface, search_input, style_danger, style_ghost, text_btn,
-};
+use crate::view::runtime::{connection_search, connections_controls};
+use crate::view_root::interaction_regions::InteractionRegion;
+use infiltrator_application::byte_format::format_bytes;
+
+use crate::view::component_forms::{row_card_surface, style_danger, style_ghost, text_btn};
 use crate::view::components::{
     BadgeKind, badge, chip, empty_state, icon_button, modern_scrollable, section_header,
     segmented_control, status_dot,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
-use infiltrator_domain::connection_rate::{self, ConnectionRates};
-use infiltrator_domain::connection_view::{self, ConnectionGroupingMode, ConnectionSortKey};
+use infiltrator_domain::connection_activity::{IDLE_TIMEOUT_CHOICES, idle_timeout_minutes_label};
+use infiltrator_domain::connection_rate::ConnectionRates;
+use infiltrator_domain::connection_view::{ConnectionGroupingMode, ConnectionSortKey};
 use infiltrator_domain::runtime::Connection;
+use infiltrator_domain::{connection_rate, connection_view};
+use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Extract clean executable/binary name from a system process path.
@@ -63,11 +68,6 @@ pub fn outbound_target_info(conn: &Connection) -> (String, BadgeKind) {
     };
 
     (target, kind)
-}
-
-/// Filter connections matching query across ID, host, process, IP, and rule.
-pub fn filter_connection(conn: &Connection, query: &str) -> bool {
-    connection_view::matches_search(conn, query)
 }
 
 /// DUAL-13-12: order the live rows through the one shared sort reduction with
@@ -165,20 +165,19 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         ConfirmAction::CloseAllConnections,
     ));
 
-    // 4. Header toolbar
+    // Keep metrics, sorting and destructive actions on independent native rows.
     let header_trailing = row![
-        stream_badge(&state.diag.connections_stream_state, &lang),
-        Space::new().width(theme::SP_SM),
-        upload_badge,
-        Space::new().width(theme::SP_XS),
-        download_badge,
-        Space::new().width(theme::SP_MD),
-        conn_sort_control,
-        Space::new().width(theme::SP_SM),
         icon_button(Icon::RefreshCw, 14.0, Message::RefreshRuntimeNow),
-        Space::new().width(theme::SP_SM),
         close_all_btn,
     ]
+    .spacing(theme::SP_SM)
+    .align_y(Alignment::Center);
+    let traffic_summary = row![
+        stream_badge(&state.diag.connections_stream_state, &lang),
+        upload_badge,
+        download_badge,
+    ]
+    .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
 
     // 5. Sub-tabs: 活动中 (Active) and 已关闭 (Closed)
@@ -217,41 +216,8 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
         }
     });
 
-    // 6. Live search filter
-    let on_search_input = move |query: String| {
-        if is_closed_tab {
-            if query.trim().is_empty() {
-                Message::UpdateRuntimeConnectionFilter("tab:closed".to_string())
-            } else {
-                Message::UpdateRuntimeConnectionFilter(format!("tab:closed {query}"))
-            }
-        } else {
-            Message::UpdateRuntimeConnectionFilter(query)
-        }
-    };
-    let on_search_clear = if is_closed_tab {
-        Message::UpdateRuntimeConnectionFilter("tab:closed".to_string())
-    } else {
-        Message::UpdateRuntimeConnectionFilter(String::new())
-    };
-
-    let group_labels = vec![
-        lang.tr("conn_group_flat").to_string(),
-        lang.tr("conn_group_process").to_string(),
-        lang.tr("conn_group_host").to_string(),
-    ];
-    let group_idx = match state.diag.connection_grouping_mode {
-        ConnectionGroupingMode::Flat => 0,
-        ConnectionGroupingMode::ByProcess => 1,
-        ConnectionGroupingMode::ByHost => 2,
-    };
-    let group_control = segmented_control(&group_labels, group_idx, |idx| {
-        Message::SetConnectionGroupingMode(match idx {
-            1 => ConnectionGroupingMode::ByProcess,
-            2 => ConnectionGroupingMode::ByHost,
-            _ => ConnectionGroupingMode::Flat,
-        })
-    });
+    let group_control = connections_controls::grouping(state);
+    let search_control = connections_controls::search(state);
 
     let close_filtered_btn = button(
         row![
@@ -267,43 +233,45 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     .style(style_ghost)
     .on_press_maybe((!user_filter.is_empty()).then_some(Message::CloseFilteredConnections));
 
-    let filter_bar = row![
-        sub_tabs,
-        Space::new().width(theme::SP_MD),
-        group_control,
-        Space::new().width(theme::SP_LG),
-        search_input(
-            lang.tr("runtime_conn_filter_placeholder").as_ref(),
-            user_filter,
-            on_search_input,
-            on_search_clear,
-        ),
-        Space::new().width(theme::SP_SM),
-        close_filtered_btn,
-    ]
-    .align_y(Alignment::Center)
-    .width(Length::Fill);
+    let filter_bar: Element<'_, Message> = if state.shell.viewport.tier.is_narrow() {
+        column![
+            row![sub_tabs, close_filtered_btn]
+                .spacing(theme::SP_SM)
+                .align_y(Alignment::Center),
+            group_control,
+            search_control,
+        ]
+        .spacing(theme::SP_SM)
+        .width(Length::Fill)
+        .into()
+    } else {
+        row![sub_tabs, group_control, search_control, close_filtered_btn]
+            .spacing(theme::SP_SM)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .into()
+    };
 
     // DUAL-13-11: idle-timeout control + manual sweep with honest last-sweep
     // status. The timeout choices and the idle reduction are the shared domain
     // seam; this surface only selects and renders them.
-    let idle_choices = infiltrator_domain::connection_activity::IDLE_TIMEOUT_CHOICES;
+    let idle_choices = IDLE_TIMEOUT_CHOICES;
     let idle_timeout_labels: Vec<String> = idle_choices
         .iter()
-        .map(|secs| infiltrator_domain::connection_activity::idle_timeout_minutes_label(*secs))
+        .map(|secs| idle_timeout_minutes_label(*secs))
         .collect();
     let idle_timeout_index = idle_choices
         .iter()
         .position(|secs| *secs == state.diag.connection_idle_timeout_secs)
         .unwrap_or(1);
     let idle_timeout_control = segmented_control(&idle_timeout_labels, idle_timeout_index, |idx| {
-        let choices = infiltrator_domain::connection_activity::IDLE_TIMEOUT_CHOICES;
+        let choices = IDLE_TIMEOUT_CHOICES;
         Message::SetConnectionIdleTimeout(choices[idx.min(choices.len() - 1)])
     });
     let idle_status_label = match state.diag.last_idle_sweep {
         Some(count) => {
             let count_text = count.to_string();
-            infiltrator_shared::i18n_interpolator::interpolate(
+            interpolate(
                 &lang.tr("conn_idle_last_sweep"),
                 &[("count", count_text.as_str())],
             )
@@ -351,7 +319,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
             lang.tr("runtime_connections_title").as_ref(),
             Some(header_trailing.into())
         ),
-        Space::new().height(theme::SP_MD),
+        Space::new().height(theme::SP_SM),
+        traffic_summary,
+        Space::new().height(theme::SP_SM),
+        conn_sort_control,
+        Space::new().height(theme::SP_SM),
         filter_bar,
         Space::new().height(theme::SP_SM),
         idle_bar,
@@ -368,7 +340,13 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
     } else if let Some(c) = &state.diag.connections {
         let mut filtered_conns = c.connections.clone();
         if !user_filter.is_empty() {
-            filtered_conns.retain(|conn| filter_connection(conn, user_filter));
+            filtered_conns.retain(|conn| {
+                state
+                    .diag
+                    .connection_groups
+                    .search_row(&conn.id)
+                    .is_some_and(|row| row.visible)
+            });
         }
         // DUAL-13-12: the shared sort runs with the derived instantaneous
         // rates attached, so the rate keys rank on real bytes-per-second.
@@ -384,11 +362,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 lang.tr("runtime_no_matching_connections").as_ref(),
                 "",
             ));
-        } else if !state.diag.connection_grouping_mode.is_flat() {
+        } else if !state.diag.connection_groups.mode().is_flat() {
             // DUAL-13-02: both grouped dimensions reduce through the shared
             // domain aggregation; Iced owns no aggregation logic of its own.
-            let mode = state.diag.connection_grouping_mode;
-            let aggregates = connection_view::aggregate_connections(&filtered_conns, mode);
+            let mode = state.diag.connection_groups.mode();
+            let aggregates = state.diag.connection_groups.rows();
             if aggregates.is_empty() {
                 connections_section = connections_section.push(empty_state(
                     Icon::Plug,
@@ -403,9 +381,9 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                         (Icon::Globe, |t: &Theme| tokens(t).success)
                     };
                 let mut grouped_list = column![].spacing(theme::SP_SM);
-                for aggregate in &aggregates {
+                for aggregate in aggregates {
                     let count_text = aggregate.count.to_string();
-                    let count_label = infiltrator_shared::i18n_interpolator::interpolate(
+                    let count_label = interpolate(
                         &lang.tr("conn_aggregate_count"),
                         &[("count", count_text.as_str())],
                     );
@@ -419,16 +397,11 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                                 .width(Length::Fill),
                             badge(count_label, BadgeKind::Neutral),
                             Space::new().width(theme::SP_MD),
-                            text(format!(
-                                "↑ {} / ↓ {}",
-                                format_bytes(aggregate.upload_total),
-                                format_bytes(aggregate.download_total)
-                            ))
-                            .size(11)
-                            .font(MONO)
-                            .style(|t: &Theme| text::Style {
-                                color: Some(tokens(t).text_secondary)
-                            }),
+                            text(aggregate.traffic.clone()).size(11).font(MONO).style(
+                                |t: &Theme| text::Style {
+                                    color: Some(tokens(t).text_secondary)
+                                }
+                            ),
                         ]
                         .align_y(Alignment::Center),
                     )
@@ -436,8 +409,12 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     .style(row_card_surface);
                     grouped_list = grouped_list.push(group_card);
                 }
-                connections_section =
-                    connections_section.push(modern_scrollable(grouped_list).height(Length::Fill));
+                connections_section = connections_section.push(
+                    modern_scrollable(
+                        container(grouped_list).id(InteractionRegion::ConnectionGroups.id()),
+                    )
+                    .height(Length::Fill),
+                );
             }
         } else {
             // Windowed rendering: only current window items are instantiated into widgets
@@ -475,18 +452,26 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                     vec![status_dot(true), Space::new().width(theme::SP_SM).into()];
 
                 if !process_name.is_empty() {
-                    headline_items.push(chip(process_name));
+                    headline_items.push(
+                        if let Some(search) = state.diag.connection_groups.search_row(&conn.id) {
+                            connection_search::highlighted(state, &search.process_name, 12)
+                        } else {
+                            chip(process_name)
+                        },
+                    );
                     headline_items.push(Space::new().width(theme::SP_SM).into());
                 }
 
+                let search = state.diag.connection_groups.search_row(&conn.id);
+                let host_text = if let Some(search) = search {
+                    connection_search::highlighted(state, &search.endpoint, 13)
+                } else {
+                    text(host).size(13).into()
+                };
                 headline_items.push(
-                    text(host)
-                        .size(13)
-                        .font(FONT_SEMIBOLD)
+                    container(host_text)
+                        .id(connection_search::highlight_id(&conn.id))
                         .width(Length::Fill)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_primary),
-                        })
                         .into(),
                 );
 
@@ -530,6 +515,9 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
                 ));
 
                 let headline = row(headline_items).align_y(Alignment::Center);
+                let match_detail = search
+                    .filter(|row| !row.matched_term.is_empty())
+                    .map(|row| connection_search::highlighted(state, &row.matched_term, 11));
 
                 // Subline row: rule payload, destination host:port, optional chains, source:port
                 let mut subline_items: Vec<Element<'_, Message>> = vec![
@@ -611,11 +599,15 @@ pub(super) fn connections_section<'a>(state: &'a AppState, lang: Lang<'a>) -> El
 
                 let subline = row(subline_items).align_y(Alignment::Center);
 
-                let row_content = column![headline, Space::new().height(theme::SP_XS), subline]
-                    .spacing(theme::SP_XS);
+                let mut row_content = column![headline, Space::new().height(theme::SP_XS), subline];
+                if let Some(detail) = match_detail {
+                    row_content = row_content.push(detail);
+                }
+                let row_content = row_content.spacing(theme::SP_XS);
 
                 conn_list = conn_list.push(
                     container(row_content)
+                        .id(connection_search::row_id(&conn.id))
                         .padding(SP_MD)
                         .width(Length::Fill)
                         .style(move |t: &Theme| {

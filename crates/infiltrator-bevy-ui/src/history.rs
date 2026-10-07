@@ -20,11 +20,13 @@
 //! the banner already says 演示数据). [`chart_series`] is the one
 //! origin → chart-input decision, so the two arms cannot drift.
 
-use std::collections::VecDeque;
-
+use crate::projection::{OverviewOrigin, OverviewProjection};
 use bevy::ecs::resource::Resource;
-
-use crate::projection::OverviewOrigin;
+use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
+use infiltrator_domain::traffic_scale::compute_from_rates;
+use infiltrator_domain::traffic_waveform::display_series;
+use std::collections::VecDeque;
+use std::mem::swap;
 
 /// Ring capacity: ~60 pump ticks ≈ 42s at the 700ms cadence — one screen
 /// of recent shape, matching the reference card's rolling window.
@@ -115,21 +117,15 @@ pub fn chart_series(origin: OverviewOrigin, history: &TrafficHistory) -> (Vec<f3
     }
 }
 
-/// Prefer the application-owned live waveform when a complete surface source
-/// supplied it. The boolean tells the Bevy chart whether the values are
+/// Replay the application-owned live waveform even when it is empty or has one sample.
+/// The boolean tells the Bevy chart whether the values are
 /// already Bezier-densified by the shared domain algorithm.
 pub fn chart_inputs(
-    projection: &crate::projection::OverviewProjection,
+    projection: &OverviewProjection,
     history: &TrafficHistory,
-) -> (
-    Vec<f32>,
-    Vec<f32>,
-    bool,
-    infiltrator_contract::traffic_scale::TrafficScaleSnapshot,
-) {
-    if projection.origin == OverviewOrigin::LiveCore && projection.traffic_waveform.is_drawable() {
-        let (upload, download) =
-            infiltrator_domain::traffic_waveform::display_series(&projection.traffic_waveform);
+) -> (Vec<f32>, Vec<f32>, bool, TrafficScaleSnapshot) {
+    if projection.origin == OverviewOrigin::LiveCore {
+        let (upload, download) = display_series(&projection.traffic_waveform);
         (upload, download, false, projection.traffic_scale.clone())
     } else {
         let (upload, download) = chart_series(projection.origin, history);
@@ -139,7 +135,7 @@ pub fn chart_inputs(
             upload,
             download,
             true,
-            infiltrator_domain::traffic_scale::compute_from_rates(
+            compute_from_rates(
                 &upload_raw,
                 &download_raw,
                 projection.traffic_waveform.revision,
@@ -147,6 +143,10 @@ pub fn chart_inputs(
         )
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/headless/history_observation_tests.rs"]
+mod observation_tests;
 
 /// Double-buffered ring snapshot decoupling async producers from UI render loops.
 #[derive(Clone, Debug)]
@@ -175,7 +175,7 @@ impl<T: Clone> DoubleBufferedRing<T> {
 
     /// Atomically swap back and front buffers at frame boundary. O(1).
     pub fn swap_buffers(&mut self) {
-        std::mem::swap(&mut self.front, &mut self.back);
+        swap(&mut self.front, &mut self.back);
         // Back buffer copies latest front state as starting point
         self.back.clone_from(&self.front);
     }

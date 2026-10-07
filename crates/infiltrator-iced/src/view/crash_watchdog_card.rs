@@ -2,13 +2,17 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::doctor::status_badge_kind;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::snapshot::CoreWatchdogState;
+use infiltrator_application::doctor_projection::{watchdog_badge, watchdog_status_text};
+use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -44,9 +48,9 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
 
     let status_row = if dog.is_orphaned_detected {
         row![
-            badge("Orphaned State".to_string(), BadgeKind::Danger),
+            badge(lang.tr("watchdog_orphaned").into_owned(), BadgeKind::Danger),
             Space::new().width(theme::SP_SM),
-            text("Abnormal termination detected in previous run; proxy settings require cleanup")
+            text(lang.tr("watchdog_orphaned_hint").into_owned())
                 .size(12)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).danger)
@@ -54,36 +58,10 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
         ]
         .align_y(Alignment::Center)
     } else {
-        let (label, kind, detail) = match &dog.shared.state {
-            CoreWatchdogState::Idle => (
-                "Healthy",
-                BadgeKind::Success,
-                lang.tr("crash_watchdog_clean").to_string(),
-            ),
-            CoreWatchdogState::Waiting {
-                attempt,
-                retry_in_ms,
-            } => (
-                "Recovery pending",
-                BadgeKind::Warning,
-                format!("Automatic core restart attempt {attempt} in {retry_in_ms} ms"),
-            ),
-            CoreWatchdogState::Restarting { attempt } => (
-                "Restarting",
-                BadgeKind::Warning,
-                format!("Automatic core restart attempt {attempt} is in progress"),
-            ),
-            CoreWatchdogState::Recovered { attempts } => (
-                "Recovered",
-                BadgeKind::Success,
-                format!("Core recovered after {attempts} restart attempt(s)"),
-            ),
-            CoreWatchdogState::Tripped { attempts } => (
-                "Circuit open",
-                BadgeKind::Danger,
-                format!("Automatic recovery stopped after {attempts} failed attempt(s)"),
-            ),
-        };
+        let (key, status) = watchdog_badge(&dog.shared.state);
+        let label = lang.tr(key).into_owned();
+        let kind = status_badge_kind(status);
+        let detail = watchdog_status_text(&dog.shared, lang.0);
         row![
             badge(label.to_string(), kind),
             Space::new().width(theme::SP_SM),
@@ -103,12 +81,16 @@ pub fn crash_watchdog_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
                 Space::new().width(theme::SP_XS),
-                text(format!("Exported: {path}"))
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success)
-                    }),
+                text(localize(
+                    lang.0,
+                    "watchdog_exported",
+                    &[("path", path.clone())]
+                ))
+                .size(11)
+                .font(MONO)
+                .style(|t: &Theme| text::Style {
+                    color: Some(tokens(t).success)
+                }),
             ]
             .align_y(Alignment::Center),
         )

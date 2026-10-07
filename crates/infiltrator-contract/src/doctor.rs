@@ -1,11 +1,80 @@
 //! Cross-surface doctor and bootstrap results.
 
+use crate::command::CommandIntent;
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DoctorAction {
+    Diagnose,
+    RepairAll,
+    RepairOne(String),
+    Bootstrap,
+}
+
+/// Canonical descriptions for built-in checks; arbitrary host findings remain report data.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DoctorCheckKind {
+    TunHealth,
+    SystemProxy,
+    Ports,
+    DnsPrivacy,
+    Privileges,
+    Configuration,
+}
+impl DoctorCheckKind {
+    pub const fn copy_keys(self) -> (&'static str, &'static str, &'static str) {
+        match self {
+            Self::TunHealth => (
+                "doctor_check_tun_name",
+                "doctor_category_network",
+                "doctor_check_tun_fixture",
+            ),
+            Self::SystemProxy => (
+                "doctor_check_proxy_name",
+                "doctor_category_system",
+                "doctor_check_proxy_fixture",
+            ),
+            Self::Ports => (
+                "doctor_check_ports_name",
+                "doctor_category_ports",
+                "doctor_check_ports_fixture",
+            ),
+            Self::DnsPrivacy => (
+                "doctor_check_dns_name",
+                "doctor_category_dns",
+                "doctor_check_dns_fixture",
+            ),
+            Self::Privileges => (
+                "doctor_check_privilege_name",
+                "doctor_category_privilege",
+                "doctor_check_privilege_fixture",
+            ),
+            Self::Configuration => (
+                "doctor_check_config_name",
+                "doctor_category_config",
+                "doctor_check_config_fixture",
+            ),
+        }
+    }
+}
+impl DoctorAction {
+    pub fn intent(&self) -> CommandIntent {
+        match self {
+            Self::Diagnose => CommandIntent::RunDoctorDiagnostics,
+            Self::RepairAll => CommandIntent::RepairAllDoctorIssues,
+            Self::RepairOne(check_id) => CommandIntent::RepairDoctorIssue {
+                check_id: check_id.clone(),
+            },
+            Self::Bootstrap => CommandIntent::BootstrapDoctor,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DoctorStatus {
     Pass,
+    #[serde(alias = "warning")]
     Warn,
     Fail,
     Skip,

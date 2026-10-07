@@ -5,16 +5,21 @@
 //! dialer cycle detection and 05-13 custom CA included), and nothing here is
 //! hard-coded to `true`.
 
+use crate::certificate_authority_application::CertificateAuthorityApplication;
+use crate::dialer_chain_application::DialerChainApplication;
+use infiltrator_contract::dialer_chain::DialerLoopKind;
+use infiltrator_contract::protocol_fidelity::ProtocolFamily;
+use infiltrator_contract::protocol_params_ext::PluginOptValue;
+use infiltrator_domain::tls_trust::sha256_fingerprint;
 #[cfg(test)]
 #[path = "protocol_codec_matrix_application_test.rs"]
 mod protocol_codec_matrix_application_test;
 
+use crate::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_contract::protocol_fidelity::{NodeCodecFormat, ProtocolDraft};
 use infiltrator_contract::protocol_matrix::{
     ProtocolCodecMatrixReport, ProtocolCodecMatrixScenario,
 };
-
-use crate::protocol_codec_application::ProtocolCodecApplication;
 
 /// The one shared executor both surfaces call.
 pub struct ProtocolCodecMatrixApplication;
@@ -333,18 +338,21 @@ fn check_transports() -> Check {
 fn check_plugin_chain() -> Check {
     let mut draft = ss_draft();
     draft.params.plugin.name = "shadow-tls".into();
-    draft.params.plugin.opts.insert(
-        "host".into(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("bing.com".into()),
-    );
-    draft.params.plugin.opts.insert(
-        "password".into(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("pw".into()),
-    );
-    draft.params.plugin.opts.insert(
-        "version".into(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Number(3),
-    );
+    draft
+        .params
+        .plugin
+        .opts
+        .insert("host".into(), PluginOptValue::Text("bing.com".into()));
+    draft
+        .params
+        .plugin
+        .opts
+        .insert("password".into(), PluginOptValue::Text("pw".into()));
+    draft
+        .params
+        .plugin
+        .opts
+        .insert("version".into(), PluginOptValue::Number(3));
     let report = ProtocolCodecApplication::report(&draft);
     let chips_ok = report
         .params
@@ -384,7 +392,7 @@ fn check_plugin_chain() -> Check {
 fn check_ssh() -> Check {
     let uri = "ssh://root:pw@ssh.example.com:22?private_key=key-material&passphrase=phrase&host_key_algorithms=ssh-ed25519,rsa-sha2-256#Matrix-SSH";
     let draft = ProtocolCodecApplication::draft_from_uri(uri).unwrap();
-    let family_ok = draft.family() == infiltrator_contract::protocol_fidelity::ProtocolFamily::Ssh;
+    let family_ok = draft.family() == ProtocolFamily::Ssh;
     let ssh_ok = draft.params.ssh.username == "root"
         && draft.params.ssh.private_key == "key-material"
         && draft.params.ssh.passphrase == "phrase"
@@ -490,8 +498,7 @@ proxies:
     port: 443
     password: pw
 "#;
-    let report = crate::dialer_chain_application::DialerChainApplication::analyze_profile(profile)
-        .expect("dialer report");
+    let report = DialerChainApplication::analyze_profile(profile).expect("dialer report");
     let chain = report.chain_for("nas").expect("nas chain");
     let hops_ok = chain.valid() && chain.hops.len() == 3 && chain.hops[2].name == "hop";
     let line = chain.chain_line();
@@ -555,16 +562,16 @@ proxy-groups:
     type: select
     proxies: [g1]
 "#;
-    let report = crate::dialer_chain_application::DialerChainApplication::analyze_profile(profile)
-        .expect("dialer report");
+    let report = DialerChainApplication::analyze_profile(profile).expect("dialer report");
     let mutual_ok = report.loops.iter().any(|finding| {
-        finding.kind == infiltrator_contract::dialer_chain::DialerLoopKind::Mutual
+        finding.kind == DialerLoopKind::Mutual
             && finding.path == vec!["a", "b", "a"]
             && finding.spans_dialer_proxy
     });
-    let group_ok = report.loops.iter().any(|finding| {
-        finding.kind == infiltrator_contract::dialer_chain::DialerLoopKind::RelayGroupCycle
-    });
+    let group_ok = report
+        .loops
+        .iter()
+        .any(|finding| finding.kind == DialerLoopKind::RelayGroupCycle);
     // Every chain that touches a loop must be invalid and render the loop.
     let loop_chains_ok = report
         .chains
@@ -596,23 +603,18 @@ fn check_custom_ca() -> Check {
     use infiltrator_contract::protocol_trust::{CaLoadStatus, TlsTrustParams};
     use infiltrator_ports::certificate_authority::UnsupportedCertificateAuthority;
 
-    let fingerprint = infiltrator_domain::tls_trust::sha256_fingerprint(MATRIX_CA_PEM);
+    let fingerprint = sha256_fingerprint(MATRIX_CA_PEM);
     let params = TlsTrustParams {
         ca_str: MATRIX_CA_PEM.to_string(),
         fingerprint: fingerprint.clone(),
         ..TlsTrustParams::default()
     };
-    let inline = crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
-        &params, None,
-    );
+    let inline = CertificateAuthorityApplication::resolve(&params, None);
     let inline_ok = inline.is_loaded() && !inline.is_unsupported();
 
     let mut pinned = params.clone();
     pinned.fingerprint = "00".repeat(32);
-    let mismatch =
-        crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
-            &pinned, None,
-        );
+    let mismatch = CertificateAuthorityApplication::resolve(&pinned, None);
     let mismatch_ok = mismatch.status() == CaLoadStatus::FingerprintMismatch
         && mismatch.is_loaded()
         && !mismatch.is_trusted()
@@ -622,20 +624,17 @@ fn check_custom_ca() -> Check {
         ca_path: "/etc/ssl/private/custom-ca.pem".to_string(),
         ..TlsTrustParams::default()
     };
-    let unsupported =
-        crate::certificate_authority_application::CertificateAuthorityApplication::resolve(
-            &path_params,
-            Some(&UnsupportedCertificateAuthority),
-        );
+    let unsupported = CertificateAuthorityApplication::resolve(
+        &path_params,
+        Some(&UnsupportedCertificateAuthority),
+    );
     let unsupported_ok = unsupported.is_unsupported() && !unsupported.is_loaded();
     let unsupported_chip_ok = unsupported.chips().contains(&"ca:unsupported".to_string());
 
     let profile = "mode: rule\ntls:\n  certificate: /etc/ssl/cert.pem\nrules:\n  - MATCH,DIRECT\n";
     let commit =
-        crate::certificate_authority_application::CertificateAuthorityApplication::upsert_trust_anchors_into_profile(
-            profile, &path_params,
-        )
-        .expect("trust commit");
+        CertificateAuthorityApplication::upsert_trust_anchors_into_profile(profile, &path_params)
+            .expect("trust commit");
     let carrier_ok = commit.changed
         && commit.ca_paths == vec!["/etc/ssl/private/custom-ca.pem".to_string()]
         && commit.profile_yaml.contains("custom-certifactes")

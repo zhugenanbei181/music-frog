@@ -3,6 +3,7 @@
 use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
+use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Query, Res};
 use bevy::math::{Vec2, Vec3};
 use bevy::picking::hover::PickingInteraction;
@@ -58,6 +59,15 @@ impl Easing {
             }
         }
     }
+}
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct CardHoverLayout {
+    interaction: Option<&'static PickingInteraction>,
+    lift: &'static mut SpringCardHoverLift,
+    transform_opt: Option<&'static mut Transform>,
+    node_opt: Option<&'static mut Node>,
 }
 
 /// Linear interpolation between two scalar values.
@@ -416,18 +426,15 @@ pub fn sync_spring_staggered_cards(
 }
 
 /// Drive card hover lift physics.
-#[allow(clippy::type_complexity)]
-pub fn sync_spring_card_hover_lift(
-    time: Res<Time>,
-    mut cards: Query<(
-        Option<&PickingInteraction>,
-        &mut SpringCardHoverLift,
-        Option<&mut Transform>,
-        Option<&mut Node>,
-    )>,
-) {
+pub fn sync_spring_card_hover_lift(time: Res<Time>, mut cards: Query<CardHoverLayout>) {
     let dt = time.delta_secs();
-    for (interaction, mut lift, transform_opt, node_opt) in &mut cards {
+    for CardHoverLayoutItem {
+        interaction,
+        mut lift,
+        transform_opt,
+        node_opt,
+    } in &mut cards
+    {
         let target = match interaction {
             Some(PickingInteraction::Hovered) => lift.lifted_y,
             _ => lift.base_y,

@@ -18,9 +18,11 @@ use crate::view::overview_topology::topology_card;
 use crate::view::overview_traffic::traffic_card;
 use crate::view::subscription_quota::subscription_quota_card;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, tokens};
 use iced::widget::{Space, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_contract::overview_layout::OverviewCardKind;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -119,34 +121,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // the Iced surface honours the same `OverviewLayoutSnapshot` Bevy does.
     // Active-exit / public-IP / latency are the fixed support row and are not
     // part of the reorderable set.
-    let mut reorderable: Vec<(
-        infiltrator_contract::overview_layout::OverviewCardKind,
-        Element<'_, Message>,
-    )> = vec![
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::ModeSegment,
-            mode_segment,
-        ),
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::Traffic,
-            traffic,
-        ),
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::Metrics,
-            stats,
-        ),
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::MasterSwitches,
-            masters,
-        ),
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::Topology,
-            topology,
-        ),
-        (
-            infiltrator_contract::overview_layout::OverviewCardKind::Quota,
-            quota,
-        ),
+    let mut reorderable: Vec<(OverviewCardKind, Element<'_, Message>)> = vec![
+        (OverviewCardKind::ModeSegment, mode_segment),
+        (OverviewCardKind::Traffic, traffic),
+        (OverviewCardKind::Metrics, stats),
+        (OverviewCardKind::MasterSwitches, masters),
+        (OverviewCardKind::Topology, topology),
+        (OverviewCardKind::Quota, quota),
     ];
     let lower_row = row![
         active_exit_card(state, &lang),
@@ -176,9 +157,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
     content = content.push(lower_row);
     // Reset only appears once the order diverges from the canonical default.
-    if state.diag.overview_card_order
-        != infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec()
-    {
+    if state.diag.overview_card_order != OverviewCardKind::DEFAULT_ORDER.to_vec() {
         content = content.push(
             row![
                 Space::new().width(Length::Fill),
@@ -203,7 +182,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 fn card_reorder_row<'a>(
     state: &AppState,
     _lang: &Lang<'a>,
-    kind: infiltrator_contract::overview_layout::OverviewCardKind,
+    kind: OverviewCardKind,
     card: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let order = &state.diag.overview_card_order;

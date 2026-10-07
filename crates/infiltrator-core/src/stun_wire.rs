@@ -10,9 +10,12 @@
 //! without the XOR attribute is a typed error instead of a guessed mapping.
 
 use infiltrator_contract::stun_probe::StunMappedAddress;
+use std::fmt::{Display, Formatter};
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::process::id;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{error, fmt};
 
 /// Fixed STUN header length (RFC 5389 §6).
 pub const HEADER_LEN: usize = 20;
@@ -67,8 +70,8 @@ pub enum StunWireError {
     MissingMappedAddress,
 }
 
-impl std::fmt::Display for StunWireError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for StunWireError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::TooShort { len } => {
                 write!(
@@ -120,7 +123,7 @@ impl std::fmt::Display for StunWireError {
     }
 }
 
-impl std::error::Error for StunWireError {}
+impl error::Error for StunWireError {}
 
 /// The parsed parts of a Binding Response.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -154,7 +157,7 @@ pub fn new_transaction_id() -> TransactionId {
         .map(|elapsed| elapsed.as_nanos() as u64)
         .unwrap_or(0);
     let counter = NEXT.fetch_add(1, Ordering::Relaxed);
-    let seed = nanos ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ u64::from(std::process::id());
+    let seed = nanos ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ u64::from(id());
     let first = splitmix64(seed);
     let second = splitmix64(first);
     let mut id = [0u8; TRANSACTION_ID_LEN];

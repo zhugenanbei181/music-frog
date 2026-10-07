@@ -1,6 +1,5 @@
 use anyhow::Result;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub mod conflict_resolution;

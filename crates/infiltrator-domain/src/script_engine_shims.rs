@@ -1,12 +1,20 @@
 //! Web API shim implementations for the sandboxed script runtime.
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashSet;
-
 use super::{
     Base64Shim, CryptoSubtleShim, FetchPermissionShim, HeadersShim, PluginPermission, ScriptError,
     UrlShim,
 };
+use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
+use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, SHA384, SHA512, digest};
+use ring::hmac::{
+    HMAC_SHA1_FOR_LEGACY_USE_ONLY, HMAC_SHA256, HMAC_SHA384, HMAC_SHA512, Key, sign, verify,
+};
+use ring::rand::SystemRandom;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use std::collections::HashSet;
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use url::form_urlencoded;
 
 impl HeadersShim {
     pub fn new() -> Self {
@@ -94,12 +102,12 @@ impl Serialize for UrlShim {
 impl<'de> Deserialize<'de> for UrlShim {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
-        Self::parse(&s).map_err(serde::de::Error::custom)
+        Self::parse(&s).map_err(de::Error::custom)
     }
 }
 
-impl std::fmt::Display for UrlShim {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for UrlShim {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inner.as_str())
     }
 }
@@ -274,7 +282,7 @@ impl UrlShim {
         if pairs.is_empty() {
             self.inner.set_query(None);
         } else {
-            let mut ser = url::form_urlencoded::Serializer::new(String::new());
+            let mut ser = form_urlencoded::Serializer::new(String::new());
             for (k, v) in pairs {
                 ser.append_pair(&k, &v);
             }
@@ -293,20 +301,10 @@ impl CryptoSubtleShim {
     pub fn digest(algorithm: &str, data: &[u8]) -> Result<Vec<u8>, ScriptError> {
         let algo = algorithm.trim().to_ascii_uppercase().replace('-', "");
         match algo.as_str() {
-            "SHA1" => Ok(
-                ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, data)
-                    .as_ref()
-                    .to_vec(),
-            ),
-            "SHA256" => Ok(ring::digest::digest(&ring::digest::SHA256, data)
-                .as_ref()
-                .to_vec()),
-            "SHA384" => Ok(ring::digest::digest(&ring::digest::SHA384, data)
-                .as_ref()
-                .to_vec()),
-            "SHA512" => Ok(ring::digest::digest(&ring::digest::SHA512, data)
-                .as_ref()
-                .to_vec()),
+            "SHA1" => Ok(digest(&SHA1_FOR_LEGACY_USE_ONLY, data).as_ref().to_vec()),
+            "SHA256" => Ok(digest(&SHA256, data).as_ref().to_vec()),
+            "SHA384" => Ok(digest(&SHA384, data).as_ref().to_vec()),
+            "SHA512" => Ok(digest(&SHA512, data).as_ref().to_vec()),
             _ => Err(ScriptError::Runtime(format!(
                 "Unsupported digest algorithm `{algorithm}`"
             ))),
@@ -322,7 +320,7 @@ impl CryptoSubtleShim {
 
     pub fn digest_base64(algorithm: &str, data: &[u8]) -> Result<String, ScriptError> {
         use base64::Engine;
-        Ok(base64::engine::general_purpose::STANDARD.encode(Self::digest(algorithm, data)?))
+        Ok(STANDARD.encode(Self::digest(algorithm, data)?))
     }
 
     pub fn hmac_sign(algorithm: &str, key: &[u8], data: &[u8]) -> Result<Vec<u8>, ScriptError> {
@@ -332,18 +330,18 @@ impl CryptoSubtleShim {
             .replace('-', "")
             .as_str()
         {
-            "SHA1" | "HMACSHA1" => ring::hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY,
-            "SHA256" | "HMACSHA256" => ring::hmac::HMAC_SHA256,
-            "SHA384" | "HMACSHA384" => ring::hmac::HMAC_SHA384,
-            "SHA512" | "HMACSHA512" => ring::hmac::HMAC_SHA512,
+            "SHA1" | "HMACSHA1" => HMAC_SHA1_FOR_LEGACY_USE_ONLY,
+            "SHA256" | "HMACSHA256" => HMAC_SHA256,
+            "SHA384" | "HMACSHA384" => HMAC_SHA384,
+            "SHA512" | "HMACSHA512" => HMAC_SHA512,
             _ => {
                 return Err(ScriptError::Runtime(format!(
                     "Unsupported HMAC algorithm `{algorithm}`"
                 )));
             }
         };
-        let s_key = ring::hmac::Key::new(algo, key);
-        Ok(ring::hmac::sign(&s_key, data).as_ref().to_vec())
+        let s_key = Key::new(algo, key);
+        Ok(sign(&s_key, data).as_ref().to_vec())
     }
 
     pub fn hmac_verify(
@@ -358,18 +356,18 @@ impl CryptoSubtleShim {
             .replace('-', "")
             .as_str()
         {
-            "SHA1" | "HMACSHA1" => ring::hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY,
-            "SHA256" | "HMACSHA256" => ring::hmac::HMAC_SHA256,
-            "SHA384" | "HMACSHA384" => ring::hmac::HMAC_SHA384,
-            "SHA512" | "HMACSHA512" => ring::hmac::HMAC_SHA512,
+            "SHA1" | "HMACSHA1" => HMAC_SHA1_FOR_LEGACY_USE_ONLY,
+            "SHA256" | "HMACSHA256" => HMAC_SHA256,
+            "SHA384" | "HMACSHA384" => HMAC_SHA384,
+            "SHA512" | "HMACSHA512" => HMAC_SHA512,
             _ => {
                 return Err(ScriptError::Runtime(format!(
                     "Unsupported HMAC algorithm `{algorithm}`"
                 )));
             }
         };
-        let s_key = ring::hmac::Key::new(algo, key);
-        Ok(ring::hmac::verify(&s_key, data, signature).is_ok())
+        let s_key = Key::new(algo, key);
+        Ok(verify(&s_key, data, signature).is_ok())
     }
 
     pub fn aes_gcm_encrypt(
@@ -423,7 +421,7 @@ impl CryptoSubtleShim {
 
     pub fn get_random_values(buf: &mut [u8]) -> Result<(), ScriptError> {
         use ring::rand::SecureRandom;
-        ring::rand::SystemRandom::new()
+        SystemRandom::new()
             .fill(buf)
             .map_err(|_| ScriptError::Runtime("Failed to generate random bytes".to_string()))
     }
@@ -449,26 +447,26 @@ impl CryptoSubtleShim {
 impl Base64Shim {
     pub fn encode(data: &[u8]) -> String {
         use base64::Engine;
-        base64::engine::general_purpose::STANDARD.encode(data)
+        STANDARD.encode(data)
     }
 
     pub fn decode(encoded: &str) -> Result<Vec<u8>, ScriptError> {
         use base64::Engine;
-        base64::engine::general_purpose::STANDARD
+        STANDARD
             .decode(encoded.trim())
             .map_err(|e| ScriptError::Runtime(format!("Base64 decode error: {e}")))
     }
 
     pub fn encode_url_safe(data: &[u8]) -> String {
         use base64::Engine;
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
+        URL_SAFE_NO_PAD.encode(data)
     }
 
     pub fn decode_url_safe(encoded: &str) -> Result<Vec<u8>, ScriptError> {
         use base64::Engine;
-        base64::engine::general_purpose::URL_SAFE_NO_PAD
+        URL_SAFE_NO_PAD
             .decode(encoded.trim())
-            .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(encoded.trim()))
+            .or_else(|_| URL_SAFE.decode(encoded.trim()))
             .map_err(|e| ScriptError::Runtime(format!("URL-safe Base64 decode error: {e}")))
     }
 }

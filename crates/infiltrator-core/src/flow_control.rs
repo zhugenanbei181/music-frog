@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{Semaphore, watch};
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DropPolicy {
@@ -272,7 +273,7 @@ impl TokenBucketRateLimiter {
                 let secs_to_wait = deficit / state.rate_bps;
                 Duration::from_secs_f64(secs_to_wait.max(0.001))
             };
-            tokio::time::sleep(wait_duration).await;
+            sleep(wait_duration).await;
         }
     }
 
@@ -515,7 +516,7 @@ impl BatchSpeedtester {
         Fut: Future<Output = Result<SpeedtestReport, String>> + Send + 'static,
     {
         // Sort highest priority first
-        proxies.sort_by_key(|p| std::cmp::Reverse(p.priority));
+        proxies.sort_by_key(|p| Reverse(p.priority));
 
         let speedtest_fn = Arc::new(speedtest_fn);
         let mut tasks = Vec::new();
@@ -565,7 +566,7 @@ impl BatchSpeedtester {
                             last_err = e;
                             if attempts <= retries {
                                 let backoff_ms = 10 * (1 << attempts);
-                                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                                sleep(Duration::from_millis(backoff_ms)).await;
                             }
                         }
                     }
@@ -639,6 +640,8 @@ impl AdaptiveWindowRegulator {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    #[cfg(test)]
+    use std::thread::spawn;
 
     #[test]
     fn test_bounded_ring_buffer_drop_oldest() {
@@ -703,7 +706,7 @@ mod tests {
 
         for i in 0..10 {
             let b = buf.clone();
-            handles.push(std::thread::spawn(move || {
+            handles.push(spawn(move || {
                 for j in 0..100 {
                     b.push(i * 100 + j);
                 }
@@ -777,7 +780,7 @@ mod tests {
             .test_proxies(
                 proxies,
                 |_name, _url| async move {
-                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    sleep(Duration::from_millis(200)).await;
                     Ok(100)
                 },
                 rx,
@@ -797,7 +800,7 @@ mod tests {
         let proxies = vec!["p1".to_string()];
 
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            sleep(Duration::from_millis(50)).await;
             let _ = tx.send(true);
         });
 
@@ -805,7 +808,7 @@ mod tests {
             .test_proxies(
                 proxies,
                 |_name, _url| async move {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    sleep(Duration::from_millis(500)).await;
                     Ok(100)
                 },
                 rx,
@@ -854,7 +857,7 @@ mod tests {
                             }
                         }
 
-                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        sleep(Duration::from_millis(100)).await;
                         active.fetch_sub(1, Ordering::SeqCst);
                         Ok(100)
                     }

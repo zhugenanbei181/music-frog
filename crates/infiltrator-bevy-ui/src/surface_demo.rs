@@ -1,43 +1,75 @@
 use super::*;
-
-use crate::pages::app_routing::{AppRouteRule, AppRoutingMode, AppRoutingProjection};
+use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
 use crate::pages::dns::DnsProjection;
-use crate::pages::doctor::{DoctorCheckState, DoctorProjection};
+use crate::pages::doctor::DoctorProjection;
 use crate::pages::logs::LogsProjection;
 use crate::pages::profiles::ProfilesProjection;
 use crate::pages::proxies::ProxiesProjection;
 use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
-use crate::pages::sync::{SyncProjection, SyncStatus};
-use crate::projection::OverviewState;
+use crate::pages::sync::SyncProjection;
+use crate::projection::DemoOverviewSource;
+use infiltrator_application::shell_readout_application::ShellReadoutApplication;
 use infiltrator_contract::capability::CapabilitySnapshot;
-use infiltrator_contract::dns::DnsEnhancedMode;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_contract::controller::ControllerAuthSnapshot;
+use infiltrator_contract::dns::{
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool, parse_server_list,
+};
+use infiltrator_contract::dns_cache::{DnsCacheFlushReport, DnsCacheSnapshot};
+use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::dns_hosts::DnsHostsProfile;
+use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_leak::DnsLeakReport;
+use infiltrator_contract::dns_query::DnsQuerySnapshot;
+use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::logs::LogStreamState;
+use infiltrator_contract::mtu::MtuNegotiationSnapshot;
+use infiltrator_contract::network_roaming::NetworkRoamingSnapshot;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
+use infiltrator_contract::port_conflict::PortConflictSnapshot;
+use infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot;
+use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_contract::resources::CoreResourceSnapshot;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_contract::rule_snapshot::RuleSnapshot;
+use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
+use infiltrator_contract::service_mode::ServiceModeSnapshot;
+use infiltrator_contract::snapshot::CoreSnapshot;
+use infiltrator_contract::stun_probe::StunProbeReport;
+use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_contract::sync::SyncStatus;
+use infiltrator_contract::sync_snapshot::{
+    SnapshotItemSnapshot, SyncConflictSnapshot, SyncPageSnapshot,
+};
+use infiltrator_contract::system_proxy::{
+    SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxySnapshot,
+};
+use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
+use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_contract::version::CoreVersionSnapshot;
+use infiltrator_contract::vpn::VpnSessionSnapshot;
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 
-pub(super) fn snapshot_from_overview(
+pub(crate) fn snapshot_from_overview(
     overview: &OverviewProjection,
     demo_pages: bool,
 ) -> surface_snapshot::SurfaceSnapshot {
     let core = CoreSnapshot {
-        lifecycle: match overview.state {
-            OverviewState::Running => CoreLifecycle::Running,
-            OverviewState::Stopped => CoreLifecycle::Stopped,
-            OverviewState::Unavailable => CoreLifecycle::Failed,
-        },
+        lifecycle: overview.lifecycle.clone(),
         generation: 1,
         session_token: None,
         revision: 1,
-        proxy_mode: Some(overview.mode),
+        proxy_mode: overview.proxy_mode.current,
         core_version: overview.core_version.clone(),
         sampled_at_epoch_ms: i64::try_from(overview.sampled_at.as_millis()).ok(),
-        failure: overview.failure.as_ref().map(|message| {
-            infiltrator_contract::error::Failure::new(
-                infiltrator_contract::error::ErrorCode::NotReady,
-                message.clone(),
-                true,
-            )
-        }),
+        failure: overview
+            .failure
+            .as_ref()
+            .map(|message| Failure::new(ErrorCode::NotReady, message.clone(), true)),
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
@@ -45,7 +77,7 @@ pub(super) fn snapshot_from_overview(
         watchdog: Default::default(),
     };
     let overview_data = surface_snapshot::OverviewPageSnapshot {
-        proxy_mode: Some(overview.mode),
+        proxy_mode: overview.proxy_mode.current,
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
@@ -69,7 +101,38 @@ pub(super) fn snapshot_from_overview(
             settings: surface_snapshot::PageData::unavailable(page_not_composed()),
         }
     };
-    surface_snapshot::SurfaceSnapshot {
+    let mut snapshot = surface_snapshot::SurfaceSnapshot {
+        shell_readout: Default::default(),
+        runtime_control: RuntimeControlSnapshot {
+            status: if demo_pages {
+                RuntimeControlStatus::Ready
+            } else {
+                RuntimeControlStatus::Unobserved
+            },
+            mode: overview.proxy_mode.current,
+            script_available: demo_pages.then_some(true),
+            tun_enabled: demo_pages.then_some(false),
+            ..Default::default()
+        },
+        probe_settings: Default::default(),
+        language_settings: Default::default(),
+        dns_cache: DnsCacheSnapshot::default(),
+        rule_trace: Default::default(),
+        dns_query: DnsQuerySnapshot::unavailable(),
+        dns_hosts: if demo_pages {
+            surface_snapshot::PageData::ready(DnsHostsProfile {
+                profile: "demo".into(),
+                entries: DnsProjection::demo().hosts,
+                legacy_entries: Vec::new(),
+            })
+        } else {
+            surface_snapshot::unobserved_hosts()
+        },
+        dns_leak: if demo_pages {
+            DnsProjection::demo().leak
+        } else {
+            DnsLeakReport::default()
+        },
         surface: SurfaceKind::BevyDesktop,
         origin: if demo_pages {
             surface_snapshot::SurfaceOrigin::Demo
@@ -80,52 +143,46 @@ pub(super) fn snapshot_from_overview(
         revision: core.revision,
         core,
         capabilities: CapabilitySnapshot::new(HostKind::Desktop, 1, Vec::new()),
-        failure: overview.failure.as_ref().map(|message| {
-            infiltrator_contract::error::Failure::new(
-                infiltrator_contract::error::ErrorCode::NotReady,
-                message.clone(),
-                true,
-            )
-        }),
+        failure: overview
+            .failure
+            .as_ref()
+            .map(|message| Failure::new(ErrorCode::NotReady, message.clone(), true)),
         pages,
-        versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
-        controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
-        service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
-        port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
-        resources: infiltrator_contract::resources::CoreResourceSnapshot {
+        versions: CoreVersionSnapshot::default(),
+        controller_auth: ControllerAuthSnapshot::default(),
+        service_mode: ServiceModeSnapshot::default(),
+        port_conflicts: PortConflictSnapshot::default(),
+        resources: CoreResourceSnapshot {
             cpu_percent: Some(2.4),
             ..Default::default()
         },
-        offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
-        mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
+        offline_startup: OfflineStartupSnapshot::default(),
+        mtu: MtuNegotiationSnapshot::default(),
         system_proxy: if demo_pages {
             demo_system_proxy()
         } else {
-            infiltrator_contract::system_proxy::SystemProxySnapshot::default()
+            SystemProxySnapshot::default()
         },
-        system_proxy_recovery:
-            infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
+        system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
         network_roaming: if demo_pages {
             SettingsProjection::demo().network_roaming
         } else {
-            infiltrator_contract::network_roaming::NetworkRoamingSnapshot::default()
+            NetworkRoamingSnapshot::default()
         },
         vpn: if demo_pages {
-            infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(
+            VpnSessionSnapshot::unsupported(
                 1,
                 "Android VpnService is not part of the desktop demo host",
             )
         } else {
-            infiltrator_contract::vpn::VpnSessionSnapshot::default()
+            VpnSessionSnapshot::default()
         },
-        privileged_network:
-            infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
-                1,
-                "privileged network regression is a host-test capability",
-            ),
-        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(
+        privileged_network: PrivilegedNetworkSnapshot::unsupported(
+            1,
+            "privileged network regression is a host-test capability",
         ),
-        traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
+        traffic_waveform: overview.traffic_waveform.clone(),
+        traffic_scale: overview.traffic_scale.clone(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
         public_ip: overview.public_ip.clone(),
@@ -133,25 +190,51 @@ pub(super) fn snapshot_from_overview(
         reconnect_mask: overview.reconnect_mask.clone(),
         viewport: overview.viewport.clone(),
         subscription_quota: overview.subscription_quota.clone(),
+        profile_editor: Default::default(),
         yaml_ast_diff: None,
         script_sandbox: None,
         script_export: None,
-        speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
-    }
+        speedtest: overview.speedtest.clone(),
+    };
+    fill_demo_runtime_fields(&mut snapshot);
+    snapshot.shell_readout = ShellReadoutApplication::default().project(&snapshot);
+    snapshot.shell_readout.upload_bps = overview.readout.upload_bps.clone();
+    snapshot.shell_readout.download_bps = overview.readout.download_bps.clone();
+    snapshot.shell_readout.rate_failure = overview.readout.rate_failure.clone();
+    snapshot
 }
 
 pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
-    let overview = crate::projection::DemoOverviewSource::running().current();
+    let overview = DemoOverviewSource::running().current();
     let core = snapshot_from_overview(&overview, true).core;
     let pages = demo_pages_with_overview(surface_snapshot::OverviewPageSnapshot {
-        proxy_mode: Some(overview.mode),
+        proxy_mode: overview.proxy_mode.current,
         upload_bps: overview.upload_bps,
         download_bps: overview.download_bps,
         active_connections: overview.active_connections,
         memory_bytes: overview.memory_bytes,
         core_version: None,
     });
-    surface_snapshot::SurfaceSnapshot {
+    let mut snapshot = surface_snapshot::SurfaceSnapshot {
+        shell_readout: Default::default(),
+        runtime_control: RuntimeControlSnapshot {
+            status: RuntimeControlStatus::Ready,
+            mode: overview.proxy_mode.current,
+            script_available: Some(true),
+            tun_enabled: Some(false),
+            ..Default::default()
+        },
+        probe_settings: Default::default(),
+        language_settings: Default::default(),
+        dns_cache: DnsCacheSnapshot::default(),
+        rule_trace: Default::default(),
+        dns_query: DnsQuerySnapshot::unavailable(),
+        dns_leak: DnsProjection::demo().leak,
+        dns_hosts: surface_snapshot::PageData::ready(DnsHostsProfile {
+            profile: "demo".into(),
+            entries: DnsProjection::demo().hosts,
+            legacy_entries: Vec::new(),
+        }),
         surface: SurfaceKind::BevyDesktop,
         origin: surface_snapshot::SurfaceOrigin::Demo,
         generation: core.generation,
@@ -160,32 +243,29 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         capabilities: CapabilitySnapshot::new(HostKind::Desktop, 1, Vec::new()),
         failure: None,
         pages,
-        versions: infiltrator_contract::version::CoreVersionSnapshot::default(),
-        controller_auth: infiltrator_contract::controller::ControllerAuthSnapshot::default(),
-        service_mode: infiltrator_contract::service_mode::ServiceModeSnapshot::default(),
-        port_conflicts: infiltrator_contract::port_conflict::PortConflictSnapshot::default(),
-        resources: infiltrator_contract::resources::CoreResourceSnapshot {
+        versions: CoreVersionSnapshot::default(),
+        controller_auth: ControllerAuthSnapshot::default(),
+        service_mode: ServiceModeSnapshot::default(),
+        port_conflicts: PortConflictSnapshot::default(),
+        resources: CoreResourceSnapshot {
             cpu_percent: Some(2.4),
             ..Default::default()
         },
-        offline_startup: infiltrator_contract::offline_startup::OfflineStartupSnapshot::default(),
-        mtu: infiltrator_contract::mtu::MtuNegotiationSnapshot::default(),
+        offline_startup: OfflineStartupSnapshot::default(),
+        mtu: MtuNegotiationSnapshot::default(),
         system_proxy: demo_system_proxy(),
-        system_proxy_recovery:
-            infiltrator_contract::system_proxy::SystemProxyRecoverySnapshot::default(),
+        system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
         network_roaming: SettingsProjection::demo().network_roaming,
-        vpn: infiltrator_contract::vpn::VpnSessionSnapshot::unsupported(
+        vpn: VpnSessionSnapshot::unsupported(
             1,
             "Android VpnService is not part of the desktop demo host",
         ),
-        privileged_network:
-            infiltrator_contract::privileged_network::PrivilegedNetworkSnapshot::unsupported(
-                1,
-                "privileged network regression is a host-test capability",
-            ),
-        traffic_waveform: infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot::default(
+        privileged_network: PrivilegedNetworkSnapshot::unsupported(
+            1,
+            "privileged network regression is a host-test capability",
         ),
-        traffic_scale: infiltrator_contract::traffic_scale::TrafficScaleSnapshot::default(),
+        traffic_waveform: TrafficWaveformSnapshot::default(),
+        traffic_scale: TrafficScaleSnapshot::default(),
         traffic_topology: overview.traffic_topology.clone(),
         active_exit: overview.active_exit.clone(),
         public_ip: overview.public_ip.clone(),
@@ -193,17 +273,21 @@ pub(super) fn demo_snapshot() -> surface_snapshot::SurfaceSnapshot {
         reconnect_mask: overview.reconnect_mask.clone(),
         viewport: overview.viewport.clone(),
         subscription_quota: overview.subscription_quota.clone(),
+        profile_editor: Default::default(),
         yaml_ast_diff: None,
         script_sandbox: None,
         script_export: None,
-        speedtest: infiltrator_contract::speedtest::SpeedtestSnapshot::default(),
-    }
+        speedtest: overview.speedtest.clone(),
+    };
+    fill_demo_runtime_fields(&mut snapshot);
+    snapshot.shell_readout = ShellReadoutApplication::default().project(&snapshot);
+    snapshot
 }
 
-fn demo_system_proxy() -> infiltrator_contract::system_proxy::SystemProxySnapshot {
-    infiltrator_contract::system_proxy::SystemProxySnapshot::from_observation(
+fn demo_system_proxy() -> SystemProxySnapshot {
+    SystemProxySnapshot::from_observation(
         1,
-        infiltrator_contract::system_proxy::SystemProxyObservation {
+        SystemProxyObservation {
             enabled: true,
             endpoint: Some("127.0.0.1:7890".to_owned()),
             bypass: None,
@@ -223,7 +307,7 @@ fn demo_pages_with_overview(
     let dns: surface_snapshot::DnsPageSnapshot = DnsProjection::demo().into();
     let doctor: surface_snapshot::DoctorPageSnapshot = DoctorProjection::demo().into();
     let app_routing: surface_snapshot::AppRoutingPageSnapshot = AppRoutingProjection::demo().into();
-    let sync: surface_snapshot::SyncPageSnapshot = SyncProjection::demo().into();
+    let sync: SyncPageSnapshot = SyncProjection::demo().into();
     let settings: surface_snapshot::SettingsPageSnapshot = SettingsProjection::demo().into();
     surface_snapshot::SurfacePages {
         overview: surface_snapshot::PageData::ready(overview),
@@ -240,9 +324,9 @@ fn demo_pages_with_overview(
     }
 }
 
-fn page_not_composed() -> infiltrator_contract::error::Failure {
-    infiltrator_contract::error::Failure::new(
-        infiltrator_contract::error::ErrorCode::NotReady,
+fn page_not_composed() -> Failure {
+    Failure::new(
+        ErrorCode::NotReady,
         "page reader is not composed for this host",
         true,
     )
@@ -250,8 +334,12 @@ fn page_not_composed() -> infiltrator_contract::error::Failure {
 
 pub(crate) fn empty_proxies() -> ProxiesProjection {
     ProxiesProjection {
+        name_runs: Default::default(),
+        search_query: String::new(),
         groups: Vec::new(),
         testing: false,
+        filter_alive: false,
+        compact_view: false,
         active_exit: "—".to_owned(),
         custom_node: Default::default(),
     }
@@ -268,6 +356,7 @@ pub(crate) fn empty_profiles() -> ProfilesProjection {
         yaml_ast_diff: None,
         snapshot_history: None,
         apply_transaction: None,
+        editor_read: Default::default(),
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
@@ -285,7 +374,7 @@ pub(crate) fn empty_rules() -> RulesProjection {
         hit_audit: Default::default(),
         mrs_acceleration: Default::default(),
         truncated_rule_count: None,
-        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        rule_publish_limit: RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
         etag_support: Default::default(),
         json_documents: Vec::new(),
@@ -297,13 +386,16 @@ pub(crate) fn empty_connections() -> ConnectionsProjection {
         total_connections: 0,
         total_upload_bytes: 0,
         total_download_bytes: 0,
-        stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Idle,
+        stream_phase: ConnectionStreamPhase::Idle,
         connections: Vec::new(),
     }
 }
 
 pub(crate) fn empty_logs() -> LogsProjection {
     LogsProjection {
+        status: surface_snapshot::PageStatus::Loading,
+        generation: 0,
+        session_token: None,
         total_entries: 0,
         active_level: None,
         entries: Vec::new(),
@@ -316,21 +408,22 @@ pub(crate) fn empty_dns() -> DnsProjection {
         cache_entries: 0,
         fake_ip_range: "—".to_owned(),
         servers: Vec::new(),
-        switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
-        filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
-        form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
-        cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
-        fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool::default(),
-        latency: infiltrator_contract::dns_latency::DnsLatencyReport::default(),
-        leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
-        stun: infiltrator_contract::stun_probe::StunProbeReport::default(),
-        self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot::default(),
+        switches: DnsCoreSwitches::default(),
+        filter_mode: DnsFakeIpFilterMode::default(),
+        form: DnsWorkbenchForm::default(),
+        cache_flush: DnsCacheFlushReport::default(),
+        fake_ip_pool: FakeIpMappingPool::default(),
+        latency: DnsLatencyReport::default(),
+        leak: DnsLeakReport::default(),
+        stun: StunProbeReport::default(),
+        self_heal: DnsSelfHealSnapshot::default(),
         hosts: Vec::new(),
     }
 }
 
 pub(crate) fn empty_doctor() -> DoctorProjection {
     DoctorProjection {
+        report_finished_at: None,
         overall_healthy: false,
         last_run: "—".to_owned(),
         checks: Vec::new(),
@@ -349,7 +442,8 @@ pub(crate) fn empty_app_routing() -> AppRoutingProjection {
 
 pub(crate) fn empty_sync() -> SyncProjection {
     SyncProjection {
-        status: SyncStatus::Disconnected,
+        status: SyncStatus::Unknown,
+        history_status: PageStatus::Loading,
         server_url: String::new(),
         username: String::new(),
         last_sync: None,
@@ -359,54 +453,21 @@ pub(crate) fn empty_sync() -> SyncProjection {
     }
 }
 
-pub(crate) fn empty_settings() -> SettingsProjection {
-    SettingsProjection {
-        autostart: false,
-        system_proxy: false,
-        system_proxy_snapshot: Default::default(),
-        system_proxy_recovery: Default::default(),
-        mixed_port: 0,
-        allow_lan: false,
-        lan_bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
-        lan_security: Default::default(),
-        ipv6_routing: Default::default(),
-        pac: Default::default(),
-        network_roaming: Default::default(),
-        vpn: Default::default(),
-        privileged_network: Default::default(),
-        tun_enabled: false,
-        tun_stack: String::new(),
-        tun_auto_route: false,
-        tun_strict_route: false,
-        controller_port: 0,
-        log_level: String::new(),
-        core_channel: String::new(),
-        core_versions: Default::default(),
-        core_integrity: Default::default(),
-        controller_auth: Default::default(),
-        service_mode: Default::default(),
-        port_conflicts: Default::default(),
-        core_resources: Default::default(),
-        offline_startup: Default::default(),
-        mtu: Default::default(),
-        mini_hud: Default::default(),
-    }
-}
-
 impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
     fn from(value: ProxiesProjection) -> Self {
-        Self {
+        use infiltrator_application::proxy_inspection_projection::inspect_sparse_node;
+        let mut page = Self {
+            name_runs: value.name_runs,
+            search_query: value.search_query,
             custom_node: value.custom_node.clone(),
+            node_details: Vec::new(),
             groups: value
                 .groups
                 .into_iter()
                 .map(|group| surface_snapshot::ProxyGroupSnapshot {
                     name: group.name,
                     group_type: group.group_type.clone(),
-                    classification:
-                        infiltrator_contract::proxies::ProxyGroupClassification::from_str_loose(
-                            &group.group_type,
-                        ),
+                    classification: ProxyGroupClassification::from_str_loose(&group.group_type),
                     current: group.current,
                     expanded: group.expanded,
                     proxies: group
@@ -416,6 +477,7 @@ impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
                             name: proxy.name,
                             node_type: proxy.node_type,
                             delay_ms: proxy.delay_ms,
+                            alive: Some(proxy.delay_ms.is_some_and(|delay| delay > 0)),
                             selected: proxy.selected,
                             favorite: proxy.favorite,
                             features: proxy.features,
@@ -428,7 +490,14 @@ impl From<ProxiesProjection> for surface_snapshot::ProxiesPageSnapshot {
             filter_alive: Default::default(),
             sort_order: Default::default(),
             compact_view: false,
-        }
+        };
+        page.node_details = page
+            .groups
+            .iter()
+            .flat_map(|group| &group.proxies)
+            .map(inspect_sparse_node)
+            .collect();
+        page
     }
 }
 
@@ -458,6 +527,7 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
                     next_update: profile.next_update,
                     auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter,
+                    filter_source: profile.filter_source,
                     write_protection: profile.write_protection,
                 })
                 .collect(),
@@ -465,8 +535,6 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
             updating: value.updating,
             snapshot_history: value.snapshot_history,
             apply_transaction: value.apply_transaction,
-            profile_document: value.profile_document,
-            profile_options: value.profile_options,
             aggregation: value.aggregation,
             aggregation_templates: value.aggregation_templates,
             aggregation_templates_available: value.aggregation_templates_available,
@@ -477,12 +545,13 @@ impl From<ProfilesProjection> for surface_snapshot::ProfilesPageSnapshot {
 impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
     fn from(value: RulesProjection) -> Self {
         Self {
+            document: None,
             total_rules: value.total_rules,
             default_action: value.default_action,
             providers: value
                 .providers
                 .into_iter()
-                .map(|provider| surface_snapshot::RuleProviderSnapshot {
+                .map(|provider| RuleProviderSnapshot {
                     name: provider.name,
                     rule_count: provider.rule_count,
                     behavior: provider.behavior,
@@ -495,7 +564,11 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
             rules: value
                 .rules
                 .into_iter()
-                .map(|rule| surface_snapshot::RuleSnapshot {
+                .map(|rule| RuleSnapshot {
+                    raw: rule.raw,
+                    source_ip: rule.source_ip,
+                    no_resolve: rule.no_resolve,
+                    failure: rule.failure,
                     id: rule.id,
                     rule_type: rule.rule_type,
                     payload: rule.payload,
@@ -506,7 +579,7 @@ impl From<RulesProjection> for surface_snapshot::RulesPageSnapshot {
                 .collect(),
             tracer: value.tracer,
             mrs_acceleration: value.mrs_acceleration,
-            total_hits: 0,
+            hit_audit: value.hit_audit,
             rule_publish_limit: value.rule_publish_limit,
             provider_cache: value.provider_cache,
             etag_support: value.etag_support,
@@ -521,30 +594,7 @@ impl From<ConnectionsProjection> for surface_snapshot::ConnectionsPageSnapshot {
             total_connections: value.total_connections,
             total_upload_bytes: value.total_upload_bytes,
             total_download_bytes: value.total_download_bytes,
-            connections: value
-                .connections
-                .into_iter()
-                .map(|connection| surface_snapshot::ConnectionSnapshot {
-                    id: connection.id,
-                    host: connection.host,
-                    process: connection.process,
-                    rule: connection.rule,
-                    rule_payload: connection.rule_payload,
-                    chain: connection.chain,
-                    chains: connection.chains,
-                    network: connection.network,
-                    source_ip: connection.source_ip,
-                    source_port: connection.source_port,
-                    destination_ip: connection.destination_ip,
-                    destination_port: connection.destination_port,
-                    destination_geo_ip: connection.destination_geo_ip,
-                    destination_ip_asn: connection.destination_ip_asn,
-                    upload_bps: connection.upload_bps,
-                    download_bps: connection.download_bps,
-                    upload_total: connection.upload_total,
-                    download_total: connection.download_total,
-                })
-                .collect(),
+            connections: value.connections,
         }
     }
 }
@@ -552,6 +602,7 @@ impl From<ConnectionsProjection> for surface_snapshot::ConnectionsPageSnapshot {
 impl From<LogsProjection> for surface_snapshot::LogsPageSnapshot {
     fn from(value: LogsProjection) -> Self {
         Self {
+            stream: LogStreamState::Live,
             total_entries: value.total_entries,
             active_level: value
                 .active_level
@@ -560,6 +611,8 @@ impl From<LogsProjection> for surface_snapshot::LogsPageSnapshot {
                 .entries
                 .into_iter()
                 .map(|entry| surface_snapshot::LogSnapshot {
+                    id: entry.id,
+                    raw: None,
                     timestamp: entry.timestamp,
                     level: entry.level.label().to_ascii_lowercase(),
                     tag: entry.tag,
@@ -589,26 +642,15 @@ impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
                     tags: server.tags,
                 })
                 .collect(),
-            default_nameserver: infiltrator_contract::dns::parse_server_list(
-                &value.form.bootstrap_nameserver,
-            ),
+            default_nameserver: parse_server_list(&value.form.bootstrap_nameserver),
             fallback_policy: value.form.fallback_policy.policy(),
-            fake_ip_filter: infiltrator_contract::dns::parse_server_list(
-                &value.form.fake_ip_filter,
-            ),
-            proxy_server_nameserver: infiltrator_contract::dns::parse_server_list(
-                &value.form.proxy_server_nameserver,
-            ),
-            direct_nameserver: infiltrator_contract::dns::parse_server_list(
-                &value.form.direct_nameserver,
-            ),
-            cache_flush: value.cache_flush,
+            fake_ip_filter: parse_server_list(&value.form.fake_ip_filter),
+            proxy_server_nameserver: parse_server_list(&value.form.proxy_server_nameserver),
+            direct_nameserver: parse_server_list(&value.form.direct_nameserver),
             fake_ip_pool: value.fake_ip_pool,
             latency: value.latency,
-            leak: value.leak,
             stun: value.stun,
             self_heal: value.self_heal,
-            hosts: value.hosts,
         }
     }
 }
@@ -616,22 +658,23 @@ impl From<DnsProjection> for surface_snapshot::DnsPageSnapshot {
 impl From<DoctorProjection> for surface_snapshot::DoctorPageSnapshot {
     fn from(value: DoctorProjection) -> Self {
         Self {
+            report_started_at: None,
+            report_finished_at: value.report_finished_at,
             overall_healthy: value.overall_healthy,
             last_run: value.last_run,
             checks: value
                 .checks
                 .into_iter()
                 .map(|check| surface_snapshot::DoctorCheckSnapshot {
+                    kind: check.kind,
+                    detail_copy_key: check.detail_copy_key.clone(),
                     id: check.id,
                     name: check.name,
                     category: check.category,
-                    state: match check.state {
-                        DoctorCheckState::Pass => "pass".to_owned(),
-                        DoctorCheckState::Warning => "warning".to_owned(),
-                        DoctorCheckState::Fail => "fail".to_owned(),
-                    },
+                    state: check.state,
                     detail: check.detail,
                     fix_available: check.fix_available,
+                    hint: check.hint.clone(),
                 })
                 .collect(),
         }
@@ -643,8 +686,8 @@ impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
         Self {
             mode: match value.mode {
                 AppRoutingMode::ProxyAll => "proxy_all".to_owned(),
-                AppRoutingMode::BypassList => "proxy_selected".to_owned(),
-                AppRoutingMode::ProxyList => "bypass_selected".to_owned(),
+                AppRoutingMode::ProxySelected => "proxy_selected".to_owned(),
+                AppRoutingMode::BypassSelected => "bypass_selected".to_owned(),
             },
             include_system: value.include_system,
             uwp_loopback: value.uwp_loopback,
@@ -656,9 +699,9 @@ impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
                     name: app.name,
                     process_name: app.process_name,
                     rule: match app.rule {
-                        AppRouteRule::Proxy => "proxy".to_owned(),
-                        AppRouteRule::Direct => "direct".to_owned(),
-                        AppRouteRule::Block => "block".to_owned(),
+                        AppRoutingRule::Proxy => "proxy".to_owned(),
+                        AppRoutingRule::Direct => "direct".to_owned(),
+                        AppRoutingRule::Block => "block".to_owned(),
                     },
                     is_system: app.is_system,
                 })
@@ -667,35 +710,29 @@ impl From<AppRoutingProjection> for surface_snapshot::AppRoutingPageSnapshot {
     }
 }
 
-impl From<SyncProjection> for surface_snapshot::SyncPageSnapshot {
+impl From<SyncProjection> for SyncPageSnapshot {
     fn from(value: SyncProjection) -> Self {
         Self {
-            status: match value.status {
-                SyncStatus::Connected => "connected".to_owned(),
-                SyncStatus::Disconnected => "disconnected".to_owned(),
-                SyncStatus::Syncing => "syncing".to_owned(),
-                SyncStatus::Conflict => "conflict".to_owned(),
-                SyncStatus::Error => "error".to_owned(),
-            },
+            status: value.status,
+            history_status: value.history_status,
             server_url: value.server_url,
             username: value.username,
             last_sync: value.last_sync,
             auto_sync: value.auto_sync,
-            conflict: value
-                .conflict
-                .map(|conflict| surface_snapshot::SyncConflictSnapshot {
-                    remote_device: conflict.remote_device,
-                    conflict_time: conflict.conflict_time,
-                    conflicting_keys: conflict
-                        .conflicting_keys
-                        .into_iter()
-                        .map(|key| (key.key, key.local_value, key.remote_value))
-                        .collect(),
-                }),
+            conflict: value.conflict.map(|conflict| SyncConflictSnapshot {
+                remote_device: conflict.remote_device,
+                conflict_time: conflict.conflict_time,
+                conflicting_keys: conflict
+                    .conflicting_keys
+                    .into_iter()
+                    .map(|key| (key.key, key.local_value, key.remote_value))
+                    .collect(),
+            }),
             snapshots: value
                 .snapshots
                 .into_iter()
-                .map(|item| surface_snapshot::SnapshotItemSnapshot {
+                .map(|item| SnapshotItemSnapshot {
+                    profile: item.profile.clone(),
                     id: item.id,
                     timestamp: item.timestamp,
                     device: item.device,
@@ -706,25 +743,22 @@ impl From<SyncProjection> for surface_snapshot::SyncPageSnapshot {
     }
 }
 
-impl From<SettingsProjection> for surface_snapshot::SettingsPageSnapshot {
-    fn from(value: SettingsProjection) -> Self {
-        Self {
-            autostart: value.autostart,
-            system_proxy: value.system_proxy,
-            mixed_port: value.mixed_port,
-            allow_lan: value.allow_lan,
-            lan_bind_address: value.lan_bind_address,
-            lan_security: value.lan_security,
-            ipv6_routing: value.ipv6_routing,
-            pac: value.pac,
-            tun_enabled: value.tun_enabled,
-            tun_stack: value.tun_stack,
-            tun_auto_route: value.tun_auto_route,
-            tun_strict_route: value.tun_strict_route,
-            controller_port: value.controller_port,
-            log_level: value.log_level,
-            core_channel: value.core_channel,
-            mini_hud: value.mini_hud,
-        }
+fn fill_demo_runtime_fields(snapshot: &mut surface_snapshot::SurfaceSnapshot) {
+    if snapshot.origin != surface_snapshot::SurfaceOrigin::Demo {
+        return;
     }
+    let Some(settings) = &snapshot.pages.settings.data else {
+        return;
+    };
+    let runtime = &mut snapshot.runtime_control;
+    runtime.mixed_port = settings.mixed_port;
+    runtime.allow_lan = settings.allow_lan;
+    runtime.lan_bind_address = settings.lan_bind_address.clone();
+    runtime.lan_security = settings.lan_security.clone();
+    runtime.ipv6_routing = settings.ipv6_routing;
+    runtime.tun_enabled = settings.tun_enabled;
+    runtime.tun_stack = settings.tun_stack.clone();
+    runtime.tun_auto_route = settings.tun_auto_route;
+    runtime.tun_strict_route = settings.tun_strict_route;
+    runtime.log_level = settings.log_level.clone();
 }

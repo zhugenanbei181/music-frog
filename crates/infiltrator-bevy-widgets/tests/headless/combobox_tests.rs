@@ -4,7 +4,9 @@
 use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
+use bevy::color::Color;
 use bevy::scene::ScenePlugin;
+use bevy::text::TextColor;
 use bevy::ui::prelude::BorderColor;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -80,7 +82,7 @@ fn combobox_ecs_event_advances_state_and_restamps_label() {
         .spawn((
             ComboboxRoot,
             ComboboxStateComp(ComboboxState::new(options)),
-            BorderColor::all(bevy::color::Color::NONE),
+            BorderColor::all(Color::NONE),
         ))
         .id();
 
@@ -89,7 +91,7 @@ fn combobox_ecs_event_advances_state_and_restamps_label() {
         .spawn((
             Text("Select...".to_owned()),
             ComboboxLabel,
-            bevy::text::TextColor::default(),
+            TextColor::default(),
         ))
         .id();
 

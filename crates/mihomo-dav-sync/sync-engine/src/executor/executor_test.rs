@@ -6,6 +6,12 @@ mod tests {
     use async_trait::async_trait;
     use dav_client::{DavClient, RemoteEntry};
     use state_store::{StateStore, SyncStateRow};
+    #[cfg(test)]
+    use std::fs::read_dir;
+    #[cfg(test)]
+    use std::fs::read_to_string;
+    #[cfg(test)]
+    use std::fs::write;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
@@ -46,7 +52,7 @@ mod tests {
     async fn test_execute_upload_updates_store() {
         let temp = tempdir().unwrap();
         let local_file = temp.path().join("test.yaml");
-        std::fs::write(&local_file, "content").unwrap();
+        write(&local_file, "content").unwrap();
 
         // Use :memory: instead of new_in_memory which is internal to state-store tests
         let store = StateStore::new(":memory:").await.unwrap();
@@ -91,7 +97,7 @@ mod tests {
         executor.execute(action).await.unwrap();
 
         // 验证文件内容
-        let content = std::fs::read_to_string(&local_file).unwrap();
+        let content = read_to_string(&local_file).unwrap();
         assert_eq!(content, "remote_content");
 
         // 验证临时文件已清理
@@ -106,7 +112,7 @@ mod tests {
     async fn test_execute_conflict_creates_backup() {
         let temp = tempdir().unwrap();
         let local_file = temp.path().join("my_config.yaml");
-        std::fs::write(&local_file, "local_data").unwrap();
+        write(&local_file, "local_data").unwrap();
 
         let store = StateStore::new(":memory:").await.unwrap();
         let dav = MockDav {
@@ -123,14 +129,14 @@ mod tests {
         executor.execute(action).await.unwrap();
 
         // 本地原始文件应保持不变
-        assert_eq!(std::fs::read_to_string(&local_file).unwrap(), "local_data");
+        assert_eq!(read_to_string(&local_file).unwrap(), "local_data");
 
         // 检查是否存在备份文件
         let mut found_bak = false;
-        for entry in std::fs::read_dir(temp.path()).unwrap() {
+        for entry in read_dir(temp.path()).unwrap() {
             let path = entry.unwrap().path();
             if path.to_string_lossy().contains("remote-bak-") {
-                assert_eq!(std::fs::read_to_string(path).unwrap(), "remote_data");
+                assert_eq!(read_to_string(path).unwrap(), "remote_data");
                 found_bak = true;
             }
         }
@@ -175,7 +181,7 @@ mod tests {
         // Let's test the md5 computation integrity in Upload.
         let temp = tempdir().unwrap();
         let local = temp.path().join("md5.txt");
-        std::fs::write(&local, "abc").unwrap(); // md5 of abc is 900150983cd24fb0d6963f7d28e17f72
+        write(&local, "abc").unwrap(); // md5 of abc is 900150983cd24fb0d6963f7d28e17f72
 
         let store = StateStore::new(":memory:").await.unwrap();
         let dav = MockDav {

@@ -1,7 +1,10 @@
 //! Tooltip: floating informative text bubble anchored to a target element.
-use bevy::ecs::hierarchy::Children;
-
+use crate::palette::UiPalette;
+use crate::popover::Rect;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::ecs::component::Component;
+use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
@@ -10,11 +13,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, PositionType, UiRect, Val, px,
 };
 use bevy::ui::widget::Text;
-
-use crate::palette::UiPalette;
-use crate::popover::Rect;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Preferred anchor direction for tooltip popover.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

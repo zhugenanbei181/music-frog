@@ -3,27 +3,9 @@
 //! Subtree scenes composing the window root, sidebar rail, navigation
 //! items, mode segment pills, content column, title header and bottom bar.
 
-use bevy::color::Color;
-use bevy::ecs::hierarchy::Children;
-use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
-    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
+use crate::a11y::{
+    button_semantic_node, nav_semantic_node, semantic_node, switch_node, toggle_semantic_node,
 };
-use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::button::pill_caption_scene;
-use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
-use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
-use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill, nav_label_ink};
-use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::{radius, space};
-use infiltrator_bevy_widgets::tooltip::TooltipBubble;
-
-use crate::a11y::{button_semantic_node, nav_semantic_node, toggle_semantic_node};
-use crate::a11y::{semantic_node, switch_node};
 use crate::app::{
     BOTTOM_NAV_HEIGHT_PX, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot,
     ContentTitleLabel, DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton,
@@ -34,8 +16,36 @@ use crate::app::{
     SidebarSystemProxyCard, SidebarSystemProxyToggle, SidebarTunCard, SidebarTunToggle,
     ThemeToggle,
 };
-use crate::pages::overview::{OverviewModePill, mode_label};
-use crate::route::Route;
+use crate::chrome::chrome_bar_scene;
+use crate::localized_widgets::localized_pill_scene;
+use crate::pages::connections_confirm::confirmation_scene;
+use crate::pages::overview::OverviewModePill;
+use crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene;
+use crate::route::{Route, page_id_for_route};
+use crate::shell_mode_issue;
+use crate::shell_readout::{ShellQuotaFill, ShellQuotaTrack, ShellReadoutText};
+use crate::shell_waveform::ShellWaveform;
+use bevy::color::Color;
+use bevy::ecs::hierarchy::Children;
+use bevy::scene::{Scene, bsn};
+use bevy::text::TextColor;
+use bevy::ui::prelude::{
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, FlexWrap,
+    JustifyContent, Node, Overflow, PositionType, UiRect, Val, percent, px,
+};
+use bevy::ui::widget::Text;
+use bevy::ui_widgets::Button;
+use infiltrator_application::proxy_mode_projection::mode_copy_key;
+use infiltrator_application::system_toggle_projection::compact_label;
+use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
+use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::nav::{NavActive, NavItem, NavLabel, nav_fill, nav_label_ink};
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::theme::{radius, space};
+use infiltrator_bevy_widgets::tooltip::TooltipBubble;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::system_toggle::SystemToggleSnapshot;
@@ -57,7 +67,9 @@ pub fn shell_scene_with_toggles(
     bsn! {
             Node {
                 width: percent(100),
+                min_width: px(0.0), max_width: percent(100),
                 height: percent(100),
+                min_height: px(0.0), max_height: percent(100),
                 flex_direction: FlexDirection::Column,
                 overflow: Overflow::clip(),
                 border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
@@ -67,7 +79,7 @@ pub fn shell_scene_with_toggles(
             ShellRoot
             window_node
             Children [
-                @{ crate::chrome::chrome_bar_scene(palette) }
+                @{ chrome_bar_scene(palette) }
                 --
                 Node {
                     width: percent(100),
@@ -75,6 +87,7 @@ pub fn shell_scene_with_toggles(
                     max_width: percent(100),
                     flex_grow: 1.0,
                     flex_shrink: 1.0,
+                    flex_basis: px(0.0),
                     min_height: px(0.0),
                     flex_direction: FlexDirection::Row,
                     overflow: Overflow::clip(),
@@ -104,6 +117,7 @@ pub fn shell_scene_with_toggles(
                             max_width: percent(100),
                             flex_grow: 1.0,
                             flex_shrink: 1.0,
+                            flex_basis: px(0.0),
                             min_height: px(0.0),
                             overflow: Overflow::clip(),
                         }
@@ -114,17 +128,19 @@ pub fn shell_scene_with_toggles(
                 --
                 @{ bottom_nav_scene(palette) }
                 --
-                @{ crate::pages::overview_speedtest::overview_speedtest_detail_modal_scene(palette) }
+                @{ overview_speedtest_detail_modal_scene(palette) }
+                --
+                @{ confirmation_scene(palette) }
             ]
     }
 }
 
 /// The bottom navigation bar for Compact mode (<600px).
 pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
-    let overview_node = nav_semantic_node(Route::Overview.label(), false);
-    let proxies_node = nav_semantic_node(Route::Proxies.label(), false);
-    let profiles_node = nav_semantic_node(Route::Profiles.label(), false);
-    let settings_node = nav_semantic_node(Route::Settings.label(), false);
+    let overview_node = nav_semantic_node(&Route::Overview.label(), false);
+    let proxies_node = nav_semantic_node(&Route::Proxies.label(), false);
+    let profiles_node = nav_semantic_node(&Route::Profiles.label(), false);
+    let settings_node = nav_semantic_node(&Route::Settings.label(), false);
     let edge = palette.border;
 
     Box::new(bsn! {
@@ -149,23 +165,22 @@ pub fn bottom_nav_scene(palette: &UiPalette) -> Box<dyn Scene> {
             }
             BottomNavBar
             Children [
-                @{ bottom_nav_item_scene(Route::Overview.label(), Route::Overview, IconId::Activity, true, palette) }
-                overview_node
+                @{ bottom_nav_item_scene(Route::Overview, IconId::Activity, true, palette) }
+                overview_node LocalizedLabel::plain(Route::Overview.label_key())
                 --
-                @{ bottom_nav_item_scene(Route::Proxies.label(), Route::Proxies, IconId::Globe, false, palette) }
-                proxies_node
+                @{ bottom_nav_item_scene(Route::Proxies, IconId::Globe, false, palette) }
+                proxies_node LocalizedLabel::plain(Route::Proxies.label_key())
                 --
-                @{ bottom_nav_item_scene(Route::Profiles.label(), Route::Profiles, IconId::FileText, false, palette) }
-                profiles_node
+                @{ bottom_nav_item_scene(Route::Profiles, IconId::FileText, false, palette) }
+                profiles_node LocalizedLabel::plain(Route::Profiles.label_key())
                 --
-                @{ bottom_nav_item_scene(Route::Settings.label(), Route::Settings, IconId::Settings, false, palette) }
-                settings_node
+                @{ bottom_nav_item_scene(Route::Settings, IconId::Settings, false, palette) }
+                settings_node LocalizedLabel::plain(Route::Settings.label_key())
             ]
     })
 }
 
 fn bottom_nav_item_scene(
-    label: &str,
     route: Route,
     icon: IconId,
     active: bool,
@@ -195,7 +210,7 @@ fn bottom_nav_item_scene(
             Children [
                 @{ icon_scene(icon, 20.0, ink) }
                 --
-                Text({ label.to_owned() }) TextRole(role)
+                LocalizedText::plain(route.label_key()) TextRole(role)
             ]
     })
 }
@@ -223,7 +238,7 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 @{ pill_caption_scene("›".to_owned(), false, palette) }
                 HistoryForwardButton
                 --
-                Text({ "核心概览".to_owned() }) TextRole(Role::Heading) ContentTitleLabel
+                LocalizedText::plain("nav_overview") TextRole(Role::Heading) ContentTitleLabel
                 --
                 Node { flex_grow: 1.0 }
                 --
@@ -232,12 +247,15 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                     height: px(8.0),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                 }
-                BackgroundColor({ palette.success })
+                BackgroundColor({ palette.ink_dim })
                 GlobalStatusDot
                 status_node
                 --
-                @{ pill_caption_scene("规则模式".to_owned(), true, palette) }
+                @{ pill_caption_scene(String::new(), false, palette) }
+                ButtonDisabled(true)
                 GlobalModeCapsule
+                --
+                @{ shell_mode_issue::scene(palette) }
             ]
     }
 }
@@ -268,7 +286,7 @@ pub fn sidebar_scene_with_toggles(
             Children [
                 @{ identity_scene(palette) }
                 --
-                @{ mode_segment_scene(ProxyMode::default(), palette) }
+                @{ mode_segment_scene(None, palette) }
                 --
                 @{ sidebar_system_toggles_scene(toggles, palette) }
                 --
@@ -336,12 +354,12 @@ pub fn identity_scene(palette: &UiPalette) -> impl Scene + use<> {
 }
 
 /// Proxy-mode segment control pills (Rule, Global, Direct, Script).
-pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + use<> {
+pub fn mode_segment_scene(mode: Option<ProxyMode>, palette: &UiPalette) -> impl Scene + use<> {
     let segment_node = semantic_node(ShellA11yNode::ModeSegment);
-    let rule_node = button_semantic_node(mode_label(ProxyMode::Rule));
-    let global_node = button_semantic_node(mode_label(ProxyMode::Global));
-    let direct_node = button_semantic_node(mode_label(ProxyMode::Direct));
-    let script_node = button_semantic_node("脚本模式");
+    let rule_node = button_semantic_node("");
+    let global_node = button_semantic_node("");
+    let direct_node = button_semantic_node("");
+    let script_node = button_semantic_node("");
     bsn! {
             Node {
                 align_items: AlignItems::Center,
@@ -351,19 +369,23 @@ pub fn mode_segment_scene(mode: ProxyMode, palette: &UiPalette) -> impl Scene + 
             SidebarExpandedOnly
             segment_node
             Children [
-                @{ pill_caption_scene(mode_label(ProxyMode::Rule).to_owned(), mode == ProxyMode::Rule, palette) }
+                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Rule)), mode == Some(ProxyMode::Rule), palette) }
+                ButtonDisabled(true)
                 OverviewModePill(ProxyMode::Rule)
                 rule_node
                 --
-                @{ pill_caption_scene(mode_label(ProxyMode::Global).to_owned(), mode == ProxyMode::Global, palette) }
+                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Global)), mode == Some(ProxyMode::Global), palette) }
+                ButtonDisabled(true)
                 OverviewModePill(ProxyMode::Global)
                 global_node
                 --
-                @{ pill_caption_scene(mode_label(ProxyMode::Direct).to_owned(), mode == ProxyMode::Direct, palette) }
+                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Direct)), mode == Some(ProxyMode::Direct), palette) }
+                ButtonDisabled(true)
                 OverviewModePill(ProxyMode::Direct)
                 direct_node
                 --
-                @{ pill_caption_scene("脚本模式".to_owned(), false, palette) }
+                @{ localized_pill_scene(LocalizedText::plain(mode_copy_key(ProxyMode::Script)), false, palette) }
+                ButtonDisabled(true)
                 SidebarScriptModePill
                 script_node
             ]
@@ -377,10 +399,10 @@ pub fn sidebar_system_toggles_scene(
 ) -> impl Scene + use<> {
     let edge = palette.border;
     let proxy_selected = toggles.system_proxy.is_enabled();
-    let proxy_label = toggles.system_proxy.compact_label().to_owned();
+    let proxy_label = compact_label(&toggles.system_proxy, UiLocale::default().code());
     let proxy_node = switch_node(ShellA11yNode::SystemProxySwitch, proxy_selected);
     let tun_selected = toggles.tun.is_enabled();
-    let tun_label = toggles.tun.compact_label().to_owned();
+    let tun_label = compact_label(&toggles.tun, UiLocale::default().code());
     let tun_node = switch_node(ShellA11yNode::TunSwitch, tun_selected);
     bsn! {
             Node {
@@ -416,7 +438,7 @@ pub fn sidebar_system_toggles_scene(
                         proxy_node
                     ]
                     --
-                    Text({ "系统代理".to_owned() })
+                    LocalizedText::plain("settings_sys_proxy")
                     TextRole(Role::Caption)
                     TextColor({ palette.ink })
                 ]
@@ -448,7 +470,7 @@ pub fn sidebar_system_toggles_scene(
                         tun_node
                     ]
                     --
-                    Text({ "TUN 模式".to_owned() })
+                    LocalizedText::plain("tun_mode")
                     TextRole(Role::Caption)
                     TextColor({ palette.ink })
                 ]
@@ -459,6 +481,7 @@ pub fn sidebar_system_toggles_scene(
 /// Active profile card in sidebar showing subscription name, usage progress bar and percentage.
 pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
     let edge = palette.border;
+    let semantic = button_semantic_node("nav_profiles");
     bsn! {
             Node {
                 width: percent(100),
@@ -471,6 +494,8 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
             BackgroundColor({ palette.surface_elevated })
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             SidebarActiveProfileCard
+            Button SidebarShortcutTile(Route::Profiles)
+            semantic LocalizedLabel::plain("nav_profiles")
             SidebarExpandedOnly
             Children [
                 Node {
@@ -486,10 +511,10 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_scene(IconId::FileText, 14.0, palette.accent) }
                         --
-                        Text({ "Default Profile".to_owned() }) TextRole(Role::BodyStrong)
+                        Text({ String::new() }) ShellReadoutText::ProfileName TextRole(Role::BodyStrong)
                     ]
                     --
-                    @{ pill_caption_scene("订阅".to_owned(), true, palette) }
+                    Text({ String::new() }) ShellReadoutText::ProfileKind TextRole(Role::Caption)
                 ]
                 --
                 Node {
@@ -498,14 +523,14 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                     border_radius: BorderRadius::all(Val::Px(2.0)),
                     overflow: Overflow::clip(),
                 }
-                BackgroundColor({ palette.accent_container })
+                BackgroundColor({ palette.accent_container }) ShellQuotaTrack
                 Children [
                     Node {
-                        width: percent(25),
+                        width: percent(0),
                         height: percent(100),
                         border_radius: BorderRadius::all(Val::Px(2.0)),
                     }
-                    BackgroundColor({ palette.accent })
+                    BackgroundColor({ palette.accent }) ShellQuotaFill
                 ]
                 --
                 Node {
@@ -514,11 +539,11 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                     justify_content: JustifyContent::SpaceBetween,
                 }
                 Children [
-                    Text({ "46.4 GB / 186.2 GB".to_owned() })
+                    Text({ String::new() }) ShellReadoutText::ProfileUsage
                     TextRole(Role::Caption)
                     TextColor({ palette.ink_dim })
                     --
-                    Text({ "25%".to_owned() })
+                    Text({ String::new() }) ShellReadoutText::ProfilePercent
                     TextRole(Role::Caption)
                     TextColor({ palette.ink_dim })
                 ]
@@ -526,7 +551,7 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
     }
 }
 
-/// 2x2 Shortcut Grid Matrix in sidebar: 代理策略 (8), 分流规则 (2842), 连接审计 (12), 域名解析 (4).
+/// Navigation counts replay the complete application observation, independent of list windows.
 pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
@@ -543,9 +568,9 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
                     column_gap: Val::Px(space::S6),
                 }
                 Children [
-                    @{ shortcut_tile_scene(IconId::Globe, "代理策略", "8", Route::Proxies, palette) }
+                    @{ shortcut_tile_scene(IconId::Globe, "nav_proxies", Route::Proxies, palette) }
                     --
-                    @{ shortcut_tile_scene(IconId::FileText, "分流规则", "2842", Route::Rules, palette) }
+                    @{ shortcut_tile_scene(IconId::FileText, "nav_rules", Route::Rules, palette) }
                 ]
                 --
                 Node {
@@ -554,9 +579,9 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
                     column_gap: Val::Px(space::S6),
                 }
                 Children [
-                    @{ shortcut_tile_scene(IconId::Activity, "连接审计", "12", Route::Connections, palette) }
+                    @{ shortcut_tile_scene(IconId::Activity, "nav_connections", Route::Connections, palette) }
                     --
-                    @{ shortcut_tile_scene(IconId::Network, "域名解析", "4", Route::Dns, palette) }
+                    @{ shortcut_tile_scene(IconId::Network, "nav_dns", Route::Dns, palette) }
                 ]
             ]
     }
@@ -565,11 +590,11 @@ pub fn sidebar_shortcut_matrix_scene(palette: &UiPalette) -> impl Scene + use<> 
 fn shortcut_tile_scene(
     icon: IconId,
     label: &'static str,
-    count: &'static str,
     route: Route,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let edge = palette.border;
+    let semantic = button_semantic_node(label);
     bsn! {
             Node {
                 flex_grow: 1.0,
@@ -584,6 +609,7 @@ fn shortcut_tile_scene(
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Button
             SidebarShortcutTile(route)
+            semantic LocalizedLabel::plain(label)
             Children [
                 Node {
                     width: percent(100),
@@ -599,13 +625,13 @@ fn shortcut_tile_scene(
                     }
                     BackgroundColor({ palette.accent_container })
                     Children [
-                        Text({ count.to_owned() })
+                        Text({ String::new() }) ShellReadoutText::Count(page_id_for_route(route))
                         TextRole(Role::Caption)
                         TextColor({ palette.accent })
                     ]
                 ]
                 --
-                Text({ format!("{label} ({count})") })
+                LocalizedText::plain(label)
                 TextRole(Role::Caption)
                 TextColor({ palette.ink })
             ]
@@ -631,6 +657,10 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
             SidebarExpandedOnly
             rate_node
             Children [
+                Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(2.0) }
+                Children [
+                Node { width: percent(100), align_items: AlignItems::Center, justify_content: JustifyContent::SpaceBetween }
+                Children [
                 Node {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S2),
@@ -643,7 +673,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_scene(IconId::ArrowUp, 10.0, palette.success) }
                         --
-                        Text({ "↑ 124.5 KB/s".to_owned() })
+                        Text({ String::new() }) ShellReadoutText::Upload
                         TextRole(Role::Caption)
                         TextColor({ palette.success })
                     ]
@@ -655,30 +685,18 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_scene(IconId::ArrowDown, 10.0, palette.accent) }
                         --
-                        Text({ "↓ 1.8 MB/s".to_owned() })
+                        Text({ String::new() }) ShellReadoutText::Download
                         TextRole(Role::Caption)
                         TextColor({ palette.accent })
                     ]
                 ]
                 --
-                Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::FlexEnd,
-                    column_gap: Val::Px(2.0),
-                    height: px(18.0),
-                }
-                Children [
-                    Node { width: px(3.0), height: px(6.0) } BackgroundColor({ palette.accent })
-                    --
-                    Node { width: px(3.0), height: px(10.0) } BackgroundColor({ palette.accent })
-                    --
-                    Node { width: px(3.0), height: px(8.0) } BackgroundColor({ palette.accent })
-                    --
-                    Node { width: px(3.0), height: px(14.0) } BackgroundColor({ palette.accent })
-                    --
-                    Node { width: px(3.0), height: px(11.0) } BackgroundColor({ palette.accent })
-                    --
-                    Node { width: px(3.0), height: px(16.0) } BackgroundColor({ palette.accent })
+                Node { width: px(60.0), height: px(24.0) }
+                ShellWaveform
+
+                ]
+                --
+                Text({ String::new() }) ShellReadoutText::RateStatus TextRole(Role::Caption) TextColor({ palette.danger })
                 ]
             ]
     }
@@ -686,7 +704,7 @@ pub fn sidebar_speed_footer_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 /// Sidebar navigation item scene.
 pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -> Box<dyn Scene> {
-    let semantic = nav_semantic_node(route.label(), false);
+    let semantic = nav_semantic_node(&route.label(), false);
     let ink = nav_label_ink(active, palette);
     let edge = palette.border;
     Box::new(bsn! {
@@ -704,13 +722,13 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
             SidebarNavItem(route)
             NavItem
             NavActive(active)
-            semantic
+            semantic LocalizedLabel::plain(route.label_key())
             Children [
                 @{ icon_scene(route.icon(), 18.0, ink) }
                 --
                 Node { width: px(space::S8) } NavSpacer SidebarExpandedOnly
                 --
-                Text({ route.label().to_owned() })
+                LocalizedText::plain(route.label_key())
                 TextRole({
                         if active {
                             Role::BodyStrong
@@ -736,7 +754,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
                 TooltipBubble
                 RailNavTooltip(route)
                 Children [
-                    Text({ route.label().to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain(route.label_key()) TextRole(Role::Caption)
                 ]
             ]
     })

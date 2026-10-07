@@ -2,13 +2,20 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::utils::format_bytes;
+use crate::view_root::interaction_regions::InteractionRegion;
+use infiltrator_application::byte_format::format_bytes;
+
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
 use crate::view::components::{chip, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
+use infiltrator_application::connection_rate_application::project_connection;
+use infiltrator_contract::capability::Availability;
+use infiltrator_contract::connection::timing_availability;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -27,11 +34,8 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     };
 
     let meta = &conn.metadata;
-    let target_host = if !meta.host.is_empty() {
-        format!("{}:{}", meta.host, meta.destination_port)
-    } else {
-        format!("{}:{}", meta.destination_ip, meta.destination_port)
-    };
+    let facts = project_connection(conn, state.diag.connection_rate_book.get(&conn.id));
+    let target_host = facts.host;
 
     // Header with host and protocol
     let header = row![
@@ -63,6 +67,11 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     // carry DNS/TCP/TLS/TTFB timings, so DUAL-13-04 is reported as typed
     // unsupported instead of the fabricated 18/42/68/92 ms bars this drawer
     // previously drew.
+    let timing = timing_availability();
+    let timing_notice = match timing {
+        Availability::Unsupported { .. } => lang.tr("conn_drawer_timing_unsupported"),
+        _ => unreachable!("connection timing capability must be explicit"),
+    };
     let latency_section = column![
         row![
             icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).warning),
@@ -73,11 +82,9 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         ]
         .align_y(Alignment::Center),
         Space::new().height(theme::SP_XS),
-        text(lang.tr("conn_drawer_timing_unsupported"))
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            }),
+        text(timing_notice).size(11).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary),
+        }),
     ]
     .spacing(6);
 
@@ -86,7 +93,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     // measured interval); before a second observation they read as an honest
     // "no data yet" rather than a fabricated speed.
     let rate = state.diag.connection_rate_book.get(&conn.id);
-    let rate_row = if rate.peak_bps() > 0.0 {
+    let rate_row = if rate.observed {
         row![
             stat_card(
                 lang.tr("conn_drawer_upload_speed"),
@@ -210,11 +217,13 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         // evaluate a matching rule, the row says so instead of guessing.
         meta_field_row(
             lang.tr("conn_drawer_kernel_asn"),
-            kernel_asn_label(&meta.destination_ip_asn, &lang),
+            kernel_asn_label(&meta.destination_ip_asn, &|key| lang.tr(key).into_owned()),
         ),
         meta_field_row(
             lang.tr("conn_drawer_kernel_geo"),
-            kernel_geo_label(meta.destination_geo_ip.as_deref(), &lang),
+            kernel_geo_label(meta.destination_geo_ip.as_deref(), &|key| lang
+                .tr(key)
+                .into_owned()),
         ),
     ]
     .spacing(6);
@@ -270,10 +279,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
         )
         .style(style_ghost)
         .padding([8, 14])
-        .on_press(Message::ShowToast(
-            format!("Copied: {target_host}"),
-            crate::types::app::ToastStatus::Success,
-        )),
+        .on_press(Message::CopyConnectionHost),
         Space::new().width(Length::Fill),
         button(
             text(lang.tr("conn_drawer_close"))
@@ -302,6 +308,7 @@ pub fn connection_drawer_modal<'a>(state: &'a AppState, conn_id: &'a str) -> Ele
     .spacing(10);
 
     let drawer_panel = container(modern_scrollable(content).height(Length::Fill))
+        .id(InteractionRegion::Connection.id())
         .width(Length::Fixed(
             state.shell.viewport.detail_panel_width_px(480.0),
         ))
@@ -445,34 +452,6 @@ fn meta_field_row<'a, Message: 'a>(
     ]
     .align_y(Alignment::Center)
     .into()
-}
-
-/// DUAL-13-05: render the kernel's raw `destinationIPASN` value through the
-/// shared fact reduction. No ASN is inferred client-side.
-fn kernel_asn_label(raw: &str, lang: &Lang<'_>) -> String {
-    match connection_view::destination_asn_fact(raw) {
-        connection_view::DestinationAsnFact::NotEvaluated => {
-            lang.tr("conn_drawer_kernel_not_evaluated").to_string()
-        }
-        connection_view::DestinationAsnFact::NoResult => {
-            lang.tr("conn_drawer_kernel_no_result").to_string()
-        }
-        connection_view::DestinationAsnFact::Reported(value) => value,
-    }
-}
-
-/// DUAL-13-05: render the kernel's raw `destinationGeoIP` value through the
-/// shared fact reduction.
-fn kernel_geo_label(codes: Option<&[String]>, lang: &Lang<'_>) -> String {
-    match connection_view::destination_geo_fact(codes) {
-        connection_view::DestinationGeoFact::NotEvaluated => {
-            lang.tr("conn_drawer_kernel_not_evaluated").to_string()
-        }
-        connection_view::DestinationGeoFact::NoResult => {
-            lang.tr("conn_drawer_kernel_no_result").to_string()
-        }
-        connection_view::DestinationGeoFact::Codes(codes) => codes.join(", "),
-    }
 }
 
 #[cfg(test)]

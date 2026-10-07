@@ -1,5 +1,6 @@
 //! Core-version use-cases over a host-provided version port.
 
+use futures_util::future::join_all;
 use infiltrator_contract::error::Failure;
 use infiltrator_contract::version::{
     CoreChannelSnapshot, CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
@@ -29,15 +30,17 @@ impl VersionApplication {
     /// Probe all official channels independently. A failure in Alpha must not
     /// hide a usable Stable or Meta-Core result from either UI surface.
     pub async fn probe_channels(&self) -> CoreVersionSnapshot {
-        let probes = futures_util::future::join_all(CoreReleaseChannel::ALL.into_iter().map(
-            |channel| async move {
-                let status = match self.latest(channel).await {
-                    Ok(release) => CoreChannelStatus::Ready { release },
-                    Err(failure) => CoreChannelStatus::Failed { failure },
-                };
-                CoreChannelSnapshot { channel, status }
-            },
-        ));
+        let probes = join_all(
+            CoreReleaseChannel::ALL
+                .into_iter()
+                .map(|channel| async move {
+                    let status = match self.latest(channel).await {
+                        Ok(release) => CoreChannelStatus::Ready { release },
+                        Err(failure) => CoreChannelStatus::Failed { failure },
+                    };
+                    CoreChannelSnapshot { channel, status }
+                }),
+        );
         let (probes, rollback) = futures_util::join!(probes, self.port.rollback_snapshot());
         CoreVersionSnapshot {
             revision: 1,

@@ -2,6 +2,7 @@
 
 use bevy::ecs::event::Event;
 use bevy::ecs::resource::Resource;
+use std::f32::consts::PI;
 
 /// Semantic vibration and haptic feedback pattern.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -106,7 +107,7 @@ impl ProceduralTone {
     /// Generate PCM sample at time `t` seconds with sample rate `sample_rate_hz`.
     pub fn sample_at(&self, t: f32) -> f32 {
         let amp = self.envelope.evaluate(t, self.duration_secs);
-        let phase = 2.0 * std::f32::consts::PI * self.frequency_hz * t;
+        let phase = 2.0 * PI * self.frequency_hz * t;
         amp * phase.sin()
     }
 }

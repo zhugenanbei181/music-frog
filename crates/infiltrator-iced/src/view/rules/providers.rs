@@ -5,16 +5,24 @@ use super::rules_list::save_action;
 use crate::state::AppState;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     editor_frame_surface, row_card_surface, style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{
-    BadgeKind, badge, card, chip, empty_state, icon_button, section_header, segmented_control,
+    BadgeKind, badge, chip, empty_state, icon_button, section_header, segmented_control,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::mrs_panel::{format_rule_count, mrs_acceleration_card, mrs_card};
+use crate::view::provider_unpack_card::provider_unpack_card;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::rule_provider_projection::{
+    etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
+};
+use infiltrator_contract::provider_cache::ProviderCacheFingerprint;
 use infiltrator_contract::rules_workspace::RulesJsonSection;
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -205,90 +213,22 @@ pub fn total_external_rules(rule_providers: &[RuleProvider]) -> u32 {
     rule_providers.iter().map(|rp| rp.rule_count).sum()
 }
 
-/// DUAL-11-04/11-05: provider lifecycle line combining the last update time
-/// with the declared source URL (or an honest "not declared" for runtime-only
-/// providers) and the declared automatic-refresh interval. The kernel executes
-/// the schedule and owns the `ETag`/`304` conditional cache, so no cache
-/// hit/miss state is invented here.
-pub fn provider_lifecycle_line(
-    updated_at: &str,
-    source_url: Option<&str>,
-    refresh_interval_secs: Option<u64>,
-) -> String {
-    let mut parts = Vec::new();
-    if updated_at.is_empty() {
-        parts.push("Updated: —".to_string());
-    } else {
-        parts.push(format!("Updated: {updated_at}"));
-    }
-    match source_url {
-        Some(url) if !url.is_empty() => parts.push(format!("Source: {url}")),
-        _ => parts.push("Source: not declared".to_string()),
-    }
-    match refresh_interval_secs {
-        Some(secs) => parts.push(format!(
-            "Auto: {} (kernel-scheduled)",
-            infiltrator_domain::rules::view::format_refresh_interval(secs)
-        )),
-        None => parts.push("Auto: not declared".to_string()),
-    }
-    parts.join(" · ")
-}
-
-/// DUAL-11-05: the local cache-content fingerprint line. The body is the file
-/// size, digest and last-modified time this client actually read; the trailing
-/// label compares that local read with the previous one. It is explicitly
-/// *not* an HTTP validator, and never claims the kernel skipped a download.
-pub fn provider_fingerprint_line(
-    observation: &infiltrator_contract::provider_cache::ProviderCacheFingerprint,
-    lang: &Lang<'_>,
-) -> String {
-    use infiltrator_contract::provider_cache::ProviderFingerprintChange;
-    let change = match observation.change {
-        ProviderFingerprintChange::FirstSeen => lang.tr("rules_provider_fingerprint_first_seen"),
-        ProviderFingerprintChange::Unchanged => lang.tr("rules_provider_fingerprint_unchanged"),
-        ProviderFingerprintChange::Changed => lang.tr("rules_provider_fingerprint_changed"),
-    };
-    let body = infiltrator_domain::rules::view::format_content_fingerprint(
-        &observation.current.sha256,
-        observation.current.size_bytes,
-        observation.current.modified_unix_secs,
-    );
-    format!(
-        "{}: {body} · {change}",
-        lang.tr("rules_provider_fingerprint_label")
-    )
-}
-
-/// DUAL-11-05: the kernel's real `etag-support` capability as declared by the
-/// active profile. mihomo reads a top-level `etag-support` boolean (default
-/// `true`) to gate its `ETag`/`If-None-Match` cache; the client renders the
-/// declaration and never the per-request `304` outcome, which it cannot see.
-pub fn etag_support_line(
-    snapshot: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
-    lang: &Lang<'_>,
-) -> String {
-    use infiltrator_contract::provider_cache::KernelEtagSupportState;
-    let state = match snapshot.state {
-        KernelEtagSupportState::Enabled => lang.tr("rules_etag_support_enabled"),
-        KernelEtagSupportState::Disabled => lang.tr("rules_etag_support_disabled"),
-        KernelEtagSupportState::NotDeclared => lang.tr("rules_etag_support_not_declared"),
-    };
-    format!("{}: {state}", lang.tr("rules_etag_support_label"))
-}
-
 pub fn rule_provider_row<'a>(
     provider: &RuleProvider,
     source_url: Option<&str>,
     refresh_interval_secs: Option<u64>,
-    fingerprint: Option<&infiltrator_contract::provider_cache::ProviderCacheFingerprint>,
+    fingerprint: Option<&ProviderCacheFingerprint>,
     lang: &Lang<'_>,
 ) -> Element<'a, Message> {
     let behavior_badge_text = format_provider_behavior(&provider.behavior);
-    let rule_count_str = crate::view::mrs_panel::format_rule_count(provider.rule_count);
+    let rule_count_str = format_rule_count(provider.rule_count);
     let format_str = format_rule_provider_format(provider);
-    let updated_text =
-        provider_lifecycle_line(&provider.updated_at, source_url, refresh_interval_secs);
+    let updated_text = provider_lifecycle_line(
+        &provider.updated_at,
+        source_url,
+        refresh_interval_secs,
+        lang,
+    );
     let fingerprint_text =
         fingerprint.map(|observation| provider_fingerprint_line(observation, lang));
 
@@ -297,7 +237,9 @@ pub fn rule_provider_row<'a>(
             row![
                 svg_icons::icon_themed(Icon::Code2, 12.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(4.0),
-                text("Diff").size(11).font(FONT_MEDIUM)
+                text(lang.tr("snapshot_diff_open").into_owned())
+                    .size(11)
+                    .font(FONT_MEDIUM)
             ]
             .align_y(Alignment::Center)
         )
@@ -311,7 +253,9 @@ pub fn rule_provider_row<'a>(
             row![
                 svg_icons::icon_themed(Icon::Zap, 12.0, |t: &Theme| tokens(t).text_secondary),
                 Space::new().width(4.0),
-                text("Unpack").size(11).font(FONT_MEDIUM)
+                text(lang.tr("provider_unpack_action").into_owned())
+                    .size(11)
+                    .font(FONT_MEDIUM)
             ]
             .align_y(Alignment::Center)
         )
@@ -413,9 +357,7 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             }),
     );
 
-    content = content.push(crate::view::provider_unpack_card::provider_unpack_card(
-        state, lang,
-    ));
+    content = content.push(provider_unpack_card(state, lang));
     if state.editor.rules_providers_expanded {
         let mut proxy_list = column![].spacing(theme::SP_SM);
         if state.editor.proxy_providers.is_empty() {
@@ -553,14 +495,14 @@ pub fn providers_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             .push(Space::new().height(theme::SP_MD))
             .push(geo_card);
 
-        if let Some(mrs_panel) = crate::view::mrs_panel::mrs_card(state) {
+        if let Some(mrs_panel) = mrs_card(state) {
             content = content
                 .push(Space::new().height(theme::SP_MD))
                 .push(mrs_panel);
         }
         content = content
             .push(Space::new().height(theme::SP_MD))
-            .push(crate::view::mrs_panel::mrs_acceleration_card(state));
+            .push(mrs_acceleration_card(state));
     }
     content.into()
 }

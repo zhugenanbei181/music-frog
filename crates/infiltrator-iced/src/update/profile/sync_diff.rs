@@ -8,14 +8,19 @@
 //! protects the live core, so a file changed after the diff was computed can
 //! only fail loudly, never silently corrupt.
 
+use super::sync::sync_application;
+use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
-use crate::types::app::SyncConflict;
-use crate::types::app::ToastStatus;
+use crate::types::app::{SyncConflict, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffBundle, SyncDiffState};
+use crate::update::core::profile_apply::save_profile_content;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::error::{InfiltratorError, from_mihomo};
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::mixin::merge_yaml_key_picks;
+use infiltrator_domain::sync::diff_yaml_configs;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::collections::HashSet;
 
@@ -38,13 +43,10 @@ impl AppState {
                 self.profile.is_loading_sync_diff = true;
                 Task::perform(
                     async move {
-                        let manager = crate::configs_dir::config_manager().await?;
-                        let local = manager
-                            .load(&conflict.profile)
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        let manager = config_manager().await?;
+                        let local = manager.load(&conflict.profile).await.map_err(from_mihomo)?;
                         let remote = read_conflict_file(&conflict).await?;
-                        let summary = infiltrator_domain::sync::diff_yaml_configs(&local, &remote)
+                        let summary = diff_yaml_configs(&local, &remote)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(SyncDiffBundle {
                             profile: conflict.profile,
@@ -127,22 +129,15 @@ impl AppState {
                                 take_remote.push(key.clone());
                             }
                         }
-                        let manager = crate::configs_dir::config_manager().await?;
-                        let local = manager
-                            .load(&conflict.profile)
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        let manager = config_manager().await?;
+                        let local = manager.load(&conflict.profile).await.map_err(from_mihomo)?;
                         let remote = read_conflict_file(&conflict).await?;
-                        let merged = infiltrator_domain::mixin::merge_yaml_key_picks(
-                            &local,
-                            &remote,
-                            &take_remote,
-                            &accept_removals,
-                        )
-                        .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        infiltrator_domain::config::validate_yaml(&merged)
+                        let merged =
+                            merge_yaml_key_picks(&local, &remote, &take_remote, &accept_removals)
+                                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                        validate_yaml(&merged)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        crate::update::core::profile_apply::save_profile_content(
+                        save_profile_content(
                             runtime,
                             conflict.profile.clone(),
                             merged,
@@ -188,8 +183,8 @@ impl AppState {
 }
 
 async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, InfiltratorError> {
-    let configs_dir = crate::configs_dir::configs_dir().await?;
-    super::sync::sync_application()?
+    let configs_dir = configs_dir().await?;
+    sync_application()?
         .read_conflict(
             configs_dir.to_string_lossy().into_owned(),
             conflict.remote_path.to_string_lossy().into_owned(),
@@ -199,8 +194,8 @@ async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, Infiltrat
 }
 
 async fn delete_conflict_file(conflict: &SyncConflict) -> Result<(), InfiltratorError> {
-    let configs_dir = crate::configs_dir::configs_dir().await?;
-    super::sync::sync_application()?
+    let configs_dir = configs_dir().await?;
+    sync_application()?
         .delete_conflict(
             configs_dir.to_string_lossy().into_owned(),
             conflict.remote_path.to_string_lossy().into_owned(),

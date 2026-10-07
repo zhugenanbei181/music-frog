@@ -14,20 +14,38 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        if observed.ipv6 != enabled {
+        let ipv6 = observed.ipv6.ok_or_else(|| {
+            Failure::new(
+                ErrorCode::NotReady,
+                "IPv6 policy was not reported by the controller",
+                true,
+            )
+        })?;
+        let tun_enabled = observed
+            .tun
+            .as_ref()
+            .and_then(|tun| tun.enable)
+            .ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "TUN state was not reported by the controller",
+                    true,
+                )
+            })?;
+        if ipv6 != enabled {
             return Err(Failure::new(
                 ErrorCode::InvalidState,
                 format!(
                     "IPv6 routing readback mismatch: requested {enabled}, observed {}",
-                    observed.ipv6
+                    ipv6
                 ),
                 true,
             ));
         }
         Ok(Ipv6RoutingSnapshot::new(
             self.next_revision.fetch_add(1, Ordering::Relaxed),
-            observed.ipv6,
-            observed.tun.as_ref().is_some_and(|tun| tun.enable),
+            ipv6,
+            tun_enabled,
         ))
     }
 }
@@ -36,6 +54,7 @@ impl RuntimeQueryApplication {
 mod tests {
     use super::RuntimeQueryApplication;
     use crate::runtime_query_application::tests::{TestGateway, lan_state};
+    use infiltrator_contract::error::ErrorCode;
     use std::sync::atomic::AtomicUsize;
     use std::sync::{Arc, Mutex};
 
@@ -80,9 +99,6 @@ mod tests {
             .await
             .expect_err("ignored IPv6 patch must not report success");
 
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::InvalidState
-        );
+        assert_eq!(failure.code, ErrorCode::InvalidState);
     }
 }

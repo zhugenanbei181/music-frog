@@ -7,6 +7,7 @@
 //! system. A row that never crossed the shared 5 MB/s threshold is rendered
 //! with `Display::None`, so no slow connection glows.
 
+use crate::pages::connections::LastConnectionsProjection;
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -16,13 +17,12 @@ use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::time::{Time, Virtual};
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, Display, Node, UiRect, Val};
-use bevy::ui::widget::Text;
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_rate;
-
-use crate::pages::connections::{ConnectionItem, LastConnectionsProjection};
 
 /// Marker on the pulse chip of one flat row; the payload is the projection row
 /// index the chip reports.
@@ -39,7 +39,7 @@ pub struct ConnectionsPulseState {
 /// row's derived instantaneous rate crosses the shared threshold.
 pub fn connection_pulse_scene(
     row: usize,
-    conn: &ConnectionItem,
+    conn: &ConnectionSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let intensity = connection_rate::pulse_intensity(conn.upload_bps, conn.download_bps, 0.0);
@@ -57,7 +57,7 @@ pub fn connection_pulse_scene(
             BackgroundColor({ glow })
             ConnHighThroughputPulse(row)
             Children [
-                Text({ "高吞吐脉冲".to_owned() }) TextRole(Role::Caption) TextColor({ ink })
+                LocalizedText::plain("conn_pulse_high_throughput") TextRole(Role::Caption) TextColor({ ink })
             ]
     }
 }
@@ -116,9 +116,11 @@ mod tests {
     use super::*;
     use infiltrator_domain::connection_rate::PULSE_MIN_INTENSITY;
 
-    fn item(id: &str, upload_bps: f64, download_bps: f64) -> ConnectionItem {
-        ConnectionItem {
+    fn item(id: &str, upload_bps: f64, download_bps: f64) -> ConnectionSnapshot {
+        ConnectionSnapshot {
+            start: String::new(),
             id: id.to_owned(),
+            destination_host: "example.com:443".to_owned(),
             host: "example.com:443".to_owned(),
             process: "git".to_owned(),
             rule: "DIRECT".to_owned(),
@@ -130,6 +132,7 @@ mod tests {
             source_port: "50000".to_owned(),
             destination_ip: "1.1.1.1".to_owned(),
             destination_port: "443".to_owned(),
+            rate_observed: true,
             upload_bps,
             download_bps,
             upload_total: 0,

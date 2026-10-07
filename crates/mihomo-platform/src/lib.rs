@@ -1,3 +1,4 @@
+use tokio::sync::Mutex;
 #[cfg(target_os = "android")]
 pub mod android;
 pub mod android_bridge;
@@ -18,7 +19,7 @@ use infiltrator_ports::data_dir::DataDirProvider;
 
 /// Shared test lock for cross-crate synchronization of global state (e.g. HOME_DIR_OVERRIDE).
 /// Using tokio's Mutex to allow holding across .await points.
-pub static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub static TEST_LOCK: Mutex<()> = Mutex::const_new(());
 
 pub fn apply_data_dir_override<P: DataDirProvider>(provider: &P) {
     if let Some(path) = provider.data_dir() {

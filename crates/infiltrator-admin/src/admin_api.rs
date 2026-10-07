@@ -3,11 +3,6 @@ pub mod handlers;
 pub mod models;
 pub mod state;
 
-use axum::{
-    Router, middleware,
-    routing::{delete, get, post},
-};
-
 use self::handlers::audit::get_audit_http;
 use self::handlers::auth::verify_admin_token;
 use self::handlers::config::{
@@ -53,6 +48,8 @@ use self::handlers::system::{
 };
 use self::handlers::webhook::handle_webhook_http;
 use self::state::{AdminApiContext, AdminApiState};
+use axum::routing::{delete, get, post};
+use axum::{Router, middleware};
 
 pub fn router<C: AdminApiContext>(state: AdminApiState<C>) -> Router {
     Router::new()

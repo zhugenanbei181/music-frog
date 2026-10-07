@@ -5,6 +5,18 @@
 //! application module so the composition/accessor surface stays readable.
 
 use super::*;
+use crate::profile_aggregation_application::ProfileAggregationApplication;
+use crate::protocol_codec_application::ProtocolCodecApplication;
+use crate::proxy_application::test_proxy_delays;
+use crate::subscription_import_application::SubscriptionImportApplication;
+use infiltrator_contract::network_roaming::NetworkRoamingStatus;
+use infiltrator_contract::pac::PacRequest;
+use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
+use infiltrator_contract::rule_edit::RuleDraft;
+use infiltrator_contract::speedtest::SpeedtestScope;
+use infiltrator_contract::vpn::VpnSessionState;
+use infiltrator_domain::apply::ApplyStrategy;
+use std::sync::Mutex;
 
 impl CommandApplication {
     /// Route one inbound command. Lifecycle and proxy-mode commands are
@@ -28,51 +40,42 @@ impl CommandApplication {
                 .await
                 .map_err(Failure::from),
             CommandIntent::ToggleProxyGroupExpand { group } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.toggle_group_expand(&group);
-                }
+                self.proxy_preferences()?.toggle_group_expand(&group)?;
                 Ok(())
             }
             CommandIntent::SetProxyGroupExpanded { group, expanded } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.set_group_expanded(&group, expanded);
-                }
+                self.proxy_preferences()?
+                    .set_group_expanded(&group, expanded)?;
                 Ok(())
             }
             CommandIntent::SetProxySortOrder { order } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.set_sort_order(order);
-                }
+                self.proxy_preferences()?.set_sort_order(order)?;
+                Ok(())
+            }
+            CommandIntent::SetProxyProbeOptions { options } => {
+                self.save_probe_options(options).await
+            }
+            CommandIntent::SetProxySearchQuery { query } => {
+                self.proxy_preferences()?.set_search_query(query)?;
                 Ok(())
             }
             CommandIntent::ToggleFilterAlive { enabled } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.set_filter_alive(enabled);
-                }
+                self.proxy_preferences()?.set_filter_alive(enabled)?;
                 Ok(())
             }
             CommandIntent::ToggleFavoriteProxy { proxy } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.toggle_favorite(&proxy);
-                }
+                self.proxy_preferences()?.toggle_favorite(&proxy)?;
                 Ok(())
             }
             CommandIntent::SetProxyCompactView { compact } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.set_compact_view(compact);
-                }
+                self.proxy_preferences()?.set_compact_view(compact)?;
                 Ok(())
             }
             CommandIntent::ReorderProxyGroups { group_names } => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.reorder_groups(group_names);
-                }
-                Ok(())
+                self.apply_group_order(group_names).await
             }
             CommandIntent::ResetProxyGroupOrder => {
-                if let Some(prefs) = &self.proxy_preferences {
-                    prefs.reset_group_order();
-                }
+                self.proxy_preferences()?.reset_group_order()?;
                 Ok(())
             }
             CommandIntent::TestDelay {
@@ -80,27 +83,81 @@ impl CommandApplication {
                 url,
                 timeout_ms,
             } => {
+                let options = self.resolve_probe_options(url, timeout_ms).await?;
                 if let Ok(speedtest) = self.speedtest() {
                     let scope = match group {
-                        Some(g) => infiltrator_contract::speedtest::SpeedtestScope::SingleGroup(g),
-                        None => infiltrator_contract::speedtest::SpeedtestScope::AllGroups,
+                        Some(g) => SpeedtestScope::SingleGroup(g),
+                        None => SpeedtestScope::AllGroups,
                     };
-                    speedtest.test_delays(scope, url, timeout_ms).await?;
+                    speedtest
+                        .test_delays(
+                            scope,
+                            Some(options.test_url.clone()),
+                            Some(options.timeout_ms),
+                        )
+                        .await?;
                     return Ok(());
                 }
                 let runtime = self.runtime()?;
                 let proxies = runtime.get_proxies().await.map_err(Failure::from)?;
                 let candidates = delay_candidates(&proxies, group.as_deref())?;
-                let test_url = url.unwrap_or_else(|| DEFAULT_DELAY_TEST_URL.to_string());
-                let timeout = timeout_ms.unwrap_or(DEFAULT_DELAY_TIMEOUT_MS);
-                let _ = crate::proxy_application::test_proxy_delays(
+                let outcomes = test_proxy_delays(
                     runtime,
                     candidates,
-                    test_url,
-                    timeout,
+                    options.test_url,
+                    options.timeout_ms,
                     DEFAULT_DELAY_CONCURRENCY,
                 )
                 .await;
+                if let Some(failed) = outcomes
+                    .iter()
+                    .filter(|outcome| outcome.result.is_err())
+                    .min_by(|left, right| left.proxy_name.cmp(&right.proxy_name))
+                {
+                    let failure = failed.result.as_ref().unwrap_err();
+                    let failed_count = outcomes
+                        .iter()
+                        .filter(|outcome| outcome.result.is_err())
+                        .count();
+                    return Err(Failure::new(
+                        failure.code.clone(),
+                        format!(
+                            "{failed_count}/{} proxy probes failed; {}: {}",
+                            outcomes.len(),
+                            failed.proxy_name,
+                            failure.message
+                        ),
+                        failure.retryable,
+                    ));
+                }
+                Ok(())
+            }
+            CommandIntent::TestNodeDelay {
+                node,
+                url,
+                timeout_ms,
+            } => {
+                let options = self.resolve_probe_options(url, timeout_ms).await?;
+                let runtime = self.runtime()?;
+                let proxies = runtime.get_proxies().await.map_err(Failure::from)?;
+                let proxy = proxies.get(&node).ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::InvalidInput,
+                        "proxy identity is no longer present",
+                        false,
+                    )
+                })?;
+                if proxy.is_group() || matches!(proxy, Proxy::Unknown) {
+                    return Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        "latency probing requires a known leaf proxy",
+                        false,
+                    ));
+                }
+                runtime
+                    .test_delay(&node, &options.test_url, options.timeout_ms)
+                    .await
+                    .map_err(Failure::from)?;
                 Ok(())
             }
             CommandIntent::RunSpeedtest { node, url } => {
@@ -162,11 +219,9 @@ impl CommandApplication {
                         .map(|_| ())
                 }
             }
-            CommandIntent::SaveSubscriptionFilter { profile_id, filter } => self
-                .profile_options()?
-                .save_filter(self.managed_runtime.clone(), &profile_id, &filter)
-                .await
-                .map(|_| ()),
+            CommandIntent::SaveSubscriptionFilter { .. } => {
+                unreachable!("typed filter output is handled before unit dispatch")
+            }
             CommandIntent::ImportSubscription {
                 profile_id,
                 channel,
@@ -177,11 +232,7 @@ impl CommandApplication {
                         "local file / clipboard import is not configured for this host",
                     )
                 })?;
-                let application =
-                    crate::subscription_import_application::SubscriptionImportApplication::new(
-                        self.profile()?,
-                        port,
-                    );
+                let application = SubscriptionImportApplication::new(self.profile()?, port);
                 let subscription_source = self.subscription_source()?;
                 application
                     .import(subscription_source.as_ref(), &profile_id, channel, &source)
@@ -211,67 +262,47 @@ impl CommandApplication {
                 self.profile()?.delete_profile(&profile_id).await
             }
             CommandIntent::PreviewProfileAggregation { draft } => {
-                let application =
-                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
-                        self.profile()?,
-                    );
+                let application = ProfileAggregationApplication::new(self.profile()?);
                 application.preview(&draft).await.map(|_| ())
             }
             CommandIntent::CreateAggregatedProfile { draft } => {
-                let application =
-                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
-                        self.profile()?,
-                    );
+                let application = ProfileAggregationApplication::new(self.profile()?);
                 application
                     .create_profile_with_runtime(self.managed_runtime.clone(), &draft)
                     .await
                     .map(|_| ())
             }
             CommandIntent::SaveAggregationTemplate { name, draft } => {
-                let application =
-                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
-                        self.profile()?,
-                    );
+                let application = ProfileAggregationApplication::new(self.profile()?);
                 application.save_template(&name, &draft).await.map(|_| ())
             }
             CommandIntent::DeleteAggregationTemplate { name } => {
-                let application =
-                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
-                        self.profile()?,
-                    );
+                let application = ProfileAggregationApplication::new(self.profile()?);
                 application.delete_template(&name).await.map(|_| ())
             }
             CommandIntent::ReAggregateProfile { template_name } => {
-                let application =
-                    crate::profile_aggregation_application::ProfileAggregationApplication::new(
-                        self.profile()?,
-                    );
+                let application = ProfileAggregationApplication::new(self.profile()?);
                 application
                     .reaggregate(self.managed_runtime.clone(), &template_name)
                     .await
                     .map(|_| ())
             }
+            CommandIntent::PrepareCustomNodeDraft { draft } => {
+                let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+                ProtocolCodecApplication::publish_draft(*draft, preview);
+                Ok(())
+            }
             CommandIntent::ImportCustomNodeUri { uri } => {
                 // DUAL-05-14: decode through the shared codec and publish the
                 // typed draft for both surfaces. Nothing is persisted here.
-                match crate::protocol_codec_application::ProtocolCodecApplication::draft_from_uri(
-                    &uri,
-                ) {
+                match ProtocolCodecApplication::draft_from_uri(&uri) {
                     Ok(draft) => {
-                        let preview =
-                            crate::protocol_codec_application::ProtocolCodecApplication::uri_from_draft(
-                                &draft,
-                            )
-                            .ok();
-                        crate::protocol_codec_application::ProtocolCodecApplication::publish_draft(
-                            draft, preview,
-                        );
+                        let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
+                        ProtocolCodecApplication::publish_draft(draft, preview);
                         Ok(())
                     }
                     Err(failure) => {
-                        crate::protocol_codec_application::ProtocolCodecApplication::publish_error(
-                            failure.message.clone(),
-                        );
+                        ProtocolCodecApplication::publish_error(failure.message.clone());
                         Err(failure)
                     }
                 }
@@ -281,23 +312,39 @@ impl CommandApplication {
                 // disturbing any other section, then commit through the same
                 // apply transaction the other profile editors use.
                 let trust = draft.params.tls_trust.clone();
+                let committed = Arc::new(Mutex::new(None));
+                let written = committed.clone();
                 self.profile()?
                     .save_current_profile_content(
                         self.managed_runtime.clone(),
-                        infiltrator_domain::apply::ApplyStrategy::PreferReload,
+                        ApplyStrategy::PreferReload,
                         move |content| {
-                            crate::protocol_codec_application::ProtocolCodecApplication::upsert_draft_into_profile(
+                            let commit = ProtocolCodecApplication::upsert_draft_into_profile(
                                 content, &draft,
                             )
-                            .map(|commit| commit.profile_yaml)
-                            .map_err(|failure| failure.message)
+                            .map_err(|failure| failure.message)?;
+                            let content = commit.profile_yaml.clone();
+                            *written.lock().expect("protocol commit") = Some(commit);
+                            Ok::<String, String>(content)
                         },
                     )
                     .await?;
+                let commit = committed
+                    .lock()
+                    .expect("protocol commit")
+                    .take()
+                    .ok_or_else(|| {
+                        Failure::new(
+                            ErrorCode::Internal,
+                            "profile transaction did not produce a protocol commit",
+                            false,
+                        )
+                    })?;
+                ProtocolCodecApplication::publish_commit(&commit);
                 // DUAL-05-13: the CA request is resolved against the host
                 // reader *after* the profile committed, so a reported load can
                 // never describe a document that was not written.
-                crate::protocol_codec_application::ProtocolCodecApplication::publish_ca_trust(
+                ProtocolCodecApplication::publish_ca_trust(
                     &trust,
                     self.certificate_authority.as_deref(),
                 );
@@ -307,23 +354,19 @@ impl CommandApplication {
                 // DUAL-05-09/10: one shared analyzer over the active profile;
                 // both surfaces render the published report.
                 let content = self.profile()?.current_profile().await?;
-                crate::protocol_codec_application::ProtocolCodecApplication::publish_dialer_report(
-                    &content,
-                )?;
+                ProtocolCodecApplication::publish_dialer_report(&content)?;
                 Ok(())
             }
             CommandIntent::UpdateCustomNodeDraftField { field, value } => {
                 // DUAL-05-09/13: a typed, whitelisted draft edit; an unknown
                 // field is refused by the shared application.
-                crate::protocol_codec_application::ProtocolCodecApplication::update_draft_field(
-                    &field, &value,
-                )?;
+                ProtocolCodecApplication::update_draft_field(&field, &value)?;
                 Ok(())
             }
             CommandIntent::ResolveCertificateAuthority { trust } => {
                 // DUAL-05-13: resolve and publish; the outcome is a state, not
                 // an error, because a host without a reader is expected.
-                crate::protocol_codec_application::ProtocolCodecApplication::publish_ca_trust(
+                ProtocolCodecApplication::publish_ca_trust(
                     &trust,
                     self.certificate_authority.as_deref(),
                 );
@@ -371,13 +414,18 @@ impl CommandApplication {
                 .close_all_connections()
                 .await
                 .map_err(Failure::from),
-            CommandIntent::ClearDnsCache => match self.dns_cache.as_ref() {
-                Some(dns_cache) => dns_cache.flush_all().await.map(|_| ()),
-                None => self
-                    .runtime()?
-                    .flush_fakeip_cache()
-                    .await
-                    .map_err(Failure::from),
+            CommandIntent::ClearDnsCache { operation } => match self.dns_cache.as_ref() {
+                Some(dns_cache) => {
+                    let report = dns_cache.flush_with_id(operation).await?;
+                    if report.fake_ip.is_flushed() || report.os_cache.is_flushed() {
+                        Ok(())
+                    } else {
+                        Err(Failure::unsupported(
+                            "neither DNS cache target has a drivable host adapter",
+                        ))
+                    }
+                }
+                None => Err(Failure::unsupported("DNS cache application is unavailable")),
             },
             CommandIntent::ApplyDnsSettings { patch } => self
                 .configuration()?
@@ -385,6 +433,7 @@ impl CommandApplication {
                 .await
                 .map(|_| ()),
             CommandIntent::RunDoctorDiagnostics => self.doctor()?.run(None).await.map(|_| ()),
+            CommandIntent::BootstrapDoctor => self.doctor()?.bootstrap().await.map(|_| ()),
             CommandIntent::RepairDoctorIssue { check_id } => {
                 self.doctor()?.fix(Some(check_id)).await.map(|_| ())
             }
@@ -407,96 +456,20 @@ impl CommandApplication {
                     .await
                     .map(|_| ())
             }
-            CommandIntent::CreateBackupSnapshot => {
-                self.snapshots()?.create_current().await.map(|_| ())
+            intent @ (CommandIntent::CreateBackupSnapshot { .. }
+            | CommandIntent::PrepareSnapshotRestore { .. }
+            | CommandIntent::ConfirmSnapshotRestore { .. }
+            | CommandIntent::CancelSnapshotRestore { .. }
+            | CommandIntent::LoadSnapshotDiff { .. }
+            | CommandIntent::LoadSnapshotHistory { .. }
+            | CommandIntent::PruneSnapshots { .. }) => {
+                self.execute_snapshot_output(intent).await.map(|_| ())
             }
-            CommandIntent::RestoreSnapshot { id } => {
-                let profile = self.profile()?.current_profile().await?;
-                let path = std::path::PathBuf::from(id);
-                self.snapshots()?
-                    .restore(self.managed_runtime.clone(), &profile, &path)
-                    .await
-            }
-            CommandIntent::LoadSnapshotDiff { snapshot_id } => {
-                let profile = self.profile()?.current_profile().await?;
-                let snapshots = self.snapshots()?;
-                match snapshot_id {
-                    Some(id) => snapshots
-                        .diff_snapshot(&profile, std::path::Path::new(&id))
-                        .await
-                        .map(|_| ()),
-                    None => snapshots.diff_newest(&profile).await.map(|_| ()),
-                }
-            }
-            // DUAL-09-06/07: refresh the shared snapshot history (entries plus
-            // the shared prune view) for the active profile.
-            CommandIntent::LoadSnapshotHistory => {
-                let profile = self.profile()?.current_profile().await?;
-                self.snapshots()?
-                    .history(
-                        &profile,
-                        infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP,
-                    )
-                    .await
-                    .map(|_| ())
-            }
-            CommandIntent::PruneSnapshots { keep } => {
-                let profile = self.profile()?.current_profile().await?;
-                let keep = keep
-                    .map(
-                        infiltrator_contract::snapshot_history::SnapshotHistorySnapshot::clamp_keep,
-                    )
-                    .unwrap_or(infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP);
-                self.snapshots()?
-                    .prune(
-                        &profile,
-                        keep,
-                        infiltrator_contract::snapshot_history::SnapshotPruneSource::Manual,
-                    )
-                    .await
-                    .map(|_| ())
-            }
-            // DUAL-09-03/14: the editor surfaces load/commit the stored profile
-            // document through the shared read model and guarded write path.
-            CommandIntent::LoadProfileDocument { profile } => self
-                .profile_document()?
-                .load(profile.as_deref())
-                .await
-                .map(|_| ()),
-            CommandIntent::SaveProfileDocument {
-                profile,
-                content,
-                allow_protected,
-            } => {
-                let runtime = self.managed_runtime.clone();
-                self.profile_document()?
-                    .save(runtime, &profile, &content, allow_protected)
-                    .await
-                    .map(|_| ())
-            }
-            // DUAL-09-14: the editor panes load/commit the option sidecar
-            // through the same use-case the Iced Mixin/Filter panes call.
-            CommandIntent::LoadProfileOptions { profile } => self
-                .profile_options()?
-                .load(profile.as_deref())
-                .await
-                .map(|_| ()),
-            CommandIntent::SaveMixinOverlay {
-                profile,
-                mixin_yaml,
-            } => {
-                let runtime = self.managed_runtime.clone();
-                self.profile_options()?
-                    .save_mixin(runtime, &profile, &mixin_yaml)
-                    .await
-                    .map(|_| ())?;
-                // The composed document changed: republish it so the editor's
-                // YAML pane renders the merged bytes, not the stale pre-mixin
-                // content (the Iced editor reloads through the same read model).
-                self.profile_document()?
-                    .load(Some(&profile))
-                    .await
-                    .map(|_| ())
+            CommandIntent::LoadProfileDocument { .. }
+            | CommandIntent::SaveProfileDocument { .. }
+            | CommandIntent::LoadProfileOptions { .. }
+            | CommandIntent::SaveMixinOverlay { .. } => {
+                unreachable!("typed profile outputs are dispatched before unit commands")
             }
             CommandIntent::RollbackCore => self.versions()?.rollback().await.map(|_| ()),
             CommandIntent::PrepareServiceMode => self.service_mode()?.prepare().await.map(|_| ()),
@@ -506,12 +479,16 @@ impl CommandApplication {
                 let channel = parse_release_channel(&settings.core_channel)?;
                 self.versions()?.latest(channel).await.map(|_| ())
             }
+            CommandIntent::SetLanguage { preference } => {
+                self.update_setting("language", preference.as_setting())
+                    .await
+            }
             CommandIntent::UpdateSetting { key, value } => self.update_setting(&key, &value).await,
-            CommandIntent::SetProxyMode { mode } => self
-                .runtime()?
-                .set_proxy_mode(mode)
-                .await
-                .map_err(Failure::from),
+            CommandIntent::SetProxyMode { mode } => {
+                RuntimeQueryApplication::new(self.runtime()?)
+                    .set_proxy_mode(mode)
+                    .await
+            }
             CommandIntent::SetCoreLogLevel { level } => {
                 RuntimeQueryApplication::new(self.runtime()?)
                     .set_core_log_level(level)
@@ -628,7 +605,7 @@ impl CommandApplication {
                 minify,
             } => self
                 .pac()?
-                .apply(infiltrator_contract::pac::PacRequest {
+                .apply(PacRequest {
                     enabled,
                     bypass_domains,
                     bypass_lan,
@@ -639,12 +616,10 @@ impl CommandApplication {
             CommandIntent::RefreshNetworkRoaming => {
                 let snapshot = self.network_roaming()?.refresh().await;
                 match snapshot.status {
-                    infiltrator_contract::network_roaming::NetworkRoamingStatus::Failed {
-                        failure,
-                    } => Err(failure),
-                    infiltrator_contract::network_roaming::NetworkRoamingStatus::Unsupported {
-                        reason,
-                    } => Err(Failure::unsupported(reason)),
+                    NetworkRoamingStatus::Failed { failure } => Err(failure),
+                    NetworkRoamingStatus::Unsupported { reason } => {
+                        Err(Failure::unsupported(reason))
+                    }
                     _ => Ok(()),
                 }
             }
@@ -654,28 +629,25 @@ impl CommandApplication {
             CommandIntent::StartVpn => {
                 let snapshot = self.vpn()?.request_start().await?;
                 match snapshot.state {
-                    infiltrator_contract::vpn::VpnSessionState::Unsupported { reason } => {
-                        Err(Failure::unsupported(reason))
-                    }
-                    infiltrator_contract::vpn::VpnSessionState::Failed { failure } => Err(failure),
+                    VpnSessionState::Unsupported { reason } => Err(Failure::unsupported(reason)),
+                    VpnSessionState::Failed { failure } => Err(failure),
                     _ => Ok(()),
                 }
             }
             CommandIntent::StopVpn => self.vpn()?.stop().await.map(|_| ()),
-            CommandIntent::ResetRuleHitCounters => {
-                self.rule_tracer()?.clear_hits();
-                Ok(())
-            }
-            CommandIntent::SimulateRuleTrace { query } => {
-                self.rule_tracer()?.set_query(&query);
-                Ok(())
-            }
-            CommandIntent::SetRuleTracerContext { src_ip } => {
-                self.rule_tracer()?.set_context(&TrafficContextSnapshot {
-                    src_ip,
-                    ..TrafficContextSnapshot::default()
-                });
-                Ok(())
+            CommandIntent::ResetRuleHitCounters { expected_source } => self
+                .rule_tracer()?
+                .clear_hits(&expected_source)
+                .await
+                .map(|_| ()),
+            CommandIntent::SimulateRuleTrace { operation, request } => {
+                let proxies = match &self.runtime {
+                    Some(runtime) => runtime.get_proxies().await.ok(),
+                    None => None,
+                };
+                self.rule_tracer()?
+                    .simulate(operation, request, proxies.as_ref())
+                    .await
             }
             CommandIntent::ApplyTracerRuleOverride { request } => {
                 let result = self.rule_tracer()?.apply_override(&request).await;
@@ -688,6 +660,15 @@ impl CommandApplication {
                 self.edit_rules(|rules| edit::toggle_rule_enabled(rules, index))
                     .await
             }
+            CommandIntent::CommitRuleList { request } => {
+                self.rule_list
+                    .as_ref()
+                    .ok_or_else(|| {
+                        Failure::unsupported("Atomic rule-list persistence is not composed")
+                    })?
+                    .commit(&request)
+                    .await
+            }
             CommandIntent::MoveRule { index, direction } => {
                 self.edit_rules(|rules| edit::move_rule(rules, index, direction))
                     .await
@@ -697,7 +678,7 @@ impl CommandApplication {
                 payload,
                 target,
             } => {
-                let draft = infiltrator_contract::rule_edit::RuleDraft {
+                let draft = RuleDraft {
                     rule_type,
                     payload,
                     target,
@@ -733,20 +714,45 @@ impl CommandApplication {
             CommandIntent::PurgeRuleProviderCache => self.purge_rule_provider_cache().await,
             CommandIntent::RunPrivilegedNetworkRegression => self
                 .privileged_network()?
-                .run(infiltrator_contract::privileged_network::PrivilegedNetworkRequest::standard())
+                .run(PrivilegedNetworkRequest::standard())
                 .await
                 .map(|_| ()),
+            CommandIntent::QueryDns { operation, request } => {
+                self.dns_query
+                    .as_ref()
+                    .ok_or_else(|| Failure::unsupported("DNS query application is unavailable"))?
+                    .query(operation, request)
+                    .await
+            }
             CommandIntent::TestDnsLatency => self.test_dns_latency().await,
             CommandIntent::TestDnsLeak => self.test_dns_leak().await,
             CommandIntent::RunStunProbe => self.run_stun_probe().await,
+            CommandIntent::ClearLogs => {
+                self.logs
+                    .as_ref()
+                    .ok_or_else(|| Failure::unsupported("log buffer is not composed"))?
+                    .clear();
+                Ok(())
+            }
+            CommandIntent::SetLogLevelFilter { level } => self
+                .logs
+                .as_ref()
+                .ok_or_else(|| Failure::unsupported("log buffer is not composed"))?
+                .set_filter(level),
             CommandIntent::RefreshPublicIpProbe
+            | CommandIntent::RunScriptSandbox { .. }
+            | CommandIntent::ClearScriptSandbox { .. }
+            | CommandIntent::PrepareScriptExport { .. }
+            | CommandIntent::SaveScriptExport { .. }
+            | CommandIntent::CancelScriptExport { .. }
+            | CommandIntent::PrepareLogExport
+            | CommandIntent::SaveLogExport { .. }
+            | CommandIntent::CancelLogExport { .. }
             | CommandIntent::ReorderOverviewCards { .. }
             | CommandIntent::ResetOverviewCardOrder
             | CommandIntent::StartCore
             | CommandIntent::StopCore
             | CommandIntent::RestartCore
-            | CommandIntent::ClearLogs
-            | CommandIntent::SetLogLevelFilter { .. }
             | CommandIntent::ToggleIncludeSystemApps { .. }
             | CommandIntent::ResolveConflictKeepLocal
             | CommandIntent::ResolveConflictTakeRemote => Err(unsupported()),

@@ -1,9 +1,31 @@
 //! Behavior tests for the application surface reader.
 
+use super::rules_page::rules_json_documents;
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::controller::ControllerAuthStatus;
+use infiltrator_contract::mtu::PhysicalMtuSnapshot;
+use infiltrator_contract::network_roaming::{
+    NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
+    NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
+};
+use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::privileged_network::PrivilegedNetworkState;
+use infiltrator_contract::service_mode::{
+    ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
+};
 use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_contract::version::{CoreRelease, CoreReleaseChannel, CoreRollbackSnapshot};
+use infiltrator_contract::system_proxy::SystemProxyObservation;
+use infiltrator_contract::version::{
+    CoreChannelStatus, CoreRelease, CoreReleaseChannel, CoreReleaseSummary, CoreRollbackSnapshot,
+    InstalledCoreVersion,
+};
+use infiltrator_contract::vpn::{
+    VpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
+};
+use infiltrator_domain::proxy_providers::ProxyProviders;
+use infiltrator_domain::rules::RuleProviders;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
@@ -18,12 +40,14 @@ use infiltrator_ports::system_proxy::SystemProxyPort;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
 use infiltrator_ports::vpn_service::VpnServicePort;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::runtime::Builder;
+use tokio::time::sleep;
 
 struct TestRuntime;
 
 impl ApplicationRuntime for TestRuntime {
     fn block_on(&self, future: ApplicationFuture) {
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime")
@@ -31,7 +55,7 @@ impl ApplicationRuntime for TestRuntime {
     }
 
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+        Box::pin(sleep(duration))
     }
 }
 
@@ -81,18 +105,14 @@ struct TestServiceMode;
 
 #[async_trait]
 impl ServiceModePort for TestServiceMode {
-    async fn snapshot(
-        &self,
-    ) -> Result<infiltrator_contract::service_mode::ServiceModeSnapshot, PortError> {
-        Ok(infiltrator_contract::service_mode::ServiceModeSnapshot {
-            platform: infiltrator_contract::service_mode::ServiceModePlatform::LinuxPolkit,
-            state: infiltrator_contract::service_mode::ServiceModeState::Ready,
+    async fn snapshot(&self) -> Result<ServiceModeSnapshot, PortError> {
+        Ok(ServiceModeSnapshot {
+            platform: ServiceModePlatform::LinuxPolkit,
+            state: ServiceModeState::Ready,
         })
     }
 
-    async fn prepare(
-        &self,
-    ) -> Result<infiltrator_contract::service_mode::ServiceModeSnapshot, PortError> {
+    async fn prepare(&self) -> Result<ServiceModeSnapshot, PortError> {
         self.snapshot().await
     }
 }
@@ -101,13 +121,11 @@ struct TestPortConflicts;
 
 #[async_trait]
 impl PortConflictPort for TestPortConflicts {
-    async fn snapshot(
-        &self,
-    ) -> Result<infiltrator_contract::port_conflict::PortConflictSnapshot, PortError> {
-        Ok(infiltrator_contract::port_conflict::PortConflictSnapshot {
+    async fn snapshot(&self) -> Result<PortConflictSnapshot, PortError> {
+        Ok(PortConflictSnapshot {
             revision: 1,
-            conflicts: vec![infiltrator_contract::port_conflict::PortConflict {
-                binding: infiltrator_contract::port_conflict::PortBinding::Controller,
+            conflicts: vec![PortConflict {
+                binding: PortBinding::Controller,
                 port: 9090,
                 available: false,
                 owner_pid: Some(4242),
@@ -117,10 +135,8 @@ impl PortConflictPort for TestPortConflicts {
         })
     }
 
-    async fn repair(
-        &self,
-    ) -> Result<infiltrator_contract::port_conflict::PortConflictSnapshot, PortError> {
-        Ok(infiltrator_contract::port_conflict::PortConflictSnapshot::default())
+    async fn repair(&self) -> Result<PortConflictSnapshot, PortError> {
+        Ok(PortConflictSnapshot::default())
     }
 }
 
@@ -128,14 +144,8 @@ struct TestOfflineStartup;
 
 #[async_trait]
 impl OfflineStartupPort for TestOfflineStartup {
-    async fn validate_offline_startup(
-        &self,
-    ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
-        Ok(
-            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
-                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
-            ),
-        )
+    async fn validate_offline_startup(&self) -> Result<OfflineStartupSnapshot, PortError> {
+        Ok(OfflineStartupSnapshot::ready(LocalAssetStatus::Available))
     }
 }
 
@@ -145,11 +155,9 @@ struct TestMtu {
 
 #[async_trait]
 impl MtuProbePort for TestMtu {
-    async fn probe_physical_mtu(
-        &self,
-    ) -> Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+    async fn probe_physical_mtu(&self) -> Result<PhysicalMtuSnapshot, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(infiltrator_contract::mtu::PhysicalMtuSnapshot {
+        Ok(PhysicalMtuSnapshot {
             interface: "eth0".to_owned(),
             mtu: 1500,
         })
@@ -168,11 +176,9 @@ struct TestVpn;
 
 #[async_trait]
 impl VpnServicePort for TestVpn {
-    async fn request_start(
-        &self,
-    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
-            state: infiltrator_contract::vpn::VpnSessionState::Starting,
+    async fn request_start(&self) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot {
+            state: VpnSessionState::Starting,
             foreground: true,
             ..Default::default()
         })
@@ -180,20 +186,17 @@ impl VpnServicePort for TestVpn {
 
     async fn prepare(
         &self,
-        _configuration: infiltrator_contract::vpn::VpnConfiguration,
-    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
-            state: infiltrator_contract::vpn::VpnSessionState::Starting,
+        _configuration: VpnConfiguration,
+    ) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot {
+            state: VpnSessionState::Starting,
             foreground: true,
             ..Default::default()
         })
     }
 
-    async fn start(
-        &self,
-        request: infiltrator_contract::vpn::VpnStartRequest,
-    ) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot::running(
+    async fn start(&self, request: VpnStartRequest) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot::running(
             1,
             request.mtu,
             request.routes.len(),
@@ -203,22 +206,22 @@ impl VpnServicePort for TestVpn {
         ))
     }
 
-    async fn stop(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
-            state: infiltrator_contract::vpn::VpnSessionState::Stopped,
+    async fn stop(&self) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot {
+            state: VpnSessionState::Stopped,
             ..Default::default()
         })
     }
 
-    async fn revoke(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot {
-            state: infiltrator_contract::vpn::VpnSessionState::Revoked,
+    async fn revoke(&self) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot {
+            state: VpnSessionState::Revoked,
             ..Default::default()
         })
     }
 
-    async fn snapshot(&self) -> Result<infiltrator_contract::vpn::VpnSessionSnapshot, PortError> {
-        Ok(infiltrator_contract::vpn::VpnSessionSnapshot::running(
+    async fn snapshot(&self) -> Result<VpnSessionSnapshot, PortError> {
+        Ok(VpnSessionSnapshot::running(
             1,
             1500,
             2,
@@ -231,48 +234,40 @@ impl VpnServicePort for TestVpn {
 
 #[async_trait]
 impl NetworkRoamingPort for TestNetworkRoaming {
-    async fn observe(
-        &self,
-    ) -> Result<infiltrator_contract::network_roaming::NetworkObservation, PortError> {
+    async fn observe(&self) -> Result<NetworkObservation, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(infiltrator_contract::network_roaming::NetworkObservation {
-            interfaces: vec![
-                infiltrator_contract::network_roaming::NetworkInterfaceSnapshot {
-                    name: "eth0".to_owned(),
-                    kind: infiltrator_contract::network_roaming::NetworkInterfaceKind::Ethernet,
-                    is_up: true,
-                    is_default_gateway: true,
-                    gateway_ip: Some("192.0.2.1".to_owned()),
-                    ip_addresses: vec!["192.0.2.10/24".to_owned()],
-                    mtu: Some(1500),
-                    metric: Some(100),
-                    dns_servers: Vec::new(),
-                },
-            ],
+        Ok(NetworkObservation {
+            interfaces: vec![NetworkInterfaceSnapshot {
+                name: "eth0".to_owned(),
+                kind: NetworkInterfaceKind::Ethernet,
+                is_up: true,
+                is_default_gateway: true,
+                gateway_ip: Some("192.0.2.1".to_owned()),
+                ip_addresses: vec!["192.0.2.10/24".to_owned()],
+                mtu: Some(1500),
+                metric: Some(100),
+                dns_servers: Vec::new(),
+            }],
             observed_at_epoch_ms: Some(1),
         })
     }
 
     async fn repair(
         &self,
-        _request: infiltrator_contract::network_roaming::NetworkRoamingRepairRequest,
-    ) -> Result<infiltrator_contract::network_roaming::NetworkRoamingRepairResult, PortError> {
-        Ok(
-            infiltrator_contract::network_roaming::NetworkRoamingRepairResult {
-                route_generation: 1,
-                detail: "test readback".to_owned(),
-            },
-        )
+        _request: NetworkRoamingRepairRequest,
+    ) -> Result<NetworkRoamingRepairResult, PortError> {
+        Ok(NetworkRoamingRepairResult {
+            route_generation: 1,
+            detail: "test readback".to_owned(),
+        })
     }
 }
 
 #[async_trait]
 impl SystemProxyPort for TestSystemProxy {
-    async fn snapshot(
-        &self,
-    ) -> Result<infiltrator_contract::system_proxy::SystemProxyObservation, PortError> {
+    async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        Ok(infiltrator_contract::system_proxy::SystemProxyObservation {
+        Ok(SystemProxyObservation {
             enabled: true,
             endpoint: Some("127.0.0.1:7890".to_owned()),
             bypass: Some("localhost".to_owned()),
@@ -294,9 +289,7 @@ struct TestVersions {
 
 #[async_trait]
 impl VersionPort for TestVersions {
-    async fn list_installed(
-        &self,
-    ) -> Result<Vec<infiltrator_contract::version::InstalledCoreVersion>, PortError> {
+    async fn list_installed(&self) -> Result<Vec<InstalledCoreVersion>, PortError> {
         Ok(Vec::new())
     }
 
@@ -308,10 +301,7 @@ impl VersionPort for TestVersions {
         })
     }
 
-    async fn list_releases(
-        &self,
-        _limit: usize,
-    ) -> Result<Vec<infiltrator_contract::version::CoreReleaseSummary>, PortError> {
+    async fn list_releases(&self, _limit: usize) -> Result<Vec<CoreReleaseSummary>, PortError> {
         Ok(Vec::new())
     }
 
@@ -375,26 +365,21 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
 
     let first = reader.read().await.expect("first surface read");
     let second = reader.read().await.expect("cached surface read");
+    assert!(
+        second.revision > first.revision,
+        "non-core observations remain refreshable"
+    );
     assert_eq!(first.versions.channels.len(), 3);
     assert_eq!(first.versions.revision, 1);
     assert_eq!(second.versions.revision, 1);
     assert_eq!(calls.load(Ordering::SeqCst), 3);
     assert_eq!(first.versions.rollback.target.as_deref(), Some("v1.19.29"));
-    assert_eq!(
-        first.controller_auth.status,
-        infiltrator_contract::controller::ControllerAuthStatus::Secured
-    );
-    assert_eq!(
-        first.service_mode.state,
-        infiltrator_contract::service_mode::ServiceModeState::Ready
-    );
+    assert_eq!(first.controller_auth.status, ControllerAuthStatus::Secured);
+    assert_eq!(first.service_mode.state, ServiceModeState::Ready);
     assert!(first.port_conflicts.has_conflicts());
     assert_eq!(first.port_conflicts.conflicts[0].owner_pid, Some(4242));
     assert!(first.offline_startup.is_offline_startable());
-    assert_eq!(
-        first.offline_startup.geoip,
-        infiltrator_contract::offline_startup::LocalAssetStatus::Available
-    );
+    assert_eq!(first.offline_startup.geoip, LocalAssetStatus::Available);
     assert!(first.mtu.is_ready());
     assert_eq!(first.mtu.physical_interface.as_deref(), Some("eth0"));
     assert_eq!(first.mtu.tun_mtu, Some(1420));
@@ -415,12 +400,15 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
     assert_eq!(first.vpn.route_count, 2);
     assert!(matches!(
         first.privileged_network.state,
-        infiltrator_contract::privileged_network::PrivilegedNetworkState::Unsupported { .. }
+        PrivilegedNetworkState::Unsupported { .. }
     ));
-    assert!(first.versions.channels.iter().all(|channel| matches!(
-        channel.status,
-        infiltrator_contract::version::CoreChannelStatus::Ready { .. }
-    )));
+    assert!(
+        first
+            .versions
+            .channels
+            .iter()
+            .all(|channel| matches!(channel.status, CoreChannelStatus::Ready { .. }))
+    );
 }
 
 /// DUAL-11-14: the shared reader publishes the three rules-workspace JSON
@@ -430,19 +418,17 @@ async fn surface_reader_publishes_and_caches_all_core_channel_results() {
 fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
     use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 
-    let rule_providers: infiltrator_domain::rules::RuleProviders =
-        serde_json::from_value(serde_json::json!({
-            "ads": {"type": "inline", "behavior": "domain", "payload": ["ads.com"]}
-        }))
-        .expect("rule providers");
-    let proxy_providers: infiltrator_domain::proxy_providers::ProxyProviders =
-        serde_json::from_value(serde_json::json!({
-            "sub": {"type": "http", "url": "https://example.com/proxies.yaml"}
-        }))
-        .expect("proxy providers");
+    let rule_providers: RuleProviders = serde_json::from_value(serde_json::json!({
+        "ads": {"type": "inline", "behavior": "domain", "payload": ["ads.com"]}
+    }))
+    .expect("rule providers");
+    let proxy_providers: ProxyProviders = serde_json::from_value(serde_json::json!({
+        "sub": {"type": "http", "url": "https://example.com/proxies.yaml"}
+    }))
+    .expect("proxy providers");
     let sniffer = serde_json::json!({"enable": true});
 
-    let documents = super::rules_page::rules_json_documents(
+    let documents = rules_json_documents(
         Some(rule_providers.clone()),
         Some(proxy_providers.clone()),
         Some(sniffer.clone()),
@@ -473,7 +459,7 @@ fn rules_json_documents_cover_the_shared_sections_and_omit_unreadable_ones() {
     }
 
     // A section the host cannot read is omitted, not fabricated.
-    let partial = super::rules_page::rules_json_documents(None, None, Some(sniffer));
+    let partial = rules_json_documents(None, None, Some(sniffer));
     assert_eq!(
         partial,
         vec![RulesJsonDocumentSnapshot {

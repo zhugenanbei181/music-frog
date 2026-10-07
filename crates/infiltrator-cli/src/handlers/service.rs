@@ -1,10 +1,11 @@
-use infiltrator_contract::snapshot::CoreLifecycle;
-use infiltrator_ports::core_process::CoreProcess;
-use mihomo_platform::desktop::ProcessCoreController;
-
 use crate::commands::ServiceAction;
 use crate::context::Runtime;
 use crate::handlers::telemetry;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_ports::core_process::CoreProcess;
+use mihomo_platform::desktop::ProcessCoreController;
+use std::time;
+use tokio::time::sleep;
 
 pub(crate) async fn handle(action: ServiceAction) -> anyhow::Result<()> {
     match action {
@@ -88,7 +89,7 @@ pub(crate) async fn run_lifecycle(
                     .stop()
                     .await
                     .map_err(|error| anyhow::anyhow!(error))?;
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                sleep(time::Duration::from_secs(1)).await;
             }
             controller
                 .start()

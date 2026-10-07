@@ -1,5 +1,6 @@
 use serde::Serialize;
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
 /// Print an informational line to stdout.
 pub fn print_info(message: &str) {

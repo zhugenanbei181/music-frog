@@ -3,16 +3,13 @@
 //! The visual builder on both surfaces holds one [`LogicalDraft`]: an operator
 //! (`AND`/`OR`/`NOT`/`SUB-RULE`), the conditions to compose and the outbound
 //! target. Everything the surfaces do with it is a pure function here — the
-//! canonical `OP((cond),(cond),TARGET)` encoding, the operator/target/condition
+//! canonical `OP,((cond),(cond)),TARGET` encoding, the operator/target/condition
 //! mutations and the validation gate — so the Iced panel and the Bevy card
 //! cannot drift from each other or from `infiltrator_domain::sub_rules`.
 
+use super::types::{parse_rule_condition, parse_rule_str};
+use super::{RuleEntry, edit, matrix};
 use infiltrator_contract::rule_edit::{LogicalDraft, RuleDraft};
-
-use super::RuleEntry;
-use super::edit;
-use super::matrix;
-use super::types::parse_rule_str;
 
 /// Operator vocabulary offered by the builder, in presentation order.
 pub const LOGICAL_OPERATOR_CHOICES: [&str; 4] = ["AND", "OR", "NOT", "SUB-RULE"];
@@ -23,7 +20,7 @@ pub const SUB_RULE_CONDITION_PRESETS: [&str; 3] =
     ["DOMAIN-SUFFIX,google.com", "NETWORK,UDP", "DST-PORT,443"];
 
 /// Operators that accept exactly one condition.
-pub const SINGLE_CONDITION_OPERATORS: [&str; 1] = ["NOT"];
+pub const SINGLE_CONDITION_OPERATORS: [&str; 2] = ["NOT", "SUB-RULE"];
 
 /// A fresh draft for the shared default target.
 pub fn default_logical_draft(target: &str) -> LogicalDraft {
@@ -144,7 +141,11 @@ pub fn draft_expression(draft: &LogicalDraft) -> String {
     let operator = draft_operator(draft);
     let payload = draft_payload(&draft.conditions);
     let target = draft.target.trim();
-    format!("{operator}({payload},{target})")
+    if operator == "SUB-RULE" {
+        format!("{operator},{payload},{target}")
+    } else {
+        format!("{operator},({payload}),{target}")
+    }
 }
 
 /// Whether one condition is structurally usable: a known rule type with a
@@ -206,8 +207,7 @@ pub fn build_logical_rule(draft: &LogicalDraft) -> Result<RuleEntry, String> {
 }
 
 /// A condition is usable when the shared parser accepts it as a `TYPE,PAYLOAD`
-/// pair (or as a nested logical rule in either the parenthesised or the
-/// `OP(...)` form).
+/// pair with leaf parameters, or as a nested native logical expression.
 fn matcher_accepts(condition: &str) -> bool {
     let head = condition
         .split([',', '('])
@@ -215,12 +215,15 @@ fn matcher_accepts(condition: &str) -> bool {
         .unwrap_or_default()
         .trim();
     if matrix::matrix_is_logical(head) {
+        if head.eq_ignore_ascii_case("SUB-RULE") {
+            return false;
+        }
         return parse_rule_str(&format!("{condition},__logical_target__")).is_ok();
     }
     if matrix::spec_for_name(head).is_none() {
         return false;
     }
-    parse_rule_str(&format!("{condition},__logical_target__")).is_ok()
+    parse_rule_condition(condition).is_ok()
 }
 
 #[cfg(test)]
@@ -240,7 +243,7 @@ mod tests {
         let built = build_logical_rule(&draft).unwrap();
         assert_eq!(
             built.rule,
-            "AND((DOMAIN-SUFFIX,company.com),(NETWORK,TCP),PROXY)"
+            "AND,((DOMAIN-SUFFIX,company.com),(NETWORK,TCP)),PROXY"
         );
         assert_eq!(draft_expression(&draft), built.rule);
         assert!(built.enabled);
@@ -276,7 +279,7 @@ mod tests {
         assert_eq!(draft_issue(&draft), None);
         assert_eq!(
             build_logical_rule(&draft).unwrap().rule,
-            "NOT((DOMAIN-SUFFIX,company.com),PROXY)"
+            "NOT,((DOMAIN-SUFFIX,company.com)),PROXY"
         );
     }
 
@@ -310,7 +313,7 @@ mod tests {
         };
         assert!(add_condition(
             &mut draft,
-            "AND((DOMAIN,a.com),(DST-PORT,443))"
+            "AND,((DOMAIN,a.com),(DST-PORT,443))"
         ));
         assert!(add_condition(&mut draft, "(DOMAIN-SUFFIX,b.com)"));
         assert_eq!(draft.conditions[1], "DOMAIN-SUFFIX,b.com");
@@ -318,7 +321,7 @@ mod tests {
         let built = build_logical_rule(&draft).unwrap();
         assert_eq!(
             built.rule,
-            "AND((AND((DOMAIN,a.com),(DST-PORT,443))),(DOMAIN-SUFFIX,b.com),AI)"
+            "AND,((AND,((DOMAIN,a.com),(DST-PORT,443))),(DOMAIN-SUFFIX,b.com)),AI"
         );
         // The built expression parses back through the shared recursive AST,
         // so the visual builder and the evaluator agree on its shape.

@@ -1,11 +1,10 @@
 //! Pure subscription-quota dashboard derivation.
 
+use crate::profiles::ProfileInfo;
+use crate::subscription::{QuotaStatus, SubscriptionUserInfo};
 use infiltrator_contract::subscription_quota::{
     SubscriptionQuotaSnapshot, SubscriptionQuotaStatus,
 };
-
-use crate::profiles::ProfileInfo;
-use crate::subscription::{QuotaStatus, SubscriptionUserInfo};
 
 /// Project the active local profile's provider metadata into the shared
 /// dashboard. now_unix is injected so status tests are deterministic.
@@ -48,10 +47,26 @@ pub fn derive(
         };
     }
 
-    let used_bytes = info.used_bytes();
+    let used_bytes = info
+        .upload
+        .zip(info.download)
+        .and_then(|(upload, download)| upload.checked_add(download));
+    if info.upload.zip(info.download).is_some() && used_bytes.is_none() {
+        return SubscriptionQuotaSnapshot {
+            profile_name: Some(profile.name.clone()),
+            total_bytes: info.total,
+            ..SubscriptionQuotaSnapshot::failed(
+                generation,
+                revision,
+                "Reported traffic exceeds the supported byte range",
+            )
+        };
+    }
     let total_bytes = info.total;
-    let remaining_bytes = info.remaining_bytes();
-    let usage_percent = info.usage_percentage();
+    let remaining_bytes = used_bytes
+        .zip(total_bytes)
+        .map(|(used, total)| total.saturating_sub(used));
+    let usage_percent = used_bytes.and_then(|_| info.usage_percentage());
     let remaining_percent = usage_percent.map(|value| (100.0 - value).clamp(0.0, 100.0));
     let quota_status = info.status(now_unix);
     let (status, remaining_days) = match quota_status {
@@ -82,8 +97,10 @@ pub fn derive(
         revision,
         status,
         failure: None,
+        source: None,
+        retained: false,
         profile_name: Some(profile.name.clone()),
-        used_bytes: Some(used_bytes),
+        used_bytes,
         total_bytes,
         remaining_bytes,
         usage_percent,
@@ -151,10 +168,34 @@ mod tests {
     }
 
     #[test]
+    fn overflowing_traffic_is_failed_and_never_reported_as_a_precise_saturated_usage() {
+        let mut observed = profile(true);
+        observed.traffic_upload = Some(u64::MAX);
+        observed.traffic_download = Some(1);
+        let result = derive(1, 2, &[observed], 1_700_000_000);
+        assert_eq!(result.status, SubscriptionQuotaStatus::Failed);
+        assert_eq!(result.used_bytes, None);
+        assert_eq!(result.usage_percent, None);
+        assert_eq!(result.total_bytes, Some(100));
+        assert!(result.failure.unwrap().message.contains("byte range"));
+    }
+
+    #[test]
     fn no_active_profile_is_empty_not_a_fabricated_quota() {
         let snapshot = derive(1, 1, &[profile(false)], 1_700_000_000);
         assert_eq!(snapshot.status, SubscriptionQuotaStatus::Empty);
         assert!(snapshot.used_bytes.is_none());
         assert!(snapshot.total_bytes.is_none());
+    }
+
+    #[test]
+    fn a_missing_transfer_direction_cannot_be_reported_as_zero_usage() {
+        let mut partial = profile(true);
+        partial.traffic_download = None;
+        let snapshot = derive(1, 1, &[partial], 1_700_000_000);
+        assert_eq!(snapshot.total_bytes, Some(100));
+        assert!(snapshot.used_bytes.is_none());
+        assert!(snapshot.remaining_bytes.is_none());
+        assert!(snapshot.usage_percent.is_none());
     }
 }

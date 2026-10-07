@@ -5,13 +5,58 @@
 /// Mihomo 实际 JSON 格式必须严格匹配，否则会导致运行时数据丢失。
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
+    use crate::types::ConnectionsResponse;
     use crate::types::{
         ConfigResponse, Connection, ConnectionSnapshot, MemoryData, Rule, TrafficData, Version,
     };
+    #[cfg(test)]
+    use infiltrator_domain::runtime::ConfigSnapshot;
 
     // ──────────────────────────────────────────────
     // ConfigResponse：核心配置读取
     // ──────────────────────────────────────────────
+
+    #[test]
+    fn partial_controller_fields_remain_absent_and_explicit_false_empty_and_zero_stay_observed() {
+        let base = serde_json::json!({
+            "port": 0, "socks-port": 0, "redir-port": 0, "tproxy-port": 0,
+            "mixed-port": 0, "mode": "rule", "log-level": "info", "allow-lan": false,
+            "tun": {}
+        });
+        let missing: ConfigSnapshot = serde_json::from_value::<ConfigResponse>(base.clone())
+            .unwrap()
+            .into();
+        assert_eq!(missing.ipv6, None);
+        assert_eq!(missing.bind_address, None);
+        assert_eq!(missing.lan_allowed_ips, None);
+        assert_eq!(missing.authentication_enabled, None);
+        assert_eq!(missing.tun.as_ref().unwrap().enable, None);
+        assert_eq!(missing.tun.as_ref().unwrap().strict_route, None);
+        let mut explicit = base;
+        explicit["ipv6"] = serde_json::json!(false);
+        explicit["bind-address"] = serde_json::json!("*");
+        explicit["lan-allowed-ips"] = serde_json::json!([]);
+        explicit["lan-disallowed-ips"] = serde_json::json!([]);
+        explicit["skip-auth-prefixes"] = serde_json::json!([]);
+        explicit["authentication"] = serde_json::json!([]);
+        explicit["tun"] = serde_json::json!({"enable": false, "auto-route": false, "strict-route": false, "stack": "system"});
+        let observed: ConfigSnapshot = serde_json::from_value::<ConfigResponse>(explicit)
+            .unwrap()
+            .into();
+        assert_eq!(observed.ipv6, Some(false));
+        assert_eq!(observed.bind_address.as_deref(), Some("*"));
+        assert_eq!(observed.lan_allowed_ips, Some(Vec::new()));
+        assert_eq!(observed.authentication_enabled, Some(false));
+        assert_eq!(observed.authentication_user_count, Some(0));
+        assert_eq!(observed.mixed_port, 0);
+        assert_eq!(observed.tun.as_ref().unwrap().enable, Some(false));
+        assert_eq!(observed.tun.as_ref().unwrap().strict_route, Some(false));
+        assert_eq!(
+            observed.tun.as_ref().unwrap().stack.as_deref(),
+            Some("system")
+        );
+    }
 
     #[test]
     fn config_response_deserializes_kebab_case_port_fields() {
@@ -40,16 +85,25 @@ mod tests {
         assert_eq!(config.mode, "rule");
         assert_eq!(config.log_level, "info");
         assert!(config.allow_lan);
-        assert!(!config.ipv6);
-        assert_eq!(config.bind_address, "192.168.1.10");
-        assert_eq!(config.lan_allowed_ips, vec!["192.168.1.0/24"]);
-        assert_eq!(config.lan_disallowed_ips, vec!["192.168.1.10/32"]);
-        assert_eq!(config.skip_auth_prefixes, vec!["127.0.0.0/8"]);
-        assert_eq!(config.authentication.len(), 1);
+        assert_eq!(config.ipv6, Some(false));
+        assert_eq!(config.bind_address.as_deref(), Some("192.168.1.10"));
+        assert_eq!(
+            config.lan_allowed_ips,
+            Some(vec!["192.168.1.0/24".to_owned()])
+        );
+        assert_eq!(
+            config.lan_disallowed_ips,
+            Some(vec!["192.168.1.10/32".to_owned()])
+        );
+        assert_eq!(
+            config.skip_auth_prefixes,
+            Some(vec!["127.0.0.0/8".to_owned()])
+        );
+        assert_eq!(config.authentication.as_ref().map(Vec::len), Some(1));
 
-        let domain: infiltrator_domain::runtime::ConfigSnapshot = config.into();
-        assert!(domain.authentication_enabled);
-        assert_eq!(domain.authentication_user_count, 1);
+        let domain: ConfigSnapshot = config.into();
+        assert_eq!(domain.authentication_enabled, Some(true));
+        assert_eq!(domain.authentication_user_count, Some(1));
         assert_eq!(domain.authentication_username.as_deref(), Some("lan-user"));
     }
 
@@ -195,15 +249,15 @@ mod tests {
         )
         .unwrap();
         let tun = config.tun.unwrap();
-        assert_eq!(config.bind_address, "*");
-        assert!(
-            config.ipv6,
-            "missing ipv6 follows Mihomo's documented true default"
+        assert_eq!(config.bind_address, None);
+        assert_eq!(
+            config.ipv6, None,
+            "a configuration default is not an observed controller fact"
         );
-        assert!(!tun.strict_route);
+        assert_eq!(tun.strict_route, None);
         assert_eq!(tun.mtu, Some(1420));
 
-        let connections: crate::types::ConnectionsResponse =
+        let connections: ConnectionsResponse =
             serde_json::from_str(r#"{"downloadTotal": 0, "uploadTotal": 0, "connections": null}"#)
                 .unwrap();
         assert!(connections.connections.is_empty());

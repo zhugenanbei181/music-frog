@@ -1,6 +1,7 @@
 use crate::client::MihomoClient;
 use crate::error::Result;
 use crate::types::{Connection, ConnectionSnapshot, ConnectionsResponse};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 pub struct ConnectionManager {
     client: MihomoClient,
@@ -80,7 +81,7 @@ impl ConnectionManager {
         ))
     }
 
-    pub async fn stream(&self) -> Result<tokio::sync::mpsc::UnboundedReceiver<ConnectionSnapshot>> {
+    pub async fn stream(&self) -> Result<UnboundedReceiver<ConnectionSnapshot>> {
         self.client.stream_connections().await
     }
 
@@ -109,6 +110,10 @@ impl ConnectionManager {
 mod tests {
     use super::*;
     use crate::types::{Connection, ConnectionMetadata};
+    #[cfg(test)]
+    use infiltrator_domain::runtime;
+    #[cfg(test)]
+    use std::mem::size_of_val;
 
     // Helper function to create test connection
     fn create_test_connection(id: &str, host: &str, process: &str, rule: &str) -> Connection {
@@ -142,7 +147,7 @@ mod tests {
         let client = MihomoClient::new("http://127.0.0.1:9090", None).unwrap();
         let manager = ConnectionManager::new(client);
         // Just verify it can be created
-        assert!(std::mem::size_of_val(&manager) > 0);
+        assert!(size_of_val(&manager) > 0);
     }
 
     #[test]
@@ -185,7 +190,7 @@ mod tests {
         assert_eq!(reported.destination_ip_asn, "15169 Google LLC");
 
         // The domain projection carries the kernel values through untouched.
-        let domain: infiltrator_domain::runtime::ConnectionMetadata = reported.into();
+        let domain: runtime::ConnectionMetadata = reported.into();
         assert_eq!(
             domain.destination_geo_ip,
             Some(vec!["us".to_owned(), "cloudflare".to_owned()])

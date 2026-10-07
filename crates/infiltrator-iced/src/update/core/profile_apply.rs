@@ -6,6 +6,7 @@
 //! it is stopped. This keeps individual page handlers from bypassing the
 //! apply/reload/readiness/rollback contract.
 
+use crate::configs_dir::config_manager;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -53,7 +54,7 @@ pub(super) async fn save_current_profile_content<F>(
 where
     F: FnOnce(&str) -> anyhow::Result<String> + Send + 'static,
 {
-    let store = crate::configs_dir::config_manager().await?;
+    let store = config_manager().await?;
     let application = ProfileApplication::new(store);
     application
         .save_current_profile_content(runtime, strategy, transform)
@@ -70,26 +71,9 @@ pub(crate) async fn save_profile_content(
     content: String,
     strategy: ApplyStrategy,
 ) -> Result<(), InfiltratorError> {
-    let store = crate::configs_dir::config_manager().await?;
+    let store = config_manager().await?;
     ProfileApplication::new(store)
         .save_profile_content(runtime, profile, content, strategy)
-        .await
-        .map_err(|failure| InfiltratorError::Config(failure.message))
-}
-
-/// DUAL-09-12: commit a user-edited document through the shared protection
-/// guard. `allow_protected` is the surface's explicit unlock; the application
-/// remains the source of truth for which profiles are protected.
-pub(crate) async fn save_edited_profile_content(
-    runtime: Option<Arc<dyn HostRuntime>>,
-    profile: String,
-    content: String,
-    strategy: ApplyStrategy,
-    allow_protected: bool,
-) -> Result<(), InfiltratorError> {
-    let store = crate::configs_dir::config_manager().await?;
-    ProfileApplication::new(store)
-        .save_edited_profile_content(runtime, profile, content, strategy, allow_protected)
         .await
         .map_err(|failure| InfiltratorError::Config(failure.message))
 }
@@ -101,7 +85,7 @@ pub(crate) async fn activate_profile(
     runtime: Option<Arc<dyn HostRuntime>>,
     profile: &str,
 ) -> Result<bool, InfiltratorError> {
-    let store = crate::configs_dir::config_manager().await?;
+    let store = config_manager().await?;
     ProfileApplication::new(store)
         .activate_profile(runtime, profile)
         .await

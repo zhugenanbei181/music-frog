@@ -4,11 +4,9 @@
 //! Scenes read it as a `Res<UiPalette>`; nothing else in this crate (or in
 //! the frontend crate) is allowed to construct a `Color` from raw numbers.
 
-use bevy::color::Alpha;
-use bevy::color::Color;
-use bevy::ecs::resource::Resource;
-
 use crate::theme::{Theme, TokenColor, metrics, radius, timing, type_scale};
+use bevy::color::{Alpha, Color};
+use bevy::ecs::resource::Resource;
 
 /// Resolve one token to a bevy color, channel-exact (asserted by the
 /// headless round-trip test).

@@ -1,5 +1,10 @@
 //! Systems synchronizing navigation items, rail morphology, and tooltips for the shell.
 
+use crate::app::{
+    BottomNavActive, BottomNavBar, BottomNavItem, LayoutMode, RailNavTooltip, ShellLayoutState,
+    SidebarExpandedOnly, SidebarNavItem,
+};
+use crate::route::{ActiveRoute, Route};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
@@ -12,12 +17,6 @@ use infiltrator_bevy_widgets::nav::{NavActive, NavLabel, nav_fill, nav_label_ink
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::app::{
-    BottomNavActive, BottomNavBar, BottomNavItem, LayoutMode, RailNavTooltip, ShellLayoutState,
-    SidebarExpandedOnly, SidebarNavItem,
-};
-use crate::route::{ActiveRoute, Route};
 
 /// Sync sidebar navigation items with the active route and live palette.
 pub fn sync_sidebar_nav_visuals(

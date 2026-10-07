@@ -1,5 +1,7 @@
 # 0.30 双 UI 底层架构审计
 
+> 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
+
 审计日期：2026-09-05  
 审计分支：`main`（A-01～A-05 架构前置工作树）
 审计范围：`infiltrator-application`、`infiltrator-contract`、`infiltrator-ports`、`infiltrator-composition`、`infiltrator-desktop`、`infiltrator-iced`、`infiltrator-bevy-ui`、`infiltrator-bevy-widgets`
@@ -118,7 +120,7 @@
 - `DUAL-03-12` 已完成 Overview 8 类卡片模块纵向重排、`OverviewLayoutSnapshot`、`OverviewLayoutApplication`、Bevy `OverviewCardSlot`/Move observer 与 shared intent 行为测试；真实触控长按拖拽视觉动效仍未冒充 `host-verified`。
 - `DUAL-03-13` 已完成 Overview 断线与重载优雅降级蒙版、`ReconnectMaskSnapshot`、`ReconnectMaskApplication`、Bevy `OverviewReloadMask` 原地在席显隐与 headless 测试闭环；真实系统断网/进程异常退出 smoke 仍未冒充 `host-verified`。
 - `DUAL-03-14` 已完成 Overview 四阶全视口响应式对齐、`ResponsiveViewportSnapshot`、`ResponsiveViewportApplication`、双端卡片与网格列数算子及 headless 测试闭环；真实多尺寸物理显示器 smoke 仍未冒充 `host-verified`。
-- `DUAL-03-15` 已完成 Overview 组全景无头回归测试矩阵、`OverviewRegressionMatrixReport`、`OverviewMatrixApplication` 与 14 场景 100% 绿灯验收；长期稳定性 smoke 仍未冒充 `host-verified`。
+- `DUAL-03-15` 的旧 Overview 汇总硬编码通过，现已退役；概览交互的真实证据由 `scripts/parity/` 解析，全量未完成。
 - `DUAL-04-01` 已完成 5 大策略组分类强契约、`ProxyGroupClassification`、`ProxyApplication::list_group_details`、Bevy/Iced 分类映射与 headless 测试闭环；真实复杂链式中继网络 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-02` 已完成 策略组展开/折叠状态持久化、`ProxyUiPreferences`、`ProxyPreferencesApplication`、Bevy `ProxyGroupFoldButton` 与 headless 测试闭环；真实长期重启偏好一致性 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-03` 已完成 节点选择状态即时回写、`ProxyApplication::switch`、Bevy `ProxyNodeButton` 与 headless 测试闭环；真实并发切换网络抖动 smoke 仍未冒充 `host-verified`。
@@ -133,7 +135,7 @@
 - `DUAL-04-12` 已完成 策略组自定义拖拽调序、`ReorderProxyGroups`、`ResetProxyGroupOrder`、Bevy `ProxyGroupMoveUpButton`/`ResetProxyGroupOrderButton` 与 headless 测试闭环；真实触控拖拽 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-13` 已完成 节点卡片网格与紧凑列表无缝切换、`SetProxyCompactView`、Bevy `ToggleViewModeButton` 与 headless 测试闭环；超宽屏排版 smoke 仍未冒充 `host-verified`。
 - `DUAL-04-14` 已完成 测速动态脉冲骨架屏占位、`LatencySkeletonPulse` 与 headless 测试闭环；高频刷新显卡着色器 smoke 仍未冒充 `host-verified`。
-- `DUAL-04-15` 已完成 双端代理操作无头行为测试闭环、`ProxyRegressionMatrixReport`、`ProxyMatrixApplication` 与双端 headless 测试闭环；真实生产复杂网络拓扑 smoke 仍未冒充 `host-verified`。
+- `DUAL-04-15` 的旧汇总曾硬编码全通过，现已退役。真实代理交互验收以 `FeatureId::ALL`、动态测试绑定与双视口像素为准；全量验收未完成。
 
 ## 0.30 架构收口顺序
 

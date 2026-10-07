@@ -1,4 +1,5 @@
 use super::*;
+use crate::view::proxies_controls::{SORT_KEYS, SORT_LABEL_KEYS};
 
 #[test]
 fn test_group_icon_mapping() {

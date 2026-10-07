@@ -1,14 +1,16 @@
 //! Application settings: mirroring persisted [`AppSettings`] snapshots onto
 //! the UI state and routing admin WebUI host commands.
 
-use super::proxies::{
-    DEFAULT_RUNTIME_DELAY_TEST_URL, MAX_RUNTIME_DELAY_TIMEOUT_MS, MIN_RUNTIME_DELAY_TIMEOUT_MS,
-};
 use crate::state::AppState;
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_application::language_choice::project_language;
+use infiltrator_application::proxy_probe_options_projection::project_settings;
+use infiltrator_contract::shortcuts::ShortcutRegistry;
+use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::version::CoreReleaseChannel;
 use infiltrator_domain::settings::AppSettings;
+use std::path::PathBuf;
 
 impl AppState {
     /// Mirror a loaded [`AppSettings`] snapshot onto the UI state fields.
@@ -16,21 +18,22 @@ impl AppState {
     /// startup path (`SettingsLoaded`) honors it, the WebUI save path
     /// (`ExternalSettingsLoaded`) deliberately does not.
     fn apply_loaded_settings(&mut self, settings: AppSettings) -> bool {
-        if !settings.language.trim().is_empty() {
-            self.shell.lang = settings.language;
+        if self.commands.is_none() {
+            self.observe_probe_settings(&project_settings(Some(&Ok(settings.clone()))));
+        }
+        if self.commands.is_none() && !settings.language.trim().is_empty() {
+            self.observe_language_settings(&project_language(Some(&Ok(settings.clone()))));
         }
         if !settings.theme.trim().is_empty() {
-            let preference =
-                infiltrator_contract::theme::ThemePreference::from_setting(&settings.theme);
+            let preference = ThemePreference::from_setting(&settings.theme);
             self.shell.apply_theme_preference(preference);
         }
         let stored_shortcuts = settings.shortcuts.clone();
         if !stored_shortcuts.is_empty() {
             self.shell.shortcut_registry =
-                infiltrator_contract::shortcuts::ShortcutRegistry::from_bindings(stored_shortcuts)
-                    .normalize();
+                ShortcutRegistry::from_bindings(stored_shortcuts).normalize();
         }
-        self.editor.editor_path = settings.editor_path.clone().map(std::path::PathBuf::from);
+        self.editor.editor_path = settings.editor_path.clone().map(PathBuf::from);
         self.editor.editor_path_setting = settings.editor_path.unwrap_or_default();
         self.profile.webdav_enabled = settings.webdav.enabled;
         self.profile.webdav_url = settings.webdav.url;
@@ -45,17 +48,6 @@ impl AppState {
         self.runtime.proxy_delay_sort =
             Self::normalize_delay_sort_key(&settings.runtime_panel.delay_sort).to_string();
         self.runtime.proxy_sort_by_delay = self.runtime.proxy_delay_sort.starts_with("delay_");
-        self.runtime.runtime_delay_test_url =
-            if settings.runtime_panel.delay_test_url.trim().is_empty() {
-                DEFAULT_RUNTIME_DELAY_TEST_URL.to_string()
-            } else {
-                settings.runtime_panel.delay_test_url
-            };
-        let timeout = settings
-            .runtime_panel
-            .delay_timeout_ms
-            .clamp(MIN_RUNTIME_DELAY_TIMEOUT_MS, MAX_RUNTIME_DELAY_TIMEOUT_MS);
-        self.runtime.runtime_delay_timeout_ms = timeout.to_string();
         self.runtime.runtime_connection_filter = settings.runtime_panel.connection_filter;
         self.runtime.runtime_connection_sort =
             Self::normalize_connection_sort_key(&settings.runtime_panel.connection_sort)

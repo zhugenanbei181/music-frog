@@ -12,6 +12,9 @@
 //! logic. All filesystem inputs come from the injectable [`DoctorEnv`] so
 //! tests and embedded hosts never touch global state.
 
+use crate::settings_io::load_settings;
+use mihomo_api::error;
+use mihomo_platform::defaults::DefaultCredentialStore;
 mod checks;
 #[cfg(test)]
 #[path = "doctor_test.rs"]
@@ -19,13 +22,12 @@ mod doctor_test;
 mod fixes;
 mod pidfile;
 
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Outcome of a single check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -259,22 +261,19 @@ impl DoctorEnv {
 
     pub(super) async fn config_manager(
         &self,
-    ) -> mihomo_api::error::Result<ConfigManager<mihomo_platform::defaults::DefaultCredentialStore>>
-    {
+    ) -> error::Result<ConfigManager<DefaultCredentialStore>> {
         // configs 目录解析跟随本 env 的 settings 文件（`configs_dir` 字段）。
         // settings 解析失败时按默认值继续：坏 settings 由 config.settings_parse
         // 专门上报，其余检查不得连带失效。
-        let settings = crate::settings_io::load_settings(&self.settings_file)
-            .await
-            .unwrap_or_default();
+        let settings = load_settings(&self.settings_file).await.unwrap_or_default();
         ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
             settings.configs_dir.as_deref(),
-            mihomo_platform::defaults::DefaultCredentialStore::default(),
+            DefaultCredentialStore::default(),
         )
     }
 
-    pub(super) fn version_manager(&self) -> mihomo_api::error::Result<VersionManager> {
+    pub(super) fn version_manager(&self) -> error::Result<VersionManager> {
         VersionManager::with_home(self.home.clone())
     }
 

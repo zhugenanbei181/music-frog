@@ -23,8 +23,9 @@
 //! facade.
 
 use anyhow::Result;
-use std::fmt;
+use std::env::current_exe;
 use std::path::Path;
+use std::{error, fmt};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -56,7 +57,7 @@ impl fmt::Display for UnsupportedPlatformError {
     }
 }
 
-impl std::error::Error for UnsupportedPlatformError {}
+impl error::Error for UnsupportedPlatformError {}
 
 /// Represents the status of the TUN service or privilege mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +90,7 @@ impl TunServiceManager {
 
     /// Checks the current status of the service mode.
     pub fn check_status() -> ServiceModeStatus {
-        let exe = match std::env::current_exe() {
+        let exe = match current_exe() {
             Ok(path) => path,
             Err(_) => return ServiceModeStatus::MissingPrivilege,
         };

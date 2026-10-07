@@ -1,11 +1,15 @@
 //! Bevy Settings controls for the shared PAC generator and local service.
 
+use super::SettingsProjectionUpdated;
+use super::settings_core::SettingsProjection;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
 use bevy::ui::prelude::{
@@ -14,18 +18,15 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox, ValueChange};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_application::host_network_projection::pac;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::pac::{PacServiceState, PacSnapshot};
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::SettingsProjection;
-use crate::command::{CommandSinkHandle, UiCommand};
+use infiltrator_contract::pac::PacServiceState;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PacToggle;
@@ -41,7 +42,7 @@ pub struct PacStatusLine;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
     let bypass = projection.pac.bypass_domains.join(", ");
-    let status = format_status(&projection.pac);
+    let status = pac(&projection.pac, UiLocale::default().code());
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -50,7 +51,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         row_gap: Val::Px(space::S6),
                     }
                     Children [
-                        Text({ "PAC 动态代理脚本与本地服务 (PAC)".to_owned() }) TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_pac_title") TextRole(Role::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -62,7 +63,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         BackgroundColor({ palette.surface_elevated })
                         PacToggle
                         Children [
-                            @{ checkbox_scene("启用本地 PAC 服务".to_owned(), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) }
+                            @{ localized_checkbox_scene(LocalizedText::plain("pac_enable_service"), matches!(projection.pac.state, PacServiceState::Running { .. }), palette) }
                             --
                             Text(status) PacStatusLine TextRole(Role::Mono)
                         ]
@@ -74,7 +75,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             padding: UiRect::all(Val::Px(space::S8)),
                         }
                         Children [
-                            Text({ "绕过域名/网段".to_owned() }) TextRole(Role::Body)
+                            LocalizedText::plain("settings_pac_bypass_label") TextRole(Role::Body)
                             --
                             Node { width: px(360.0) }
                             PacBypassField
@@ -100,7 +101,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                             PacApplyButton
                             Button
                             Children [
-                                Text({ "生成并应用 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_pac_apply_action") TextRole(Role::BodyStrong)
                             ]
                         ]
                     ]
@@ -150,15 +151,26 @@ pub(super) fn on_apply_activated(
     submit(&handle, enabled, &fields, &text_fields);
 }
 
-pub(super) fn apply_projection(
-    update: On<SettingsProjectionUpdated>,
-    toggles: Query<&Children, With<PacToggle>>,
-    checkboxes: Query<(Entity, Has<Checked>), With<Checkbox>>,
-    fields: Query<&Children, With<PacBypassField>>,
-    mut text_fields: Query<&mut TextField>,
-    mut status_lines: Query<&mut Text, With<PacStatusLine>>,
-    mut commands: Commands,
-) {
+#[derive(SystemParam)]
+pub struct PacReplay<'w, 's> {
+    locale: Res<'w, UiLocale>,
+    toggles: Query<'w, 's, &'static Children, With<PacToggle>>,
+    checkboxes: Query<'w, 's, (Entity, Has<Checked>), With<Checkbox>>,
+    fields: Query<'w, 's, &'static Children, With<PacBypassField>>,
+    text_fields: Query<'w, 's, &'static mut TextField>,
+    status_lines: Query<'w, 's, &'static mut Text, With<PacStatusLine>>,
+    commands: Commands<'w, 's>,
+}
+pub(super) fn apply_projection(update: On<SettingsProjectionUpdated>, surface: PacReplay) {
+    let PacReplay {
+        locale,
+        toggles,
+        checkboxes,
+        fields,
+        mut text_fields,
+        mut status_lines,
+        mut commands,
+    } = surface;
     let enabled = matches!(update.0.pac.state, PacServiceState::Running { .. });
     for children in &toggles {
         for child in children.iter() {
@@ -183,7 +195,7 @@ pub(super) fn apply_projection(
             }
         }
     }
-    let status = format_status(&update.0.pac);
+    let status = pac(&update.0.pac, locale.code());
     for mut line in &mut status_lines {
         line.0 = status.clone();
     }
@@ -216,14 +228,4 @@ fn split_values(value: &str) -> Vec<String> {
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .collect()
-}
-
-pub(super) fn format_status(snapshot: &PacSnapshot) -> String {
-    match &snapshot.state {
-        PacServiceState::Running { url } => {
-            format!("运行中 · {url} · {} bytes", snapshot.script_bytes)
-        }
-        PacServiceState::Disabled => "未启用".to_owned(),
-        PacServiceState::Unavailable { reason } => reason.clone(),
-    }
 }

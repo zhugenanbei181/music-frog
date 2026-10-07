@@ -4,14 +4,24 @@
 //! on Linux/macOS) between the unprivileged GUI client and the background privileged
 //! service helper (TUN route injection, system proxy override, and power/status telemetry).
 
-use std::fmt;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
+use mihomo_api::error;
 use mihomo_platform::desktop::ProcessCoreController;
+use mihomo_platform::paths::get_home_dir;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::env::var;
+use std::error::Error;
+use std::fs::{Permissions, set_permissions};
+use std::path::{Path, PathBuf};
+use std::process::id;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{fmt, result};
+use tokio::fs::{create_dir_all, read_to_string, write};
 use tokio::io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
 pub mod client;
@@ -83,9 +93,7 @@ impl ServiceManager {
     pub async fn is_running(&self) -> bool {
         matches!(
             CoreProcess::status(self.controller.as_ref()).await,
-            Ok(infiltrator_contract::snapshot::CoreLifecycle::Starting)
-                | Ok(infiltrator_contract::snapshot::CoreLifecycle::Ready)
-                | Ok(infiltrator_contract::snapshot::CoreLifecycle::Running)
+            Ok(CoreLifecycle::Starting) | Ok(CoreLifecycle::Ready) | Ok(CoreLifecycle::Running)
         )
     }
 
@@ -101,16 +109,14 @@ impl ServiceManager {
         CoreProcess::start(self.controller.as_ref()).await
     }
 
-    pub async fn status(&self) -> mihomo_api::error::Result<ServiceStatus> {
+    pub async fn status(&self) -> error::Result<ServiceStatus> {
         match CoreProcess::status(self.controller.as_ref()).await {
-            Ok(infiltrator_contract::snapshot::CoreLifecycle::Starting)
-            | Ok(infiltrator_contract::snapshot::CoreLifecycle::Ready)
-            | Ok(infiltrator_contract::snapshot::CoreLifecycle::Running) => {
+            Ok(CoreLifecycle::Starting) | Ok(CoreLifecycle::Ready) | Ok(CoreLifecycle::Running) => {
                 let pid = CoreProcess::pid(self.controller.as_ref()).await;
-                Ok(ServiceStatus::Running(pid.unwrap_or_else(std::process::id)))
+                Ok(ServiceStatus::Running(pid.unwrap_or_else(id)))
             }
             Ok(_) => Ok(ServiceStatus::Stopped),
-            Err(error) => Err(mihomo_api::error::MihomoError::Service(error.to_string())),
+            Err(error) => Err(error::MihomoError::Service(error.to_string())),
         }
     }
 }
@@ -136,11 +142,11 @@ impl AuthToken {
 
     pub fn generate() -> Self {
         use std::fmt::Write;
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(42);
-        let pid = std::process::id();
+        let pid = id();
         let mut s = String::with_capacity(64);
         for i in 0..32 {
             let val = ((now.wrapping_mul(i as u128 + 1) ^ (pid as u128).wrapping_mul(31))
@@ -164,15 +170,15 @@ impl AuthToken {
 
     pub async fn save_to_file(&self, path: &Path) -> Result<(), ServiceError> {
         if let Some(parent) = path.parent() {
-            let _ = tokio::fs::create_dir_all(parent).await;
+            let _ = create_dir_all(parent).await;
         }
-        tokio::fs::write(path, &self.0)
+        write(path, &self.0)
             .await
             .map_err(|e| ServiceError::Io(e.to_string()))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+            let _ = set_permissions(path, Permissions::from_mode(0o600));
         }
         Ok(())
     }
@@ -183,7 +189,7 @@ impl AuthToken {
 
     pub async fn load_or_create(path: &Path) -> Result<Self, ServiceError> {
         if path.exists() {
-            let content = tokio::fs::read_to_string(path)
+            let content = read_to_string(path)
                 .await
                 .map_err(|e| ServiceError::Io(e.to_string()))?;
             let trimmed = content.trim().to_string();
@@ -456,10 +462,10 @@ impl IpcEndpoint {
         #[cfg(unix)]
         {
             let default_path = PathBuf::from(DEFAULT_UNIX_SOCKET_PATH);
-            if let Ok(mut dir) = std::env::var("XDG_RUNTIME_DIR") {
+            if let Ok(mut dir) = var("XDG_RUNTIME_DIR") {
                 dir.push_str(&format!("/{}", FALLBACK_UNIX_SOCKET_NAME));
                 IpcEndpoint::UnixSocket(PathBuf::from(dir))
-            } else if let Ok(home) = mihomo_platform::paths::get_home_dir() {
+            } else if let Ok(home) = get_home_dir() {
                 IpcEndpoint::UnixSocket(home.join(FALLBACK_UNIX_SOCKET_NAME))
             } else {
                 IpcEndpoint::UnixSocket(default_path)
@@ -499,7 +505,7 @@ impl fmt::Display for ServiceError {
     }
 }
 
-impl std::error::Error for ServiceError {}
+impl Error for ServiceError {}
 
 pub async fn send_framed_json<W: AsyncWrite + Unpin, T: Serialize>(
     writer: &mut W,
@@ -522,7 +528,7 @@ pub async fn send_framed_json<W: AsyncWrite + Unpin, T: Serialize>(
     Ok(())
 }
 
-pub async fn recv_framed_json<R: AsyncBufReadExt + Unpin, T: serde::de::DeserializeOwned>(
+pub async fn recv_framed_json<R: AsyncBufReadExt + Unpin, T: DeserializeOwned>(
     reader: &mut R,
 ) -> Result<T, ServiceError> {
     let mut line = String::new();
@@ -544,21 +550,21 @@ pub trait ServiceCommandHandler: Send + Sync {
     fn handle_command(
         &self,
         command: ServiceCommand,
-    ) -> std::result::Result<ServiceResponsePayload, String>;
+    ) -> result::Result<ServiceResponsePayload, String>;
 }
 
 impl<H: ServiceCommandHandler> ServiceCommandHandler for Arc<H> {
     fn handle_command(
         &self,
         command: ServiceCommand,
-    ) -> std::result::Result<ServiceResponsePayload, String> {
+    ) -> result::Result<ServiceResponsePayload, String> {
         (**self).handle_command(command)
     }
 }
 
 pub struct DefaultServiceCommandHandler {
-    tun_active: std::sync::atomic::AtomicBool,
-    system_proxy_active: std::sync::atomic::AtomicBool,
+    tun_active: AtomicBool,
+    system_proxy_active: AtomicBool,
     privilege_level: PrivilegeLevel,
 }
 
@@ -571,18 +577,17 @@ impl Default for DefaultServiceCommandHandler {
 impl DefaultServiceCommandHandler {
     pub fn new(privilege_level: PrivilegeLevel) -> Self {
         Self {
-            tun_active: std::sync::atomic::AtomicBool::new(false),
-            system_proxy_active: std::sync::atomic::AtomicBool::new(false),
+            tun_active: AtomicBool::new(false),
+            system_proxy_active: AtomicBool::new(false),
             privilege_level,
         }
     }
 
     pub fn is_tun_active(&self) -> bool {
-        self.tun_active.load(std::sync::atomic::Ordering::SeqCst)
+        self.tun_active.load(Ordering::SeqCst)
     }
     pub fn is_system_proxy_active(&self) -> bool {
-        self.system_proxy_active
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.system_proxy_active.load(Ordering::SeqCst)
     }
 }
 
@@ -590,39 +595,33 @@ impl ServiceCommandHandler for DefaultServiceCommandHandler {
     fn handle_command(
         &self,
         command: ServiceCommand,
-    ) -> std::result::Result<ServiceResponsePayload, String> {
+    ) -> result::Result<ServiceResponsePayload, String> {
         match command {
             ServiceCommand::Ping { nonce } => Ok(ServiceResponsePayload::Pong { nonce }),
             ServiceCommand::QueryStatus => Ok(ServiceResponsePayload::Status(ServiceStatusInfo {
                 state: ServiceState::Running,
                 version: SERVICE_VERSION.to_string(),
                 privilege_level: self.privilege_level,
-                pid: Some(std::process::id()),
-                tun_active: self.tun_active.load(std::sync::atomic::Ordering::SeqCst),
-                system_proxy_active: self
-                    .system_proxy_active
-                    .load(std::sync::atomic::Ordering::SeqCst),
+                pid: Some(id()),
+                tun_active: self.tun_active.load(Ordering::SeqCst),
+                system_proxy_active: self.system_proxy_active.load(Ordering::SeqCst),
             })),
             ServiceCommand::StartTun { tun_interface, .. } => {
-                self.tun_active
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.tun_active.store(true, Ordering::SeqCst);
                 Ok(ServiceResponsePayload::TunStarted {
                     interface_name: tun_interface.or_else(|| Some("tun0".to_string())),
                 })
             }
             ServiceCommand::StopTun => {
-                self.tun_active
-                    .store(false, std::sync::atomic::Ordering::SeqCst);
+                self.tun_active.store(false, Ordering::SeqCst);
                 Ok(ServiceResponsePayload::TunStopped)
             }
             ServiceCommand::SetSystemProxy { .. } => {
-                self.system_proxy_active
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.system_proxy_active.store(true, Ordering::SeqCst);
                 Ok(ServiceResponsePayload::SystemProxyApplied)
             }
             ServiceCommand::ClearSystemProxy => {
-                self.system_proxy_active
-                    .store(false, std::sync::atomic::Ordering::SeqCst);
+                self.system_proxy_active.store(false, Ordering::SeqCst);
                 Ok(ServiceResponsePayload::SystemProxyCleared)
             }
         }

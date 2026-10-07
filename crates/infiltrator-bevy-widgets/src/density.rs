@@ -3,11 +3,10 @@
 //! Controls and containers carrying [`AdaptiveDensityNode`] automatically adjust
 //! padding, gaps, and heights when layout density changes between Compact and Comfortable.
 
+use crate::responsive::{Density, ResponsiveContext};
 use bevy::ecs::component::Component;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::prelude::{Node, UiRect, Val};
-
-use crate::responsive::{Density, ResponsiveContext};
 
 /// Marker component on a node that automatically scales its padding, gap, and height with Density.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]

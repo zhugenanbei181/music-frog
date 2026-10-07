@@ -1,8 +1,11 @@
 use anyhow::anyhow;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
-use std::path::Path;
+use mihomo_platform::paths::get_home_dir;
+use std::path::{Path, PathBuf};
+use tokio::fs::{create_dir_all, read_to_string, write};
 
 /// WebDAV 凭据在 keyring 中的 service 名：与 mihomo-config 订阅 URL 的
 /// 既有先例（`subscription:<profile>`）共用同一 service，key 用 `webdav:`
@@ -85,14 +88,14 @@ pub async fn load_settings_with_store<S: SecureStore>(
     store: &S,
 ) -> anyhow::Result<AppSettings> {
     if path.exists() {
-        let content = tokio::fs::read_to_string(path).await?;
+        let content = read_to_string(path).await?;
         let mut settings: AppSettings = toml::from_str(&content)?;
         migrate_webdav_password_to_keyring(&mut settings, path, store).await;
         Ok(settings)
     } else {
         let legacy_path = path.with_extension("json");
         if legacy_path.exists() {
-            let content = tokio::fs::read_to_string(&legacy_path).await?;
+            let content = read_to_string(&legacy_path).await?;
             let mut settings: AppSettings = serde_json::from_str(&content)?;
             migrate_webdav_password_to_keyring(&mut settings, &legacy_path, store).await;
             if let Err(err) = save_settings(path, &settings).await {
@@ -128,14 +131,14 @@ pub async fn load_settings_hydrated_with_store<S: SecureStore>(
 
 pub async fn save_settings(path: &Path, settings: &AppSettings) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        create_dir_all(parent).await?;
     }
     let content = toml::to_string_pretty(settings)?;
-    tokio::fs::write(path, content).await?;
+    write(path, content).await?;
     Ok(())
 }
 
-pub fn settings_path(base_dir: &Path) -> anyhow::Result<std::path::PathBuf> {
+pub fn settings_path(base_dir: &Path) -> anyhow::Result<PathBuf> {
     if base_dir.as_os_str().is_empty() {
         return Err(anyhow!("settings base dir is empty"));
     }
@@ -146,9 +149,8 @@ pub fn settings_path(base_dir: &Path) -> anyhow::Result<std::path::PathBuf> {
 /// configs 目录跟随 settings 的 `configs_dir` 字段（解析优先级见
 /// `mihomo_config::manager::paths::resolve_configs_dir_in`）。
 /// 全部业务门面的 ConfigManager 构造都必须经由这里，禁止再自行 `new()`。
-pub async fn app_config_manager()
--> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
-    let home = mihomo_platform::paths::get_home_dir()?;
+pub async fn app_config_manager() -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
+    let home = get_home_dir()?;
     app_config_manager_in(&home).await
 }
 
@@ -156,15 +158,13 @@ pub async fn app_config_manager()
 /// settings 从 `<home>/settings.toml` 读取。
 pub async fn app_config_manager_in(
     home: &Path,
-) -> anyhow::Result<mihomo_config::manager::ConfigManager<DefaultCredentialStore>> {
+) -> anyhow::Result<ConfigManager<DefaultCredentialStore>> {
     let settings = load_settings(&settings_path(home)?).await?;
-    Ok(
-        mihomo_config::manager::ConfigManager::with_home_configs_dir_and_store(
-            home.to_path_buf(),
-            settings.configs_dir.as_deref(),
-            mihomo_platform::defaults::DefaultCredentialStore::default(),
-        )?,
-    )
+    Ok(ConfigManager::with_home_configs_dir_and_store(
+        home.to_path_buf(),
+        settings.configs_dir.as_deref(),
+        DefaultCredentialStore::default(),
+    )?)
 }
 
 /// 云同步重定向测试的全局状态护栏（仅测试构建）：持有 `TEST_LOCK` 串行化，
@@ -172,7 +172,19 @@ pub async fn app_config_manager_in(
 /// 目录；`Drop` 时全部恢复，断言失败也不泄漏全局状态。
 #[cfg(test)]
 pub(crate) mod test_support {
+    #[cfg(test)]
+    use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
+    #[cfg(test)]
+    use mihomo_platform::paths::{get_home_dir, set_home_dir_override};
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
+    #[cfg(test)]
+    use std::env::var;
     use std::path::{Path, PathBuf};
+    #[cfg(test)]
+    use tokio::sync::MutexGuard;
 
     use super::{AppSettings, save_settings, settings_path};
 
@@ -180,18 +192,18 @@ pub(crate) mod test_support {
         env_key: &'static str,
         prev_env: Option<String>,
         prev_home: PathBuf,
-        _lock: tokio::sync::MutexGuard<'static, ()>,
+        _lock: MutexGuard<'static, ()>,
     }
 
     impl RedirectGuard {
         /// 接管全局状态并把 home override 指到 `home`。
         pub(crate) async fn acquire(home: PathBuf) -> Self {
             let _lock = mihomo_platform::TEST_LOCK.lock().await;
-            let env_key = mihomo_config::manager::paths::CONFIGS_DIR_ENV;
-            let prev_env = std::env::var(env_key).ok();
-            unsafe { std::env::remove_var(env_key) };
-            let prev_home = mihomo_platform::paths::get_home_dir().expect("current home");
-            assert!(mihomo_platform::paths::set_home_dir_override(home));
+            let env_key = CONFIGS_DIR_ENV;
+            let prev_env = var(env_key).ok();
+            unsafe { remove_var(env_key) };
+            let prev_home = get_home_dir().expect("current home");
+            assert!(set_home_dir_override(home));
             Self {
                 env_key,
                 prev_env,
@@ -215,10 +227,10 @@ pub(crate) mod test_support {
     impl Drop for RedirectGuard {
         fn drop(&mut self) {
             match self.prev_env.take() {
-                Some(value) => unsafe { std::env::set_var(self.env_key, value) },
-                None => unsafe { std::env::remove_var(self.env_key) },
+                Some(value) => unsafe { set_var(self.env_key, value) },
+                None => unsafe { remove_var(self.env_key) },
             }
-            mihomo_platform::paths::set_home_dir_override(self.prev_home.clone());
+            set_home_dir_override(self.prev_home.clone());
         }
     }
 }
@@ -227,7 +239,17 @@ pub(crate) mod test_support {
 mod tests {
     use super::*;
     use infiltrator_domain::settings::AdminServerConfig;
+    #[cfg(test)]
+    use infiltrator_ports::error::PortError;
+    #[cfg(test)]
+    use std::collections::HashMap;
+    #[cfg(test)]
+    use std::fs;
     use std::path::PathBuf;
+    #[cfg(test)]
+    use std::result;
+    #[cfg(test)]
+    use std::sync::Mutex;
 
     #[test]
     fn test_app_settings_default() {
@@ -263,7 +285,7 @@ mod tests {
         // A pre-admin settings file: must deserialize with admin defaults
         // instead of failing, so old installs keep working (serde back-compat).
         let legacy = "[runtime_panel]\nauto_refresh = true\n";
-        std::fs::write(&settings_file, legacy).unwrap();
+        fs::write(&settings_file, legacy).unwrap();
 
         let loaded = load_settings(&settings_file).await.unwrap();
         assert_eq!(loaded.admin, AdminServerConfig::default());
@@ -336,7 +358,7 @@ mod tests {
             Some("~/Library/Mobile Documents/iCloud~Drive/Profiles".to_string())
         );
 
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(raw.contains("configs_dir"), "field must be persisted");
     }
 
@@ -350,7 +372,7 @@ mod tests {
         save_settings(&settings_file, &AppSettings::default())
             .await
             .unwrap();
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(!raw.contains("configs_dir"));
     }
 
@@ -359,7 +381,7 @@ mod tests {
     async fn test_legacy_settings_without_configs_dir_load_as_none() {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
-        std::fs::write(&settings_file, "language = \"en-US\"\n").unwrap();
+        fs::write(&settings_file, "language = \"en-US\"\n").unwrap();
 
         let loaded = load_settings(&settings_file).await.unwrap();
         assert_eq!(loaded.configs_dir, None);
@@ -372,7 +394,7 @@ mod tests {
     async fn test_legacy_settings_without_notifications_enabled_default_true() {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
-        std::fs::write(&settings_file, "language = \"en-US\"\n").unwrap();
+        fs::write(&settings_file, "language = \"en-US\"\n").unwrap();
 
         let loaded = load_settings(&settings_file).await.unwrap();
         assert!(loaded.notifications_enabled);
@@ -394,7 +416,7 @@ mod tests {
         let loaded = load_settings(&settings_file).await.unwrap();
         assert!(!loaded.notifications_enabled);
 
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(
             raw.contains("notifications_enabled"),
             "field must be persisted"
@@ -408,7 +430,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let home = temp.path().to_path_buf();
         let cloud = home.join("cloud").join("profiles");
-        std::fs::create_dir_all(&cloud).unwrap();
+        fs::create_dir_all(&cloud).unwrap();
         let guard = test_support::RedirectGuard::acquire(home.clone()).await;
         guard
             .set_configs_dir(&home, Some(cloud.to_str().unwrap()))
@@ -442,21 +464,21 @@ mod tests {
     /// 内存凭据存储（仿 session.rs / manager_test 的 MockStore 先例），
     /// `fail_set` 可注入写失败以覆盖迁移的降级路径。
     struct MemoryStore {
-        entries: std::sync::Mutex<std::collections::HashMap<String, String>>,
+        entries: Mutex<HashMap<String, String>>,
         fail_set: bool,
     }
 
     impl MemoryStore {
         fn working() -> Self {
             Self {
-                entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+                entries: Mutex::new(HashMap::new()),
                 fail_set: false,
             }
         }
 
         fn failing_set() -> Self {
             Self {
-                entries: std::sync::Mutex::new(std::collections::HashMap::new()),
+                entries: Mutex::new(HashMap::new()),
                 fail_set: true,
             }
         }
@@ -472,11 +494,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SecureStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+        async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
             Ok(self.get(service, key))
         }
 
@@ -485,11 +503,9 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        ) -> result::Result<(), PortError> {
             if self.fail_set {
-                return Err(infiltrator_ports::error::PortError::Failed(
-                    "injected keyring failure".to_string(),
-                ));
+                return Err(PortError::Failed("injected keyring failure".to_string()));
             }
             self.entries
                 .lock()
@@ -498,11 +514,7 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -527,7 +539,7 @@ mod tests {
         settings.webdav.password = "s3cret".to_string();
         save_settings(&settings_file, &settings).await.unwrap();
 
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(!raw.contains("password"), "plaintext leaked: {raw}");
         // 反序列化缺省键回到空串，不影响其他字段往返。
         let loaded = load_settings(&settings_file).await.unwrap();
@@ -540,7 +552,7 @@ mod tests {
     async fn test_legacy_plaintext_password_migrates_to_keyring() {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
-        std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
+        fs::write(&settings_file, legacy_toml_with_password()).unwrap();
 
         let store = MemoryStore::working();
         let loaded = load_settings_with_store(&settings_file, &store)
@@ -556,7 +568,7 @@ mod tests {
         );
         assert_eq!(loaded.webdav.password, "", "memory mirror must be blanked");
 
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(
             !raw.contains("password"),
             "file must be rewritten clean: {raw}"
@@ -585,7 +597,7 @@ mod tests {
     async fn test_migration_keeps_plaintext_when_keyring_fails() {
         let temp_dir = tempfile::tempdir().unwrap();
         let settings_file = temp_dir.path().join("settings.toml");
-        std::fs::write(&settings_file, legacy_toml_with_password()).unwrap();
+        fs::write(&settings_file, legacy_toml_with_password()).unwrap();
 
         let store = MemoryStore::failing_set();
         let loaded = load_settings_with_store(&settings_file, &store)
@@ -596,7 +608,7 @@ mod tests {
             loaded.webdav.password, "s3cret",
             "value must stay in memory so the session keeps working"
         );
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(
             raw.contains("s3cret"),
             "file must be left untouched for retry: {raw}"
@@ -634,7 +646,7 @@ mod tests {
         assert_eq!(hydrated.webdav.password, "hydrated-pw");
 
         // 水合值只是内存镜像：文件依旧干净。
-        let raw = std::fs::read_to_string(&settings_file).unwrap();
+        let raw = fs::read_to_string(&settings_file).unwrap();
         assert!(!raw.contains("password"));
     }
 

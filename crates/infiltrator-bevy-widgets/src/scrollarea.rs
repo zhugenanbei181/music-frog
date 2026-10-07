@@ -13,11 +13,13 @@
 //! [`focus_avoidance_auto_scroll_system`] ensure focused input fields stay
 //! visible when an on-screen keyboard (mobile / Android / touch) appears.
 
+use crate::palette::UiPalette;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
+use bevy::math::Vec2;
 use bevy::scene::{Scene, bsn};
 use bevy::transform::components::GlobalTransform;
 use bevy::ui::BorderColor;
@@ -26,8 +28,6 @@ use bevy::ui::prelude::{
     UiRect, Val, percent, px,
 };
 use bevy::ui_widgets::ScrollArea;
-
-use crate::palette::UiPalette;
 
 /// Virtual / soft keyboard state (e.g. on Android / mobile / touch screens).
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
@@ -81,6 +81,15 @@ pub struct FocusAvoidanceParams {
     pub margin_px: f32,
 }
 
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct ScrollViewport {
+    scroll_transform: Option<&'static GlobalTransform>,
+    scroll_node: Option<&'static ComputedNode>,
+    scroll_pos: &'static mut ScrollPosition,
+    children: Option<&'static Children>,
+}
+
 /// Calculate the updated scroll offset so the focused input is not occluded by the soft keyboard.
 /// Pure, total, clamped into `[0, max_scroll]`.
 pub fn calculate_focus_avoidance_scroll(params: FocusAvoidanceParams) -> f32 {
@@ -118,22 +127,13 @@ pub fn calculate_focus_avoidance_scroll(params: FocusAvoidanceParams) -> f32 {
 
 /// ECS system: automatically adjusts `ScrollPosition` on `ScrollArea` nodes
 /// when a focused input field is occluded by the soft keyboard.
-#[allow(clippy::type_complexity)]
 pub fn focus_avoidance_auto_scroll_system(
     keyboard: Option<Res<SoftKeyboardState>>,
     focused_inputs: Query<
         (Option<&GlobalTransform>, Option<&ComputedNode>),
         With<FocusedTextInput>,
     >,
-    mut scroll_areas: Query<
-        (
-            Option<&GlobalTransform>,
-            Option<&ComputedNode>,
-            &mut ScrollPosition,
-            Option<&Children>,
-        ),
-        With<ScrollArea>,
-    >,
+    mut scroll_areas: Query<ScrollViewport, With<ScrollArea>>,
     node_query: Query<(&ComputedNode, Option<&Children>)>,
 ) {
     let Some(keyboard) = keyboard else {
@@ -149,15 +149,21 @@ pub fn focus_avoidance_auto_scroll_system(
 
     let target_size = target_node
         .map(|n| n.size())
-        .unwrap_or(bevy::math::Vec2::new(200.0, 44.0));
+        .unwrap_or(Vec2::new(200.0, 44.0));
     let target_top = target_transform
         .map(|t| t.translation().y - target_size.y * 0.5)
         .unwrap_or(0.0);
 
-    for (scroll_transform, scroll_node, mut scroll_pos, children) in &mut scroll_areas {
+    for ScrollViewportItem {
+        scroll_transform,
+        scroll_node,
+        mut scroll_pos,
+        children,
+    } in &mut scroll_areas
+    {
         let viewport_size = scroll_node
             .map(|n| n.size())
-            .unwrap_or(bevy::math::Vec2::new(300.0, 400.0));
+            .unwrap_or(Vec2::new(300.0, 400.0));
         let viewport_top = scroll_transform
             .map(|t| t.translation().y - viewport_size.y * 0.5)
             .unwrap_or(0.0);

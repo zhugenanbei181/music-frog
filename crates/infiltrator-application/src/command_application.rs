@@ -4,25 +4,15 @@
 //! owns the rest of the application use-case dispatch and is installed by a
 //! host composition when that surface wants the full command vocabulary.
 
-use infiltrator_contract::command::CommandIntent;
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::mtu::MtuProbeState;
-use infiltrator_contract::rule_tracer::TrafficContextSnapshot;
-use infiltrator_contract::version::CoreReleaseChannel;
-use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
-use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rules::edit;
-use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
-use infiltrator_ports::subscription_import::SubscriptionImportPort;
-use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
-use infiltrator_ports::subscription_source::SubscriptionSource;
-use std::collections::HashSet;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-
+use crate::configuration_application::ConfigurationApplication;
+use crate::dns_cache_application::DnsCacheApplication;
+use crate::dns_latency_application::DnsLatencyApplication;
+use crate::dns_leak_application::{DnsLeakApplication, NO_ECHO_PORT_REASON};
+use crate::dns_query_application::DnsQueryApplication;
+use crate::dns_workbench_application::dns_servers;
 use crate::doctor_application::DoctorApplication;
+use crate::log_application::LogApplication;
+use crate::log_export_application::LogExportApplication;
 use crate::mtu_application::MtuApplication;
 use crate::network_roaming_application::NetworkRoamingApplication;
 use crate::pac_application::PacApplication;
@@ -31,31 +21,112 @@ use crate::privileged_network_application::PrivilegedNetworkApplication;
 use crate::profile_application::ProfileApplication;
 use crate::profile_document_application::ProfileDocumentApplication;
 use crate::profile_options_application::ProfileOptionsApplication;
+use crate::proxy_preferences_application::ProxyPreferencesApplication;
 use crate::routing_application::RoutingApplication;
+use crate::rule_list_application::RuleListApplication;
+use crate::rule_provider_application::RuleProviderApplication;
+use crate::rule_tracer_application::RuleTracerApplication;
 use crate::runtime_query_application::RuntimeQueryApplication;
+use crate::script_application::ScriptApplication;
+use crate::script_export_application::ScriptExportApplication;
 use crate::service_mode_application::ServiceModeApplication;
 use crate::settings_application::SettingsApplication;
 use crate::shortcut_application::ShortcutApplication;
 use crate::snapshot_application::SnapshotApplication;
+use crate::speedtest_application::SpeedtestApplication;
+use crate::stun_probe_application::{NO_STUN_PORT_REASON, StunProbeApplication};
 use crate::subscription_refresh_application::SubscriptionRefreshApplication;
 use crate::sync_application::SyncApplication;
 use crate::system_proxy_application::SystemProxyApplication;
 use crate::uwp_loopback_application::UwpLoopbackApplication;
 use crate::version_application::VersionApplication;
 use crate::vpn_application::VpnServiceApplication;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::mtu::MtuProbeState;
+use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord};
+use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::version::CoreReleaseChannel;
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::proxy_providers::ProxyProviders;
+use infiltrator_domain::rules::provider_store::parse_rule_provider_declarations;
+use infiltrator_domain::rules::{
+    RuleEntry, RuleProviders, apply_rules_to_yaml, edit, load_rules_from_yaml,
+};
+use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use infiltrator_ports::dns_leak::DnsLeakProbePort;
+use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
+use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
+use infiltrator_ports::stun_probe::StunEgressProbePort;
+use infiltrator_ports::subscription_import::SubscriptionImportPort;
+use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
+use infiltrator_ports::subscription_source::SubscriptionSource;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
 mod dispatch;
+mod output;
+mod probe_options;
+mod proxy_group_order;
+mod script_services;
+mod snapshots;
 
 pub type CommandFuture = Pin<Box<dyn Future<Output = Result<(), Failure>> + Send + 'static>>;
+pub type CommandOutputFuture =
+    Pin<Box<dyn Future<Output = Result<CommandOutput, Failure>> + Send + 'static>>;
 
 /// Extension point consumed by CoreApplication for commands beyond lifecycle
 /// and proxy mode.
 pub trait CommandHandler: Send + Sync {
     fn handle(&self, intent: CommandIntent) -> CommandFuture;
+    fn handle_output(&self, intent: CommandIntent) -> CommandOutputFuture {
+        if matches!(
+            intent,
+            CommandIntent::SaveSubscriptionFilter { .. }
+                | CommandIntent::RunScriptSandbox { .. }
+                | CommandIntent::ClearScriptSandbox { .. }
+                | CommandIntent::PrepareScriptExport { .. }
+                | CommandIntent::SaveScriptExport { .. }
+                | CommandIntent::PrepareSnapshotRestore { .. }
+                | CommandIntent::ConfirmSnapshotRestore { .. }
+                | CommandIntent::CancelSnapshotRestore { .. }
+                | CommandIntent::CreateBackupSnapshot { .. }
+                | CommandIntent::LoadSnapshotHistory { .. }
+                | CommandIntent::LoadSnapshotDiff { .. }
+                | CommandIntent::PruneSnapshots { .. }
+                | CommandIntent::LoadProfileOptions { .. }
+                | CommandIntent::LoadProfileDocument { .. }
+                | CommandIntent::SaveProfileDocument { .. }
+                | CommandIntent::SaveMixinOverlay { .. }
+                | CommandIntent::PrepareLogExport
+                | CommandIntent::SaveLogExport { .. }
+                | CommandIntent::ResetRuleHitCounters { .. }
+        ) {
+            return Box::pin(async {
+                Err(Failure::unsupported(
+                    "Requested typed output is unsupported by this command handler",
+                ))
+            });
+        }
+        let future = self.handle(intent);
+        Box::pin(async move { future.await.map(|()| CommandOutput::Unit) })
+    }
 }
 
 #[derive(Clone, Default)]
 pub struct CommandApplication {
+    scripts: Option<ScriptApplication>,
+    script_exports: Option<ScriptExportApplication>,
+    logs: Option<LogApplication>,
+    log_export: Option<LogExportApplication>,
     profile: Option<ProfileApplication>,
     runtime: Option<Arc<dyn RuntimeGateway>>,
     managed_runtime: Option<Arc<dyn ManagedRuntime>>,
@@ -67,9 +138,9 @@ pub struct CommandApplication {
     /// DUAL-07-10: host port for subscription system notifications.
     notifier: Option<Arc<dyn SubscriptionNotificationPort>>,
     /// DUAL-05-13: host port that reads CA certificate bundles.
-    certificate_authority:
-        Option<Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>>,
+    certificate_authority: Option<Arc<dyn CertificateAuthorityPort>>,
     doctor: Option<DoctorApplication>,
+    rule_list: Option<RuleListApplication>,
     routing: Option<RoutingApplication>,
     sync: Option<SyncApplication>,
     settings: Option<SettingsApplication>,
@@ -84,19 +155,20 @@ pub struct CommandApplication {
     network_roaming: Option<NetworkRoamingApplication>,
     vpn: Option<VpnServiceApplication>,
     privileged_network: Option<PrivilegedNetworkApplication>,
-    speedtest: Option<crate::speedtest_application::SpeedtestApplication>,
-    proxy_preferences: Option<crate::proxy_preferences_application::ProxyPreferencesApplication>,
-    rule_tracer: Option<crate::rule_tracer_application::RuleTracerApplication>,
-    configuration: Option<crate::configuration_application::ConfigurationApplication>,
-    dns_cache: Option<crate::dns_cache_application::DnsCacheApplication>,
+    speedtest: Option<SpeedtestApplication>,
+    proxy_preferences: Option<ProxyPreferencesApplication>,
+    rule_tracer: Option<RuleTracerApplication>,
+    configuration: Option<ConfigurationApplication>,
+    dns_cache: Option<DnsCacheApplication>,
+    dns_query: Option<DnsQueryApplication>,
     /// DUAL-14-10: the shared latency prober `TestDnsLatency` drives.
-    dns_latency: Option<crate::dns_latency_application::DnsLatencyApplication>,
+    dns_latency: Option<DnsLatencyApplication>,
     /// DUAL-14-08: the shared cross-source leak prober `TestDnsLeak` drives.
-    dns_leak: Option<crate::dns_leak_application::DnsLeakApplication>,
+    dns_leak: Option<DnsLeakApplication>,
     /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober `RunStunProbe`
     /// drives.
-    stun_probe: Option<crate::stun_probe_application::StunProbeApplication>,
-    rule_provider: Option<crate::rule_provider_application::RuleProviderApplication>,
+    stun_probe: Option<StunProbeApplication>,
+    rule_provider: Option<RuleProviderApplication>,
 }
 
 impl CommandApplication {
@@ -145,10 +217,7 @@ impl CommandApplication {
     ///
     /// Hosts without one keep the field empty and the shared application
     /// reports the request as typed unsupported instead of claiming a load.
-    pub fn with_certificate_authority(
-        mut self,
-        port: Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>,
-    ) -> Self {
+    pub fn with_certificate_authority(mut self, port: Arc<dyn CertificateAuthorityPort>) -> Self {
         self.certificate_authority = Some(port);
         self
     }
@@ -158,6 +227,23 @@ impl CommandApplication {
     /// (DUAL-07-06). A host that does not compose one keeps the plain path.
     pub fn with_application_runtime(mut self, runtime: Arc<dyn ApplicationRuntime>) -> Self {
         self.application_runtime = Some(runtime);
+        self
+    }
+
+    pub fn with_logs(mut self, logs: LogApplication) -> Self {
+        self.log_export = Some(LogExportApplication::new(logs.clone(), None, Vec::new()));
+        self.logs = Some(logs);
+        self
+    }
+
+    pub fn with_log_export(mut self, application: LogExportApplication) -> Self {
+        assert!(
+            self.logs
+                .as_ref()
+                .is_some_and(|logs| application.belongs_to(logs)),
+            "Log export must use the command facade's log owner"
+        );
+        self.log_export = Some(application);
         self
     }
 
@@ -236,36 +322,33 @@ impl CommandApplication {
         self
     }
 
-    pub fn with_speedtest(
-        mut self,
-        speedtest: crate::speedtest_application::SpeedtestApplication,
-    ) -> Self {
+    pub fn with_speedtest(mut self, speedtest: SpeedtestApplication) -> Self {
         self.speedtest = Some(speedtest);
         self
     }
 
-    pub fn with_proxy_preferences(
-        mut self,
-        preferences: crate::proxy_preferences_application::ProxyPreferencesApplication,
-    ) -> Self {
+    pub fn with_proxy_preferences(mut self, preferences: ProxyPreferencesApplication) -> Self {
         self.proxy_preferences = Some(preferences);
         self
     }
 
-    pub fn with_rule_tracer(
-        mut self,
-        rule_tracer: crate::rule_tracer_application::RuleTracerApplication,
-    ) -> Self {
+    pub fn with_rule_tracer(mut self, rule_tracer: RuleTracerApplication) -> Self {
         self.rule_tracer = Some(rule_tracer);
+        self
+    }
+    pub fn with_rule_list(mut self, application: RuleListApplication) -> Self {
+        self.rule_list = Some(application);
         self
     }
 
     /// Share the DNS cache flush application with the surface reader so the
     /// honest Fake-IP / OS-cache report reaches both surfaces.
-    pub fn with_dns_cache(
-        mut self,
-        dns_cache: crate::dns_cache_application::DnsCacheApplication,
-    ) -> Self {
+    pub fn with_dns_query(mut self, application: DnsQueryApplication) -> Self {
+        self.dns_query = Some(application);
+        self
+    }
+
+    pub fn with_dns_cache(mut self, dns_cache: DnsCacheApplication) -> Self {
         self.dns_cache = Some(dns_cache);
         self
     }
@@ -273,20 +356,14 @@ impl CommandApplication {
     /// DUAL-14-10: share the per-nameserver latency application so
     /// `TestDnsLatency` runs the real host probe and both surfaces publish the
     /// same report.
-    pub fn with_dns_latency(
-        mut self,
-        dns_latency: crate::dns_latency_application::DnsLatencyApplication,
-    ) -> Self {
+    pub fn with_dns_latency(mut self, dns_latency: DnsLatencyApplication) -> Self {
         self.dns_latency = Some(dns_latency);
         self
     }
 
     /// DUAL-14-08: share the cross-source leak application so `TestDnsLeak`
     /// runs the real host probe and both surfaces publish the same report.
-    pub fn with_dns_leak(
-        mut self,
-        dns_leak: crate::dns_leak_application::DnsLeakApplication,
-    ) -> Self {
+    pub fn with_dns_leak(mut self, dns_leak: DnsLeakApplication) -> Self {
         self.dns_leak = Some(dns_leak);
         self
     }
@@ -294,10 +371,7 @@ impl CommandApplication {
     /// DUAL-14-09 (re-scoped): share the STUN UDP-egress application so
     /// `RunStunProbe` runs the real host probe and both surfaces publish the
     /// same report.
-    pub fn with_stun_probe(
-        mut self,
-        stun_probe: crate::stun_probe_application::StunProbeApplication,
-    ) -> Self {
+    pub fn with_stun_probe(mut self, stun_probe: StunProbeApplication) -> Self {
         self.stun_probe = Some(stun_probe);
         self
     }
@@ -306,28 +380,21 @@ impl CommandApplication {
     /// it the unpack can still serve inline payloads and the controller
     /// payload, while a purge answers a typed unsupported instead of claiming
     /// a cleanup.
-    pub fn with_rule_provider_cache(
-        mut self,
-        cache: Arc<dyn infiltrator_ports::rule_provider_cache::RuleProviderCachePort>,
-    ) -> Self {
-        self.rule_provider =
-            Some(crate::rule_provider_application::RuleProviderApplication::new(Some(cache)));
+    pub fn with_rule_provider_cache(mut self, cache: Arc<dyn RuleProviderCachePort>) -> Self {
+        self.rule_provider = Some(RuleProviderApplication::new(Some(cache)));
         self
     }
 
     /// Install the validated profile configuration application so surfaces can
     /// submit their shared DNS workbench edits through the same write path.
-    pub fn with_configuration(
-        mut self,
-        configuration: crate::configuration_application::ConfigurationApplication,
-    ) -> Self {
+    pub fn with_configuration(mut self, configuration: ConfigurationApplication) -> Self {
         self.configuration = Some(configuration);
         self
     }
 
     /// Execute one inbound command through the shared dispatch table.
     pub async fn execute(&self, intent: CommandIntent) -> Result<(), Failure> {
-        self.execute_dispatch(intent).await
+        self.execute_output(intent).await.map(|_| ())
     }
 
     /// DUAL-14-10: measure every configured nameserver through the shared
@@ -343,7 +410,7 @@ impl CommandApplication {
             ));
         };
         let config = self.configuration()?.load_dns_config().await?;
-        let servers = crate::dns_workbench_application::dns_servers(&config);
+        let servers = dns_servers(&config);
         application.probe(&servers).await.map(|_| ())
     }
 
@@ -352,11 +419,9 @@ impl CommandApplication {
     /// a typed unsupported instead of inventing a verdict.
     async fn test_dns_leak(&self) -> Result<(), Failure> {
         let Some(application) = self.dns_leak.as_ref() else {
-            return Err(Failure::unsupported(
-                crate::dns_leak_application::NO_ECHO_PORT_REASON,
-            ));
+            return Err(Failure::unsupported(NO_ECHO_PORT_REASON));
         };
-        infiltrator_ports::dns_leak::DnsLeakProbePort::probe(application)
+        DnsLeakProbePort::probe(application)
             .await
             .map(|_| ())
             .map_err(Failure::from)
@@ -369,11 +434,9 @@ impl CommandApplication {
     /// WebRTC result.
     async fn run_stun_probe(&self) -> Result<(), Failure> {
         let Some(application) = self.stun_probe.as_ref() else {
-            return Err(Failure::unsupported(
-                crate::stun_probe_application::NO_STUN_PORT_REASON,
-            ));
+            return Err(Failure::unsupported(NO_STUN_PORT_REASON));
         };
-        infiltrator_ports::stun_probe::StunEgressProbePort::probe(application)
+        StunEgressProbePort::probe(application)
             .await
             .map(|_| ())
             .map_err(Failure::from)
@@ -392,17 +455,16 @@ impl CommandApplication {
             ));
         }
         let providers = self.configuration()?.load_rule_providers().await?;
-        let declaration =
-            infiltrator_domain::rules::provider_store::parse_rule_provider_declarations(&providers)
-                .into_iter()
-                .find(|declaration| declaration.name == name)
-                .ok_or_else(|| {
-                    Failure::new(
-                        ErrorCode::Configuration,
-                        format!("the active profile declares no rule provider named {name}"),
-                        false,
-                    )
-                })?;
+        let declaration = parse_rule_provider_declarations(&providers)
+            .into_iter()
+            .find(|declaration| declaration.name == name)
+            .ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::Configuration,
+                    format!("the active profile declares no rule provider named {name}"),
+                    false,
+                )
+            })?;
         let plan = self
             .rule_provider_service()
             .deconstruct(
@@ -424,13 +486,11 @@ impl CommandApplication {
 
     /// Unpacking without a host cache port is still meaningful: profile inline
     /// payloads and the controller payload need no local file.
-    fn rule_provider_service(&self) -> crate::rule_provider_application::RuleProviderApplication {
+    fn rule_provider_service(&self) -> RuleProviderApplication {
         self.rule_provider.clone().unwrap_or_default()
     }
 
-    fn rule_provider(
-        &self,
-    ) -> Result<crate::rule_provider_application::RuleProviderApplication, Failure> {
+    fn rule_provider(&self) -> Result<RuleProviderApplication, Failure> {
         self.rule_provider.clone().ok_or_else(|| {
             Failure::new(
                 ErrorCode::Unsupported,
@@ -445,17 +505,15 @@ impl CommandApplication {
     /// an unchanged list is a no-op so a stale click never rewrites the file.
     async fn edit_rules<F>(&self, mutate: F) -> Result<(), Failure>
     where
-        F: FnOnce(&mut Vec<infiltrator_domain::rules::RuleEntry>) -> bool,
+        F: FnOnce(&mut Vec<RuleEntry>) -> bool,
     {
         let profile = self.profile()?;
         let (name, content) = profile.current_content().await?;
-        let mut rules =
-            infiltrator_domain::rules::load_rules_from_yaml(&content).map_err(rule_failure)?;
+        let mut rules = load_rules_from_yaml(&content).map_err(rule_failure)?;
         if !mutate(&mut rules) {
             return Ok(());
         }
-        let updated = infiltrator_domain::rules::apply_rules_to_yaml(&content, &rules)
-            .map_err(rule_failure)?;
+        let updated = apply_rules_to_yaml(&content, &rules).map_err(rule_failure)?;
         profile.save_profile(&name, &updated).await
     }
 
@@ -465,7 +523,7 @@ impl CommandApplication {
     /// before the profile is touched.
     async fn apply_rules_json_document(
         &self,
-        section: infiltrator_contract::rules_workspace::RulesJsonSection,
+        section: RulesJsonSection,
         json: &str,
     ) -> Result<(), Failure> {
         use infiltrator_contract::rules_workspace::RulesJsonSection;
@@ -480,20 +538,16 @@ impl CommandApplication {
         let invalid = |error: &str| Failure::new(ErrorCode::InvalidInput, error.to_owned(), false);
         match section {
             RulesJsonSection::RuleProviders => {
-                let providers: infiltrator_domain::rules::RuleProviders =
-                    serde_json::from_str(json).map_err(|error| {
-                        invalid(&format!("invalid rule providers JSON: {error}"))
-                    })?;
+                let providers: RuleProviders = serde_json::from_str(json)
+                    .map_err(|error| invalid(&format!("invalid rule providers JSON: {error}")))?;
                 configuration
                     .save_rule_providers(providers)
                     .await
                     .map(|_| ())
             }
             RulesJsonSection::ProxyProviders => {
-                let providers: infiltrator_domain::proxy_providers::ProxyProviders =
-                    serde_json::from_str(json).map_err(|error| {
-                        invalid(&format!("invalid proxy providers JSON: {error}"))
-                    })?;
+                let providers: ProxyProviders = serde_json::from_str(json)
+                    .map_err(|error| invalid(&format!("invalid proxy providers JSON: {error}")))?;
                 configuration
                     .save_proxy_providers(providers)
                     .await
@@ -511,22 +565,20 @@ impl CommandApplication {
         let key = key.trim();
         let value = value.trim();
         if let Some(action_id) = key.strip_prefix("shortcut.") {
-            let action = infiltrator_contract::shortcuts::ShortcutAction::from_id(action_id)
-                .ok_or_else(|| {
-                    Failure::new(
-                        ErrorCode::InvalidInput,
-                        format!("unknown shortcut action {action_id}"),
-                        false,
-                    )
-                })?;
-            let chord =
-                infiltrator_contract::shortcuts::ShortcutChord::parse(value).ok_or_else(|| {
-                    Failure::new(
-                        ErrorCode::InvalidInput,
-                        format!("invalid shortcut chord {value}"),
-                        false,
-                    )
-                })?;
+            let action = ShortcutAction::from_id(action_id).ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    format!("unknown shortcut action {action_id}"),
+                    false,
+                )
+            })?;
+            let chord = ShortcutChord::parse(value).ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    format!("invalid shortcut chord {value}"),
+                    false,
+                )
+            })?;
             self.shortcuts()?.capture(action, chord).await?;
             return Ok(());
         }
@@ -601,23 +653,30 @@ impl CommandApplication {
         // A theme value is a shared appearance preference: reject a typo
         // instead of storing a string no surface can resolve, and persist the
         // canonical spelling so both ends read the same value back.
-        if key == "theme"
-            && infiltrator_contract::theme::ThemePreference::parse_strict(value).is_none()
-        {
+        if key == "theme" && ThemePreference::parse_strict(value).is_none() {
             return Err(Failure::new(
                 ErrorCode::InvalidInput,
                 format!("unknown theme {value}"),
                 false,
             ));
         }
+        let language = if key == "language" {
+            Some(LanguagePreference::parse(value)?)
+        } else {
+            None
+        };
         self.settings()?
             .update(|settings| match key {
-                "language" => settings.language = value.to_string(),
+                "language" => {
+                    settings.language = language
+                        .expect("language validated above")
+                        .as_setting()
+                        .into()
+                }
                 "theme" => {
-                    settings.theme =
-                        infiltrator_contract::theme::ThemePreference::from_setting(value)
-                            .as_setting()
-                            .to_string()
+                    settings.theme = ThemePreference::from_setting(value)
+                        .as_setting()
+                        .to_string()
                 }
                 "notifications_enabled" => {
                     settings.notifications_enabled = parsed_bool.unwrap_or(false)
@@ -638,9 +697,13 @@ impl CommandApplication {
             .ok_or_else(|| missing("profile application"))
     }
 
-    fn configuration(
-        &self,
-    ) -> Result<crate::configuration_application::ConfigurationApplication, Failure> {
+    fn proxy_preferences(&self) -> Result<&ProxyPreferencesApplication, Failure> {
+        self.proxy_preferences
+            .as_ref()
+            .ok_or_else(|| missing("proxy preferences application"))
+    }
+
+    fn configuration(&self) -> Result<ConfigurationApplication, Failure> {
         self.configuration
             .clone()
             .ok_or_else(|| missing("configuration application"))
@@ -775,36 +838,25 @@ impl CommandApplication {
         })
     }
 
-    fn speedtest(&self) -> Result<crate::speedtest_application::SpeedtestApplication, Failure> {
+    fn speedtest(&self) -> Result<SpeedtestApplication, Failure> {
         self.speedtest
             .clone()
             .ok_or_else(|| missing("speedtest application"))
     }
 
-    fn rule_tracer(
-        &self,
-    ) -> Result<crate::rule_tracer_application::RuleTracerApplication, Failure> {
+    fn rule_tracer(&self) -> Result<RuleTracerApplication, Failure> {
         self.rule_tracer
             .clone()
             .ok_or_else(|| missing("rule tracer application"))
     }
 }
 
-impl CommandHandler for CommandApplication {
-    fn handle(&self, intent: CommandIntent) -> CommandFuture {
-        let application = self.clone();
-        Box::pin(async move { application.execute(intent).await })
-    }
-}
-
-const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
-const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
 const DEFAULT_DELAY_CONCURRENCY: usize = 30;
 /// Bounded concurrency for the shared "update all subscriptions" batch.
 const BATCH_UPDATE_CONCURRENCY: usize = 5;
 
 fn delay_candidates(
-    proxies: &std::collections::HashMap<String, Proxy>,
+    proxies: &HashMap<String, Proxy>,
     group: Option<&str>,
 ) -> Result<Vec<String>, Failure> {
     let candidates = match group {
@@ -891,7 +943,7 @@ fn unsupported() -> Failure {
 }
 
 /// Configuration failure for the shared rule-edit path.
-fn rule_failure(error: impl std::fmt::Display) -> Failure {
+fn rule_failure(error: impl Display) -> Failure {
     Failure::new(ErrorCode::Configuration, error.to_string(), false)
 }
 

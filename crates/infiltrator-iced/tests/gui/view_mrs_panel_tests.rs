@@ -1,4 +1,9 @@
 use super::*;
+use infiltrator_application::rule_mrs_projection::mrs_acceleration_status_line;
+use infiltrator_contract::mrs_acceleration::{
+    MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
+};
+use infiltrator_domain::mrs::{Behavior, MrsMetadata};
 
 #[test]
 fn test_format_behavior_name() {
@@ -40,8 +45,8 @@ fn test_mrs_card_empty_and_populated() {
         name: "XiaoHongShu".into(),
         behavior: "domain".into(),
         file: None,
-        metadata: Some(infiltrator_domain::mrs::MrsMetadata {
-            behavior: infiltrator_domain::mrs::Behavior::Domain,
+        metadata: Some(MrsMetadata {
+            behavior: Behavior::Domain,
             rule_count: 179,
             version: 1,
             payload_size: 4096,
@@ -78,11 +83,11 @@ fn test_mrs_acceleration_card_renders_shared_status_and_items() {
         mrs_acceleration_status_line(&lang, &state.editor.mrs_acceleration).contains("Unavailable")
     );
 
-    let item = infiltrator_contract::mrs_acceleration::MrsItemSnapshot {
+    let item = MrsItemSnapshot {
         name: "geoip-cn.mrs".into(),
-        behavior: infiltrator_contract::mrs_acceleration::MrsBehaviorKind::IpCidr,
+        behavior: MrsBehaviorKind::IpCidr,
         format_version: 1,
-        compression: infiltrator_contract::mrs_acceleration::MrsCompressionKind::None,
+        compression: MrsCompressionKind::None,
         rule_count: 8500,
         payload_size_bytes: 128,
         file_size_bytes: 192,
@@ -95,13 +100,7 @@ fn test_mrs_acceleration_card_renders_shared_status_and_items() {
         source_url: None,
         unpack_supported: true,
     };
-    state.editor.mrs_acceleration =
-        infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::ready(
-            1,
-            1,
-            vec![item.clone()],
-            true,
-        );
+    state.editor.mrs_acceleration = MrsAccelerationSnapshot::ready(1, 1, vec![item.clone()], true);
 
     let status = mrs_acceleration_status_line(&lang, &state.editor.mrs_acceleration);
     assert!(status.contains("Acceleration ready"));
@@ -110,7 +109,7 @@ fn test_mrs_acceleration_card_renders_shared_status_and_items() {
 
     let label = mrs_acceleration_item_label(&lang, &item);
     assert!(label.contains("geoip-cn.mrs"));
-    assert!(label.contains("8500 ipcidr"));
+    assert!(label.contains("8500 entries · ipcidr"));
     assert!(label.contains("valid"));
     assert!(label.contains("sha256 deadbeefcafe"));
     drop(mrs_acceleration_card(&state));
@@ -123,8 +122,8 @@ fn test_detail_row_render() {
         name: "test-mrs".into(),
         behavior: "domain".into(),
         file: None,
-        metadata: Some(infiltrator_domain::mrs::MrsMetadata {
-            behavior: infiltrator_domain::mrs::Behavior::Domain,
+        metadata: Some(MrsMetadata {
+            behavior: Behavior::Domain,
             rule_count: 350,
             version: 1,
             payload_size: 2048,

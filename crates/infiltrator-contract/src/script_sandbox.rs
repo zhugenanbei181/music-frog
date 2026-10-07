@@ -256,7 +256,7 @@ impl ScriptCircuitBreakerSnapshot {
 }
 
 /// Read model snapshot representing the active state and execution results of the script sandbox.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScriptSandboxSnapshot {
     /// What produced this projection (always the directive DSL today).
     #[serde(default)]

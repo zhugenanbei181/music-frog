@@ -5,6 +5,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot, PrivilegedNetworkState,
 };
+use infiltrator_domain::privileged_network_policy::validate_request;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::privileged_network::PrivilegedNetworkPort;
 use std::sync::Arc;
@@ -68,7 +69,7 @@ impl PrivilegedNetworkApplication {
         &self,
         request: PrivilegedNetworkRequest,
     ) -> Result<PrivilegedNetworkSnapshot, Failure> {
-        infiltrator_domain::privileged_network_policy::validate_request(&request)
+        validate_request(&request)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         let operation_count = request.operations.len();
         let injected = match self.port.inject(request).await {
@@ -241,10 +242,12 @@ mod tests {
         PrivilegedNetworkOperation, PrivilegedNetworkRequest,
     };
     use infiltrator_ports::error::PortError;
+    #[cfg(test)]
+    use std::sync;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     struct MockPort {
-        snapshot: std::sync::Mutex<PrivilegedNetworkSnapshot>,
+        snapshot: sync::Mutex<PrivilegedNetworkSnapshot>,
         inject_calls: AtomicUsize,
         cleanup_calls: AtomicUsize,
         fail_inject: AtomicBool,
@@ -298,7 +301,7 @@ mod tests {
 
     fn mock() -> Arc<MockPort> {
         Arc::new(MockPort {
-            snapshot: std::sync::Mutex::new(PrivilegedNetworkSnapshot::default()),
+            snapshot: sync::Mutex::new(PrivilegedNetworkSnapshot::default()),
             inject_calls: AtomicUsize::new(0),
             cleanup_calls: AtomicUsize::new(0),
             fail_inject: AtomicBool::new(false),

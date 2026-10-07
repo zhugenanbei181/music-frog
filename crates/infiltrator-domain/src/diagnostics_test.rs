@@ -1,6 +1,5 @@
 use super::*;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[test]
 fn test_connection_rate_tracker() {

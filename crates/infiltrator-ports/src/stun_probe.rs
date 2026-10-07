@@ -10,10 +10,9 @@
 //! A host without a STUN adapter injects nothing: both surfaces then publish
 //! the typed unsupported state instead of a fabricated public mapping.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::stun_probe::{StunProbeObservation, StunProbeReport, StunProbeRequest};
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait StunProbePort: Send + Sync {

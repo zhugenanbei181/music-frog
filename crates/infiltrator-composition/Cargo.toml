@@ -6,6 +6,9 @@ publish = false
 description = "Composition roots that wire concrete outbound and host adapters into the application layer."
 
 [dependencies]
+async-trait = { workspace = true }
+infiltrator-contract = { path = "../infiltrator-contract" }
+infiltrator-domain = { path = "../infiltrator-domain" }
 infiltrator-application = { path = "../infiltrator-application" }
 infiltrator-ios = { path = "../infiltrator-ios" }
 infiltrator-ports = { path = "../infiltrator-ports" }

@@ -6,11 +6,20 @@
 //! Callers wire `On<Activate>` themselves so one visual control can carry
 //! different typed events.
 
+use crate::interaction_block::InteractionBlocked;
+use crate::palette::UiPalette;
+use crate::responsive::TouchHitbox;
+use crate::text::{Role, TextRole};
+use crate::theme::{metrics, space};
+use bevy::a11y::AccessibilityNode;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::Without;
-use bevy::ecs::system::{Query, Res};
+use bevy::ecs::lifecycle::Insert;
+use bevy::ecs::observer::On;
+use bevy::ecs::query::{Has, QueryData, Without};
+use bevy::ecs::system::{Commands, Query, Res};
 use bevy::picking::hover::PickingInteraction;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -19,12 +28,8 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, px,
 };
 use bevy::ui::widget::Text;
+use bevy::ui::{InteractionDisabled, Pressed};
 use bevy::ui_widgets::Button;
-
-use crate::palette::UiPalette;
-use crate::responsive::TouchHitbox;
-use crate::text::{Role, TextRole};
-use crate::theme::{metrics, space};
 
 /// Button visual variants specifying tone, hierarchy and semantic role.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -71,6 +76,26 @@ pub struct ButtonLoading(pub bool);
 /// Marker component for button disabled state.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ButtonDisabled(pub bool);
+
+pub(crate) fn insert_button_disabled(
+    insert: On<Insert<ButtonDisabled>>,
+    buttons: Query<&ButtonDisabled>,
+    mut commands: Commands,
+) {
+    let Ok(disabled) = buttons.get(insert.entity) else {
+        return;
+    };
+    if disabled.0 {
+        commands
+            .entity(insert.entity)
+            .insert(InteractionDisabled)
+            .remove::<Pressed>();
+    } else {
+        commands
+            .entity(insert.entity)
+            .remove::<InteractionDisabled>();
+    }
+}
 
 /// Stable visual state carried by every product-owned button: the page-owned
 /// selected bit. Interaction itself remains bevy's `PickingInteraction`;
@@ -214,15 +239,35 @@ pub fn button_sized_scene(
     size: ButtonSize,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let role = match size {
+        ButtonSize::Sm => Role::Caption,
+        ButtonSize::Md => Role::Body,
+        ButtonSize::Lg => Role::Heading,
+    };
+    button_with_label_scene(
+        bsn! { Text(label) TextRole(role) ButtonLabel },
+        variant,
+        size,
+        palette,
+    )
+}
+
+/// A native label scene keeps translation metadata attached to the original widget.
+pub fn button_with_label_scene(
+    label: impl Scene + 'static,
+    variant: ButtonVariant,
+    size: ButtonSize,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
     let fill = button_fill(variant, false, false, false, false, palette);
     let edge = button_border(variant, false, false, false, false, palette);
-    let (height_px, padding_h, role) = match size {
-        ButtonSize::Sm => (palette.control_height_px * 0.8, space::S8, Role::Caption),
-        ButtonSize::Md => (palette.control_height_px, space::S12, Role::Body),
-        ButtonSize::Lg => (palette.control_height_px * 1.25, space::S16, Role::Heading),
+    let (height_px, padding_h) = match size {
+        ButtonSize::Sm => (palette.control_height_px * 0.8, space::S8),
+        ButtonSize::Md => (palette.control_height_px, space::S12),
+        ButtonSize::Lg => (palette.control_height_px * 1.25, space::S16),
     };
 
-    bsn! {
+    Box::new(bsn! {
             Node {
                 height: px(height_px),
                 padding: UiRect::horizontal(Val::Px(padding_h)),
@@ -241,9 +286,9 @@ pub fn button_sized_scene(
             Button
             TouchHitbox::default()
             Children [
-                Text(label) TextRole(role) ButtonLabel
+                @{ label }
             ]
-    }
+    })
 }
 
 /// Standard medium button scene for a given variant.
@@ -325,8 +370,21 @@ pub fn pill_caption_scene(
     selected: bool,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    pill_caption_with_label_scene(
+        bsn! { Text(label) TextRole(Role::Caption) PillLabel },
+        selected,
+        palette,
+    )
+}
+
+/// A compact native pill keeps localized label metadata on its real text entity.
+pub fn pill_caption_with_label_scene(
+    label: impl Scene + 'static,
+    selected: bool,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
     let edge = control_border(palette);
-    bsn! {
+    Box::new(bsn! {
             Node {
                 height: px(palette.control_height_px * 0.8),
                 padding: UiRect::horizontal(Val::Px(space::S8)),
@@ -341,77 +399,130 @@ pub fn pill_caption_scene(
             Button
             TouchHitbox::default()
             Children [
-                Text(label) TextRole(Role::Caption) PillLabel
+                @label
             ]
-    }
+    })
 }
 
-/// Repaint product-owned controls whose interaction or selected state
-/// changed.
-#[allow(clippy::type_complexity)]
-pub fn sync_control_visuals(
-    palette: Res<UiPalette>,
-    mut controls: Query<(
-        &ControlVisual,
-        Option<&PickingInteraction>,
-        Option<&ButtonVariantStyle>,
-        Option<&ButtonDisabled>,
-        &mut BackgroundColor,
-        &mut BorderColor,
-    )>,
-) {
-    for (visual, interaction, variant_comp, disabled_comp, mut fill, mut border) in &mut controls {
-        let variant = variant_comp.map(|v| v.0).unwrap_or(ButtonVariant::Default);
-        let disabled = disabled_comp.map(|d| d.0).unwrap_or(false);
-        let (hovered, pressed) = match interaction {
+/// Paint reads the same temporary and domain suppression as native input.
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct ControlPaint {
+    visual: &'static ControlVisual,
+    interaction: Option<&'static PickingInteraction>,
+    variant: Option<&'static ButtonVariantStyle>,
+    disabled: Option<&'static ButtonDisabled>,
+    blocked: Has<InteractionBlocked>,
+    fill: &'static mut BackgroundColor,
+    border: &'static mut BorderColor,
+}
+pub fn sync_control_visuals(palette: Res<UiPalette>, mut controls: Query<ControlPaint>) {
+    for mut control in &mut controls {
+        let variant = control.variant.map_or(ButtonVariant::Default, |v| v.0);
+        let disabled = control.blocked || control.disabled.is_some_and(|d| d.0);
+        let (hovered, pressed) = match control.interaction {
             Some(PickingInteraction::Hovered) if !disabled => (true, false),
             Some(PickingInteraction::Pressed) if !disabled => (true, true),
             _ => (false, false),
         };
-        let target_fill = button_fill(variant, visual.0, hovered, pressed, disabled, &palette);
-        let target_border = button_border(variant, visual.0, hovered, pressed, disabled, &palette);
-        if fill.0 != target_fill {
-            fill.0 = target_fill;
+        let fill = button_fill(
+            variant,
+            control.visual.0,
+            hovered,
+            pressed,
+            disabled,
+            &palette,
+        );
+        let border = button_border(
+            variant,
+            control.visual.0,
+            hovered,
+            pressed,
+            disabled,
+            &palette,
+        );
+        if control.fill.0 != fill {
+            control.fill.0 = fill;
         }
-        if border.top != target_border {
-            border.set_all(target_border);
+        if control.border.top != border {
+            control.border.set_all(border);
         }
     }
 }
 
-/// Restamp every pill and button label from the live palette and component state.
-#[allow(clippy::type_complexity)]
+#[derive(QueryData)]
+pub struct ControlLabelState {
+    visual: &'static ControlVisual,
+    variant: Option<&'static ButtonVariantStyle>,
+    disabled: Option<&'static ButtonDisabled>,
+    blocked: Has<InteractionBlocked>,
+    children: &'static Children,
+}
+/// Restamp labels from the live palette and effective interaction state.
 pub fn sync_control_labels(
     palette: Res<UiPalette>,
-    pills: Query<(
-        &ControlVisual,
-        Option<&ButtonVariantStyle>,
-        Option<&ButtonDisabled>,
-        &Children,
-    )>,
+    controls: Query<ControlLabelState>,
     mut pill_labels: Query<(&PillLabel, &mut TextColor)>,
     mut button_labels: Query<(&ButtonLabel, &mut TextColor), Without<PillLabel>>,
 ) {
-    for (visual, variant_comp, disabled_comp, children) in &pills {
-        let variant = variant_comp.map(|v| v.0).unwrap_or(ButtonVariant::Default);
-        let disabled = disabled_comp.map(|d| d.0).unwrap_or(false);
-        let pill_ink = if visual.0 {
+    for control in &controls {
+        let variant = control.variant.map_or(ButtonVariant::Default, |v| v.0);
+        let disabled = control.blocked || control.disabled.is_some_and(|d| d.0);
+        let pill_ink = if disabled {
+            palette.disabled_ink
+        } else if control.visual.0 {
             palette.on_accent
         } else {
             palette.ink
         };
-        let button_ink = button_text_color(variant, visual.0, disabled, &palette);
-
-        for child in children.iter() {
-            if let Ok((_, mut label_ink)) = pill_labels.get_mut(*child)
-                && label_ink.0 != pill_ink
+        let button_ink = button_text_color(variant, control.visual.0, disabled, &palette);
+        for child in control.children.iter() {
+            if let Ok((_, mut ink)) = pill_labels.get_mut(*child)
+                && ink.0 != pill_ink
             {
-                label_ink.0 = pill_ink;
+                ink.0 = pill_ink;
             }
-            if let Ok((_, mut label_ink)) = button_labels.get_mut(*child)
-                && label_ink.0 != button_ink
+            if let Ok((_, mut ink)) = button_labels.get_mut(*child)
+                && ink.0 != button_ink
             {
-                label_ink.0 = button_ink;
+                ink.0 = button_ink;
+            }
+        }
+    }
+}
+
+/// The SDK and accessibility tree must observe the same disabled fact as the skin.
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct ButtonInteractionState {
+    entity: Entity,
+    disabled: &'static ButtonDisabled,
+    blocked: Has<InteractionBlocked>,
+    sdk_disabled: Has<InteractionDisabled>,
+    accessibility: Option<&'static mut AccessibilityNode>,
+}
+pub fn sync_button_disabled(mut commands: Commands, mut buttons: Query<ButtonInteractionState>) {
+    for button in &mut buttons {
+        let disabled = button.disabled.0 || button.blocked;
+        if disabled != button.sdk_disabled {
+            if disabled {
+                commands
+                    .entity(button.entity)
+                    .insert(InteractionDisabled)
+                    .remove::<Pressed>();
+            } else {
+                commands
+                    .entity(button.entity)
+                    .remove::<InteractionDisabled>();
+            }
+        }
+        if let Some(mut accessibility) = button.accessibility
+            && accessibility.is_disabled() != disabled
+        {
+            if disabled {
+                accessibility.set_disabled();
+            } else {
+                accessibility.clear_disabled();
             }
         }
     }

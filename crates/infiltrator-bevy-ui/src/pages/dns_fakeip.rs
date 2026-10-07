@@ -6,6 +6,8 @@
 //! The search box is a local view filter over that shared fact; the card never
 //! authors a binding of its own.
 
+use crate::localized_widgets::localized_field_scene;
+use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
@@ -15,162 +17,27 @@ use bevy::ui::prelude::{
     percent, px,
 };
 use bevy::ui::widget::Text;
+use infiltrator_application::dns_mapping_projection::project_mappings;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::dns::{FakeIpMappingPool, FakeIpMappingSource};
-use infiltrator_contract::dns_latency::{DnsLatencyReport, DnsLatencySummary, DnsProbeOutcome};
-use infiltrator_contract::dns_self_heal::DnsSelfHealState;
-
-use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 
 /// Marker on the Fake-IP search field's parent node.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DnsFakeIpSearchField;
-
-/// DUAL-14-10: bare-Chinese latency policy copy (Bevy page convention).
-pub fn latency_policy_label(report: &DnsLatencyReport) -> String {
-    match report.summary() {
-        DnsLatencySummary::AllMeasured {
-            count,
-            best_ms,
-            worst_ms,
-        } => format!("逐 Nameserver 延迟: {count} 个上游全部应答 ({best_ms}-{worst_ms} ms)"),
-        DnsLatencySummary::Partial { measured, total } => {
-            format!("逐 Nameserver 延迟: {total} 个上游中 {measured} 个应答")
-        }
-        DnsLatencySummary::NoneReachable { total } => {
-            format!("逐 Nameserver 延迟: {total} 个上游全部无应答")
-        }
-        DnsLatencySummary::NotProbed => "逐 Nameserver 延迟: 本次会话尚未测速".to_owned(),
-        DnsLatencySummary::Unsupported { reason } => {
-            format!("逐 Nameserver 延迟: 宿主未提供探测能力 ({reason})")
-        }
-    }
-}
-
-/// DUAL-14-10: one line per probed nameserver, with its real outcome.
-pub fn latency_result_listing(report: &DnsLatencyReport) -> String {
-    if !report.status.is_ready() {
-        return "无逐 Nameserver 结果: 宿主未注入探测端口".to_owned();
-    }
-    if report.results.is_empty() {
-        return "尚无逐 Nameserver 测速结果".to_owned();
-    }
-    report
-        .results
-        .iter()
-        .map(|result| {
-            let tier = if result.is_fallback {
-                "Fallback"
-            } else {
-                "主上游"
-            };
-            let outcome = match &result.outcome {
-                DnsProbeOutcome::Measured { rtt_ms } => format!("{rtt_ms} ms"),
-                DnsProbeOutcome::TimedOut => "超时无应答".to_owned(),
-                DnsProbeOutcome::InvalidResponse { reason } => format!("应答未通过校验 ({reason})"),
-                DnsProbeOutcome::Failed { message } => format!("探测失败 ({message})"),
-                DnsProbeOutcome::NotProbed { reason } => format!("未探测 ({reason})"),
-            };
-            format!("{} [{tier}] {outcome}", result.address)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// DUAL-14-13: the bare-Chinese self-heal state label.
-pub fn self_heal_state_label(state: DnsSelfHealState) -> &'static str {
-    match state {
-        DnsSelfHealState::Healthy => "正常",
-        DnsSelfHealState::Warning => "注意",
-        DnsSelfHealState::Critical => "故障",
-        DnsSelfHealState::Unknown => "未观测",
-    }
-}
-
-/// DUAL-14-13: the multi-line self-heal observation (one row per check).
-pub fn self_heal_listing(
-    snapshot: &infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot,
-) -> String {
-    use infiltrator_contract::dns_self_heal::DnsSelfHealKind;
-    if snapshot.checks.is_empty() {
-        return "尚未观测到 DNS 健康事实".to_owned();
-    }
-    snapshot
-        .checks
-        .iter()
-        .map(|check| {
-            let kind = match check.kind {
-                DnsSelfHealKind::ListenPort => "监听端口 (dns.listen)",
-                DnsSelfHealKind::UpstreamResolution => "上游解析可达性",
-                DnsSelfHealKind::Topology => "拓扑抗泄漏审计",
-            };
-            let fix = check
-                .fix
-                .map(|fix| format!(" · 建议修复: {}", fix.key()))
-                .unwrap_or_default();
-            format!(
-                "{kind} [{}] {}{fix}",
-                self_heal_state_label(check.state),
-                check.detail
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// The multi-line listing of the bindings matching `query`.
-pub fn fake_ip_mapping_listing(pool: &FakeIpMappingPool, query: &str) -> String {
-    if !pool.is_observed_subset() {
-        return match &pool.source {
-            FakeIpMappingSource::Unsupported { reason } => {
-                format!("宿主未提供映射事实 ({reason})")
-            }
-            FakeIpMappingSource::Unavailable { reason } => {
-                format!("内核连接表不可用 ({reason})")
-            }
-            FakeIpMappingSource::LiveConnections => String::new(),
-        };
-    }
-    let matches = pool.filter(query);
-    if matches.is_empty() {
-        return if pool.entries.is_empty() {
-            "当前没有可观察的 Fake-IP 绑定".to_owned()
-        } else {
-            "没有匹配的映射".to_owned()
-        };
-    }
-    matches
-        .iter()
-        .map(|entry| format!("{} ↔ {}", entry.address, entry.domain))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// The shown/total counter of the mapping listing.
-pub fn fake_ip_mapping_count(pool: &FakeIpMappingPool, query: &str) -> String {
-    if !pool.is_observed_subset() {
-        return "实时连接观测: 不可用".to_owned();
-    }
-    format!(
-        "实时连接观测: 显示 {} / 共 {} 条 (网段 {})",
-        pool.filter(query).len(),
-        pool.total,
-        pool.range
-    )
-}
 
 /// The Fake-IP mapping pool card (search + observed listing).
 pub fn dns_fakeip_pool_card_scene(
     projection: &DnsProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let listing = fake_ip_mapping_listing(&projection.fake_ip_pool, "");
-    let count = fake_ip_mapping_count(&projection.fake_ip_pool, "");
+    let display = project_mappings(&projection.fake_ip_pool, "", UiLocale::default().code());
+    let listing = display.listing();
+    let count = display.count;
 
     surface_scene(
         vec![
@@ -182,21 +49,17 @@ pub fn dns_fakeip_pool_card_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "Fake-IP 映射池实时检索 (DUAL-14-06)".to_owned() })
+                                LocalizedText::plain("dns_fakeip_pool_title")
                                 TextRole(Role::BodyStrong)
                                 --
-                                Text(count) TextRole(Role::Caption)
+                                Text(count) DnsLine(DnsLineKind::FakeIpMappingCount) TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
                             Node { width: percent(100) }
                             DnsFakeIpSearchField
                             Children [
-                                @{ text_field_with_placeholder_scene(
-                                        String::new(),
-                                        "搜索域名或虚拟 IP".to_owned(),
-                                        palette,
-                                ) }
+                                @{ (localized_field_scene(String::new(), LocalizedText::plain("dns_fakeip_pool_search"), palette), bsn! { NativeTextField(0) }) }
                             ]
             }),
             Box::new(bsn! {
@@ -216,18 +79,6 @@ pub fn dns_fakeip_pool_card_scene(
                                 TextRole(Role::Mono)
                             ]
             }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S2),
-                            }
-                            Children [
-                                Text({ String::new() })
-                                DnsLine(DnsLineKind::FakeIpMappingCount)
-                                TextRole(Role::Caption)
-                            ]
-            }),
         ],
         palette,
     )
@@ -238,12 +89,13 @@ pub fn sync_dns_fake_ip_filter(
     fields: Query<(&Children, &DnsFakeIpSearchField)>,
     text_fields: Query<&TextField>,
     last: Option<Res<LastDnsProjection>>,
+    locale: Res<UiLocale>,
     mut lines: Query<(&mut Text, &DnsLine)>,
 ) {
     let Some(pool) = last
         .as_ref()
         .and_then(|last| last.0.as_ref())
-        .map(|projection| projection.fake_ip_pool.clone())
+        .map(|projection| &projection.fake_ip_pool)
     else {
         return;
     };
@@ -255,8 +107,9 @@ pub fn sync_dns_fake_ip_filter(
             }
         }
     }
-    let listing = fake_ip_mapping_listing(&pool, &query);
-    let count = fake_ip_mapping_count(&pool, &query);
+    let display = project_mappings(pool, &query, locale.code());
+    let listing = display.listing();
+    let count = display.count;
     for (mut text, line) in &mut lines {
         let wanted = match line.0 {
             DnsLineKind::FakeIpMapping => Some(&listing),
@@ -274,7 +127,10 @@ pub fn sync_dns_fake_ip_filter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use infiltrator_contract::dns::FakeIpMappingEntry;
+    use infiltrator_application::dns_health_projection::project_dns_health;
+    use infiltrator_application::dns_latency_projection::project_dns_latency;
+    use infiltrator_contract::dns::{FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource};
+    use infiltrator_contract::dns_latency::DnsLatencyReport;
 
     fn pool() -> FakeIpMappingPool {
         FakeIpMappingPool {
@@ -297,14 +153,25 @@ mod tests {
     #[test]
     fn listing_and_count_follow_the_local_query() {
         let pool = pool();
-        let full = fake_ip_mapping_listing(&pool, "");
+        let full = project_mappings(&pool, "", "zh-CN").listing();
         assert!(full.contains("198.18.0.5 ↔ music.example.org"));
         assert_eq!(full.lines().count(), 2);
-        let filtered = fake_ip_mapping_listing(&pool, "cdn");
+        let filtered = project_mappings(&pool, "cdn", "zh-CN").listing();
         assert_eq!(filtered, "198.18.0.7 ↔ cdn.example.net");
-        assert_eq!(fake_ip_mapping_listing(&pool, "nothing"), "没有匹配的映射");
-        assert!(fake_ip_mapping_count(&pool, "").contains("显示 2 / 共 2 条"));
-        assert!(fake_ip_mapping_count(&pool, "cdn").contains("显示 1 / 共 2 条"));
+        assert_eq!(
+            project_mappings(&pool, "nothing", "zh-CN").listing(),
+            "没有匹配的映射"
+        );
+        assert!(
+            project_mappings(&pool, "", "zh-CN")
+                .count
+                .contains("显示 2 / 共观测 2 条")
+        );
+        assert!(
+            project_mappings(&pool, "cdn", "zh-CN")
+                .count
+                .contains("显示 1 / 共观测 2 条")
+        );
     }
 
     #[test]
@@ -348,9 +215,13 @@ mod tests {
                 total: 3
             }
         ));
-        assert!(latency_policy_label(&report).contains("3 个上游中 1 个应答"));
+        assert!(
+            project_dns_latency(&report, "zh-CN")
+                .summary
+                .contains("3 个上游中仅 1 个应答")
+        );
 
-        let listing = latency_result_listing(&report);
+        let listing = project_dns_latency(&report, "zh-CN").listing();
         assert_eq!(listing.lines().count(), 3);
         assert!(listing.contains("223.5.5.5 [主上游] 12 ms"));
         assert!(listing.contains("8.8.8.8 [主上游] 超时无应答"));
@@ -365,7 +236,11 @@ mod tests {
                 outcome: DnsProbeOutcome::Measured { rtt_ms: 31 },
             }],
         );
-        assert!(latency_policy_label(&all_measured).contains("1 个上游全部应答 (31-31 ms)"));
+        assert!(
+            project_dns_latency(&all_measured, "zh-CN")
+                .summary
+                .contains("全部 1 个上游均应答 (31-31 ms)")
+        );
 
         let none = DnsLatencyReport::measured(
             DEFAULT_PROBE_QUESTION,
@@ -376,10 +251,14 @@ mod tests {
                 outcome: DnsProbeOutcome::TimedOut,
             }],
         );
-        assert!(latency_policy_label(&none).contains("全部无应答"));
+        assert!(
+            project_dns_latency(&none, "zh-CN")
+                .summary
+                .contains("全部无应答")
+        );
         assert_eq!(
-            latency_policy_label(&DnsLatencyReport::default()),
-            "逐 Nameserver 延迟: 宿主未提供探测能力 (this host did not inject a DNS latency prober)"
+            project_dns_latency(&DnsLatencyReport::default(), "zh-CN").summary,
+            "宿主未提供逐 Nameserver 延迟事实，不填充假延迟 (this host did not inject a DNS latency prober)"
         );
     }
 
@@ -391,8 +270,11 @@ mod tests {
         };
 
         let empty = DnsSelfHealSnapshot::default();
-        assert_eq!(self_heal_state_label(empty.overall_state()), "未观测");
-        assert_eq!(self_heal_listing(&empty), "尚未观测到 DNS 健康事实");
+        assert_eq!(project_dns_health(&empty, "zh-CN").overall, "未观测");
+        assert_eq!(
+            project_dns_health(&empty, "zh-CN").listing(),
+            "尚未观测到 DNS 健康事实"
+        );
 
         let snapshot = DnsSelfHealSnapshot::new(vec![
             DnsSelfHealCheck {
@@ -408,28 +290,36 @@ mod tests {
                 fix: None,
             },
         ]);
-        let listing = self_heal_listing(&snapshot);
+        let listing = project_dns_health(&snapshot, "zh-CN").listing();
         assert_eq!(listing.lines().count(), 2);
         assert!(listing.contains("监听端口 (dns.listen) [故障]"));
-        assert!(listing.contains("建议修复: repair_dns_listen_port"));
+        assert!(listing.contains("建议修复: 修复 DNS 监听端口"));
         assert!(listing.contains("上游解析可达性 [正常]"));
-        assert_eq!(self_heal_state_label(snapshot.overall_state()), "故障");
+        assert_eq!(project_dns_health(&snapshot, "zh-CN").overall, "故障");
     }
 
     #[test]
     fn unsupported_pool_never_renders_a_binding() {
         let unsupported = FakeIpMappingPool::default();
-        assert!(fake_ip_mapping_listing(&unsupported, "").contains("宿主未提供映射事实"));
-        assert_eq!(
-            fake_ip_mapping_count(&unsupported, ""),
-            "实时连接观测: 不可用"
-        );
-        let report = infiltrator_contract::dns_latency::DnsLatencyReport::unsupported(
-            "host injected no DNS latency prober",
-        );
-        assert!(latency_policy_label(&report).contains("宿主未提供探测能力"));
         assert!(
-            latency_result_listing(&report).contains("宿主未注入探测端口"),
+            project_mappings(&unsupported, "", "zh-CN")
+                .listing()
+                .contains("宿主未提供映射事实")
+        );
+        assert_eq!(
+            project_mappings(&unsupported, "", "zh-CN").count,
+            "宿主未提供映射事实 (no running core connection feed on this host)"
+        );
+        let report = DnsLatencyReport::unsupported("host injected no DNS latency prober");
+        assert!(
+            project_dns_latency(&report, "zh-CN")
+                .summary
+                .contains("宿主未提供逐 Nameserver 延迟事实")
+        );
+        assert!(
+            project_dns_latency(&report, "zh-CN")
+                .listing()
+                .contains("宿主未提供逐 Nameserver 延迟事实"),
             "a host without a prober renders no fabricated result row"
         );
     }

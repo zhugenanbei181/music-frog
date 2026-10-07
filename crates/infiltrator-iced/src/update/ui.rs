@@ -1,26 +1,66 @@
+use crate::configs_dir::configs_dir;
+use crate::host::process_enumerator::enumerate_extended_processes;
+use crate::routing_application::application;
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, Route, ToastStatus};
 use crate::types::message::Message;
-use iced::Task;
-use iced::window;
-use infiltrator_contract::error::InfiltratorError;
+use crate::types::options::EditorPane;
+use crate::types::rule_trace::RuleTraceAction;
+use iced::widget::text_editor::Content;
+use iced::{Task, clipboard, window};
+use infiltrator_application::connection_rate_application::project_connection;
+use infiltrator_application::profile_editor_projection;
+use infiltrator_application::proxy_group_order_editor::GroupMove;
+use infiltrator_application::rule_statistics_workbench::StatisticsAction;
+use infiltrator_contract::command_catalogue::CommandTarget;
+use infiltrator_contract::error::{InfiltratorError, from_mihomo};
+use infiltrator_domain::connection_rate::PULSE_BREATH_HZ;
+use infiltrator_domain::connection_view::{ConnectionRuleSpec, append_draft_rule};
+use infiltrator_domain::yaml_edit::format::format_yaml;
+use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
-
+#[cfg(target_os = "windows")]
+use std::env::{args, current_exe};
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+use std::io;
 use std::path::Path;
 use std::time::Instant;
+use std::{process, time};
+use tokio::fs::create_dir_all;
+use tokio::task::spawn_blocking;
+use tokio::time::timeout;
 
 impl AppState {
     pub fn update_ui(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::Navigate(route) => {
                 let route_changed = self.shell.current_route != route;
                 if route_changed {
+                    self.editor.dns_hosts_editor.cancel();
+                    self.diag.dns_cache_actions.cancel();
+                    self.diag.dns_query.cancel();
                     self.shell.history.push(route);
                     self.shell.transition.previous_route = Some(self.shell.current_route);
                     self.shell.transition.start_time = Some(Instant::now());
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(route);
+                    self.diag.speedtest_detail_open = false;
+                    self.diag.inspecting_connection_id = None;
+                    self.shell.confirmation = None;
+                    if self.runtime.probe_options_editor.pending.is_none() {
+                        self.runtime.probe_options_editor.cancel();
+                        self.sync_probe_draft_fields();
+                    }
+                    self.runtime.probe_options_open = false;
+                    if self.runtime.group_order_editor.pending.is_none() {
+                        self.runtime.group_order_editor.cancel();
+                    }
+                    self.runtime.group_order_open = false;
+                    self.runtime.custom_node_modal_open = false;
+                    self.runtime.inspecting_proxy = None;
+                    self.runtime.inspection_probe.dismiss();
                     self.shell.current_route = route;
                 }
 
@@ -57,6 +97,19 @@ impl AppState {
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(target);
+                    self.diag.speedtest_detail_open = false;
+                    self.diag.inspecting_connection_id = None;
+                    self.shell.confirmation = None;
+                    if self.runtime.probe_options_editor.pending.is_none() {
+                        self.runtime.probe_options_editor.cancel();
+                        self.sync_probe_draft_fields();
+                    }
+                    self.runtime.probe_options_open = false;
+                    if self.runtime.group_order_editor.pending.is_none() {
+                        self.runtime.group_order_editor.cancel();
+                    }
+                    self.runtime.group_order_open = false;
+                    self.runtime.custom_node_modal_open = false;
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];
@@ -80,6 +133,19 @@ impl AppState {
                     self.diag.last_frame_time = Instant::now();
                     self.diag.perf_nav_started_at = Some(Instant::now());
                     self.diag.perf_nav_route = Some(target);
+                    self.diag.speedtest_detail_open = false;
+                    self.diag.inspecting_connection_id = None;
+                    self.shell.confirmation = None;
+                    if self.runtime.probe_options_editor.pending.is_none() {
+                        self.runtime.probe_options_editor.cancel();
+                        self.sync_probe_draft_fields();
+                    }
+                    self.runtime.probe_options_open = false;
+                    if self.runtime.group_order_editor.pending.is_none() {
+                        self.runtime.group_order_editor.cancel();
+                    }
+                    self.runtime.group_order_open = false;
+                    self.runtime.custom_node_modal_open = false;
                     self.shell.current_route = target;
 
                     let mut tasks = vec![];
@@ -94,6 +160,20 @@ impl AppState {
                     }
                     return Task::batch(tasks);
                 }
+                Task::none()
+            }
+            Message::CaptureRegionMeasured(bounds) => {
+                if self.shell.demo {
+                    self.shell.capture_region_bounds = bounds;
+                }
+                Task::none()
+            }
+            Message::CaptureFrameRendered {
+                revision,
+                bounds,
+                screenshot,
+            } => {
+                self.finish_capture_frame(revision, bounds, screenshot);
                 Task::none()
             }
             Message::TickFrame(now) => {
@@ -119,9 +199,8 @@ impl AppState {
                 if self.diag.connection_pulse_active() {
                     // The breath frequency is the shared domain constant, so
                     // both surfaces pulse at the same rate.
-                    self.diag.connection_pulse_phase = (self.diag.connection_pulse_phase
-                        + delta * infiltrator_domain::connection_rate::PULSE_BREATH_HZ)
-                        .fract();
+                    self.diag.connection_pulse_phase =
+                        (self.diag.connection_pulse_phase + delta * PULSE_BREATH_HZ).fract();
                 } else {
                     self.diag.connection_pulse_phase = 0.0;
                 }
@@ -143,7 +222,7 @@ impl AppState {
                         self.shell.transition.start_time = None;
                     }
                 }
-                Task::none()
+                Task::batch([self.capture_geometry_task(), self.capture_frame_task()])
             }
             Message::TogglePerfPanel => {
                 self.diag.perf_panel_visible = !self.diag.perf_panel_visible;
@@ -154,10 +233,29 @@ impl AppState {
                 Task::none()
             }
             Message::CancelConfirmation => {
+                if self.shell.confirmation == Some(ConfirmAction::RuleStatisticsCleanup) {
+                    return self.update_rule_statistics(StatisticsAction::CancelCleanup);
+                }
+                if matches!(
+                    self.shell.confirmation,
+                    Some(ConfirmAction::TracerOverride(_))
+                ) && !self.editor.rule_trace.cancel_override()
+                {
+                    return Task::none();
+                }
                 self.shell.confirmation = None;
                 Task::none()
             }
             Message::ConfirmAction => {
+                if self.shell.confirmation == Some(ConfirmAction::RuleStatisticsCleanup) {
+                    return self.update_rule_statistics(StatisticsAction::ConfirmCleanup);
+                }
+                if matches!(
+                    self.shell.confirmation,
+                    Some(ConfirmAction::TracerOverride(_))
+                ) {
+                    return self.update_core(Message::RuleTrace(RuleTraceAction::ConfirmOverride));
+                }
                 let Some(action) = self.shell.confirmation.take() else {
                     return Task::none();
                 };
@@ -165,6 +263,9 @@ impl AppState {
                     return Task::none();
                 }
                 match action {
+                    ConfirmAction::TracerOverride(_) | ConfirmAction::RuleStatisticsCleanup => {
+                        Task::none()
+                    }
                     ConfirmAction::FactoryReset => self.update_core(Message::FactoryReset),
                     ConfirmAction::ClearProfiles => self.update_profile(Message::ClearProfiles),
                     ConfirmAction::DeleteProfile(name) => {
@@ -184,11 +285,9 @@ impl AppState {
             }
             Message::OpenConfigDir => Task::perform(
                 async {
-                    let directory = crate::configs_dir::configs_dir().await?;
-                    tokio::fs::create_dir_all(&directory)
-                        .await
-                        .map_err(infiltrator_contract::error::from_mihomo)?;
-                    tokio::task::spawn_blocking(move || open_directory(&directory))
+                    let directory = configs_dir().await?;
+                    create_dir_all(&directory).await.map_err(from_mihomo)?;
+                    spawn_blocking(move || open_directory(&directory))
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))??;
                     Ok(())
@@ -197,12 +296,17 @@ impl AppState {
             ),
             Message::OpenConfigDirFinished(result) => match result {
                 Ok(()) => Task::done(Message::ShowToast(
-                    "配置文件夹已打开".to_string(),
+                    Lang(&copy_locale).tr("profile_folder_opened").into_owned(),
                     ToastStatus::Success,
                 )),
                 Err(error) => {
-                    self.set_error(&error);
-                    Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
+                    let message = localize(
+                        &self.shell.lang,
+                        "profile_folder_open_failed",
+                        &[("reason", error.to_string())],
+                    );
+                    self.set_error(&message);
+                    Task::done(Message::ShowToast(message, ToastStatus::Error))
                 }
             },
             Message::UpdateCloseToTray(enabled) => {
@@ -250,11 +354,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         if let Some(r) = rt {
-                            let _ = tokio::time::timeout(
-                                std::time::Duration::from_secs(2),
-                                r.shutdown(),
-                            )
-                            .await;
+                            let _ = timeout(time::Duration::from_secs(2), r.shutdown()).await;
                         }
                     },
                     |_| Message::ProxyStopped,
@@ -304,6 +404,19 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::ExecuteSelectedCommand => {
+                if !self.shell.command_palette_open {
+                    return Task::none();
+                }
+                let selected = self
+                    .filtered_command_indices()
+                    .get(self.shell.command_selected_index)
+                    .and_then(|index| self.shell.command_catalogue.entry(*index))
+                    .map(|entry| entry.target.clone());
+                selected.map_or_else(Task::none, |target| {
+                    self.update_ui(Message::ExecuteCommand(target))
+                })
+            }
             Message::ExecuteCommand(target) => {
                 self.shell.command_palette_open = false;
                 // The shared target vocabulary: global-chord actions re-enter
@@ -313,43 +426,61 @@ impl AppState {
                     return self.on_shell_shortcut(action);
                 }
                 match target {
-                    infiltrator_contract::command_catalogue::CommandTarget::Navigate(page) => self
-                        .update_ui(Message::Navigate(
-                            crate::types::app::Route::from_shell_page(page),
-                        )),
-                    infiltrator_contract::command_catalogue::CommandTarget::SetProxyMode(mode) => {
+                    CommandTarget::Navigate(page) => {
+                        self.update_ui(Message::Navigate(Route::from_shell_page(page)))
+                    }
+                    CommandTarget::SetProxyMode(mode) => {
                         self.update_ui(Message::SetProxyMode(mode.to_wire().to_owned()))
                     }
-                    infiltrator_contract::command_catalogue::CommandTarget::SwitchProfile {
-                        name,
-                        ..
-                    } => self.update_ui(Message::SetActiveProfile(name)),
-                    infiltrator_contract::command_catalogue::CommandTarget::FlushDnsCache => {
-                        self.update_ui(Message::FlushFakeIpCache)
+                    CommandTarget::SwitchProfile { name, .. } => {
+                        self.update_ui(Message::SetActiveProfile(name))
                     }
-                    infiltrator_contract::command_catalogue::CommandTarget::TestAllProxyGroups => {
+                    CommandTarget::FlushDnsCache => {
+                        let navigation = self.update_ui(Message::Navigate(Route::Dns));
+                        let confirmation = self.update_core(Message::FlushFakeIpCache);
+                        Task::batch(vec![navigation, confirmation])
+                    }
+                    CommandTarget::TestAllProxyGroups => {
                         self.update_ui(Message::TestAllProxyDelays)
                     }
-                    infiltrator_contract::command_catalogue::CommandTarget::RunDoctor => {
-                        self.update_ui(Message::RunDoctor)
-                    }
-                    infiltrator_contract::command_catalogue::CommandTarget::CloseAllConnections => {
-                        self.update_ui(Message::CloseAllConnections)
-                    }
-                    infiltrator_contract::command_catalogue::CommandTarget::RestartKernel => {
-                        self.update_ui(Message::StartProxy)
-                    }
+                    CommandTarget::RunDoctor => self.update_ui(Message::RunDoctor),
+                    CommandTarget::CloseAllConnections => self.update_ui(
+                        Message::RequestConfirmation(ConfirmAction::CloseAllConnections),
+                    ),
+                    CommandTarget::RestartKernel => self.update_ui(Message::StartProxy),
                     // Handled above through the shared shortcut vocabulary.
-                    infiltrator_contract::command_catalogue::CommandTarget::ToggleSystemProxy
-                    | infiltrator_contract::command_catalogue::CommandTarget::ToggleTun
-                    | infiltrator_contract::command_catalogue::CommandTarget::ToggleMiniHud
-                    | infiltrator_contract::command_catalogue::CommandTarget::CycleTheme => {
-                        Task::none()
-                    }
+                    CommandTarget::ToggleSystemProxy
+                    | CommandTarget::ToggleTun
+                    | CommandTarget::ToggleMiniHud
+                    | CommandTarget::CycleTheme => Task::none(),
                 }
             }
+            Message::CopyConnectionHost => {
+                let connection = self.diag.inspecting_connection_id.as_ref().and_then(|id| {
+                    self.diag.connections.as_ref().and_then(|snapshot| {
+                        snapshot
+                            .connections
+                            .iter()
+                            .find(|connection| &connection.id == id)
+                    })
+                });
+                connection.map_or_else(Task::none, |connection| {
+                    let facts = project_connection(
+                        connection,
+                        self.diag.connection_rate_book.get(&connection.id),
+                    );
+                    clipboard::write(facts.destination_host)
+                })
+            }
             Message::InspectConnection(id) => {
-                self.diag.inspecting_connection_id = id;
+                self.diag.inspecting_connection_id = id.filter(|id| {
+                    self.diag.connections.as_ref().is_some_and(|snapshot| {
+                        snapshot
+                            .connections
+                            .iter()
+                            .any(|connection| &connection.id == id)
+                    })
+                });
                 Task::none()
             }
             Message::CloseSingleConnection(id) => Task::done(Message::CloseConnection(id)),
@@ -358,30 +489,22 @@ impl AppState {
             // acceptable fallback here: a refusal keeps the user's bytes and
             // says why.
             Message::FormatYamlEditor => {
+                if !self.editor.document_session.can_edit() {
+                    return Task::none();
+                }
                 let text = self.editor.editor_content.text();
-                match infiltrator_domain::yaml_edit::format::format_yaml(&text) {
+                match format_yaml(&text) {
                     Ok(report) => {
-                        self.editor.editor_content =
-                            iced::widget::text_editor::Content::with_text(&report.content);
+                        self.editor.editor_content = Content::with_text(&report.content);
                         // The replaced content restarts the widget's scroll at
                         // line 0; the shared window restarts with it (DUAL-09-02).
-                        self.reset_document_viewport(crate::types::options::EditorPane::Profile);
+                        self.reset_document_viewport(EditorPane::Profile);
                         match report.skip_reason() {
                             Some(reason) if reason.is_advisory() => {
-                                let key = match reason {
-                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::AnchorsPresent => {
-                                        "yaml_format_skipped_anchors"
-                                    }
-                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::RootSequence => {
-                                        "yaml_format_skipped_root_sequence"
-                                    }
-                                    infiltrator_domain::yaml_edit::format::FormatSkipReason::MergeKey => {
-                                        "yaml_format_skipped_merge_key"
-                                    }
-                                    _ => "yaml_format_skipped_unclassified",
-                                };
-                                let lang = Lang(&self.shell.lang);
-                                let message = lang.tr(key).to_string();
+                                let message = profile_editor_projection::format_note(
+                                    reason,
+                                    &self.shell.lang,
+                                );
                                 return Task::done(Message::ShowToast(message, ToastStatus::Info));
                             }
                             _ => {}
@@ -397,15 +520,12 @@ impl AppState {
             Message::RefreshAppRoutingProcesses => {
                 self.app_routing.is_refreshing = true;
                 let processes = Task::perform(
-                    async {
-                        crate::host::process_enumerator::enumerate_extended_processes()
-                            .unwrap_or_default()
-                    },
+                    async { enumerate_extended_processes().unwrap_or_default() },
                     Message::AppRoutingProcessesLoaded,
                 );
                 let config = Task::perform(
                     async {
-                        crate::routing_application::application()
+                        application()
                             .await?
                             .load()
                             .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -421,15 +541,8 @@ impl AppState {
             }
             Message::AppRoutingConfigLoaded(result) => match result {
                 Ok(config) => {
-                    self.app_routing.mode =
-                        crate::routing_application::mode_from_domain(config.mode);
-                    self.app_routing.custom_rules = config
-                        .rules
-                        .into_iter()
-                        .map(|(package, rule)| {
-                            (package, crate::routing_application::rule_from_domain(rule))
-                        })
-                        .collect();
+                    self.app_routing.mode = config.mode;
+                    self.app_routing.custom_rules = config.rules;
                     Task::none()
                 }
                 Err(error) => {
@@ -449,10 +562,10 @@ impl AppState {
             }
             Message::SetAppRoutingMode(m) => {
                 self.app_routing.mode = m;
-                let mode = crate::routing_application::mode_to_domain(m);
+                let mode = m;
                 Task::perform(
                     async move {
-                        crate::routing_application::application()
+                        application()
                             .await?
                             .set_mode(mode)
                             .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -463,10 +576,10 @@ impl AppState {
             Message::SetAppRouteRule { process, rule } => {
                 let package = process.clone();
                 self.app_routing.custom_rules.insert(process, rule);
-                let domain_rule = crate::routing_application::rule_to_domain(rule);
+                let domain_rule = rule;
                 Task::perform(
                     async move {
-                        crate::routing_application::application()
+                        application()
                             .await?
                             .set_rule(&package, domain_rule)
                             .map_err(|failure| InfiltratorError::Config(failure.message))
@@ -478,49 +591,14 @@ impl AppState {
                 self.app_routing.selected_category = cat;
                 Task::none()
             }
-            Message::MoveProxyGroupUp(name) => {
-                if self.runtime.proxy_group_order.is_empty() {
-                    self.runtime.proxy_group_order = self
-                        .runtime
-                        .filtered_groups
-                        .iter()
-                        .map(|(n, _)| n.clone())
-                        .collect();
-                }
-                if let Some(idx) = self
-                    .runtime
-                    .proxy_group_order
-                    .iter()
-                    .position(|n| n == &name)
-                    && idx > 0
-                {
-                    self.runtime.proxy_group_order.swap(idx, idx - 1);
-                }
-                Task::none()
-            }
+            Message::MoveProxyGroupUp(name) => self.open_group_order(Some((name, GroupMove::Up))),
             Message::MoveProxyGroupDown(name) => {
-                if self.runtime.proxy_group_order.is_empty() {
-                    self.runtime.proxy_group_order = self
-                        .runtime
-                        .filtered_groups
-                        .iter()
-                        .map(|(n, _)| n.clone())
-                        .collect();
-                }
-                if let Some(idx) = self
-                    .runtime
-                    .proxy_group_order
-                    .iter()
-                    .position(|n| n == &name)
-                    && idx + 1 < self.runtime.proxy_group_order.len()
-                {
-                    self.runtime.proxy_group_order.swap(idx, idx + 1);
-                }
-                Task::none()
+                self.open_group_order(Some((name, GroupMove::Down)))
             }
             Message::ResetProxyGroupOrder => {
-                self.runtime.proxy_group_order.clear();
-                Task::none()
+                let task = self.open_group_order(None);
+                self.runtime.group_order_editor.reset_draft();
+                task
             }
             Message::ToggleMiniHudMode
             | Message::SetAlwaysOnTop(_)
@@ -535,94 +613,13 @@ impl AppState {
             | Message::WindowChromeToggleMaximize
             | Message::WindowChromeMinimize
             | Message::WindowChromeClose => self.update_chrome(message).unwrap_or_else(Task::none),
-            Message::RunScriptSandboxTest => {
-                let script = self.editor.script_sandbox.script_code.clone();
-                let yaml = self.editor.script_sandbox.input_yaml.clone();
-                let preset = self.editor.script_sandbox.selected_preset.clone();
-                self.editor.script_sandbox.is_running = true;
-                // DUAL-10-05/14: the shared application projects the real
-                // directive-DSL run and publishes the one read model both
-                // surfaces render.
-                let application =
-                    infiltrator_application::script_application::ScriptApplication::new();
-                let snapshot = application.run_sandbox(&script, &yaml, preset.as_deref());
-                self.editor.script_sandbox.snapshot = Some(snapshot);
-                self.editor.script_sandbox.is_running = false;
-                Task::none()
-            }
-            Message::SelectScriptPreset(preset) => {
-                self.editor.script_sandbox.selected_preset = Some(preset.clone());
-                // DUAL-10-04: load the script from the shared preset catalogue
-                // (and its real lifecycle stage) instead of an inline copy.
-                if let Some(definition) =
-                    infiltrator_domain::script_engine::ScriptEngine::find_preset(&preset)
-                {
-                    self.editor.script_sandbox.script_code = definition.script_code.to_string();
-                }
-                Task::none()
-            }
-            Message::UpdateScriptSandboxCode(c) => {
-                self.editor.script_sandbox.script_code = c;
-                Task::none()
-            }
-            Message::UpdateScriptSandboxInputYaml(y) => {
-                self.editor.script_sandbox.input_yaml = y;
-                Task::none()
-            }
-            Message::ClearScriptSandbox => {
-                self.editor.script_sandbox.snapshot = None;
-                infiltrator_application::script_application::clear_script_sandbox();
-                Task::none()
-            }
-            Message::ExportScriptDraft(kind) => self.export_script_draft(kind),
-            Message::ScriptExportFinished(result) => {
-                self.editor.script_sandbox.is_exporting = false;
-                match result {
-                    Ok(snapshot) => {
-                        let lang = Lang(&self.shell.lang);
-                        let (message, status) = match &snapshot.outcome {
-                            infiltrator_contract::script_export::ScriptExportOutcome::Saved {
-                                path,
-                                ..
-                            } => (
-                                format!("{}: {path}", lang.tr("script_export_toast_saved")),
-                                ToastStatus::Success,
-                            ),
-                            infiltrator_contract::script_export::ScriptExportOutcome::Unsupported {
-                                ..
-                            } => (
-                                lang.tr("script_export_toast_unsupported").to_string(),
-                                ToastStatus::Warning,
-                            ),
-                            infiltrator_contract::script_export::ScriptExportOutcome::Failed {
-                                reason,
-                            } => (
-                                format!("{}: {reason}", lang.tr("script_export_toast_failed")),
-                                ToastStatus::Error,
-                            ),
-                            infiltrator_contract::script_export::ScriptExportOutcome::Prepared => (
-                                lang.tr("script_export_toast_prepared").to_string(),
-                                ToastStatus::Info,
-                            ),
-                        };
-                        self.editor.script_sandbox.export = Some(snapshot);
-                        // Synchronous toast entry: the dismissal task is the
-                        // returned work unit (the same path the worker-driven
-                        // journeys use).
-                        self.push_toast(message, status)
-                    }
-                    Err(error) => {
-                        self.set_error(&error);
-                        let message = error.to_string();
-                        self.push_toast(message, ToastStatus::Error)
-                    }
-                }
-            }
+            Message::Script(_) => self.update_script_workbench(message),
             Message::OpenCustomNodeModal
             | Message::CloseCustomNodeModal
             | Message::UpdateCustomNodeUriInput(_)
             | Message::ParseAndImportCustomUri
             | Message::UpdateCustomNodeDraft(_)
+            | Message::UpdateCustomNodeField(_, _)
             | Message::ExportCustomNodeUri
             | Message::SaveCustomNodeForm
             | Message::CustomNodeSaved(_)
@@ -630,24 +627,23 @@ impl AppState {
             | Message::CustomNodeDialerScanned(_)
             | Message::VerifyCustomNodeCertificateAuthority => self.update_protocol_codec(message),
             Message::SetConnectionGroupingMode(mode) => {
-                self.diag.connection_grouping_mode = mode;
+                self.diag.connection_groups.select(mode);
                 Task::none()
             }
             Message::AddQuickRuleFromConnection { pattern, target } => {
                 // DUAL-13-09: both surfaces append through the shared domain
                 // draft seam, which rejects empty patterns and de-duplicates.
-                let spec = infiltrator_domain::connection_view::ConnectionRuleSpec {
+                let spec = ConnectionRuleSpec {
                     pattern: pattern.clone(),
                     target: target.clone(),
                 };
-                let added = infiltrator_domain::connection_view::append_draft_rule(
-                    &mut self.editor.rules,
-                    &spec,
-                );
+                if !self.editor.rule_list.editable() {
+                    return Task::none();
+                }
+                let added = append_draft_rule(&mut self.editor.rule_list.draft, &spec);
                 if added.is_none() {
                     return Task::none();
                 }
-                self.editor.rules_dirty = true;
                 Task::done(Message::ShowToast(
                     format!("Added rule: {pattern} -> {target}"),
                     ToastStatus::Success,
@@ -658,8 +654,6 @@ impl AppState {
             | Message::SnapshotDiffLoaded(_)
             | Message::SetSnapshotDiffMode(_)
             | Message::RefreshSnapshotDiff
-            | Message::ArmSnapshotRollback
-            | Message::CancelSnapshotRollback
             | Message::RollbackToSnapshot(_)
             | Message::SetProfileProtectionOverride(_) => self.update_snapshot_diff(message),
             // Group 15 shell domain (appearance preference, global shortcut
@@ -692,13 +686,13 @@ impl AppState {
                     // UAC 提权重启自身时必须透传原始命令行参数（此前不带
                     // 参数，重启后 --autostart 等启动配置会丢失）。PowerShell
                     // 单引号字面量内用双写单引号转义，含空格的参数才能保真。
-                    if let Ok(exe) = std::env::current_exe() {
+                    if let Ok(exe) = current_exe() {
                         let quote = |value: &str| format!("'{}'", value.replace('\'', "''"));
                         let mut command = format!(
                             "Start-Process -FilePath {} -Verb RunAs",
                             quote(&exe.to_string_lossy())
                         );
-                        let args: Vec<String> = std::env::args().skip(1).collect();
+                        let args: Vec<String> = args().skip(1).collect();
                         if !args.is_empty() {
                             let argument_list = args
                                 .iter()
@@ -707,7 +701,7 @@ impl AppState {
                                 .join(",");
                             command.push_str(&format!(" -ArgumentList {argument_list}"));
                         }
-                        let _ = std::process::Command::new("powershell")
+                        let _ = process::Command::new("powershell")
                             .arg("-Command")
                             .arg(command)
                             .spawn();
@@ -720,7 +714,9 @@ impl AppState {
                     // 非 Windows 没有 UAC 提权重启流程：返回类型化错误提示
                     // 手动以管理员运行，不得改道 TUN 服务安装（动词混淆）。
                     let error = InfiltratorError::Privilege(
-                        "当前平台不支持自动提权重启，请手动以管理员（root）权限运行本程序"
+                        Lang(&copy_locale)
+                            .tr("elevation_restart_unavailable")
+                            .as_ref()
                             .to_string(),
                     );
                     self.set_error(&error);
@@ -734,18 +730,18 @@ impl AppState {
 }
 fn open_directory(path: &Path) -> Result<(), InfiltratorError> {
     #[cfg(target_os = "windows")]
-    let result = std::process::Command::new("explorer").arg(path).spawn();
+    let result = process::Command::new("explorer").arg(path).spawn();
     #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("open").arg(path).spawn();
+    let result = process::Command::new("open").arg(path).spawn();
     #[cfg(target_os = "linux")]
-    let result = std::process::Command::new("xdg-open").arg(path).spawn();
+    let result = process::Command::new("xdg-open").arg(path).spawn();
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    let result: std::io::Result<std::process::Child> = Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
+    let result: io::Result<process::Child> = Err(io::Error::new(
+        io::ErrorKind::Unsupported,
         "opening directories is unsupported on this platform",
     ));
 
     result
         .map(|_| ())
-        .map_err(|error| InfiltratorError::Internal(format!("无法打开配置文件夹: {error}")))
+        .map_err(|error| InfiltratorError::Io(error.to_string()))
 }

@@ -6,13 +6,13 @@
 //! (`infiltrator_contract::design_tokens::skin_core` / `skin_interaction`,
 //! DUAL-15-14) which the Iced shell consumes directly; this crate cannot
 //! depend on contract, so the mirror is enforced by
-//! `tests/headless/design_token_tests.rs` and the numeric source scan in
-//! `scripts/quality/multimodal-shell-guard.py`.
+//! `tests/headless/design_token_tests.rs`.
 //!
 //! Every product color this layer paints must originate here as a token and
 //! reach bevy only through [`crate::palette`] — never as a literal at a call
 //! site.
 
+use bevy::ecs::resource;
 /// One sRGBA token color, channel-exact. The f32 fields are the contract the
 /// round-trip test asserts against `Color::srgba`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -104,7 +104,7 @@ pub struct Theme {
     pub surface_elevated: TokenColor,
     /// Primary reading ink.
     pub ink: TokenColor,
-    /// Dimmed ink (captions, idle labels) — carries its own alpha.
+    /// Subdued caption ink; the light appearance keeps it opaque for readable contrast.
     pub ink_dim: TokenColor,
     /// Accent ink / selected control fill (iOS blue).
     pub accent: TokenColor,
@@ -186,7 +186,7 @@ impl Theme {
             surface: TokenColor::rgb(0.988, 0.992, 0.988),   // #FCFDFC
             surface_elevated: TokenColor::rgba(0.0, 0.0, 0.0, 0.05),
             ink: TokenColor::rgb(0.12, 0.15, 0.14), // #1E2623
-            ink_dim: TokenColor::rgba(0.24, 0.28, 0.26, 0.65),
+            ink_dim: TokenColor::rgb(0.24, 0.28, 0.26),
             accent: TokenColor::rgb(0.04, 0.44, 0.88), // #0A70E0
             on_accent: TokenColor::rgb(1.0, 1.0, 1.0),
             accent_container: TokenColor::rgb(0.898, 0.910, 0.973), // #E5E8F8 (iced banner, measured)
@@ -264,8 +264,7 @@ impl Theme {
 /// (`infiltrator_contract::design_tokens::space`: XS=4, SM=8, MD=12, LG=16,
 /// XL=20, XXL=24). This crate is business-agnostic by charter and cannot
 /// depend on contract, so the mirror is enforced by
-/// `tests/headless/design_token_tests.rs` and the numeric scan in
-/// `scripts/quality/multimodal-shell-guard.py`.
+/// `tests/headless/design_token_tests.rs`.
 pub mod space {
     pub const S2: f32 = 2.0;
     pub const S4: f32 = 4.0;
@@ -410,9 +409,7 @@ pub mod breakpoint {
 }
 
 /// Standardized 4-tier responsive layout breakpoint category.
-#[derive(
-    bevy::ecs::resource::Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
+#[derive(resource::Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Breakpoint {
     /// Compact layout: width < 600px (smartphones portrait, split screen).
     Compact,

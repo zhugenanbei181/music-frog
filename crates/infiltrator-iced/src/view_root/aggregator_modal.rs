@@ -7,22 +7,25 @@
 //! synthesized group cascade, and the generated YAML structure. It never
 //! clusters, deduplicates, or renders fabricated placeholders.
 
+use infiltrator_application::aggregation_preview_projection::{
+    aggregation_counters, aggregation_custom_group_row, aggregation_groups, aggregation_regions,
+    aggregation_template_row, aggregation_yaml_preview,
+};
+
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::component_forms::{form_input_style, style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, icon_button, modern_scrollable};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::aggregator::{
-    AggregationCustomGroup, AggregationReport, AggregationTemplate, GeneratedGroupSnapshot,
+    AggregationCustomGroup, AggregationReport, AggregationTemplate,
 };
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
-
-/// YAML lines rendered in the shared structure viewport (DUAL-08-11).
-const YAML_PREVIEW_LINES: usize = 60;
 
 pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
@@ -207,7 +210,7 @@ pub fn aggregator_modal<'a>(state: &'a AppState) -> Element<'a, Message> {
                     Some(tk.accent_soft.into())
                 } else {
                     match status {
-                        iced::widget::button::Status::Hovered => Some(tk.control_bg.into()),
+                        button::Status::Hovered => Some(tk.control_bg.into()),
                         _ => None,
                     }
                 },
@@ -447,11 +450,7 @@ fn custom_group_list<'a>(
     }
     let mut rows = column![].spacing(theme::SP_XS);
     for (index, group) in groups.iter().enumerate() {
-        let keywords = if group.member_keywords.is_empty() {
-            lang.tr("aggregator_custom_all_nodes").to_string()
-        } else {
-            group.member_keywords.join(", ")
-        };
+        let keywords = aggregation_custom_group_row(group, lang.0);
         rows = rows.push(
             row![
                 badge(group.name.clone(), BadgeKind::Accent),
@@ -474,156 +473,30 @@ fn custom_group_list<'a>(
 /// The real preview: counters, region clusters, the group cascade and the
 /// generated YAML structure (DUAL-08-11).
 fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Element<'a, Message> {
-    let counters = interpolate(
-        &lang.tr("aggregator_preview_nodes"),
-        &[
-            ("total", report.total_nodes.to_string().as_str()),
-            ("removed", report.duplicates_removed.to_string().as_str()),
-            ("renamed", report.renamed_nodes.to_string().as_str()),
-        ],
-    );
-    let input = interpolate(
-        &lang.tr("aggregator_preview_input"),
-        &[("count", report.input_nodes.to_string().as_str())],
-    );
-    let cleaning = interpolate(
-        &lang.tr("aggregator_preview_cleaning"),
-        &[
-            ("rules", report.rule_renamed_nodes.to_string().as_str()),
-            ("invalid", report.invalid_nodes_removed.to_string().as_str()),
-        ],
-    );
-
     let mut body = column![
-        row![
-            text(lang.tr("aggregator_preview_title").to_string())
-                .size(12)
-                .font(FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
-            Space::new().width(theme::SP_SM),
-            text(counters).size(11).style(|t: &Theme| text::Style {
-                color: Some(tokens(t).success),
-            }),
-            Space::new().width(theme::SP_SM),
-            text(input).size(11).style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary),
-            }),
-        ]
-        .align_y(Alignment::Center),
-        text(cleaning).size(11).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
+        text(lang.tr("aggregator_preview_title").to_string())
+            .size(12)
+            .font(FONT_SEMIBOLD),
+        text(aggregation_counters(Some(report), lang.0)).size(11),
+        text(aggregation_regions(Some(report), lang.0)).size(12),
+        text(aggregation_groups(Some(report), lang.0)).size(12),
     ]
     .spacing(theme::SP_XS);
-
     if !report.invalid_node_samples.is_empty() {
         body = body.push(
             text(report.invalid_node_samples.join("\n"))
                 .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).warning),
-                }),
+                .font(MONO),
         );
     }
-
-    if !report.missing_sources.is_empty() {
-        let missing = interpolate(
-            &lang.tr("aggregator_missing_sources"),
-            &[("names", report.missing_sources.join(", ").as_str())],
-        );
-        body = body.push(text(missing).size(11).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).warning),
-        }));
-    }
-
-    let region_header = interpolate(
-        &lang.tr("aggregator_preview_regions"),
-        &[("count", report.regions.len().to_string().as_str())],
-    );
-    body = body.push(
-        text(region_header)
-            .size(11)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-    );
-    let mut region_rows = column![].spacing(theme::SP_XS);
-    for region in &report.regions {
-        let nodes = interpolate(
-            &lang.tr("aggregator_region_nodes"),
-            &[("count", region.node_names.len().to_string().as_str())],
-        );
-        region_rows = region_rows.push(
-            row![
-                text(region.flag.clone()).size(13).font(MONO),
-                Space::new().width(theme::SP_XS),
-                text(format!("{} · {}", region.iso, region.label))
-                    .size(12)
-                    .font(FONT_MEDIUM)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary),
-                    }),
-                Space::new().width(theme::SP_SM),
-                badge(region.group_name.clone(), BadgeKind::Neutral),
-                Space::new().width(Length::Fill),
-                text(nodes).size(11).style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary),
-                }),
-            ]
-            .align_y(Alignment::Center),
-        );
-    }
-    body = body.push(region_rows);
-
-    let group_header = interpolate(
-        &lang.tr("aggregator_preview_groups"),
-        &[("count", report.groups.len().to_string().as_str())],
-    );
-    body = body.push(
-        text(group_header)
-            .size(11)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-    );
-    let mut group_rows = column![].spacing(theme::SP_XS);
-    for group in &report.groups {
-        group_rows = group_rows.push(group_row(group, lang));
-    }
-    body = body.push(group_rows);
-
-    // DUAL-08-11: the generated YAML structure, rendered from the shared
-    // report's own document (never re-serialized by the surface).
-    let yaml_lines = report.yaml.lines().count();
-    let yaml_header = interpolate(
-        &lang.tr("aggregator_preview_yaml"),
-        &[("lines", yaml_lines.to_string().as_str())],
-    );
-    body = body.push(
-        text(yaml_header)
-            .size(11)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-    );
     body = body.push(container(
         modern_scrollable(
-            text(report.yaml_preview(YAML_PREVIEW_LINES))
+            text(aggregation_yaml_preview(Some(report), lang.0))
                 .size(11)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_primary),
-                }),
+                .font(MONO),
         )
         .height(Length::Fixed(160.0)),
     ));
-
     container(modern_scrollable(body).height(Length::Fixed(320.0)))
         .padding(8)
         .style(|t: &Theme| {
@@ -639,48 +512,6 @@ fn preview_section<'a>(report: &'a AggregationReport, lang: &Lang<'_>) -> Elemen
             }
         })
         .into()
-}
-
-fn group_row<'a>(group: &GeneratedGroupSnapshot, lang: &Lang<'_>) -> Element<'a, Message> {
-    let kind_key = if group.group_type == "url-test" {
-        "aggregator_group_urltest"
-    } else {
-        "aggregator_group_select"
-    };
-    let mut cells = row![
-        text(group.name.clone())
-            .size(12)
-            .font(FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        Space::new().width(theme::SP_SM),
-        badge(lang.tr(kind_key).to_string(), BadgeKind::Neutral),
-    ]
-    .align_y(Alignment::Center);
-    if group.is_master {
-        cells = cells.push(Space::new().width(theme::SP_XS));
-        cells = cells.push(badge(
-            lang.tr("aggregator_preview_master").to_string(),
-            BadgeKind::Accent,
-        ));
-    }
-    if group.is_custom {
-        cells = cells.push(Space::new().width(theme::SP_XS));
-        cells = cells.push(badge(
-            lang.tr("aggregator_group_custom").to_string(),
-            BadgeKind::Accent,
-        ));
-    }
-    cells = cells.push(Space::new().width(Length::Fill));
-    cells = cells.push(
-        text(format!("{}", group.members.len()))
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            }),
-    );
-    cells.into()
 }
 
 /// DUAL-08-13/08-07: the persisted template library with reuse, re-aggregate
@@ -738,16 +569,14 @@ fn template_section<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mes
 
 fn template_row<'a>(template: &'a AggregationTemplate, lang: &Lang<'_>) -> Element<'a, Message> {
     let name = template.name.clone();
-    let updated = interpolate(
-        &lang.tr("aggregator_template_updated"),
-        &[("time", template.updated_at.as_str())],
-    );
     row![
         badge(template.name.clone(), BadgeKind::Neutral),
         Space::new().width(theme::SP_SM),
-        text(updated).size(11).style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }),
+        text(aggregation_template_row(template, lang.0))
+            .size(11)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }),
         Space::new().width(Length::Fill),
         button(text(lang.tr("aggregator_template_use").to_string()).size(11))
             .padding([2, 8])

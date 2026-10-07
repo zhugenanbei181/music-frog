@@ -5,7 +5,7 @@
 //! - [`bezier`]: Catmull-Rom to cubic Bezier interpolation, monotone clamping,
 //!   and shared-scale dynamic normalization;
 //! - [`mesh`]: GPU 2D vertex mesh compilation (`TriangleList`, colors, UVs) and
-//!   embedded WGSL shader definition;
+//!   modular WESL shader prototype (the GPU pipeline is not installed yet);
 //! - [`donut`]: Annular ring traffic distribution chart with anti-aliased sectors;
 //! - [`histogram`]: Network latency distribution bins with tiered colors;
 //! - [`topology`]: Node-link packet propagation graphs with smooth flow ribbons;
@@ -19,8 +19,8 @@
 //! and interactive crosshair overlays. Anti-aliasing and subpixel coverage provide
 //! sharp, honest visuals at token colors.
 //!
-//! **Series updates** rewrite the **same image handle** in place ([`ChartPlate`]
-//! keeps it; [`sync_charts`] mutates the asset in place via `Assets::<Image>::get_mut`).
+//! **Series updates** rewrite the same per-chart image in place. Its private
+//! texture owner drops with the plate or entity; shared icon handles stay read-only.
 
 pub mod bezier;
 pub mod donut;
@@ -32,27 +32,27 @@ pub mod nice_scale;
 pub mod quantiles;
 pub mod radar;
 pub mod ring_buffer;
+pub mod texture;
 pub mod topology;
 
-use bezier::{PlotPoint, ScaleMode, build_dual_series_curves, linear_polyline};
-use interaction::{
-    CrosshairState, TimeRangeZoom, apply_zoom_pan, draw_crosshair_overlay,
-    find_nearest_sample_index,
-};
-
+use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::picking::hover::PickingInteraction;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, Overflow, percent, px};
-use bevy::ui::widget::ImageNode;
-
-use crate::palette::UiPalette;
+use bezier::{PlotPoint, ScaleMode, build_dual_series_curves, linear_polyline};
+use interaction::{
+    CrosshairState, TimeRangeZoom, apply_zoom_pan, draw_crosshair_overlay,
+    find_nearest_sample_index,
+};
+use texture::ChartTextureView;
 
 /// Backwards-compatible linear projection function.
 /// Projects `samples` onto a polyline inside a `width × height` box.
@@ -126,6 +126,28 @@ fn draw_layer(pixels: &mut [u8], width: u32, height: u32, layer: &ChartLayer) {
                 let fade = 1.0 - ((y - top.round() as i32) as f32 / reach).clamp(0.0, 1.0);
                 let alpha = (fill[3] as f32 / 255.0) * fade;
                 blend(pixels, width, x as i32, y, fill, alpha);
+            }
+        }
+    }
+
+    // A valid sample surrounded by gaps is still an observation. Draw a point
+    // without connecting it to any neighbouring run.
+    for (index, point) in layer.points.iter().enumerate() {
+        let Some(point) = point else { continue };
+        let connected = index
+            .checked_sub(1)
+            .is_some_and(|left| layer.points[left].is_some())
+            || layer.points.get(index + 1).is_some_and(Option::is_some);
+        if connected {
+            continue;
+        }
+        let x = (point.x.round() as i32).clamp(0, width as i32 - 1);
+        let y = (point.y.round() as i32).clamp(0, height as i32 - 1);
+        for dy in -2i32..=2 {
+            for dx in -2i32..=2 {
+                if dx * dx + dy * dy <= 4 {
+                    blend(pixels, width, x + dx, y + dy, layer.line, 1.0);
+                }
             }
         }
     }
@@ -273,6 +295,41 @@ impl ChartSpec {
 /// The chart mounted on a node.
 #[derive(Component, Clone, Debug, Default)]
 pub struct ChartPlate(pub ChartSpec);
+
+#[derive(Component, Clone)]
+struct ChartPaint {
+    spec: ChartSpec,
+    palette: UiPalette,
+}
+
+#[derive(QueryData)]
+pub struct ChartRenderView {
+    entity: Entity,
+    plate: &'static ChartPlate,
+    paint: Option<&'static ChartPaint>,
+    texture: ChartTextureView,
+}
+
+impl ChartPaint {
+    fn matches(&self, spec: &ChartSpec, palette: &UiPalette) -> bool {
+        let same_series = |left: &[f32], right: &[f32]| {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(a, b)| a.to_bits() == b.to_bits())
+        };
+        self.palette == *palette
+            && self.spec.width == spec.width
+            && self.spec.height == spec.height
+            && self.spec.scale_mode == spec.scale_mode
+            && self.spec.smooth == spec.smooth
+            && self.spec.crosshair == spec.crosshair
+            && self.spec.zoom == spec.zoom
+            && same_series(&self.spec.up, &spec.up)
+            && same_series(&self.spec.down, &spec.down)
+    }
+}
 
 /// Grid line fractions: thirds (the reference card's band structure).
 const GRID_FRACTIONS: [f32; 2] = [1.0 / 3.0, 2.0 / 3.0];
@@ -472,28 +529,26 @@ pub fn chart_scene_with_scale(
 pub fn sync_charts(
     palette: Res<UiPalette>,
     images: Option<ResMut<Assets<Image>>>,
-    mut charts: Query<(Entity, &ChartPlate, Option<&ImageNode>)>,
+    charts: Query<ChartRenderView>,
     mut commands: Commands,
 ) {
     let Some(mut images) = images else {
         return;
     };
-    for (entity, plate, node) in &mut charts {
+    for view in &charts {
+        let (entity, plate, paint) = (view.entity, view.plate, view.paint);
         let spec = &plate.0;
-        match node {
-            Some(node) => {
-                if let Some(mut image) = images.get_mut(&node.image) {
-                    *image = chart_image_with_spec(spec, &palette);
-                }
-            }
-            None => {
-                let image = chart_image_with_spec(spec, &palette);
-                let handle = images.add(image);
-                commands.entity(entity).insert(ImageNode {
-                    image: handle,
-                    ..ImageNode::default()
-                });
-            }
+        let repaint = !paint.is_some_and(|paint| paint.matches(spec, &palette));
+        if view.texture.sync::<ChartPlate>(
+            &mut images,
+            repaint,
+            || chart_image_with_spec(spec, &palette),
+            &mut commands,
+        ) {
+            commands.entity(entity).insert(ChartPaint {
+                spec: spec.clone(),
+                palette: *palette,
+            });
         }
     }
 }

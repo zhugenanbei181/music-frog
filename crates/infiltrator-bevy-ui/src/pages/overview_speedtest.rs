@@ -2,38 +2,50 @@
 //! target-URL and concurrency controls, the per-node detail modal and the
 //! in-place restamp of every measured value from the shared engine snapshot.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_field_scene;
+use crate::pages::overview::{LastOverviewProjection, OverviewLine};
+use crate::route::{ActiveRoute, Route};
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::ResMut;
+use bevy::ecs::system::{Commands, Query, Res, SystemParam};
+use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
+use bevy::text::{LineBreak, TextColor, TextLayout};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, AlignSelf, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent,
+    Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_application::speedtest_detail_projection::{listing, project_details};
+use infiltrator_application::speedtest_summary_projection::{
+    dead_archive, egress_label, history_caption, metrics_label,
+};
+use infiltrator_bevy_widgets::adaptive_modal::ModalState;
 use infiltrator_bevy_widgets::adaptive_modal::{OpenModal, adaptive_modal_scene};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::stat_chip::StatChipValue;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
+use infiltrator_bevy_widgets::text_input::TextField;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::speedtest::{
-    EgressCountryMatch, HistoricalSpeedtestRecord, NodeSpeedtestResult, SpeedtestScope,
-    SpeedtestSnapshot,
-};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::overview::{LastOverviewProjection, OverviewLine};
+use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
+use std::env;
 
 /// Marker naming which proxy mode a mode pill stands for; the refresh
 /// observer restamps its `ControlVisual` selected bit (the widget layer's
 /// shared repaint system re-derives the token fill from it). Mounted by
 /// the shell's sidebar segment control.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct SpeedtestDetailScrollArea;
+
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewSpeedtestButton {
     pub testing: bool,
@@ -88,13 +100,17 @@ pub struct OverviewSpeedtestDetailBodyText;
 pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
+                width: percent(100),
+                max_width: percent(100),
+                min_width: px(0.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S4),
-                align_items: AlignItems::End,
-                flex_shrink: 0.0,
+                row_gap: Val::Px(space::S8),
+                align_items: AlignItems::Stretch,
+                flex_shrink: 1.0,
             }
             Children [
                 Node {
+                    align_self: AlignSelf::End,
                     min_height: px(palette.control_height_px),
                     padding: UiRect::horizontal(Val::Px(space::S12)),
                     align_items: AlignItems::Center,
@@ -109,30 +125,40 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                 Children [
                     @{ icon_scene(IconId::Zap, 14.0, palette.accent) }
                     --
-                    Text({ "一键测速".to_owned() }) OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent })
+                    LocalizedText::plain("speedtest_start_action") OverviewSpeedtestText TextRole(Role::BodyStrong) TextColor({ palette.accent })
                 ]
                 --
                 Node {
+                    width: percent(100),
+                    min_width: px(0.0),
                     align_items: AlignItems::Center,
+                    flex_wrap: FlexWrap::Wrap,
                     column_gap: Val::Px(space::S6),
-                    flex_shrink: 0.0,
+                    row_gap: Val::Px(space::S6),
                 }
                 Children [
                     Node {
-                        width: px(240.0),
+                        flex_basis: px(240.0),
+                        flex_grow: 1.0,
+                        flex_shrink: 1.0,
+                        min_width: px(0.0),
+                        max_width: percent(100),
                         align_items: AlignItems::Center,
-                        flex_shrink: 0.0,
                     }
                     OverviewSpeedtestUrlField
                     Children [
-                        @{ text_field_with_placeholder_scene(
-                                String::new(),
-                                "测速目标 URL (留空用默认)".to_owned(),
+                        @{ localized_field_scene(String::new(), LocalizedText::plain("field_speedtest_url"),
                                 palette,
-                        ) }
+                        ) } NativeTextField(1)
                     ]
                     --
-                    Text({ "并发".to_owned() }) TextRole(Role::Caption)
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: Val::Px(space::S6),
+                        flex_shrink: 0.0,
+                    }
+                    Children [
+                    LocalizedText::plain("speedtest_concurrency_label") TextRole(Role::Caption)
                     --
                     Node {
                         min_width: px(26.0),
@@ -165,24 +191,34 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     Children [
                         Text({ "+".to_owned() }) TextRole(Role::Body)
                     ]
+                    ]
                 ]
                 --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestMetricsText
+                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
+                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
                 TextRole(Role::Caption)
                 --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDeadText
+                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
+                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
                 TextRole(Role::Caption)
                 --
                 Text({ "—".to_owned() })
                 OverviewSpeedtestHistoryText
+                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
+                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
                 TextRole(Role::Caption)
                 --
                 Node {
+                    width: percent(100),
+                    min_width: px(0.0),
                     align_items: AlignItems::Center,
+                    flex_wrap: FlexWrap::Wrap,
                     column_gap: Val::Px(space::S6),
-                    flex_shrink: 0.0,
+                    row_gap: Val::Px(space::S6),
                 }
                 Children [
                     Node {
@@ -197,11 +233,13 @@ pub(crate) fn speedtest_button_scene(palette: &UiPalette) -> impl Scene + use<> 
                     Button
                     OverviewSpeedtestDetailButton
                     Children [
-                        Text({ "详情".to_owned() }) TextRole(Role::Caption)
+                        LocalizedText::plain("common_details") TextRole(Role::Caption)
                     ]
                     --
                     Text({ "—".to_owned() })
                     OverviewSpeedtestEgressText
+                Node { width: percent(100), min_width: px(0.0), max_width: percent(100) }
+                TextLayout { linebreak: LineBreak::WordOrCharacter, ..TextLayout::default() }
                     TextRole(Role::Caption)
                 ]
             ]
@@ -215,18 +253,22 @@ pub fn overview_speedtest_detail_modal_scene(palette: &UiPalette) -> Box<dyn Sce
     let body = Box::new(bsn! {
             Node {
                 width: percent(100),
-                max_height: px(360.0),
+                max_height: Val::Vh(62.0),
+                min_height: px(0.0), flex_shrink: 1.0,
                 flex_direction: FlexDirection::Column,
                 overflow: Overflow::scroll_y(),
             }
+            ScrollArea SpeedtestDetailScrollArea
             Children [
                 Text({ "—".to_owned() })
                 OverviewSpeedtestDetailBodyText
                 TextRole(Role::Caption)
             ]
     });
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
     adaptive_modal_scene(
-        "测速结果明细".to_owned(),
+        Lang(&language).tr("speedtest_detail_title").into_owned(),
+        Lang(&language).tr("modal_close").into_owned(),
         body,
         Vec::<Box<dyn Scene>>::new(),
         palette,
@@ -274,7 +316,7 @@ pub(crate) fn on_overview_speedtest_activated(
 pub(crate) fn on_overview_speedtest_concurrency_stepped(
     activate: On<Activate>,
     steps: Query<&OverviewSpeedtestConcurrencyStep>,
-    latest: Res<crate::surface::LatestSurfaceSnapshot>,
+    latest: Res<LatestSurfaceSnapshot>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -323,87 +365,29 @@ type SpeedtestDetailBodyFilter = (
     Without<OverviewSpeedtestConcurrencyText>,
 );
 
-/// One honest line for a node in the detail modal.
-fn overview_detail_line(node: &NodeSpeedtestResult) -> String {
-    let delay = node
-        .delay_ms
-        .map(|ms| format!("{ms}ms"))
-        .unwrap_or_else(|| "—".to_owned());
-    let jitter = node
-        .jitter
-        .as_ref()
-        .map(|j| format!("{:.1}ms", j.jitter_ms))
-        .unwrap_or_else(|| "—".to_owned());
-    let loss = node
-        .jitter
-        .as_ref()
-        .map(|j| format!("{:.1}%", j.loss_percent))
-        .unwrap_or_else(|| "—".to_owned());
-    let bandwidth = node
-        .bandwidth_mbps
-        .map(|mbps| format!("{mbps:.1}Mbps"))
-        .unwrap_or_else(|| "—".to_owned());
-    let stars = "★".repeat(node.star_rating.min(5) as usize);
-    let match_label = match node.egress_country_match() {
-        EgressCountryMatch::Match => "归属一致",
-        EgressCountryMatch::Mismatch => "归属不一致",
-        EgressCountryMatch::Unlabelled => "无标签国家",
-        EgressCountryMatch::Unknown => "出口未探测",
-    };
-    format!(
-        "{} · 延迟 {delay} · 抖动 {jitter} · 丢包 {loss} · 带宽 {bandwidth} · {stars} · 出口 {} · {match_label}",
-        node.node_name,
-        node.egress_endpoint_label(),
-    )
-}
-
-/// Honest modal body: empty / failed states are literal, never fabricated.
-fn overview_detail_body(snapshot: &SpeedtestSnapshot) -> String {
-    if snapshot.node_results.is_empty() {
-        return match &snapshot.failure {
-            Some(failure) => format!("测速失败: {failure}"),
-            None => "暂无测速结果".to_owned(),
-        };
-    }
-    let mut lines: Vec<String> = vec![format!("出口状态: {}", snapshot.egress_summary())];
-    for node in snapshot.sorted_by_latency() {
-        lines.push(overview_detail_line(node));
-    }
-    lines.join("\n")
-}
-
 /// DUAL-06-12/13: restamp the egress caption and the detail-modal body from the
 /// one shared snapshot. Neither surface owns a metric of its own.
 pub fn sync_overview_speedtest_detail(
     last: Res<LastOverviewProjection>,
     mut egress: Query<&mut Text, SpeedtestEgressFilter>,
     mut detail: Query<&mut Text, SpeedtestDetailBodyFilter>,
+    locale: Res<UiLocale>,
 ) {
     let Some(projection) = last.0.as_ref() else {
         return;
     };
     let snapshot = &projection.speedtest;
 
-    let egress_label = match snapshot.fastest_node() {
-        Some(node) => format!(
-            "出口 {} · {}",
-            node.egress_endpoint_label(),
-            match node.egress_country_match() {
-                EgressCountryMatch::Match => "归属一致",
-                EgressCountryMatch::Mismatch => "归属不一致",
-                EgressCountryMatch::Unlabelled => "无标签国家",
-                EgressCountryMatch::Unknown => "出口未探测",
-            }
-        ),
-        None => "—".to_owned(),
-    };
+    let egress_label = egress_label(snapshot.fastest_node(), locale.code());
     for mut text in &mut egress {
         if text.0 != egress_label {
             text.0 = egress_label.clone();
         }
     }
 
-    let body_label = overview_detail_body(snapshot);
+    let body_label = listing(&project_details(snapshot), &|key| {
+        Lang(locale.code()).tr(key).into_owned()
+    });
     for mut text in &mut detail {
         if text.0 != body_label {
             text.0 = body_label.clone();
@@ -465,64 +449,20 @@ type SpeedtestConcurrencyFilter = (
     Without<OverviewSpeedtestHistoryText>,
 );
 
-/// Format an epoch-millisecond timestamp as UTC `MM-DD HH:MM` (no date crate).
-fn overview_run_time(epoch_ms: u64) -> String {
-    let secs = (epoch_ms / 1000) as i64;
-    let days = secs.div_euclid(86_400);
-    let rem = secs.rem_euclid(86_400);
-    let hour = rem / 3600;
-    let minute = (rem % 3600) / 60;
-    let z = days + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    format!("{month:02}-{day:02} {hour:02}:{minute:02}")
-}
-
-fn overview_scope_label(scope: &SpeedtestScope) -> String {
-    match scope {
-        SpeedtestScope::AllGroups => "全部节点".to_owned(),
-        SpeedtestScope::SingleGroup(group) => format!("分组 {group}"),
-        SpeedtestScope::SingleNode(node) => format!("节点 {node}"),
-    }
-}
-
-/// One honest, compact line per persisted run (shared `recent_history`).
-fn overview_history_line(record: &HistoricalSpeedtestRecord) -> String {
-    let bandwidth = record
-        .avg_bandwidth_mbps
-        .map(|mbps| format!("{mbps:.1}Mbps"))
-        .unwrap_or_else(|| "—".to_owned());
-    let latency = record
-        .avg_latency_ms
-        .map(|ms| format!("{ms:.1}ms"))
-        .unwrap_or_else(|| "—".to_owned());
-    let jitter = record
-        .avg_jitter_ms
-        .map(|ms| format!("{ms:.1}ms"))
-        .unwrap_or_else(|| "—".to_owned());
-    format!(
-        "{} · {} · 存活 {}/{} · 平均延迟 {latency} · 平均抖动 {jitter} · 平均带宽 {bandwidth} · ★{}",
-        overview_run_time(record.timestamp_epoch_ms),
-        overview_scope_label(&record.scope),
-        record.alive_nodes,
-        record.total_nodes,
-        record.overall_star_rating.min(5),
-    )
-}
-
 /// The button is baked `testing: false` at mount; this system reflects the
 /// live phase and progress so both surfaces read the same read model instead
 /// of a static label. Runs on every projection update and each frame the
 /// projection resource changes.
+#[derive(SystemParam)]
+pub struct SpeedtestControls<'w, 's> {
+    buttons: Query<'w, 's, &'static mut OverviewSpeedtestButton>,
+    texts: Query<'w, 's, (&'static mut Text, &'static mut LocalizedText), SpeedtestTextFilter>,
+    locale: Res<'w, UiLocale>,
+}
+
 pub fn sync_overview_speedtest_button(
     last: Res<LastOverviewProjection>,
-    mut buttons: Query<&mut OverviewSpeedtestButton>,
-    mut texts: Query<&mut Text, SpeedtestTextFilter>,
+    controls: SpeedtestControls,
     mut metrics: Query<&mut Text, SpeedtestMetricsFilter>,
     mut dead: Query<&mut Text, SpeedtestDeadFilter>,
     mut history: Query<&mut Text, SpeedtestHistoryFilter>,
@@ -531,48 +471,38 @@ pub fn sync_overview_speedtest_button(
     let Some(projection) = last.0.as_ref() else {
         return;
     };
+    let SpeedtestControls {
+        mut buttons,
+        mut texts,
+        locale,
+    } = controls;
     let snapshot = &projection.speedtest;
     let running = snapshot.is_running();
-    let label = if running {
+    let copy = if running {
         let done = snapshot.progress.completed_nodes;
         let total = snapshot.progress.total_nodes;
         if total > 0 {
-            format!("测速中 {done}/{total}")
+            LocalizedText::new(
+                "speedtest_cancel_progress",
+                vec![("done", done.to_string()), ("total", total.to_string())],
+            )
         } else {
-            "测速中…".to_owned()
+            LocalizedText::plain("speedtest_cancel_running")
         }
     } else {
-        "一键测速".to_owned()
+        LocalizedText::plain("speedtest_start_action")
     };
-    // Mirror the Iced speedtest card metrics from the same shared snapshot:
-    // jitter, packet-loss rating, star rating and bandwidth of the fastest
-    // measured node. Honest "—" until the engine has a result.
-    let metrics_label = match snapshot.fastest_node() {
-        Some(node) => {
-            let jitter = node
-                .jitter
-                .as_ref()
-                .map(|j| format!("{:.1}ms", j.jitter_ms))
-                .unwrap_or_else(|| "—".to_owned());
-            let bandwidth = node
-                .bandwidth_mbps
-                .map(|mbps| format!("{mbps:.1}Mbps"))
-                .unwrap_or_else(|| "—".to_owned());
-            let stars = "★".repeat(node.star_rating.min(5) as usize);
-            format!(
-                "{} · 抖动 {jitter} · 丢包 {} · {bandwidth} · {stars}",
-                node.node_name,
-                node.packet_loss.label_en()
-            )
-        }
-        None => "—".to_owned(),
-    };
+    let label = copy.render(&locale);
+    let metrics_label = metrics_label(snapshot.fastest_node(), locale.code());
     for mut button in &mut buttons {
         if button.testing != running {
             button.testing = running;
         }
     }
-    for mut text in &mut texts {
+    for (mut text, mut current) in &mut texts {
+        if *current != copy {
+            *current = copy.clone();
+        }
         if text.0 != label {
             text.0 = label.clone();
         }
@@ -582,46 +512,13 @@ pub fn sync_overview_speedtest_button(
             text.0 = metrics_label.clone();
         }
     }
-    // Timed-out / unreachable nodes are archived in one honest line; empty
-    // means "—", never a fabricated node.
-    let dead_label = {
-        let dead_nodes = snapshot.dead_nodes();
-        if dead_nodes.is_empty() {
-            "—".to_owned()
-        } else {
-            let names: Vec<&str> = dead_nodes
-                .iter()
-                .take(4)
-                .map(|node| node.node_name.as_str())
-                .collect();
-            let extra = dead_nodes.len().saturating_sub(names.len());
-            let mut listed = names.join(" · ");
-            if extra > 0 {
-                listed.push_str(&format!(" (+{extra})"));
-            }
-            format!("超时归档 {} · {listed}", dead_nodes.len())
-        }
-    };
+    let dead_label = dead_archive(snapshot, locale.code()).caption;
     for mut text in &mut dead {
         if text.0 != dead_label {
             text.0 = dead_label.clone();
         }
     }
-    // Persisted run history from the same shared snapshot: one honest line per
-    // run, newest first, with "—" when nothing has been recorded yet.
-    let history_label = {
-        let lines: Vec<String> = snapshot
-            .recent_history
-            .iter()
-            .rev()
-            .map(overview_history_line)
-            .collect();
-        if lines.is_empty() {
-            "—".to_owned()
-        } else {
-            format!("最近测速: {}", lines.join(" | "))
-        }
-    };
+    let history_label = history_caption(snapshot, locale.code());
     for mut text in &mut history {
         if text.0 != history_label {
             text.0 = history_label.clone();
@@ -634,5 +531,19 @@ pub fn sync_overview_speedtest_button(
         if text.0 != concurrency_label {
             text.0 = concurrency_label.clone();
         }
+    }
+}
+
+/// A detail inspection never stays open over a different page or after Escape.
+pub fn dismiss_speedtest_detail(
+    route: Res<ActiveRoute>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    mut state: ResMut<ModalState>,
+) {
+    if state.is_open
+        && (route.0 != Some(Route::Overview)
+            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+    {
+        state.close();
     }
 }

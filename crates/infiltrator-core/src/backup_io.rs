@@ -1,9 +1,9 @@
 //! Filesystem adapter for the runtime-neutral backup bundle.
 
+use crate::settings_io::settings_path;
 use infiltrator_domain::backup::{BackupBundle, BackupError, ProfileBackupItem, Result};
 use std::path::Path;
-
-use crate::settings_io::settings_path;
+use tokio::fs::{create_dir_all, read_dir, read_to_string, try_exists, write};
 
 /// Export all active configs and settings into a single JSON backup bundle string.
 pub async fn export_all_configs_bundle(base_dir: &Path) -> anyhow::Result<String> {
@@ -15,15 +15,15 @@ pub async fn export_all_configs_bundle(base_dir: &Path) -> anyhow::Result<String
 pub async fn export_bundle_from_dir(base_dir: &Path) -> Result<BackupBundle> {
     let settings_p =
         settings_path(base_dir).map_err(|e| BackupError::InvalidFormat(e.to_string()))?;
-    let settings_toml = if tokio::fs::try_exists(&settings_p).await.unwrap_or(false) {
-        tokio::fs::read_to_string(&settings_p).await?
+    let settings_toml = if try_exists(&settings_p).await.unwrap_or(false) {
+        read_to_string(&settings_p).await?
     } else {
         String::new()
     };
 
     let mixin_p = base_dir.join("mixin.yaml");
-    let mixin_yaml = if tokio::fs::try_exists(&mixin_p).await.unwrap_or(false) {
-        tokio::fs::read_to_string(&mixin_p).await?
+    let mixin_yaml = if try_exists(&mixin_p).await.unwrap_or(false) {
+        read_to_string(&mixin_p).await?
     } else {
         String::new()
     };
@@ -32,17 +32,17 @@ pub async fn export_bundle_from_dir(base_dir: &Path) -> Result<BackupBundle> {
     let options_dir = base_dir.join("options");
     let mut profiles = Vec::new();
 
-    if tokio::fs::try_exists(&configs_dir).await.unwrap_or(false) {
-        let mut entries = tokio::fs::read_dir(&configs_dir).await?;
+    if try_exists(&configs_dir).await.unwrap_or(false) {
+        let mut entries = read_dir(&configs_dir).await?;
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             let is_yaml =
                 path.is_file() && path.extension().is_some_and(|e| e == "yaml" || e == "yml");
-            if is_yaml && let Ok(content) = tokio::fs::read_to_string(&path).await {
+            if is_yaml && let Ok(content) = read_to_string(&path).await {
                 let stem = path.file_stem().unwrap().to_string_lossy().to_string();
                 let opt_path = options_dir.join(format!("{stem}.yaml"));
-                let options_yaml = if tokio::fs::try_exists(&opt_path).await.unwrap_or(false) {
-                    tokio::fs::read_to_string(&opt_path).await.ok()
+                let options_yaml = if try_exists(&opt_path).await.unwrap_or(false) {
+                    read_to_string(&opt_path).await.ok()
                 } else {
                     None
                 };
@@ -71,34 +71,33 @@ pub async fn restore_bundle_to_dir(
     let settings_p =
         settings_path(base_dir).map_err(|e| BackupError::InvalidFormat(e.to_string()))?;
     if let Some(parent) = settings_p.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        create_dir_all(parent).await?;
     }
-    if overwrite || !tokio::fs::try_exists(&settings_p).await.unwrap_or(false) {
-        tokio::fs::write(&settings_p, &bundle.settings_toml).await?;
+    if overwrite || !try_exists(&settings_p).await.unwrap_or(false) {
+        write(&settings_p, &bundle.settings_toml).await?;
     }
 
     let mixin_p = base_dir.join("mixin.yaml");
-    if !bundle.mixin_yaml.is_empty()
-        && (overwrite || !tokio::fs::try_exists(&mixin_p).await.unwrap_or(false))
+    if !bundle.mixin_yaml.is_empty() && (overwrite || !try_exists(&mixin_p).await.unwrap_or(false))
     {
-        tokio::fs::write(&mixin_p, &bundle.mixin_yaml).await?;
+        write(&mixin_p, &bundle.mixin_yaml).await?;
     }
 
     let configs_dir = base_dir.join("configs");
     let options_dir = base_dir.join("options");
-    tokio::fs::create_dir_all(&configs_dir).await?;
+    create_dir_all(&configs_dir).await?;
 
     for profile in &bundle.profiles {
         let p_path = configs_dir.join(format!("{}.yaml", profile.name));
-        if overwrite || !tokio::fs::try_exists(&p_path).await.unwrap_or(false) {
-            tokio::fs::write(&p_path, &profile.content).await?;
+        if overwrite || !try_exists(&p_path).await.unwrap_or(false) {
+            write(&p_path, &profile.content).await?;
         }
 
         if let Some(opts) = &profile.options_yaml {
-            tokio::fs::create_dir_all(&options_dir).await?;
+            create_dir_all(&options_dir).await?;
             let opt_path = options_dir.join(format!("{}.yaml", profile.name));
-            if overwrite || !tokio::fs::try_exists(&opt_path).await.unwrap_or(false) {
-                tokio::fs::write(&opt_path, opts).await?;
+            if overwrite || !try_exists(&opt_path).await.unwrap_or(false) {
+                write(&opt_path, opts).await?;
             }
         }
     }

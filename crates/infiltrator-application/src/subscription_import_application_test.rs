@@ -2,8 +2,12 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::subscription_import::SubscriptionFormat;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::{
@@ -129,7 +133,7 @@ impl SubscriptionSource for FakeSource {
     async fn fetch(
         &self,
         _profile: &str,
-        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+        _url: &CheckedSubscriptionUrl,
     ) -> Result<SubscriptionDocument, PortError> {
         *self.fetches.lock().expect("fetches") += 1;
         Ok(SubscriptionDocument {
@@ -141,7 +145,7 @@ impl SubscriptionSource for FakeSource {
     async fn fetch_conditional(
         &self,
         profile: &str,
-        url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+        url: &CheckedSubscriptionUrl,
         _headers: &ConditionalFetchHeaders,
     ) -> Result<ConditionalDocumentResult, PortError> {
         let document = self.fetch(profile, url).await?;
@@ -183,10 +187,7 @@ fn application(port: FakeImportPort) -> SubscriptionImportApplication {
 async fn local_file_channel_reads_through_the_host_port() {
     let app = application(FakeImportPort {
         file: Ok(CLASH_DOC.to_string()),
-        clipboard: Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
-            "no clipboard",
-        )),
+        clipboard: Err(PortError::unsupported(Capability::Profiles, "no clipboard")),
     });
     let source = FakeSource {
         content: String::new(),
@@ -202,10 +203,7 @@ async fn local_file_channel_reads_through_the_host_port() {
         .await
         .expect("import");
     assert_eq!(report.channel, SubscriptionImportChannel::LocalFile);
-    assert_eq!(
-        report.format,
-        infiltrator_contract::subscription_import::SubscriptionFormat::ClashYaml
-    );
+    assert_eq!(report.format, SubscriptionFormat::ClashYaml);
     assert_eq!(report.node_count, 2);
 }
 
@@ -237,7 +235,7 @@ async fn unsupported_clipboard_is_a_typed_failure_not_a_fake_success() {
     let app = application(FakeImportPort {
         file: Ok(String::new()),
         clipboard: Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::Profiles,
+            Capability::Profiles,
             "this host has no clipboard",
         )),
     });
@@ -249,8 +247,5 @@ async fn unsupported_clipboard_is_a_typed_failure_not_a_fake_success() {
         .import(&source, "x", SubscriptionImportChannel::Clipboard, "")
         .await
         .expect_err("unsupported clipboard must fail");
-    assert_eq!(
-        failure.code,
-        infiltrator_contract::error::ErrorCode::Unsupported
-    );
+    assert_eq!(failure.code, ErrorCode::Unsupported);
 }

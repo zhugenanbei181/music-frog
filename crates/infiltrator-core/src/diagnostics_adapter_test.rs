@@ -1,10 +1,11 @@
 use super::evaluate_mihomo_connections;
+use mihomo_api::types::{Connection, ConnectionMetadata};
 
 #[test]
 fn test_privacy_leak_mihomo_conversion() {
-    let mut mihomo_conn = mihomo_api::types::Connection {
+    let mut mihomo_conn = Connection {
         id: "mihomo-c1".to_string(),
-        metadata: mihomo_api::types::ConnectionMetadata {
+        metadata: ConnectionMetadata {
             network: "udp".to_string(),
             connection_type: "TUN".to_string(),
             source_ip: "198.18.0.1".to_string(),

@@ -1,9 +1,10 @@
-use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
-use infiltrator_contract::version::{CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion};
-
 use crate::commands::KernelAction;
 use crate::context::Runtime;
-use crate::output::{self, print_info, print_success, print_table};
+use crate::output;
+use crate::output::{print_info, print_success, print_table};
+use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
+use infiltrator_contract::version::{CoreReleaseChannel, CoreReleaseSummary, InstalledCoreVersion};
+use std::sync::Arc;
 
 pub(crate) async fn handle(action: KernelAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
@@ -54,7 +55,7 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
                 .map_err(|failure| anyhow::anyhow!(failure.message))?
                 .version;
             application
-                .install(version.clone(), std::sync::Arc::new(QuietVersionProgress))
+                .install(version.clone(), Arc::new(QuietVersionProgress))
                 .await
                 .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!(
@@ -65,10 +66,7 @@ async fn install(application: &VersionApplication, target: &str) -> anyhow::Resu
         None => {
             print_info(&format!("Installing kernel {target}..."));
             application
-                .install(
-                    target.to_string(),
-                    std::sync::Arc::new(QuietVersionProgress),
-                )
+                .install(target.to_string(), Arc::new(QuietVersionProgress))
                 .await
                 .map_err(|failure| anyhow::anyhow!(failure.message))?;
             print_success(&format!("Installed kernel {target}"));
@@ -87,7 +85,7 @@ async fn update_stable(application: &VersionApplication) -> anyhow::Result<()> {
         .map_err(|failure| anyhow::anyhow!(failure.message))?
         .version;
     application
-        .install(version.clone(), std::sync::Arc::new(QuietVersionProgress))
+        .install(version.clone(), Arc::new(QuietVersionProgress))
         .await
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
     application
@@ -156,10 +154,8 @@ pub(crate) fn truncate(input: &str, max_chars: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use infiltrator_contract::version::CoreReleaseChannel;
-
     use super::{split_target, truncate, version_row};
-    use infiltrator_contract::version::InstalledCoreVersion;
+    use infiltrator_contract::version::{CoreReleaseChannel, InstalledCoreVersion};
 
     #[test]
     fn channel_targets_are_recognized_case_insensitively() {

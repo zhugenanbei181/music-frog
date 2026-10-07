@@ -26,11 +26,17 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
+  parity-gate:
+    name: Release interaction and pixel gate
+    needs: test-gate
+    uses: ./.github/workflows/parity.yml
+    secrets: inherit
+
   # ---------------------------------------------------------------------------
   # 1. Desktop Build Matrix (Windows, macOS, Linux)
   # ---------------------------------------------------------------------------
   build-desktop:
-    needs: test-gate
+    needs: [test-gate, parity-gate]
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     # 每条腿现在编译 iced + bevy 两个二进制（共享同一 target/cache）。iced-only
@@ -67,7 +73,7 @@ jobs:
             artifact_name: Infiltrator-macOS-arm64
             bevy_artifact_name: Infiltrator-Bevy-macOS-arm64
           # macOS Intel (x86_64)
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             binary_name: infiltrator-iced
             bevy_binary_name: infiltrator-bevy-ui
@@ -92,6 +98,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Restore verified platform kernel
+        shell: bash
+        run: bash scripts/fetch-mihomo.sh --target ${{ matrix.target }}
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.99.0
@@ -175,15 +185,16 @@ jobs:
           test -s "$BIN_PATH"
 
           ZIP_NAME="${{ matrix.artifact_name }}.zip"
-          7z a -tzip "dist/${ZIP_NAME}" "$BIN_PATH"
+          PACKAGE_DIR="dist/windows-iced"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/infiltrator-iced.exe"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo.exe"
+          (cd "$PACKAGE_DIR" && 7z a -tzip "../${ZIP_NAME}" .)
           test -s "dist/${ZIP_NAME}"
 
           if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
-            command -v makensis >/dev/null 2>&1
-            makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
-              -DOUTFILE="dist/Infiltrator-Setup-x86_64.exe" \
-              -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
-              -DBINARY_PATH="${{ github.workspace }}/${BIN_PATH}" packaging/windows/nsis/infiltrator.nsi
+            bash packaging/windows/nsis/build-nsis.sh iced "${GITHUB_REF_NAME#v}" \
+              "$BIN_PATH" "dist/Infiltrator-Setup-x86_64.exe"
             test -s "dist/Infiltrator-Setup-x86_64.exe"
           fi
 
@@ -199,15 +210,16 @@ jobs:
           test -s "$BIN_PATH"
 
           ZIP_NAME="${{ matrix.bevy_artifact_name }}.zip"
-          7z a -tzip "dist/${ZIP_NAME}" "$BIN_PATH"
+          PACKAGE_DIR="dist/windows-bevy"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/infiltrator-bevy-ui.exe"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo.exe"
+          (cd "$PACKAGE_DIR" && 7z a -tzip "../${ZIP_NAME}" .)
           test -s "dist/${ZIP_NAME}"
 
           if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
-            command -v makensis >/dev/null 2>&1
-            makensis -DVERSION="${GITHUB_REF_NAME#v}" -DARCH="x64" \
-              -DOUTFILE="dist/Infiltrator-Bevy-Setup-x86_64.exe" \
-              -DICON_PATH="${{ github.workspace }}/crates/infiltrator-iced/icons/icon.ico" \
-              -DBINARY_PATH="${{ github.workspace }}/${BIN_PATH}" packaging/windows/nsis/infiltrator-bevy.nsi
+            bash packaging/windows/nsis/build-nsis.sh bevy "${GITHUB_REF_NAME#v}" \
+              "$BIN_PATH" "dist/Infiltrator-Bevy-Setup-x86_64.exe"
             test -s "dist/Infiltrator-Bevy-Setup-x86_64.exe"
           fi
 
@@ -226,6 +238,7 @@ jobs:
           APP_DIR="dist/Infiltrator.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/infiltrator-iced"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$APP_DIR/Contents/Resources/mihomo"
           cp packaging/macos/Info.plist "$APP_DIR/Contents/Info.plist"
 
           tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" -C dist Infiltrator.app
@@ -246,6 +259,7 @@ jobs:
           APP_DIR="dist/InfiltratorBevy.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/${{ matrix.bevy_binary_name }}"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$APP_DIR/Contents/Resources/mihomo"
           sed -e 's/infiltrator-iced/infiltrator-bevy-ui/' \
               -e 's/app\.musicfrog\.infiltrator/app.musicfrog.infiltrator.bevy/' \
               -e 's#<string>Infiltrator</string>#<string>Infiltrator Bevy</string>#g' \
@@ -267,8 +281,11 @@ jobs:
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
 
-          tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" \
-            -C "target/${{ matrix.target }}/release" infiltrator-iced
+          PACKAGE_DIR="dist/linux-iced"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/infiltrator-iced"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo"
+          tar -czf "dist/${{ matrix.artifact_name }}.tar.gz" -C "$PACKAGE_DIR" .
           test -s "dist/${{ matrix.artifact_name }}.tar.gz"
 
           bash packaging/linux/deb/build-deb.sh "$BIN_PATH" \
@@ -291,8 +308,11 @@ jobs:
           test -s "$BIN_PATH"
           chmod +x "$BIN_PATH"
 
-          tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" \
-            -C "target/${{ matrix.target }}/release" "${{ matrix.bevy_binary_name }}"
+          PACKAGE_DIR="dist/linux-bevy"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$BIN_PATH" "$PACKAGE_DIR/${{ matrix.bevy_binary_name }}"
+          bash scripts/fetch-mihomo.sh --target "${{ matrix.target }}" --stage "$PACKAGE_DIR/mihomo"
+          tar -czf "dist/${{ matrix.bevy_artifact_name }}.tar.gz" -C "$PACKAGE_DIR" .
           test -s "dist/${{ matrix.bevy_artifact_name }}.tar.gz"
 
           APP_BIN=infiltrator-bevy-ui \
@@ -324,7 +344,7 @@ jobs:
   # 2. Android APK Build Job (iced + bevy share ONE SDK/NDK/JDK)
   # ---------------------------------------------------------------------------
   build-android:
-    needs: test-gate
+    needs: [test-gate, parity-gate]
     name: Build Android APKs (iced + bevy)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04

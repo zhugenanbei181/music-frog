@@ -1,5 +1,7 @@
 # Iced Core Maturity Gaps Ledger (Iced 前端深度成熟度全景台账)
 
+> 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
+
 本文档归档 MusicFrog Infiltrator 项目中 `infiltrator-iced` 前端在演进至成熟生产级桌面应用过程中的 4 大核心维度与 11 项深度缺口，并作为全量特性落地的权威交付台账。
 
 > **双端对齐与主纲从属说明（2026-09-03）**：
@@ -86,7 +88,7 @@
 | **W4-02** | **崩溃自愈看门狗与事后脱敏取证查看器** | 监控异常退出与 Panic 状态，提供本地脱敏调用栈分析，一键清退孤儿状态并导出本地诊断 JSON。 | `src/view/crash_watchdog_card.rs`<br>`src/view/doctor.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_2_crash_watchdog_and_forensics_lifecycle` |
 | **W4-03** | **外部 Web Dashboard 免密握手一键拉起器** | 内置 Metacubexd、Yacd-Meta 与 Razord 控制台卡片，一键拉起浏览器并携带 Secret 凭据完成免密连入。 | `src/view/web_dash_card.rs`<br>`src/view/settings.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_3_web_dashboard_launch_dispatch` |
 | **W4-04** | **日志高级正则过滤与一键脱敏导出器** | 支持日志流 Regex 关键字高亮过滤与日志级别筛选，支持一键脱敏敏感凭据（Token/Bearer/Secret）导出本地日志。 | `src/view/runtime/logs.rs`<br>`src/update/ui_wave4.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_4_log_regex_and_redacted_export` |
-| **W4-05** | **订阅配额与临期智能预警及 Cron 调度矩阵** | 实时解析订阅配额、剩余流量百分比与到期时间戳（三级预警），支持配置自定义定时轮询更新周期（6h/12h/24h）。 | `src/view/sub_quota_card.rs`<br>`src/view/profiles.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_5_subscription_quota_and_cron_matrix` |
+| **W4-05** | **订阅配额与更新周期** | 配额读取共享实际观测，缺失与真实零分开；文案和状态色阶由 application 统一折叠。更新周期使用现有订阅策略草稿与真实保存入口，旧固定配额及本地周期写入已撤掉。失败保留、来源与完整保存状态仍需验收。 | `src/view/subscription_quota.rs`<br>`src/view/profiles/subscription.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_5_subscription_quota_and_cron_matrix` |
 | **W4-06** | **PAC 动态代理服务与绕过网段管理器** | 生成浏览器通用的 PAC (Proxy Auto-Config) 脚本，提供本地 PAC 服务 URL，支持用户自定义局域网直连白名单网段并编译验证。 | `src/view/pac_card.rs`<br>`src/view/settings.rs` | `tests/gui/iced_six_advancements_wave4_tests.rs`<br>`::test_advancement_w4_6_pac_auto_proxy_and_bypass_manager` |
 
 ---
@@ -96,8 +98,8 @@
 | 序号 | 特性分类 | 核心业务价值与交互形态 | 落地模块 | 对应测试验证点 |
 | :--- | :--- | :--- | :--- | :--- |
 | **W5-01** | **分流规则命中统计与冷门僵尸规则清理** | 会话级规则命中频次统计，智能识别并展示 0 次命中冷门规则，支持一键快速停用以精简内核判定开销。 | `src/view/rule_hit_card.rs`<br>`src/view/rules.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_1_rule_hit_counter_and_stale_analyzer` |
-| **W5-02** | **节点时序延迟走势图与多维稳定性雷达** | 多点时序采样分析选中节点的往返延迟 (RTT) 波动区间 (Min/Max)、平均延迟与网络抖动，计算五星稳定性等级。 | `src/view/latency_radar_card.rs`<br>`src/view/proxies.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_2_latency_time_series_and_stability_radar` |
+| **W5-02** | **节点延迟历史与检查器** | 复用共享节点检查器的实际历史、RTT 最小/最大/平均与真实探测入口；历史零值保持未判定，选择和关闭不制造样本。旧假采样、固定延迟与私人雷达事实已撤掉；不再宣称未经实际测量的五星稳定性。 | `src/view/proxy_history_card.rs`<br>`src/state/proxy_inspection.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_2_latency_time_series_and_stability_radar` |
 | **W5-03** | **TUN 虚拟网卡多堆栈与 MTU 自适应协商** | 自由切换 gVisor（用户态沙盒）、System（原生内核高性能）与 Mixed（混合）驱动堆栈，提供物理 MTU 动态探测。 | `src/view/tun_stack_card.rs`<br>`src/view/dns.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_3_tun_multi_stack_and_mtu_negotiation` |
 | **W5-04** | **规则集解构提取与本地规则转换器** | 将远程 Rule-Provider 规则条目一键解构导入为本地可编辑规则，并支持本地磁盘缓存一键清理以释放磁盘空间。 | `src/view/provider_unpack_card.rs`<br>`src/view/rules.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_4_rule_provider_lifecycle_and_unpack` |
-| **W5-05** | **配置生效多阶段原子事务与回滚守卫** | 预检语法 -> 暂存配置 -> 核心热载 -> 健康探活 -> 提交，在网络探活失败或配置无效时自动触发原子级安全回滚。 | `src/view/apply_guard_card.rs`<br>`src/view/settings.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_5_config_apply_atomic_transaction_guard` |
+| **W5-05** | **实际配置事务回执** | Settings 只回放共享 application 的实际事务回执，并打开现有配置编辑器。旧 UI 直接写入 Committed、健康成功布尔值及成功 Toast 已撤掉；来源绑定提交、失败与回滚验收归实际编辑器/事务 owner，本条不再假称导航证明提交。 | `src/view/apply_guard_card.rs`<br>`src/view/editor_history.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_5_config_apply_atomic_transaction_guard` |
 | **W5-06** | **局域网共享代理与访问控制列表 (ACL)** | 开启局域网设备接入共享代理 (Allow LAN)，自定义混合监听端口，并提供基于 IP/CIDR 白名单的严格访问鉴权控制。 | `src/view/lan_sharing_card.rs`<br>`src/view/settings.rs` | `tests/gui/iced_six_advancements_wave5_tests.rs`<br>`::test_advancement_w5_6_lan_proxy_sharing_and_access_acl` |

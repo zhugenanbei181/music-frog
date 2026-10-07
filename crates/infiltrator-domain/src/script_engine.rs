@@ -1,8 +1,8 @@
 //! Sandboxed scripting engine, YAML AST transformers, plugin manifests, and Web API shims.
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_yaml_ng::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 #[path = "script_engine_directives.rs"]
@@ -229,9 +229,7 @@ impl<'de> Deserialize<'de> for SettingFieldType {
                 "select" => Ok(Self::Select {
                     options: Vec::new(),
                 }),
-                other => Err(serde::de::Error::custom(format!(
-                    "Unknown field type: {other}"
-                ))),
+                other => Err(de::Error::custom(format!("Unknown field type: {other}"))),
             }
         } else if let Some(map) = val.as_object() {
             let type_str = map.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -252,12 +250,12 @@ impl<'de> Deserialize<'de> for SettingFieldType {
                         .unwrap_or_default();
                     Ok(Self::Select { options: opts })
                 }
-                other => Err(serde::de::Error::custom(format!(
+                other => Err(de::Error::custom(format!(
                     "Unknown field type object: {other}"
                 ))),
             }
         } else {
-            Err(serde::de::Error::custom("Invalid setting field type value"))
+            Err(de::Error::custom("Invalid setting field type value"))
         }
     }
 }
@@ -656,7 +654,7 @@ pub struct ScriptContext {
     pub stage: HookStage,
     pub profile_name: Option<String>,
     #[serde(default)]
-    pub environment: std::collections::HashMap<String, String>,
+    pub environment: HashMap<String, String>,
     #[serde(default)]
     pub permissions: HashSet<PluginPermission>,
     #[serde(default)]
@@ -668,7 +666,7 @@ impl ScriptContext {
         Self {
             stage,
             profile_name: None,
-            environment: std::collections::HashMap::new(),
+            environment: HashMap::new(),
             permissions: HashSet::new(),
             dry_run: false,
         }

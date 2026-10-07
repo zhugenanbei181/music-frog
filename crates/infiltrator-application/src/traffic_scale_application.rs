@@ -2,13 +2,14 @@
 
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_domain::traffic_scale::compute;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TrafficScaleApplication;
 
 impl TrafficScaleApplication {
     pub fn compute(&self, waveform: &TrafficWaveformSnapshot) -> TrafficScaleSnapshot {
-        infiltrator_domain::traffic_scale::compute(waveform, waveform.revision)
+        compute(waveform, waveform.revision)
     }
 }
 

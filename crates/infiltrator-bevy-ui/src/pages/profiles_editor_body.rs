@@ -5,6 +5,7 @@
 //! business line budget while the Mixin pane renders through exactly the same
 //! rows, gutter, indentation rail and diagnostic wash as the profile document.
 
+use crate::pages::profiles_editor_state::ProfileEditorState;
 use bevy::color::Color;
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
@@ -14,11 +15,10 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::editor::{SyntaxTokenKind, tokenize_yaml_line};
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::pages::profiles_editor_state::ProfileEditorState;
 
 fn token_color(kind: SyntaxTokenKind, palette: &UiPalette) -> Color {
     match kind {
@@ -42,9 +42,9 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
     let mut rows: Vec<Box<dyn Scene>> = Vec::with_capacity(viewport.rendered_len() + 2);
     if viewport.hidden_above() > 0 {
         rows.push(notice_row(
-            &format!(
-                "… 上方还有 {} 行未渲染（跟随光标的有界窗口）",
-                viewport.hidden_above()
+            LocalizedText::new(
+                "editor_hidden_before",
+                vec![("lines", viewport.hidden_above().to_string())],
             ),
             palette,
         ));
@@ -106,9 +106,9 @@ pub(crate) fn editor_rows_scene(state: &ProfileEditorState, palette: &UiPalette)
     }
     if viewport.hidden_below() > 0 {
         rows.push(notice_row(
-            &format!(
-                "… 下方还有 {} 行未渲染（有界窗口，不是虚拟滚动）",
-                viewport.hidden_below()
+            LocalizedText::new(
+                "editor_hidden_after",
+                vec![("lines", viewport.hidden_below().to_string())],
             ),
             palette,
         ));
@@ -150,8 +150,7 @@ fn indent_rail(level: usize, palette: &UiPalette) -> Box<dyn Scene> {
     })
 }
 
-fn notice_row(text: &str, palette: &UiPalette) -> Box<dyn Scene> {
-    let label = text.to_owned();
+fn notice_row(label: LocalizedText, palette: &UiPalette) -> Box<dyn Scene> {
     let color = palette.warning;
     Box::new(bsn! {
             Node {
@@ -159,7 +158,7 @@ fn notice_row(text: &str, palette: &UiPalette) -> Box<dyn Scene> {
                 align_items: AlignItems::Center,
             }
             Children [
-                Text({ label }) TextRole(Role::Caption) TextColor({ color })
+                label TextRole(Role::Caption) TextColor({ color })
             ]
     })
 }

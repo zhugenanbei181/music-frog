@@ -16,6 +16,7 @@
 
 use crate::connection_view::ConnectionView;
 use std::collections::BTreeMap;
+use std::f32::consts::TAU;
 use std::time::Instant;
 
 /// Instantaneous bandwidth at or above which a connection row renders the
@@ -36,6 +37,8 @@ pub const PULSE_MAX_INTENSITY: f32 = 0.8;
 /// One connection's instantaneous transfer rates in bytes per second.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ConnectionRate {
+    /// True after a valid counter window, including a measured zero.
+    pub observed: bool,
     pub upload_bps: f64,
     pub download_bps: f64,
 }
@@ -65,7 +68,7 @@ pub fn pulse_intensity(upload_bps: f64, download_bps: f64, phase: f32) -> f32 {
     if !is_high_throughput(upload_bps, download_bps) {
         return 0.0;
     }
-    let breath = 0.5 - 0.5 * (phase.clamp(0.0, 1.0) * std::f32::consts::TAU).cos();
+    let breath = 0.5 - 0.5 * (phase.clamp(0.0, 1.0) * TAU).cos();
     PULSE_MIN_INTENSITY + (PULSE_MAX_INTENSITY - PULSE_MIN_INTENSITY) * breath
 }
 
@@ -162,6 +165,7 @@ impl ConnectionRateDiffer {
             let download = conn.view_download_total();
             let rate = match (window, self.totals.get(id)) {
                 (Some(elapsed), Some((previous_upload, previous_download))) => ConnectionRate {
+                    observed: upload >= *previous_upload && download >= *previous_download,
                     upload_bps: instantaneous_rate(*previous_upload, upload, elapsed),
                     download_bps: instantaneous_rate(*previous_download, download, elapsed),
                 },
@@ -230,6 +234,7 @@ mod tests {
         assert_eq!(
             rates.get("c1"),
             ConnectionRate {
+                observed: true,
                 upload_bps: 1_000.0,
                 download_bps: 4_000.0,
             }
@@ -323,6 +328,7 @@ mod tests {
             (
                 "slow".to_string(),
                 ConnectionRate {
+                    observed: true,
                     upload_bps: 1_000.0,
                     download_bps: 2_000.0,
                 },
@@ -330,6 +336,7 @@ mod tests {
             (
                 "fast".to_string(),
                 ConnectionRate {
+                    observed: true,
                     upload_bps: 100.0,
                     download_bps: HIGH_THROUGHPUT_THRESHOLD_BPS,
                 },

@@ -1,7 +1,11 @@
 //! RuntimeGateway implementation for the HTTP controller client.
 
+use crate::client::{MihomoClient, StreamEvent};
+use crate::error::MihomoError;
 use async_trait::async_trait;
+use futures_util::stream::unfold;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
@@ -11,8 +15,7 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
 use serde_json::Value;
 use std::collections::HashMap;
-
-use crate::client::{MihomoClient, StreamEvent};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 #[async_trait]
 impl RuntimeGateway for MihomoClient {
@@ -154,30 +157,48 @@ impl RuntimeGateway for MihomoClient {
     }
 }
 
-fn network_error<E: std::fmt::Display>(error: E) -> PortError {
+pub(crate) fn network_error(error: MihomoError) -> PortError {
+    if let MihomoError::Http(http) = &error {
+        match http.status().map(|status| status.as_u16()) {
+            Some(400 | 422) => {
+                return PortError::Rejected(Failure::new(
+                    ErrorCode::InvalidInput,
+                    error.to_string(),
+                    false,
+                ));
+            }
+            Some(401) => {
+                return PortError::Rejected(Failure::new(
+                    ErrorCode::Authentication,
+                    error.to_string(),
+                    false,
+                ));
+            }
+            Some(403) => return PortError::PermissionDenied(error.to_string()),
+            Some(404) => return PortError::NotFound(error.to_string()),
+            _ => {}
+        }
+    }
     PortError::Network(error.to_string())
 }
 
 fn map_stream<T, U>(
-    receiver: tokio::sync::mpsc::UnboundedReceiver<StreamEvent<T>>,
+    receiver: UnboundedReceiver<StreamEvent<T>>,
     map_item: fn(T) -> U,
 ) -> RuntimeStream<U>
 where
     T: Send + 'static,
     U: Send + 'static,
 {
-    Box::pin(futures_util::stream::unfold(
-        receiver,
-        move |mut receiver| async move {
-            let event = receiver.recv().await?;
-            let event = match event {
-                StreamEvent::Connecting => RuntimeStreamEvent::Connecting,
-                StreamEvent::Connected => RuntimeStreamEvent::Connected,
-                StreamEvent::Item(item) => RuntimeStreamEvent::Item(map_item(item)),
-                StreamEvent::Reconnecting(error) => RuntimeStreamEvent::Reconnecting(error),
-                StreamEvent::Failed(error) => RuntimeStreamEvent::Failed(error),
-            };
-            Some((event, receiver))
-        },
-    ))
+    Box::pin(unfold(receiver, move |mut receiver| async move {
+        let event = receiver.recv().await?;
+        let event = match event {
+            StreamEvent::Connecting => RuntimeStreamEvent::Connecting,
+            StreamEvent::Connected => RuntimeStreamEvent::Connected,
+            StreamEvent::Item(item) => RuntimeStreamEvent::Item(map_item(item)),
+            StreamEvent::Reconnecting(error) => RuntimeStreamEvent::Reconnecting(error),
+            StreamEvent::Failed(error) => RuntimeStreamEvent::Failed(error),
+        };
+        Some((event, receiver))
+    }))
 }

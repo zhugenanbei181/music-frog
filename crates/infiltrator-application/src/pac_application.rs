@@ -2,6 +2,8 @@
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
+use infiltrator_domain::pac_policy::normalize_bypass_domains;
 use infiltrator_ports::pac::PacServicePort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -50,9 +52,8 @@ impl PacApplication {
     }
 
     pub async fn apply(&self, request: PacRequest) -> Result<PacSnapshot, Failure> {
-        let bypass_domains =
-            infiltrator_domain::pac_policy::normalize_bypass_domains(&request.bypass_domains)
-                .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
+        let bypass_domains = normalize_bypass_domains(&request.bypass_domains)
+            .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         let rules = self.gateway.get_rules().await.map_err(Failure::from)?;
         let config = self.gateway.get_config().await.map_err(Failure::from)?;
         let port = if config.mixed_port > 0 {
@@ -67,13 +68,12 @@ impl PacApplication {
                 true,
             ));
         }
-        let generator =
-            infiltrator_domain::pac_generator::PacGenerator::new(format!("127.0.0.1:{port}"))
-                .with_bypass_lan(request.bypass_lan)
-                .with_bypass_domains(bypass_domains.clone())
-                .with_minified(request.minify);
+        let generator = PacGenerator::new(format!("127.0.0.1:{port}"))
+            .with_bypass_lan(request.bypass_lan)
+            .with_bypass_domains(bypass_domains.clone())
+            .with_minified(request.minify);
         let script = generator.compile_pac_script(&rules);
-        infiltrator_domain::pac_generator::validate_pac_script(&script).map_err(|error| {
+        validate_pac_script(&script).map_err(|error| {
             Failure::new(
                 ErrorCode::Configuration,
                 format!("PAC script validation failed: {error}"),
@@ -128,7 +128,13 @@ impl PacApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use futures_util::stream::empty;
+    #[cfg(test)]
+    use infiltrator_contract::command::ProxyMode;
     use infiltrator_contract::pac::PacServiceState;
+    #[cfg(test)]
+    use infiltrator_domain::proxy::Proxy;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
@@ -174,15 +180,10 @@ mod tests {
         async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
             Ok(())
         }
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
+        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
             Ok(())
         }
-        async fn get_proxies(
-            &self,
-        ) -> Result<HashMap<String, infiltrator_domain::proxy::Proxy>, PortError> {
+        async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
             Ok(HashMap::new())
         }
         async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
@@ -227,13 +228,13 @@ mod tests {
             &self,
             _level: Option<String>,
         ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty()))
+            Ok(Box::pin(empty()))
         }
         async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty()))
+            Ok(Box::pin(empty()))
         }
         async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty()))
+            Ok(Box::pin(empty()))
         }
     }
 

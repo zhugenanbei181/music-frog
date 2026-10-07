@@ -20,18 +20,17 @@
 //! [`TrayController::shutdown`] detaches it (generation-checked) and drops
 //! the [`TrayIcon`], whose `Drop` unregisters the OS icon on all platforms.
 
-use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::Sender;
-use std::sync::{LazyLock, Mutex, Once};
-use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
-
 use super::spec::{
     TRAY_ACTION_NO_PROXIES, TrayActionId, TrayController, TrayEvent, TrayIconData, TrayMenuItem,
     TraySpec, TrayStartup,
 };
+use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Sender, channel};
+use std::sync::{LazyLock, Mutex, MutexGuard, Once};
+use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 pub(super) struct TrayManager {
     tray_icon: Option<TrayIcon>,
@@ -187,7 +186,7 @@ fn register_check_entry(
 
 /// Poison-tolerant lock: a panic while some code holds a lock must not take
 /// the tray (or a click) down with it.
-fn lock<T>(cell: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+fn lock<T>(cell: &Mutex<T>) -> MutexGuard<'_, T> {
     cell.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
@@ -404,7 +403,7 @@ impl TrayController for NativeTrayController {
 /// the neutral channel. `builder.build()` failure (unsupported system,
 /// resource conflict) degrades to a typed [`TrayStartup::Unavailable`].
 pub(super) fn spawn_native(spec: TraySpec) -> TrayStartup {
-    let (events, receiver) = std::sync::mpsc::channel();
+    let (events, receiver) = channel();
     let manager = TrayManager::new(spec.icon.as_ref());
 
     if manager.tray_icon.is_none() {

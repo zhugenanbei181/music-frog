@@ -1,17 +1,25 @@
 //!  Editor page for raw profile YAML editing, Mixin overlay editing and
 //! per-profile subscription filtering with history snapshot restoration.
 
+use super::editor_history::{apply_banner, history_panel};
+use super::editor_viewport::viewport_label;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::types::script::ScriptAction;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{card_surface, chip, kbd_badge, segmented_control};
-use crate::view::editor_viewport;
+use crate::view::mixin_studio::{cascade_strip, preflight_banner, three_column_row, toggle_row};
+use crate::view::profile_filter::filter_pane;
+use crate::view::script_export::export_section;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{editor_viewport, script_console, theme};
 use iced::widget::{Row, Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::profile_editor_projection::{protection_hint, protection_label};
+use infiltrator_contract::script_export::ScriptExportKind;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_shared::locales::{Lang, Localizer};
 use std::path::PathBuf;
@@ -85,13 +93,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 icon_themed(Icon::Shield, 14.0, |t: &Theme| tokens(t).warning),
                 Space::new().width(theme::SP_SM),
                 column![
-                    text(protection.label_zh())
+                    text(protection_label(protection, lang.0))
                         .size(12)
                         .font(FONT_SEMIBOLD)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_primary),
                         }),
-                    text(protection.hint_zh())
+                    text(protection_hint(protection, lang.0))
                         .size(11)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary),
@@ -213,16 +221,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             state.editor.is_saving_mixin,
         ),
         EditorPane::Filter => (
-            if state.editor.is_saving_filter {
+            if state.editor.filter_editor.pending.is_some() {
                 lang.tr("editor_applying").to_string()
             } else {
                 lang.tr("editor_apply_filter").to_string()
             },
-            state.editor.is_saving_filter,
+            state.editor.filter_editor.pending.is_some(),
         ),
         EditorPane::Script => (
             lang.tr("script_sandbox_run").to_string(),
-            state.editor.script_sandbox.is_running,
+            state.editor.script_sandbox.is_running(),
         ),
     };
 
@@ -237,15 +245,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .padding([6, 12])
     .style(style_accent)
     .on_press_maybe(
-        (!saving && state.editor.editor_path.is_some() && !protected_blocked).then_some(
-            match state.editor.editor_pane {
-                EditorPane::Profile => Message::SaveProfile,
-                EditorPane::Mixin => Message::SaveMixin,
-                EditorPane::Filter => Message::SaveProfileFilter,
-                EditorPane::Script => Message::RunScriptSandboxTest,
-            },
-        ),
+        (!saving
+            && match state.editor.editor_pane {
+                EditorPane::Profile => state.editor.document_session.can_save(),
+                EditorPane::Mixin => state.editor.mixin_session.can_save(),
+                _ => true,
+            }
+            && state.editor.editor_path.is_some()
+            && !protected_blocked
+            && (state.editor.editor_pane != EditorPane::Filter
+                || state.editor.filter_editor.can_edit()))
+        .then_some(match state.editor.editor_pane {
+            EditorPane::Profile => Message::SaveProfile,
+            EditorPane::Mixin => Message::SaveMixin,
+            EditorPane::Filter => Message::SaveProfileFilter,
+            EditorPane::Script => Message::Script(ScriptAction::Run),
+        }),
     );
+
+    let save_btn: Element<'_, Message> = if state.editor.editor_pane == EditorPane::Filter {
+        Space::new().width(0).into()
+    } else {
+        save_btn.into()
+    };
 
     let cancel_btn = button(
         row![
@@ -263,6 +285,21 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .style(style_ghost)
     .on_press(Message::Navigate(Route::Profiles));
 
+    let discard: Element<'_, Message> = match state.editor.editor_pane {
+        EditorPane::Profile | EditorPane::Mixin => {
+            button(text(lang.tr("editor_discard_draft").into_owned()).size(12))
+                .on_press_maybe((!saving).then_some(
+                    if state.editor.editor_pane == EditorPane::Mixin {
+                        Message::DiscardMixinDraft
+                    } else {
+                        Message::DiscardProfileDraft
+                    },
+                ))
+                .style(style_ghost)
+                .into()
+        }
+        _ => Space::new().width(0).into(),
+    };
     // Toolbar row: file info + pane switch + action buttons (Save / Cancel).
     let toolbar = row![
         file_info,
@@ -270,6 +307,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         pane_switch,
         Space::new().width(theme::SP_LG),
         save_btn,
+        discard,
         Space::new().width(theme::SP_SM),
         cancel_btn,
     ]
@@ -299,32 +337,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     &state.editor.editor_content,
                     Message::EditorAction,
                     viewport.rendered_len(),
+                    state.editor.document_session.can_edit(),
                 ),
             ]
             .into()
         }
         EditorPane::Mixin => {
             column![
-                crate::view::mixin_studio::preflight_banner(state),
+                preflight_banner(state),
                 Space::new().height(theme::SP_SM),
-                crate::view::mixin_studio::toggle_row(state),
+                toggle_row(state),
                 Space::new().height(theme::SP_SM),
-                crate::view::mixin_studio::cascade_strip(state),
+                cascade_strip(state),
                 Space::new().height(theme::SP_SM),
                 // DUAL-10-09: Base | Mixin overlay | composed output, all from
                 // the shared cascade reduction.
-                crate::view::mixin_studio::three_column_row(state),
+                three_column_row(state),
                 Space::new().height(theme::SP_SM),
                 // DUAL-10-12: the real per-surface export for the overlay.
-                crate::view::script_export::export_section(
-                    state,
-                    &[infiltrator_contract::script_export::ScriptExportKind::MixinOverlayYaml],
-                ),
+                export_section(state, &[ScriptExportKind::MixinOverlayYaml],),
             ]
             .into()
         }
-        EditorPane::Filter => crate::view::profile_filter::filter_pane(state),
-        EditorPane::Script => crate::view::script_console::view(state),
+        EditorPane::Filter => filter_pane(state),
+        EditorPane::Script => script_console::view(state),
     };
     let editor = container(editor_document)
         .width(Length::Fill)
@@ -332,7 +368,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .style(card_surface);
 
     // History snapshots side panel
-    let history_panel = super::editor_history::history_panel(state, &lang);
+    let history_panel = history_panel(state, &lang);
 
     let hint_style = |t: &Theme| text::Style {
         color: Some(tokens(t).text_secondary),
@@ -462,7 +498,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let snippets_bar = row![
         Row::with_children(snippet_items).align_y(Alignment::Center),
         Space::new().width(Length::Fill),
-        super::editor_viewport::viewport_label(
+        viewport_label(
             match state.editor.editor_pane {
                 // DUAL-10-09: the Mixin pane's window is sized against its
                 // larger chrome so the three-column workspace fits on screen.
@@ -500,6 +536,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         content = content.push(snippets_bar);
     }
     content = content.push(Space::new().height(theme::SP_SM));
+    let save_status = match state.editor.editor_pane {
+        EditorPane::Profile => state
+            .editor
+            .document_session
+            .status(&state.editor.editor_content.text(), &state.shell.lang),
+        EditorPane::Mixin => state
+            .editor
+            .mixin_session
+            .status(&state.editor.mixin_content.text(), &state.shell.lang),
+        _ => String::new(),
+    };
+    if !save_status.is_empty() {
+        content = content.push(text(save_status).size(12));
+    }
     if let Some(alert) = syntax_alert {
         content = content.push(alert).push(Space::new().height(theme::SP_SM));
     }
@@ -509,7 +559,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     if let Some(banner) = protection_banner {
         content = content.push(banner).push(Space::new().height(theme::SP_SM));
     }
-    if let Some(banner) = super::editor_history::apply_banner(state, &lang) {
+    if let Some(banner) = apply_banner(state, &lang) {
         content = content.push(banner).push(Space::new().height(theme::SP_SM));
     }
     // DUAL-09-14: every pane keeps the history side panel, so the snapshot

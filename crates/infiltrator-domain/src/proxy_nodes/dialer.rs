@@ -21,13 +21,11 @@
 //! Nothing here reads the network or the filesystem, and nothing guesses a
 //! runtime selection.
 
-use std::collections::{BTreeMap, BTreeSet};
-
-use serde_yaml_ng::Value;
-
 use super::model::ProxyNode;
 use super::profile_yaml::parse_profile_yaml;
 use crate::rules::analyzer::ProxyGroupTopology;
+use serde_yaml_ng::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One `proxy-groups:` declaration that participates in dialer resolution.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

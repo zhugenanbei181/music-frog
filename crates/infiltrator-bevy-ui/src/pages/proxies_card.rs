@@ -4,6 +4,19 @@
 //! favorite pinning toggle and trend wave (BEVY-GAP-033), protocol & UDP chips (BEVY-GAP-035),
 //! proxies toolbar controls ("只看可用", 4-sort pills, "测试地址"), and group cards.
 
+use crate::pages::proxies::{
+    AddCustomNodeButton, FilterAliveToggle, GroupCurrentText, GroupFoldText, GroupNodesContainer,
+    LatencySkeletonPulse, LatencyText, LatencyTrendIcon, NodeDetailButton, NodeFlagText,
+    NodeNameText, NodePinButton, NodeProtoText, NodeUdpTag, ProxiesLine, ProxiesLineKind,
+    ProxyGroup, ProxyGroupFoldButton, ProxyGroupMoveDownButton, ProxyGroupMoveUpButton, ProxyNode,
+    ProxyNodeButton, ProxySortMode, ProxySortPill, ResetProxyGroupOrderButton,
+    TestAllProxiesButton, TestProxyGroupButton, ToggleViewModeButton, latency_color,
+};
+use crate::pages::proxies_filter::format_protocol_chip;
+use crate::pages::proxies_identity::ProxyGroupIdentity;
+use crate::pages::proxies_preferences::{FilterAliveIndicator, ProxyFavoriteStar, ProxyViewLabel};
+use crate::pages::proxies_search::search_input_scene;
+use crate::pages::proxy_probe_settings::launcher;
 use bevy::a11y::AccessibilityNode;
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
@@ -14,32 +27,23 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::latency_projection::project_proxy_latency;
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::gesture::{
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::pages::proxies::{
-    AddCustomNodeButton, DelayTestUrlIndicator, FilterAliveToggle, GroupCurrentText, GroupFoldText,
-    GroupNodesContainer, LatencySkeletonPulse, LatencyText, LatencyTrendIcon, NodeDetailButton,
-    NodeFlagText, NodeNameText, NodePinButton, NodeProtoText, NodeUdpTag, ProxiesLine,
-    ProxiesLineKind, ProxyGroup, ProxyGroupFoldButton, ProxyGroupMoveDownButton,
-    ProxyGroupMoveUpButton, ProxyNode, ProxyNodeButton, ProxySortMode, ProxySortPill,
-    ResetProxyGroupOrderButton, TestAllProxiesButton, TestProxyGroupButton, ToggleViewModeButton,
-    format_latency, latency_color,
-};
-use crate::pages::proxies_filter::{format_protocol_chip, node_flag};
+use infiltrator_shared::country_flags::node_flag_emoji;
 
 /// Renders the toolbar card containing search box, "只看可用" toggle switch, 4 sort mode pills, and "测试地址" indicator.
-pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let mut search_a11y = accesskit::Node::new(accesskit::Role::Search);
-    search_a11y.set_label("搜索代理或节点");
+pub fn search_bar_card_scene(query: &str, palette: &UiPalette) -> impl Scene + use<> {
+    let search_a11y = accesskit::Node::new(accesskit::Role::Search);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -53,30 +57,9 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         column_gap: Val::Px(space::S12),
                     }
                     AccessibilityNode(search_a11y)
+                    LocalizedLabel::plain("proxies_search_placeholder")
                     Children [
-                        Node {
-                            flex_grow: 1.0,
-                            min_width: px(220.0),
-                            height: px(palette.control_height_px),
-                            align_items: AlignItems::Center,
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            column_gap: Val::Px(space::S8),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        BorderColor {
-                            top: { palette.border },
-                            right: { palette.border },
-                            bottom: { palette.border },
-                            left: { palette.border },
-                        }
-                        Children [
-                            @{ icon_scene(IconId::Globe, 16.0, palette.ink_dim) }
-                            --
-                            Text({ "搜索代理或节点 (Search Proxies)...".to_owned() })
-                            TextRole(Role::Caption)
-                        ]
+                        @{ search_input_scene(query, palette) }
                         --
                         Node {
                             height: px(palette.control_height_px),
@@ -96,7 +79,7 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                         FilterAliveToggle
                         Button
                         Children [
-                            Text({ "只看可用".to_owned() }) TextRole(Role::Caption)
+                            LocalizedText::plain("proxies_filter_alive") TextRole(Role::Caption)
                             --
                             Node {
                                 width: px(28.0),
@@ -105,7 +88,7 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                                 align_items: AlignItems::Center,
                                 padding: UiRect::horizontal(Val::Px(2.0)),
                             }
-                            BackgroundColor({ palette.accent })
+                            BackgroundColor({ palette.surface_elevated }) FilterAliveIndicator
                             Children [
                                 Node {
                                     width: px(12.0),
@@ -140,7 +123,7 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                             ProxySortPill(ProxySortMode::LatencyAsc)
                             Button
                             Children [
-                                Text({ "延迟升序".to_owned() }) TextRole(Role::Caption) TextColor({ palette.accent })
+                                LocalizedText::plain("runtime_delay_sort_delay_asc") TextRole(Role::Caption) TextColor({ palette.accent })
                             ]
                             --
                             Node {
@@ -152,7 +135,7 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                             ProxySortPill(ProxySortMode::LatencyDesc)
                             Button
                             Children [
-                                Text({ "延迟降序".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("runtime_delay_sort_delay_desc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
                             --
                             Node {
@@ -164,7 +147,7 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                             ProxySortPill(ProxySortMode::NameAsc)
                             Button
                             Children [
-                                Text({ "名称升序".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("runtime_delay_sort_name_asc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
                             --
                             Node {
@@ -176,31 +159,11 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
                             ProxySortPill(ProxySortMode::NameDesc)
                             Button
                             Children [
-                                Text({ "名称降序".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("runtime_delay_sort_name_desc") TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
                         ]
                         --
-                        Node {
-                            height: px(palette.control_height_px),
-                            align_items: AlignItems::Center,
-                            padding: UiRect::horizontal(Val::Px(space::S12)),
-                            border: UiRect::all(Val::Px(palette.hairline_px)),
-                            border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            column_gap: Val::Px(space::S6),
-                        }
-                        BackgroundColor({ palette.surface_elevated })
-                        BorderColor {
-                            top: { palette.border },
-                            right: { palette.border },
-                            bottom: { palette.border },
-                            left: { palette.border },
-                        }
-                        DelayTestUrlIndicator
-                        Children [
-                            Text({ "测试地址".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
-                            --
-                            Text({ "http://cp.cloudflare.com/generate_204".to_owned() }) TextRole(Role::Mono)
-                        ]
+                        @{ launcher(palette) }
                     ]
         })],
         palette,
@@ -209,13 +172,12 @@ pub fn search_bar_card_scene(palette: &UiPalette) -> impl Scene + use<> {
 
 /// Renders the header summary card for proxy strategies with exit node and action triggers.
 pub fn header_card_scene(
-    summary: String,
+    summary: LocalizedText,
     active_exit: String,
-    test_status: String,
+    test_status: LocalizedText,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("代理策略概览");
+    let header_a11y = accesskit::Node::new(accesskit::Role::Header);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -226,6 +188,7 @@ pub fn header_card_scene(
                         column_gap: Val::Px(space::S16),
                     }
                     AccessibilityNode(header_a11y)
+                    LocalizedLabel::plain("proxies_title")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -239,14 +202,14 @@ pub fn header_card_scene(
                                 row_gap: Val::Px(space::S4),
                             }
                             Children [
-                                Text(summary) ProxiesLine(ProxiesLineKind::Summary) TextRole(Role::Heading)
+                                LocalizedText { .. { summary } } ProxiesLine(ProxiesLineKind::Summary) TextRole(Role::Heading)
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text({ "当前出口:".to_owned() }) TextRole(Role::Caption)
+                                    LocalizedText::plain("proxies_active_exit_label") TextRole(Role::Caption)
                                     --
                                     Text(active_exit) ProxiesLine(ProxiesLineKind::ActiveExit) TextRole(Role::BodyStrong)
                                 ]
@@ -279,7 +242,7 @@ pub fn header_card_scene(
                             Children [
                                 @{ icon_scene(IconId::Plus, 14.0, palette.ink) }
                                 --
-                                Text({ "+ 添加节点".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("proxies_add_node_btn") TextRole(Role::BodyStrong)
                             ]
                             --
                             Node {
@@ -301,7 +264,7 @@ pub fn header_card_scene(
                             ResetProxyGroupOrderButton
                             Button
                             Children [
-                                Text({ "重置排序".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("proxies_reorder_reset") TextRole(Role::BodyStrong)
                             ]
                             --
                             Node {
@@ -325,10 +288,10 @@ pub fn header_card_scene(
                             Children [
                                 @{ icon_scene(IconId::Activity, 14.0, palette.ink) }
                                 --
-                                Text({ "网格视图".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("proxies_grid_view") ProxyViewLabel TextRole(Role::BodyStrong)
                             ]
                             --
-                            Text(test_status) ProxiesLine(ProxiesLineKind::TestStatus) TextRole(Role::Caption)
+                            LocalizedText { .. { test_status } } ProxiesLine(ProxiesLineKind::TestStatus) TextRole(Role::Caption)
                             --
                             Node {
                                 min_height: px(palette.control_height_px),
@@ -341,7 +304,7 @@ pub fn header_card_scene(
                             TestAllProxiesButton
                             Button
                             Children [
-                                Text({ "全部测速".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("runtime_delay_test_all") TextRole(Role::BodyStrong)
                             ]
                         ]
                     ]
@@ -359,9 +322,10 @@ pub fn proxy_node_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let name = node.name.clone();
-    let flag = node_flag(&node.name);
-    let (delay_str, tier) = format_latency(node.delay_ms);
-    let delay_color_val = latency_color(tier, palette);
+    let flag = node_flag_emoji(&node.name);
+    let latency = project_proxy_latency(node.delay_ms);
+    let delay_color_val = latency_color(latency.band, palette);
+    let delay_copy = LocalizedText::new(latency.key, latency.params);
     let proto_tag = format_protocol_chip(&node.node_type);
 
     let (bg, border_color, border_width) = if node.selected {
@@ -469,6 +433,7 @@ pub fn proxy_node_scene(
                     }
                     Children [
                         Text({ star.to_owned() })
+                        ProxyFavoriteStar
                         TextRole(Role::BodyStrong)
                         TextColor({ star_color })
                         --
@@ -545,7 +510,7 @@ pub fn proxy_node_scene(
                         LatencyTrendIcon { group_idx: g_idx, node_idx: n_idx }
                         TextRole(Role::Caption)
                         --
-                        Text(delay_str)
+                        LocalizedText::new(delay_copy.key,delay_copy.params)
                         LatencyText { group_idx: g_idx, node_idx: n_idx }
                         TextRole(Role::Mono)
                         TextColor(delay_color_val)
@@ -611,17 +576,18 @@ pub fn group_card_scene(
 ) -> impl Scene + use<> {
     let title = group.name.clone();
     let type_badge = format!("[{}]", group.group_type);
-    let current_label = format!("选中: {}", group.current);
+    let current_label = LocalizedText::new(
+        "proxies_group_current",
+        vec![("node", group.current.clone())],
+    );
     let fold_label = if group.expanded {
-        "折叠 ▼"
+        LocalizedText::plain("rules_collapse")
     } else {
-        "展开 ▶"
-    }
-    .to_owned();
+        LocalizedText::plain("rules_expand")
+    };
     let group_name = group.name.clone();
 
-    let mut sorted_proxies: Vec<(usize, &ProxyNode)> = group.proxies.iter().enumerate().collect();
-    sorted_proxies.sort_by_key(|(_, a)| std::cmp::Reverse(a.favorite));
+    let sorted_proxies: Vec<(usize, &ProxyNode)> = group.proxies.iter().enumerate().collect();
 
     let node_scenes: Vec<Box<dyn Scene>> = sorted_proxies
         .into_iter()
@@ -645,6 +611,7 @@ pub fn group_card_scene(
                                 justify_content: JustifyContent::SpaceBetween,
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
+                            ProxyGroupIdentity({ group.name.clone() })
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
@@ -670,7 +637,7 @@ pub fn group_card_scene(
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text(current_label) GroupCurrentText(g_idx) TextRole(Role::Caption)
+                                    LocalizedText { .. { current_label } } GroupCurrentText(g_idx) TextRole(Role::Caption)
                                     --
                                     Node {
                                         min_height: px(28.0),
@@ -686,7 +653,7 @@ pub fn group_card_scene(
                                     }
                                     Button
                                     Children [
-                                        Text({ "组测速".to_owned() }) TextRole(Role::Caption)
+                                        LocalizedText::plain("proxies_test_group") TextRole(Role::Caption)
                                     ]
                                     --
                                     Node {
@@ -737,7 +704,7 @@ pub fn group_card_scene(
                                     }
                                     Button
                                     Children [
-                                        Text(fold_label) GroupFoldText(g_idx) TextRole(Role::Caption)
+                                        LocalizedText { .. { fold_label } } GroupFoldText(g_idx) TextRole(Role::Caption)
                                     ]
                                 ]
                             ]
@@ -753,6 +720,7 @@ pub fn group_card_scene(
                                 display: { nodes_display },
                             }
                             GroupNodesContainer(g_idx)
+                            ProxyGroupIdentity({ group.name.clone() })
                             Children [
                                 { node_scenes }
                             ]

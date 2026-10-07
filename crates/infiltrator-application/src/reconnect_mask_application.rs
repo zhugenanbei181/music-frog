@@ -47,6 +47,8 @@ impl ReconnectMaskApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 
     fn sample_core(lifecycle: CoreLifecycle, watchdog: CoreWatchdogState) -> CoreSnapshot {
         CoreSnapshot {
@@ -62,7 +64,7 @@ mod tests {
             download_bps: 0.0,
             active_connections: 0,
             memory_bytes: None,
-            watchdog: infiltrator_contract::snapshot::CoreWatchdogSnapshot {
+            watchdog: CoreWatchdogSnapshot {
                 state: watchdog,
                 ..Default::default()
             },

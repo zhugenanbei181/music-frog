@@ -4,6 +4,7 @@ use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::runtime::{ConfigSnapshot, ConnectionSnapshot};
+use infiltrator_domain::traffic_topology::{TrafficTopologyInput, derive};
 use infiltrator_ports::error::PortError;
 use std::collections::HashMap;
 
@@ -67,18 +68,16 @@ impl TrafficTopologyApplication {
             Err(error) => return failed(core, revision, "connection list", error),
         };
 
-        infiltrator_domain::traffic_topology::derive(
-            infiltrator_domain::traffic_topology::TrafficTopologyInput {
-                generation: core.generation,
-                revision,
-                lifecycle: core.lifecycle.clone(),
-                upload_bps: core.upload_bps,
-                download_bps: core.download_bps,
-                config,
-                connections: &connections.connections,
-                proxies,
-            },
-        )
+        derive(TrafficTopologyInput {
+            generation: core.generation,
+            revision,
+            lifecycle: core.lifecycle.clone(),
+            upload_bps: core.upload_bps,
+            download_bps: core.download_bps,
+            config,
+            connections: &connections.connections,
+            proxies,
+        })
     }
 }
 

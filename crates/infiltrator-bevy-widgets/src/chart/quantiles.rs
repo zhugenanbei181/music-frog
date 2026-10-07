@@ -4,6 +4,7 @@
 //! Pure mathematical model analyzing latency distribution curves for proxy nodes and DNS servers.
 
 use bevy::color::Color;
+use std::cmp::Ordering;
 
 /// Qualitative latency tier for visual color coding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,7 +67,7 @@ impl LatencyQuantiles {
         }
 
         let mut sorted = valid_samples;
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
         let min = sorted[0];
         let max = sorted[count - 1];
@@ -129,7 +130,7 @@ pub fn compute_empirical_cdf(samples: &[f32], steps: usize) -> Vec<CdfPoint> {
     if count == 0 {
         return Vec::new();
     }
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
     let steps = steps.clamp(2, count);
     let mut cdf = Vec::with_capacity(steps);

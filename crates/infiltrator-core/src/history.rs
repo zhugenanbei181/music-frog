@@ -8,10 +8,13 @@
 //! rollback — never a raw file overwrite.
 
 use chrono::Utc;
-use mihomo_api::error::{MihomoError, Result};
-use std::path::{Path, PathBuf};
-
+use infiltrator_domain::backup;
 use infiltrator_domain::snapshots::{SnapshotMeta, content_hash, parse_snapshot_name};
+use mihomo_api::error::{MihomoError, Result};
+use std::cmp::Reverse;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use tokio::fs::{create_dir_all, read_dir, read_to_string, remove_file, write};
 
 /// How many snapshots are retained per profile after pruning.
 pub const DEFAULT_KEEP: usize = 20;
@@ -32,13 +35,13 @@ pub async fn save_snapshot(
     content: &str,
 ) -> Result<SnapshotMeta> {
     let dir = snapshot_dir(config_dir, profile);
-    tokio::fs::create_dir_all(&dir).await?;
+    create_dir_all(&dir).await?;
 
     let timestamp = Utc::now();
     let sha256 = content_hash(content.as_bytes());
     let file_name = format!("{}-{}.yaml", timestamp.timestamp_millis(), &sha256[..8]);
     let path = dir.join(&file_name);
-    tokio::fs::write(&path, content).await?;
+    write(&path, content).await?;
 
     Ok(SnapshotMeta {
         profile: profile.to_string(),
@@ -52,10 +55,10 @@ pub async fn save_snapshot(
 pub async fn list_snapshots(config_dir: &Path, profile: &str) -> Result<Vec<SnapshotMeta>> {
     let dir = snapshot_dir(config_dir, profile);
     let mut out = Vec::new();
-    let mut entries = match tokio::fs::read_dir(&dir).await {
+    let mut entries = match read_dir(&dir).await {
         Ok(entries) => entries,
         // No snapshots yet is not an error — the list is just empty.
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(out),
         Err(err) => return Err(MihomoError::from(err)),
     };
     while let Some(entry) = entries.next_entry().await? {
@@ -71,16 +74,14 @@ pub async fn list_snapshots(config_dir: &Path, profile: &str) -> Result<Vec<Snap
             None => continue,
         }
     }
-    out.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
+    out.sort_by_key(|meta| Reverse(meta.timestamp));
     Ok(out)
 }
 
 /// Read the content of a snapshot previously listed by
 /// [`list_snapshots`].
 pub async fn read_snapshot(path: &Path) -> Result<String> {
-    tokio::fs::read_to_string(path)
-        .await
-        .map_err(MihomoError::from)
+    read_to_string(path).await.map_err(MihomoError::from)
 }
 
 /// DUAL-09-07: prune `profile`'s history with the shared smart policy —
@@ -92,11 +93,11 @@ pub async fn read_snapshot(path: &Path) -> Result<String> {
 /// and the automatic post-apply prune can never diverge.
 pub async fn prune_snapshots(config_dir: &Path, profile: &str, keep: usize) -> Result<usize> {
     let mut snapshots = list_snapshots(config_dir, profile).await?;
-    snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
-    let doomed = infiltrator_domain::backup::prune_snapshots(&snapshots, keep);
+    snapshots.sort_by_key(|meta| Reverse(meta.timestamp));
+    let doomed = backup::prune_snapshots(&snapshots, keep);
     let mut removed = 0;
     for path in doomed {
-        if tokio::fs::remove_file(&path).await.is_ok() {
+        if remove_file(&path).await.is_ok() {
             removed += 1;
         }
     }
@@ -106,6 +107,10 @@ pub async fn prune_snapshots(config_dir: &Path, profile: &str, keep: usize) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::time;
+    #[cfg(test)]
+    use tokio::time::sleep;
 
     fn config_dir() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
@@ -117,7 +122,7 @@ mod tests {
     async fn save_then_list_returns_newest_first() {
         let (_dir, config) = config_dir();
         let first = save_snapshot(&config, "main", "port: 1").await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        sleep(time::Duration::from_millis(20)).await;
         let second = save_snapshot(&config, "main", "port: 2").await.unwrap();
 
         let list = list_snapshots(&config, "main").await.unwrap();
@@ -160,7 +165,7 @@ mod tests {
             save_snapshot(&config, "main", &format!("port: {port}"))
                 .await
                 .unwrap();
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            sleep(time::Duration::from_millis(20)).await;
         }
         let removed = prune_snapshots(&config, "main", 2).await.unwrap();
         assert_eq!(removed, 3);
@@ -174,7 +179,7 @@ mod tests {
         let (_dir, config) = config_dir();
         for content in ["port: 1", "port: 2", "port: 2", "port: 2"] {
             save_snapshot(&config, "main", content).await.unwrap();
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            sleep(time::Duration::from_millis(20)).await;
         }
         // Three identical copies plus a distinct one: dedupe keeps the newest
         // copy of each content, so the limit of 20 removes the two duplicates.

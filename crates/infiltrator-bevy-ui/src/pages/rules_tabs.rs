@@ -8,9 +8,13 @@
 //! [`infiltrator_contract::rules_workspace::RulesTab`], so a tab added to the
 //! contract cannot silently exist on one surface only.
 
+use crate::pages::rules_json::RulesJsonState;
+use crate::pages::rules_statistics::RulesStatisticsState;
+use bevy::a11y::AccessibilityNode;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
@@ -19,8 +23,8 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
     UiRect, Val, percent, px,
 };
-use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -43,16 +47,6 @@ pub struct RulesTabChip(pub usize);
 /// Marker on a tab chip's label text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesTabChipLabel(pub usize);
-
-/// Bare-Chinese label of a shared partition (Bevy presentation convention).
-pub const fn tab_label_zh(tab: RulesTab) -> &'static str {
-    match tab {
-        RulesTab::List => "规则列表",
-        RulesTab::Providers => "提供者",
-        RulesTab::JsonEditors => "JSON 编辑器",
-        RulesTab::Tracer => "分流追踪",
-    }
-}
 
 fn tab_chip_scene(tab: RulesTab, palette: &UiPalette) -> Box<dyn Scene> {
     let index = tab.index();
@@ -79,8 +73,10 @@ fn tab_chip_scene(tab: RulesTab, palette: &UiPalette) -> Box<dyn Scene> {
             BackgroundColor({ background })
             Button
             RulesTabChip(index)
+            AccessibilityNode({ accesskit::Node::new(accesskit::Role::Tab) })
+            LocalizedLabel::plain(tab.i18n_key())
             Children [
-                Text({ tab_label_zh(tab).to_owned() })
+                LocalizedText::plain(tab.i18n_key())
                 TextRole(Role::Body)
                 TextColor({ ink })
                 RulesTabChipLabel(index)
@@ -133,7 +129,7 @@ pub fn sync_rules_tabs(
     palette: Res<UiPalette>,
     mut bodies: Query<(&mut Node, &RulesTabBody)>,
     mut chips: Query<(&mut BackgroundColor, &RulesTabChip, &Children)>,
-    mut labels: Query<&mut TextColor, bevy::ecs::query::With<RulesTabChipLabel>>,
+    mut labels: Query<&mut TextColor, With<RulesTabChipLabel>>,
 ) {
     let Some(state) = state else {
         return;
@@ -177,10 +173,14 @@ pub fn sync_rules_tabs(
 /// so a hidden editor can never keep consuming keystrokes.
 pub fn on_rules_tab_activated(
     activate: On<Activate>,
+    statistics: Option<Res<RulesStatisticsState>>,
     chips: Query<&RulesTabChip>,
     mut state: Option<ResMut<RulesTabState>>,
-    mut json: Option<ResMut<crate::pages::rules_json::RulesJsonState>>,
+    mut json: Option<ResMut<RulesJsonState>>,
 ) {
+    if statistics.is_some_and(|state| state.model.confirmation.is_some()) {
+        return;
+    }
     let Ok(chip) = chips.get(activate.entity) else {
         return;
     };
@@ -200,11 +200,15 @@ pub fn on_rules_tab_activated(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_shared::locales::{Lang, Localizer};
 
     #[test]
     fn every_shared_partition_has_a_chip_label_and_a_body_marker() {
         assert_eq!(RulesTab::ALL.len(), 4);
-        let labels: Vec<&str> = RulesTab::ALL.iter().map(|tab| tab_label_zh(*tab)).collect();
+        let labels: Vec<String> = RulesTab::ALL
+            .iter()
+            .map(|tab| Lang("zh-CN").tr(tab.i18n_key()).into_owned())
+            .collect();
         let mut dedup = labels.clone();
         dedup.sort_unstable();
         dedup.dedup();
@@ -220,7 +224,10 @@ mod tests {
     fn default_partition_is_the_shared_default() {
         assert_eq!(RulesTabState::default().tab, RulesTab::default());
         assert_eq!(RulesTabState::default().tab, RulesTab::List);
-        assert_eq!(tab_label_zh(RulesTab::List), "规则列表");
-        assert_eq!(tab_label_zh(RulesTab::JsonEditors), "JSON 编辑器");
+        assert_eq!(Lang("zh-CN").tr(RulesTab::List.i18n_key()), "规则列表");
+        assert_eq!(
+            Lang("zh-CN").tr(RulesTab::JsonEditors.i18n_key()),
+            "JSON 编辑器"
+        );
     }
 }

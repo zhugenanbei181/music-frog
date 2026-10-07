@@ -6,7 +6,9 @@
 
 use super::*;
 use crate::types::app::SnapshotDiffMode;
+use infiltrator_application::profile_editor_projection::protection_label;
 use infiltrator_domain::profiles::ProfileInfo;
+use std::path::PathBuf;
 
 fn fixture() -> YamlAstDiffSnapshot {
     YamlAstDiffSnapshot::demo_fixture()
@@ -15,6 +17,7 @@ fn fixture() -> YamlAstDiffSnapshot {
 
 fn open_modal_state() -> AppState {
     let (mut state, _) = AppState::new();
+    state.editor.editor_path = Some(PathBuf::from("/memory/configs/main.yaml"));
     state.editor.snapshot_diff_modal_open = true;
     state.editor.snapshot_diff_selected_id = Some("1-deadbeef.yaml".to_string());
     state.editor.snapshot_diff = Some(fixture());
@@ -61,36 +64,32 @@ fn modal_states_are_explicit_for_loading_error_and_no_diff() {
 fn rollback_never_executes_before_the_second_confirmation() {
     let mut state = open_modal_state();
 
+    let before = state.editor.editor_content.text();
     let _ = state.update(Message::RollbackToSnapshot("snap".to_string()));
     assert!(
-        state.editor.snapshot_diff_rollback_armed,
-        "the first click only arms the confirmation"
+        state.editor.snapshot_restore.visible,
+        "the launcher opens an independent review surface"
     );
     assert!(
         state.editor.snapshot_diff_modal_open,
-        "an unconfirmed rollback leaves the diff open"
+        "opening review preserves the diff inspector"
     );
-
-    let _ = state.update(Message::CancelSnapshotRollback);
-    assert!(!state.editor.snapshot_diff_rollback_armed);
-
-    let _ = state.update(Message::ArmSnapshotRollback);
-    assert!(state.editor.snapshot_diff_rollback_armed);
-    let _ = state.update(Message::RollbackToSnapshot("snap".to_string()));
+    assert_eq!(state.editor.editor_content.text(), before);
+    assert!(state.editor.snapshot_restore.restored.is_none());
+    let _ = state.update(Message::CancelRestoreProfileSnapshot);
     assert!(
-        !state.editor.snapshot_diff_rollback_armed && !state.editor.snapshot_diff_modal_open,
-        "the confirmed click exits the modal and dispatches the shared restore"
+        !state.editor.snapshot_restore.visible,
+        "failed preparation can be closed without a write"
     );
+    assert_eq!(state.editor.editor_content.text(), before);
 }
 
 #[test]
 fn closing_the_modal_drops_the_diff_and_the_confirmation() {
     let mut state = open_modal_state();
-    state.editor.snapshot_diff_rollback_armed = true;
     let _ = state.update(Message::CloseSnapshotDiff);
     assert!(!state.editor.snapshot_diff_modal_open);
     assert!(state.editor.snapshot_diff.is_none());
-    assert!(!state.editor.snapshot_diff_rollback_armed);
     assert!(state.editor.snapshot_diff_error.is_none());
 }
 
@@ -122,7 +121,7 @@ fn mode_changes_do_not_touch_the_shared_diff() {
 #[test]
 fn editor_protection_follows_the_shared_subscription_metadata() {
     let (mut state, _) = AppState::new();
-    state.editor.editor_path = Some(std::path::PathBuf::from("/fake/configs/main.yaml"));
+    state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));
     state.profile.profiles = vec![ProfileInfo {
         name: "main".to_string(),
         subscription_url: Some("https://example.com/sub".to_string()),
@@ -134,7 +133,7 @@ fn editor_protection_follows_the_shared_subscription_metadata() {
         "a downloaded subscription is classified as protected"
     );
     assert_eq!(
-        state.edited_profile_write_protection().label_zh(),
+        protection_label(state.edited_profile_write_protection(), "zh-CN"),
         "远程订阅 · 只读保护"
     );
 
@@ -156,21 +155,26 @@ fn editor_protection_follows_the_shared_subscription_metadata() {
 #[test]
 fn history_panel_restore_is_armed_before_it_executes() {
     let (mut state, _) = AppState::new();
-    let path = std::path::PathBuf::from("/fake/configs/main-history/1-deadbeef.yaml");
-
+    state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));
+    let path = PathBuf::from("/fake/configs/main-history/1-deadbeef.yaml");
+    let before = state.editor.editor_content.text();
     let _ = state.update(Message::RestoreProfileSnapshot(path.clone()));
-    assert!(
-        !state.editor.is_restoring_snapshot,
-        "a bare restore click only arms"
+    assert!(state.editor.snapshot_restore.visible);
+    assert!(!state.editor.snapshot_restore.busy());
+    assert!(state.editor.snapshot_restore.restored.is_none());
+    assert_eq!(
+        state
+            .editor
+            .snapshot_restore
+            .target
+            .as_ref()
+            .unwrap()
+            .snapshot_id,
+        path.to_string_lossy()
     );
-    assert_eq!(state.editor.pending_restore_snapshot.as_ref(), Some(&path));
-
     let _ = state.update(Message::CancelRestoreProfileSnapshot);
-    assert!(state.editor.pending_restore_snapshot.is_none());
-    assert!(!state.editor.is_restoring_snapshot);
-
-    let _ = state.update(Message::ArmRestoreProfileSnapshot(path.clone()));
-    assert_eq!(state.editor.pending_restore_snapshot.as_ref(), Some(&path));
+    assert!(!state.editor.snapshot_restore.visible);
+    assert_eq!(state.editor.editor_content.text(), before);
 }
 
 /// DUAL-09-14: the modal can recompute the open diff from the shared snapshot
@@ -185,7 +189,7 @@ fn refresh_recomputes_the_open_diff_through_the_shared_application() {
     );
 
     let mut state = open_modal_state();
-    state.editor.editor_path = Some(std::path::PathBuf::from("/fake/configs/main.yaml"));
+    state.editor.editor_path = Some(PathBuf::from("/fake/configs/main.yaml"));
     state.editor.snapshot_diff_loading = false;
     let _ = state.update(Message::RefreshSnapshotDiff);
     assert!(

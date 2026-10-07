@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
+use quick_xml::de::from_str;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -44,7 +45,7 @@ pub struct Collection {}
 
 pub fn parse_multistatus(xml: &str) -> Result<Vec<crate::RemoteEntry>> {
     let ms: MultiStatus =
-        quick_xml::de::from_str(xml).map_err(|e| anyhow!("Failed to parse WebDAV XML: {}", e))?;
+        from_str(xml).map_err(|e| anyhow!("Failed to parse WebDAV XML: {}", e))?;
 
     let mut entries = Vec::new();
     for resp in ms.responses {

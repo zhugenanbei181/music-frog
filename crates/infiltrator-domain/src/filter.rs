@@ -84,7 +84,7 @@ impl MultiplierRule {
 
 /// Configuration for mutating node properties (forcing TLS, UDP, fingerprint, ALPN, etc.).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case", default)]
+#[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct NodeMutatorConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub force_tls: Option<bool>,
@@ -139,24 +139,6 @@ pub struct FilterRule {
     pub node_mutator: Option<NodeMutatorConfig>,
     pub sort_order: NodeSortOrder,
     pub content_dedup: ContentDedupStrategy,
-}
-
-/// Statistics reported after YAML or name filtering via [`SubscriptionFilterPipeline`].
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FilterReport {
-    pub total_input: usize,
-    pub passed: usize,
-    pub excluded_by_blacklist: usize,
-    pub excluded_by_whitelist: usize,
-    pub excluded_by_type: usize,
-    #[serde(default)]
-    pub excluded_by_port: usize,
-    #[serde(default)]
-    pub excluded_by_server: usize,
-    pub renamed: usize,
-    pub deduplicated: usize,
-    #[serde(default)]
-    pub mutated: usize,
 }
 
 /// Filter pipeline that operates directly on YAML strings or name slices.

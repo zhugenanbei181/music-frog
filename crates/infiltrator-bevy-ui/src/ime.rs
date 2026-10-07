@@ -21,16 +21,25 @@
 //! caret (not a shaped glyph advance); that boundary is recorded rather than
 //! smoothed over.
 
+use crate::ime_native::{native_editor_active, report_native_ime};
+use bevy::app::PostUpdate;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use bevy::ecs::system::Res;
 use bevy::ecs::system::{Query, ResMut};
+use bevy::input_focus::InputFocus;
 use bevy::math::Vec2;
+use bevy::text::EditableText;
+use bevy::ui::UiScale;
+use bevy::ui_widgets::ImeSystems;
 use bevy::window::{Ime, PrimaryWindow, Window};
+use infiltrator_bevy_widgets::multiline_editor::MultilineEditor;
 use infiltrator_bevy_widgets::text_input::ime::ImeCursorArea;
+use infiltrator_bevy_widgets::text_input::render::sync_ime_cursor_areas;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::ime::{
@@ -136,14 +145,28 @@ pub fn apply_composition_action(field: &mut TextFieldState, action: ImeCompositi
             field.begin_ime_transaction();
             true
         }
-        ImeCompositionAction::UpdatePreedit(text) => field.set_preedit(text),
+        ImeCompositionAction::UpdatePreedit(text) => {
+            // A window can stay IME-enabled while focus moves between fields.
+            // The new field then receives Preedit without another Enabled.
+            if !field.is_in_ime_transaction() {
+                field.begin_ime_transaction();
+            }
+            field.set_preedit(text)
+        }
         ImeCompositionAction::Commit(text) => field.commit_ime_transaction(&text),
         ImeCompositionAction::Cancel => field.rollback_ime_transaction(),
     }
 }
 
 /// Installs the IME cursor-area sync and composition routing.
+#[derive(Resource, Default)]
+struct CompositionTarget(Option<Entity>);
+
 pub struct ShellImePlugin;
+#[derive(SystemSet, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ShellImeSet {
+    Composition,
+}
 
 impl Plugin for ShellImePlugin {
     fn build(&self, app: &mut App) {
@@ -151,18 +174,23 @@ impl Plugin for ShellImePlugin {
         // windowed one already has it via `WindowPlugin` (registration is
         // idempotent).
         app.add_message::<Ime>()
+            .init_resource::<InputFocus>()
+            .init_resource::<UiScale>()
             .init_resource::<ImeHostReport>()
             .init_resource::<ShellImeComposition>()
+            .init_resource::<CompositionTarget>()
             // The widget layer recomputes the caret rect after a preedit
             // change, so the pipeline is: route → widget caret → window plan.
             .add_systems(
                 Update,
                 route_ime_composition
-                    .before(infiltrator_bevy_widgets::text_input::sync_ime_cursor_areas),
+                    .in_set(ShellImeSet::Composition)
+                    .before(sync_ime_cursor_areas),
             )
+            .add_systems(Update, sync_window_ime.after(sync_ime_cursor_areas))
             .add_systems(
-                Update,
-                sync_window_ime.after(infiltrator_bevy_widgets::text_input::sync_ime_cursor_areas),
+                PostUpdate,
+                report_native_ime.after(ImeSystems::UpdatePosition),
             );
     }
 }
@@ -171,6 +199,7 @@ impl Plugin for ShellImePlugin {
 fn route_ime_composition(
     mut events: MessageReader<Ime>,
     mut tracker: ResMut<ShellImeComposition>,
+    mut owner: ResMut<CompositionTarget>,
     mut fields: Query<&mut TextField>,
     focused: Query<(Entity, &TextFieldFocused)>,
     primary: Query<Entity, With<PrimaryWindow>>,
@@ -180,6 +209,15 @@ fn route_ime_composition(
         .iter()
         .find(|(_, focused)| focused.0)
         .map(|(entity, _)| entity);
+    if owner.0 != target {
+        let action = tracker.0.apply(ImeCompositionEvent::Closed);
+        if let Some(previous) = owner.0
+            && let Ok(mut field) = fields.get_mut(previous)
+        {
+            apply_composition_action(&mut field.0, action);
+        }
+        owner.0 = target;
+    }
     for event in events.read() {
         if primary.is_some_and(|primary| ime_window(event) != primary) {
             continue;
@@ -199,7 +237,12 @@ fn sync_window_ime(
     mut report: ResMut<ImeHostReport>,
     mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
     fields: Query<(Entity, &TextFieldFocused, &ImeCursorArea)>,
+    sdk: Res<InputFocus>,
+    native: Query<&EditableText, With<MultilineEditor>>,
 ) {
+    if native_editor_active(&sdk, &native) {
+        return;
+    }
     let target = fields
         .iter()
         .find(|(_, focused, _)| focused.0)

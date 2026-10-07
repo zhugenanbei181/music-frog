@@ -5,6 +5,7 @@ use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin, bsn};
+use bevy::ui::Val;
 use bevy::ui::prelude::Node;
 use bevy::ui::widget::Text;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -85,5 +86,5 @@ fn drawer_scene_spawns_scrim_and_panel() {
     let mut panels = world.query::<(&DrawerPanel, &Node)>();
     let (panel, node) = panels.iter(world).next().expect("drawer panel mounted");
     assert_eq!(panel.0, DrawerPlacement::Left);
-    assert_eq!(node.width, bevy::ui::Val::Px(280.0));
+    assert_eq!(node.width, Val::Px(280.0));
 }

@@ -2,10 +2,12 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
@@ -59,7 +61,7 @@ pub fn tun_stack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, M
             })
             .on_press(Message::SetTunStack(TunStack::Mixed.as_str().to_owned())),
         Space::new().width(theme::SP_XS),
-        button(text("LWIP (Reference-only)").size(11))
+        button(text(lang.tr("settings_lwip_reference").into_owned()).size(11))
             .padding([4, 8])
             .style(style_ghost)
             .on_press_maybe(

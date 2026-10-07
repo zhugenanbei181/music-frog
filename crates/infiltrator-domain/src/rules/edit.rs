@@ -7,6 +7,7 @@
 //! a pure function over [`RuleEntry`].
 
 use super::RuleEntry;
+use crate::sub_rules::validate_logical_rule_syntax;
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 
 /// Rule types offered by the add-rule wizard, in presentation order.
@@ -47,13 +48,15 @@ pub fn build_custom_rule(draft: &RuleDraft) -> Result<RuleEntry, String> {
     }
     let rule_type = draft.rule_type.trim();
     let target = draft.target.trim();
-    let rule = if is_logical_rule_type(rule_type) {
-        format!("{rule_type}({payload},{target})")
+    let rule = if rule_type == "SUB-RULE" {
+        format!("{rule_type},{payload},{target}")
+    } else if is_logical_rule_type(rule_type) {
+        format!("{rule_type},({payload}),{target}")
     } else {
         format!("{rule_type},{payload},{target}")
     };
     if is_logical_rule_type(rule_type) {
-        crate::sub_rules::validate_logical_rule_syntax(&rule).map_err(|error| error.to_string())?;
+        validate_logical_rule_syntax(&rule).map_err(|error| error.to_string())?;
     }
     Ok(RuleEntry {
         rule,
@@ -116,6 +119,8 @@ pub fn inject_game_presets(rules: &mut Vec<RuleEntry>, target: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
+    use super::super::game_routing_presets;
     use super::*;
 
     fn entry(rule: &str, enabled: bool) -> RuleEntry {
@@ -168,7 +173,7 @@ mod tests {
             target: "AI".to_owned(),
         })
         .unwrap();
-        assert_eq!(logical.rule, "AND((DOMAIN,a.com),(DST-PORT,443),AI)");
+        assert_eq!(logical.rule, "AND,((DOMAIN,a.com),(DST-PORT,443)),AI");
 
         assert!(
             build_custom_rule(&RuleDraft {
@@ -205,10 +210,7 @@ mod tests {
     fn game_presets_use_shared_list_and_target() {
         let mut rules = vec![entry("MATCH,DIRECT", true)];
         let inserted = inject_game_presets(&mut rules, "Game-Proxy");
-        assert_eq!(
-            inserted,
-            super::super::game_routing_presets("Game-Proxy").len()
-        );
+        assert_eq!(inserted, game_routing_presets("Game-Proxy").len());
         assert!(rules[0].rule.contains("Game-Proxy"));
         assert!(rules[0].rule.starts_with("PROCESS-NAME"));
         assert_eq!(rules.last().unwrap().rule, "MATCH,DIRECT");

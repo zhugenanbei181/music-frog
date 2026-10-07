@@ -1,9 +1,8 @@
+use crate::{DavClient, RemoteEntry, xml_parser};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::{Client, Method, header};
 use url::Url;
-
-use crate::{DavClient, RemoteEntry, xml_parser};
 
 pub struct WebDavClient {
     client: Client,

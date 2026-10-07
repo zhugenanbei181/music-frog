@@ -4,18 +4,29 @@
 //! test-intent: behavior
 
 use super::*;
+use crate::admin_server::ADMIN_DEFAULT_PORT;
+use crate::types::options::EditorPane;
 use crate::types::runtime::RuntimeStatus;
+use crate::view::theme::{FOREST, forest_theme, is_forest, theme_to_name, tokens};
+use iced::Size;
+use iced::window::Screenshot;
+use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
+use std::env::temp_dir;
+use std::fs::{create_dir_all, read_to_string, remove_dir_all};
+use std::process::id;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn demo_env(page: Route) -> DemoEnv {
     DemoEnv {
         enabled: true,
         page,
-        pane: crate::types::options::EditorPane::Profile,
+        pane: EditorPane::Profile,
         providers_tab: false,
         lang: "zh-CN".to_string(),
         skin: iced::Theme::Dark,
         window_size: DEFAULT_WINDOW,
         capture_marker: None,
+        scenario: None,
     }
 }
 
@@ -63,7 +74,7 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(state.diag.logs.len() >= 40);
 
     // rules / dns / misc
-    assert_eq!(state.editor.rules.len(), 15);
+    assert_eq!(state.editor.rule_list.draft.len(), 15);
     assert!(!state.editor.rules_render_cache.is_empty());
     assert!(!state.editor.rules_filtered_indices.is_empty());
     assert!(!state.editor.dns_nameservers.is_empty());
@@ -71,10 +82,7 @@ fn demo_fixture_inventory_covers_all_pages() {
     assert!(state.editor.fake_ip_form.store_fake_ip);
     assert!(!state.editor.tun_form.stack.is_empty());
     assert!(state.runtime.installed_kernels.iter().any(|k| k.is_default));
-    assert_eq!(
-        state.shell.admin_port,
-        crate::admin_server::ADMIN_DEFAULT_PORT
-    );
+    assert_eq!(state.shell.admin_port, ADMIN_DEFAULT_PORT);
     assert!(state.shell.toasts.is_empty());
     assert_eq!(state.shell.lang, "zh-CN");
 }
@@ -134,27 +142,43 @@ fn demo_state_reflects_requested_page_and_skin() {
 
 #[test]
 fn capture_marker_is_idempotent_and_formats_the_contract_line() {
-    let path = std::env::temp_dir().join(format!(
+    let directory = temp_dir().join(format!(
         "infiltrator_demo_marker_{}_{}.tmp",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
             .unwrap_or_default()
     ));
-    let _ = std::fs::remove_file(&path);
+    create_dir_all(&directory).unwrap();
+    let path = directory.join("marker.log");
 
     let mut env = demo_env(Route::Proxies);
     env.capture_marker = Some(path.clone());
-    let (state, _) = AppState::demo(&env);
+    let (mut state, _) = AppState::demo(&env);
 
-    // Fire twice — the file must end up with exactly one contract line.
+    // Constructing the real view must not announce a rendered frame.
+    let _ = state.view();
+    state.write_capture_marker();
+    assert!(!path.exists());
+    assert_eq!(state.capture_frame_task().units(), 0);
+    assert!(state.capture_frame_task().units() > 0);
+    let size = Size::new(DEFAULT_WINDOW.0 as u32, DEFAULT_WINDOW.1 as u32);
+    state.finish_capture_frame(
+        state.surface.revision(),
+        None,
+        Screenshot::new(
+            [30u8, 60, 90, 255].repeat((size.width * size.height) as usize),
+            size,
+            1.0,
+        ),
+    );
     state.write_capture_marker();
     state.write_capture_marker();
 
-    let content = std::fs::read_to_string(&path).expect("marker file exists");
+    let content = read_to_string(&path).expect("marker file exists");
     assert_eq!(content, "CAPTURE_READY page=proxies skin=dark\n");
-    let _ = std::fs::remove_file(&path);
+    remove_dir_all(directory).unwrap();
 }
 
 #[test]
@@ -179,9 +203,7 @@ fn demo_seeds_the_shared_live_waveform_slot() {
     assert!(!model.waveform.is_empty());
     assert_eq!(
         model.waveform,
-        infiltrator_contract::mini_hud::MiniHudWaveformStrip::from_snapshot(
-            &state.runtime.traffic_waveform
-        )
+        MiniHudWaveformStrip::from_snapshot(&state.runtime.traffic_waveform)
     );
     assert!(model.waveform.peak_bytes_per_sec > 0);
     assert_eq!(
@@ -226,14 +248,14 @@ fn env_page_mapping_is_exhaustive() {
 #[test]
 fn demo_filter_page_activates_the_filter_pane_with_seeded_draft() {
     let mut env = demo_env(Route::Editor);
-    env.pane = crate::types::options::EditorPane::Filter;
+    env.pane = EditorPane::Filter;
     let (state, _) = AppState::demo(&env);
+    assert_eq!(state.editor.editor_pane, EditorPane::Filter);
     assert_eq!(
-        state.editor.editor_pane,
-        crate::types::options::EditorPane::Filter
+        state.editor.filter_editor.source_profile(),
+        Some("机场订阅")
     );
-    assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("机场订阅"));
-    assert!(!state.editor.filter_draft.include.is_empty());
+    assert!(!state.editor.filter_editor.draft.include.is_empty());
     // Subscription fixture carries userinfo traffic for the usage bar.
     let active = state
         .profile
@@ -247,12 +269,9 @@ fn demo_filter_page_activates_the_filter_pane_with_seeded_draft() {
 #[test]
 fn demo_mixin_page_activates_the_mixin_pane_with_fixture_document() {
     let mut env = demo_env(Route::Editor);
-    env.pane = crate::types::options::EditorPane::Mixin;
+    env.pane = EditorPane::Mixin;
     let (state, _) = AppState::demo(&env);
-    assert_eq!(
-        state.editor.editor_pane,
-        crate::types::options::EditorPane::Mixin
-    );
+    assert_eq!(state.editor.editor_pane, EditorPane::Mixin);
     assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("机场订阅"));
     assert!(state.editor.mixin_content.text().contains("rules:"));
     assert!(state.editor.mixin_content.text().contains("prepend:"));
@@ -264,20 +283,12 @@ fn env_skin_and_window_size_parsers_fall_back_safely() {
     assert_eq!(parse_skin("LIGHT"), iced::Theme::Light);
     assert_eq!(parse_skin("dark"), iced::Theme::Dark);
     assert_eq!(parse_skin("bogus"), iced::Theme::Dark);
-    assert_eq!(parse_skin("forest"), crate::view::theme::forest_theme());
-    assert_eq!(parse_skin("EyeForest"), crate::view::theme::forest_theme());
-    assert_eq!(parse_skin("eye-forest"), crate::view::theme::forest_theme());
-    assert_eq!(
-        crate::view::theme::theme_to_name(&crate::view::theme::forest_theme()),
-        "forest"
-    );
-    assert!(crate::view::theme::is_forest(
-        &crate::view::theme::forest_theme()
-    ));
-    assert_eq!(
-        crate::view::theme::tokens(&crate::view::theme::forest_theme()).accent,
-        crate::view::theme::FOREST.accent
-    );
+    assert_eq!(parse_skin("forest"), forest_theme());
+    assert_eq!(parse_skin("EyeForest"), forest_theme());
+    assert_eq!(parse_skin("eye-forest"), forest_theme());
+    assert_eq!(theme_to_name(&forest_theme()), "forest");
+    assert!(is_forest(&forest_theme()));
+    assert_eq!(tokens(&forest_theme()).accent, FOREST.accent);
 
     assert_eq!(parse_window_size("1280x800"), (1280.0, 800.0));
     assert_eq!(parse_window_size("1440X900"), (1440.0, 900.0));

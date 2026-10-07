@@ -4,6 +4,11 @@
 //! These builders are consumed by [`crate::pages::dns::dns_page`] and restamp
 //! from the shared [`crate::pages::dns::DnsProjection`].
 
+use crate::pages::dns::{
+    DnsBorder, DnsConfigCard, DnsEnhancedModeControl, DnsEnhancedModePill, DnsFilterModeControl,
+    DnsFilterModePill, DnsLine, DnsLineKind, DnsProjection, DnsSwitchButton, DnsSwitchKnob,
+    DnsSwitchTrack, enhanced_mode_pill_label, filter_mode_label,
+};
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -14,8 +19,10 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::dns_status_projection::field_label_key;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
@@ -23,23 +30,23 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
     DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
 };
-
-use crate::pages::dns::{
-    DnsBorder, DnsConfigCard, DnsEnhancedModeControl, DnsEnhancedModePill, DnsFilterModeControl,
-    DnsFilterModePill, DnsLine, DnsLineKind, DnsProjection, DnsSwitchButton, DnsSwitchKnob,
-    DnsSwitchTrack, enhanced_mode_pill_label, filter_mode_label,
-};
+use infiltrator_contract::dns_form::DnsFormField;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 fn dns_switch_row_scene(
     field: DnsSwitchField,
-    label: &'static str,
     switches: DnsCoreSwitches,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let name = field.key();
     let enabled = switches.value(field);
-    let text_str = format!("{name} ({label})");
-    let status_str = if enabled { "已开启" } else { "已关闭" };
+    let label = LocalizedText::plain(field_label_key(DnsFormField::from_switch(field)));
+    let status_str = Lang(UiLocale::default().code())
+        .tr(if enabled {
+            "dns_switch_enabled"
+        } else {
+            "dns_switch_disabled"
+        })
+        .into_owned();
     let status_color = if enabled {
         palette.success
     } else {
@@ -77,7 +84,7 @@ fn dns_switch_row_scene(
                     column_gap: Val::Px(space::S8),
                 }
                 Children [
-                    Text(text_str) TextRole(Role::Body)
+                    label TextRole(Role::Body)
                 ]
                 --
                 Node {
@@ -140,7 +147,7 @@ fn enhanced_mode_pill(
     } else {
         palette.ink_dim
     };
-    let label = enhanced_mode_pill_label(mode);
+    let label = enhanced_mode_pill_label(mode, UiLocale::default().code());
     Box::new(bsn! {
             Node {
                 flex_grow: 1.0,
@@ -177,7 +184,7 @@ fn filter_mode_pill(
     } else {
         palette.ink_dim
     };
-    let label = filter_mode_label(mode);
+    let label = filter_mode_label(mode, UiLocale::default().code());
     Box::new(bsn! {
             Node {
                 flex_grow: 1.0,
@@ -247,10 +254,10 @@ pub(crate) fn dns_form_card_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                     --
-                                    Text({ "DNS 核心配置 (DNS Configuration)".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("dns_core_configuration_title") TextRole(Role::BodyStrong)
                                 ]
                                 --
-                                Text({ "6 项开关 · 域名映射 · 过滤模式".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("dns_core_configuration_hint") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -260,17 +267,17 @@ pub(crate) fn dns_form_card_scene(
                                 row_gap: Val::Px(space::S6),
                             }
                             Children [
-                                @{ dns_switch_row_scene(DnsSwitchField::Enable, "启用 DNS 服务", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::Enable, projection.switches, palette) }
                                 --
-                                @{ dns_switch_row_scene(DnsSwitchField::Ipv6, "IPv6 解析", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::Ipv6, projection.switches, palette) }
                                 --
-                                @{ dns_switch_row_scene(DnsSwitchField::Cache, "DNS 内存缓存", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::Cache, projection.switches, palette) }
                                 --
-                                @{ dns_switch_row_scene(DnsSwitchField::UseHosts, "遵循系统 Hosts", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::UseHosts, projection.switches, palette) }
                                 --
-                                @{ dns_switch_row_scene(DnsSwitchField::UseSystemHosts, "系统默认解析器", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::UseSystemHosts, projection.switches, palette) }
                                 --
-                                @{ dns_switch_row_scene(DnsSwitchField::RespectRules, "分流规则优先", projection.switches, palette) }
+                                @{ dns_switch_row_scene(DnsSwitchField::RespectRules, projection.switches, palette) }
                             ]
             }),
             Box::new(bsn! {
@@ -282,7 +289,7 @@ pub(crate) fn dns_form_card_scene(
                             }
                             DnsEnhancedModeControl
                             Children [
-                                Text({ "域名映射模式 (enhanced_mode)".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("dns_mode_label") TextRole(Role::Caption)
                                 --
                                 @{ segmented_row_scene(enhanced_pills, palette) }
                             ]
@@ -296,7 +303,7 @@ pub(crate) fn dns_form_card_scene(
                             }
                             DnsFilterModeControl
                             Children [
-                                Text({ "过滤模式 (fake_ip_filter_mode)".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("dns_filter_label") TextRole(Role::Caption)
                                 --
                                 @{ segmented_row_scene(filter_pills, palette) }
                             ]

@@ -3,32 +3,42 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::apply_guard_card::apply_guard_card;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     banner_alert, form_input_style, form_toggle_row, responsive_form_row,
     responsive_form_toggle_row, style_accent, style_ghost, text_btn,
 };
-use crate::view::components::{BadgeKind, card, modern_scrollable, segmented_control, status_dot};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, column, row, text, text_input};
+use crate::view::components::{BadgeKind, modern_scrollable, segmented_control, status_dot};
+use crate::view::doctor::section;
+use crate::view::geodata_card::geodata_card;
+use crate::view::lan_security_card::lan_security_card;
+use crate::view::lan_sharing_card::lan_sharing_card;
+use crate::view::net_roam_card::net_roam_card;
+use crate::view::pac_card::pac_card;
+use crate::view::privileged_network_card::privileged_network_card;
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view::uwp_card::uwp_card;
+use crate::view::vpn_card::vpn_card;
+use crate::view::web_dash_card::web_dash_card;
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::widget::{Space, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::settings_status_projection::format_runtime_status;
 use infiltrator_ports::host_runtime::TunServiceStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
+use integration::{CORE_CHANNEL_OPTIONS, secondary_text};
 
-use integration::{CORE_CHANNEL_OPTIONS, LANGUAGE_OPTIONS, secondary_text};
-
-mod format;
 mod hotkeys;
 mod integration;
 mod kernel;
+pub mod language;
 mod tun;
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let is_en = state.shell.lang.starts_with("en");
-    let selected_language = LANGUAGE_OPTIONS
-        .iter()
-        .find(|option| option.value == state.shell.lang)
-        .copied();
     let selected_core_channel = CORE_CHANNEL_OPTIONS
         .iter()
         .find(|option| option.value == state.runtime.core_channel)
@@ -50,15 +60,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         let uac_title = lang.tr("admin_status").to_string();
         let uac_desc = if cfg!(windows) {
             lang.tr("settings_uac_desc").to_string()
-        } else if is_en {
-            "Configuring platform permissions is required before enabling TUN mode; restart or prepare permissions below.".to_string()
         } else {
-            lang.tr("settings_tun_perm_hint").to_string()
+            lang.tr("settings_tun_permission_hint").to_string()
         };
         let uac_btn_label = if cfg!(windows) {
             lang.tr("settings_uac_request").to_string()
-        } else if is_en {
-            "Prepare TUN Privilege".to_string()
         } else {
             lang.tr("settings_tun_prepare_perm_btn").to_string()
         };
@@ -71,7 +77,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             BadgeKind::Warning,
             uac_title,
             uac_desc,
-            Some(action_btn),
+            Some(
+                container(action_btn)
+                    .id(InteractionRegion::TunPermissionAction.id())
+                    .into(),
+            ),
         ))
     } else {
         None
@@ -83,9 +93,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         lang.tr("theme_forest").to_string(),
         "AMOLED".to_string(),
     ];
-    let current_theme_index = if crate::view::theme::is_amoled(&state.shell.theme) {
+    let current_theme_index = if theme::is_amoled(&state.shell.theme) {
         3
-    } else if crate::view::theme::is_forest(&state.shell.theme) {
+    } else if theme::is_forest(&state.shell.theme) {
         2
     } else if state.shell.theme == Theme::Light {
         0
@@ -103,13 +113,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     });
 
     let system_proxy_section = integration::system_proxy_card(state, &lang, is_en);
-    let system_section = integration::system_integration_card(
-        state,
-        &lang,
-        is_en,
-        theme_selector,
-        selected_language,
-    );
+    let system_section = integration::system_integration_card(state, &lang, is_en, theme_selector);
     let tun_section = tun::tun_card(state, &lang, is_en);
 
     let sniffer_section = card(
@@ -128,7 +132,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let editor_section = card(
         Some("External Editor".to_string()),
         column![
-            secondary_text("Set a preferred editor executable path (optional)."),
+            secondary_text(lang.tr("settings_editor_path_hint").into_owned()),
             text_input(
                 "e.g. C:\\Program Files\\Sublime Text\\subl.exe",
                 &state.editor.editor_path_setting
@@ -230,7 +234,18 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .spacing(theme::SP_SM),
     );
 
-    let mut content = column![header, Space::new().height(theme::SP_LG)].spacing(10);
+    let language_card = language::language_card(state);
+    let mut content = column![
+        header,
+        language_card,
+        text(format_runtime_status(
+            &state.runtime.runtime_control.status,
+            lang.0
+        ))
+        .size(12),
+        Space::new().height(theme::SP_LG)
+    ]
+    .spacing(10);
     if let Some(banner) = uac_banner {
         content = content.push(banner).push(Space::new().height(10));
     }
@@ -238,29 +253,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     content = content
         .push(system_proxy_section)
         .push(Space::new().height(10))
-        .push(crate::view::pac_card::pac_card(state, &lang))
+        .push(pac_card(state, &lang))
         .push(Space::new().height(10))
         .push(system_section)
         .push(Space::new().height(10))
         .push(integration::inbounds_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::lan_sharing_card::lan_sharing_card(
-            state, &lang,
-        ))
+        .push(lan_sharing_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::lan_security_card::lan_security_card(
-            state, &lang,
-        ))
+        .push(lan_security_card(state, &lang))
         .push(Space::new().height(10))
         .push(integration::shell_export_card(&lang))
         .push(Space::new().height(10))
         .push(tun_section)
         .push(Space::new().height(10))
-        .push(crate::view::net_roam_card::net_roam_card(state, &lang))
+        .push(net_roam_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::vpn_card::vpn_card(state, &lang))
+        .push(vpn_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::privileged_network_card::privileged_network_card(state, &lang))
+        .push(privileged_network_card(state, &lang))
         .push(Space::new().height(10))
         .push(sniffer_section)
         .push(Space::new().height(10))
@@ -268,19 +279,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .push(Space::new().height(10))
         .push(admin_section)
         .push(Space::new().height(10))
-        .push(crate::view::web_dash_card::web_dash_card(state, &lang))
+        .push(web_dash_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::apply_guard_card::apply_guard_card(
-            state, &lang,
-        ))
+        .push(apply_guard_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::doctor::section(state))
+        .push(section(state))
         .push(Space::new().height(10))
         .push(hotkeys::hotkeys_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::geodata_card::geodata_card(state, &lang))
+        .push(geodata_card(state, &lang))
         .push(Space::new().height(10))
-        .push(crate::view::uwp_card::uwp_card(state, &lang))
+        .push(uwp_card(state, &lang))
         .push(Space::new().height(10))
         .push(kernel::kernel_management_card(
             state,

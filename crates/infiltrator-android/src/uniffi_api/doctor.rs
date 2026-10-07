@@ -5,12 +5,11 @@
 //! Errors travel in the crate's `FfiStatus` records (the existing error
 //! channel); check statuses are flattened to "pass"/"warn"/"fail"/"skip".
 
+use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_support::{doctor_application, get_runtime, map_application_failure};
 use infiltrator_contract::doctor::{
     BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction, DoctorStatus,
 };
-
-use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_support::{doctor_application, get_runtime, map_application_failure};
 
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct DoctorCheckResultRecord {
@@ -257,13 +256,25 @@ mod tests {
     use crate::ffi::FfiErrorCode;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use std::env::var;
     use std::fs;
+    #[cfg(test)]
+    use std::path;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+    #[cfg(test)]
+    use tokio::sync::MutexGuard;
 
     const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
 
-    async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    async fn test_lock() -> MutexGuard<'static, ()> {
         TEST_LOCK.lock().await
     }
 
@@ -272,18 +283,18 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("infiltrator-android-doctor-{tag}-{unique}"));
+        let path = temp_dir().join(format!("infiltrator-android-doctor-{tag}-{unique}"));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("create test home dir");
         path
     }
 
     fn set_env(value: &str) {
-        unsafe { std::env::set_var(CONFIGS_DIR_ENV, value) };
+        unsafe { set_var(CONFIGS_DIR_ENV, value) };
     }
 
     fn clear_env() {
-        unsafe { std::env::remove_var(CONFIGS_DIR_ENV) };
+        unsafe { remove_var(CONFIGS_DIR_ENV) };
     }
 
     fn restore_env(saved: Option<String>) {
@@ -441,7 +452,7 @@ mod tests {
         let home = make_test_home("env-dir");
         set_home_dir_override(home.clone());
 
-        let saved = std::env::var(CONFIGS_DIR_ENV).ok();
+        let saved = var(CONFIGS_DIR_ENV).ok();
         let env_dir = home.join("env-cloud");
         set_env(env_dir.to_str().unwrap());
 
@@ -472,7 +483,7 @@ mod tests {
         let _ = fs::remove_dir_all(home);
     }
 
-    fn settings_toml_path(home: &std::path::Path) -> PathBuf {
+    fn settings_toml_path(home: &path::Path) -> PathBuf {
         home.join("settings.toml")
     }
 }

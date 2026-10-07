@@ -7,6 +7,7 @@
 //! fragments with plain string scans — no regex, no new dependencies — so
 //! any caller can sanitize a line before handing it to a logger.
 
+use std::cmp::Reverse;
 /// Replacement marker substituted for every redacted fragment.
 const MASK: &str = "***";
 
@@ -15,7 +16,13 @@ const MASK: &str = "***";
 const MIN_SECRET_LEN: usize = 4;
 
 /// Keys whose value is always treated as a credential.
-const SENSITIVE_KEYS: [&str; 4] = ["secret", "password", "token", "authorization"];
+const SENSITIVE_KEYS: [&str; 5] = [
+    "secret",
+    "password",
+    "token",
+    "proxy-authorization",
+    "authorization",
+];
 
 /// Query parameter names whose value is always treated as a credential.
 const SENSITIVE_QUERY_KEYS: [&str; 2] = ["token", "key"];
@@ -38,17 +45,16 @@ const SENSITIVE_QUERY_KEYS: [&str; 2] = ["token", "key"];
 /// idempotent: running it on its own output yields the same string because
 /// already-masked values are rewritten to the same `***`.
 ///
-/// Limitation: only a `Bearer` scheme word is recognized in front of a
-/// credential. Other multi-word header values (e.g. `Basic <base64>`) have
-/// just their first word replaced; pass such credentials explicitly via
-/// `secrets` when they can appear in logs.
+/// Bare Basic and Digest authorization values are masked through the line
+/// boundary, including comma-separated digest credentials. This intentionally
+/// obscures trailing diagnostic context rather than leaking header fragments.
 pub fn redact_line(line: &str, secrets: &[String]) -> String {
     // Explicit secrets go first: they must also cover fragments the
     // structural rules cannot see (bare tokens in prose). Longest first so
     // that replacing a prefix cannot leave a partial secret behind.
     let mut masked = line.to_string();
     let mut explicit: Vec<&str> = secrets.iter().map(String::as_str).collect();
-    explicit.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
+    explicit.sort_by_key(|secret| Reverse(secret.len()));
     for secret in explicit {
         masked = mask_secret(&masked, secret);
     }
@@ -197,13 +203,18 @@ fn match_key_value_at(line: &str, start: usize) -> Option<(usize, String)> {
     };
     let value_start = idx;
     let value_end = match quote {
-        Some(q) => bytes[value_start..]
-            .iter()
-            .position(|b| *b == q)
-            .map(|p| value_start + p)?,
+        Some(q) => quoted_value_end(bytes, value_start, q)?,
         None => {
             let end = unquoted_value_end(line, value_start);
-            if is_bearer_word(&line[value_start..end]) {
+            let authorization = key.ends_with("authorization");
+            let scheme = &line[value_start..end];
+            if authorization
+                && (scheme.eq_ignore_ascii_case("basic") || scheme.eq_ignore_ascii_case("digest"))
+            {
+                line[value_start..]
+                    .find(['\r', '\n'])
+                    .map_or(line.len(), |at| value_start + at)
+            } else if is_bearer_word(scheme) {
                 // The token lives beyond the whitespace that ended the bare
                 // value, so resume scanning after the scheme word.
                 let after_scheme = value_start + 6;
@@ -237,6 +248,20 @@ fn match_key_value_at(line: &str, start: usize) -> Option<(usize, String)> {
         replacement.push(q as char);
     }
     Some((end, replacement))
+}
+
+fn quoted_value_end(bytes: &[u8], start: usize, quote: u8) -> Option<usize> {
+    let mut escaped = false;
+    for (at, byte) in bytes.iter().enumerate().skip(start) {
+        if escaped {
+            escaped = false;
+        } else if *byte == b'\\' {
+            escaped = true;
+        } else if *byte == quote {
+            return Some(at);
+        }
+    }
+    None
 }
 
 /// Redact one key/value value, keeping a leading `Bearer` scheme word so

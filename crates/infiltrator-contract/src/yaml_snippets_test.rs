@@ -16,7 +16,6 @@ fn catalogue_ids_and_locale_keys_are_unique_and_stable() {
             "{} carries an i18n key",
             snippet.id
         );
-        assert!(!snippet.label_zh.is_empty());
         assert!(!snippet.body.is_empty());
         assert_eq!(
             yaml_snippet(snippet.id).map(|found| found.id),

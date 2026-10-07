@@ -24,6 +24,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
+source "$REPO/scripts/parity/capture_attempt.sh"
 export RUSTC_WRAPPER=
 
 APP_ID="infiltrator-iced"
@@ -36,7 +37,7 @@ APP="$REPO/target/debug/infiltrator-iced"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_iced_scenarios.tsv}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/docs/screenshots/iced}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
-EVIDENCE_ROOT="$REPO/target/iced-evidence"
+EVIDENCE_ROOT="$REPO/.evidence/captures/iced"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 GIT_HEAD="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'no-git')"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
@@ -72,10 +73,7 @@ NIRI_IPC=""
 KEEP_RUNTIME=0
 START_EPOCH="$(date +%s)"
 
-process_group() {
-  local pid="$1"
-  ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]'
-}
+source "$REPO/scripts/parity/process_ownership.sh"
 
 terminate_owned() {
   local pid="$1" pgid="$2"
@@ -225,9 +223,11 @@ awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' "$MATRIX" | while IFS= read -r nam
 done
 
 # ------------------------------------------------------------------- build --
+SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
 printf 'build: cargo build --quiet -p infiltrator-iced\n'
 timeout --kill-after=10s 20m cargo build --quiet -p infiltrator-iced
 [ -x "$APP" ] || fail_hard "iced binary was not produced: $APP"
+APP="$(python3 scripts/parity/product_build.py --surface iced --binary "$APP" --output "$RUN_DIR/product-build.json")"
 BINARY_SHA256="$(sha256sum "$APP" | cut -d' ' -f1)"
 
 # ----------------------------------------------------------------- receipt --
@@ -239,10 +239,12 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'worktree=%s\n' "$WORKTREE_STATE"
   printf 'rust=%s\n' "$(rustc -V 2>/dev/null || printf 'unknown')"
   printf 'niri=%s\n' "$(niri --version)"
-  printf 'binary=target/debug/infiltrator-iced\n'
+  printf 'binary=%s\n' "${APP#$REPO/}"
+  printf 'build_manifest=%s\n' "$(dirname "${APP#$REPO/}")/build.json"
   printf 'binary_sha256=%s\n' "$BINARY_SHA256"
+  printf 'source_fingerprint=%s\n' "$SOURCE_FINGERPRINT"
   printf 'app_id=%s\n' "$APP_ID"
-  printf 'matrix=scripts/capture_iced_scenarios.tsv\n'
+  printf 'matrix=%s\n' "$MATRIX_SRC"
   printf 'scenario_count=%s\n' "$SCENARIO_COUNT"
   printf 'niri_host=kwin-wayland-virtual\n'
   printf 'command=bash scripts/capture-iced.sh\n'
@@ -409,6 +411,11 @@ printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 # -------------------------------------------------------------- per scenario --
 capture_one() {
   local name="$1" page="$2" skin="$3" window_size="$4"
+  local interaction=""
+  case "$name" in
+    *-standard) interaction="${name%-standard}" ;;
+    *-compact) interaction="${name%-compact}" ;;
+  esac
   # The app's marker names the ROUTE (`route_env_name`); scenario pages that
   # are route variants (mixin = editor + Mixin pane) wait on the route name.
   local marker_page="$page"
@@ -437,9 +444,10 @@ capture_one() {
   # attempt so the receipt always has one row per scenario.
   while [ "$attempt" -le 2 ]; do
     if [ "$attempt" -gt 1 ]; then
+      archive_capture_attempt "$scenario_dir" "$((attempt - 1))" "$action_status" "$APP_PID" "$window_id"
       printf '  retry %-22s (attempt %d/2)\n' "$name" "$attempt"
     fi
-    rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
+    rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image" "$scenario_dir/rendered-frame.png" "$scenario_dir/diagnostic.png"
     terminate_owned "$APP_PID" "$APP_PGID"
     APP_PID=""
     APP_PGID=""
@@ -459,6 +467,7 @@ capture_one() {
       INFILTRATOR_DEMO=1 \
       INFILTRATOR_LANG="${INFILTRATOR_LANG:-zh-CN}" \
       INFILTRATOR_PAGE="$page" \
+      INFILTRATOR_SCENARIO="$interaction" \
       INFILTRATOR_SKIN="$skin" \
       INFILTRATOR_WINDOW_SIZE="$window_size" \
       INFILTRATOR_CAPTURE_MARKER="$marker" \
@@ -488,7 +497,7 @@ capture_one() {
       done
 
       # Readiness: the app appends "CAPTURE_READY page=... skin=..." to the
-      # marker file after its first rendered frame. No fixed sleeps.
+      # marker file after native redraws and GPU readback. No fixed sleeps.
       for _ in $(seq 1 "$MARKER_TIMEOUT_ITERS"); do
         if grep -q "CAPTURE_READY page=$marker_page skin=$skin" "$marker" 2>/dev/null; then
           marker_ready=1
@@ -497,7 +506,6 @@ capture_one() {
         kill -0 "$APP_PID" 2>/dev/null || break
         sleep 0.25
       done
-      sleep 0.3 # tiny settle: let the first frame reach the compositor
     fi
 
     {
@@ -522,8 +530,14 @@ capture_one() {
         rm -f "$image"
         if NIRI_SOCKET="$NIRI_IPC" timeout 8s niri msg action screenshot-window \
           --id "$window_id" --write-to-disk true --path "$image" >>"$action" 2>&1; then
-          action_status=ok
-          break
+          for _ in $(seq 1 20); do
+            [ -s "$image" ] && break
+            sleep 0.1
+          done
+          if python3 scripts/parity/rendered_frame.py "$image" "$marker" >>"$action" 2>&1; then
+            action_status=ok
+            break
+          fi
         fi
         sleep 0.25
       done
@@ -547,8 +561,8 @@ capture_one() {
         # niri's screenshot-window includes the compositor's shadow margin, so
         # the PNG is larger than the toplevel (same on the reference project's
         # stack); require the render to fully contain the requested window.
-        if [ "$width" -lt "$exp_w" ] || [ "$height" -lt "$exp_h" ]; then
-          action_status="failed-dims ($width x $height, smaller than requested $window_size)"
+        if [ "$width" -ne "$exp_w" ] || [ "$height" -ne "$exp_h" ]; then
+          action_status="failed-dims ($width x $height, different from requested $window_size)"
         fi
       else
         action_status=failed
@@ -591,7 +605,12 @@ capture_one() {
     "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" \
     >>"$MANIFEST"
 
+  if [ "$action_status" != ok ] && [ "$window_ready" -eq 1 ]; then
+    niri_ipc action screenshot-window --id "$window_id" --write-to-disk true \
+      --path "$scenario_dir/diagnostic.png" >>"$action" 2>&1 || true
+  fi
   terminate_owned "$APP_PID" "$APP_PGID"
+  archive_capture_attempt "$scenario_dir" "$((attempt > 2 ? 2 : attempt))" "$action_status" "$APP_PID" "$window_id"
   APP_PID=""
   APP_PGID=""
   [ "$action_status" = ok ]

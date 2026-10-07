@@ -2,6 +2,7 @@ use crate::context::Runtime;
 use crate::output::{print_info, print_success};
 use futures_util::StreamExt;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use tokio::signal::ctrl_c;
 
 /// Stream controller logs until Ctrl-C (or the controller closes the stream).
 pub(crate) async fn logs(level: Option<&str>) -> anyhow::Result<()> {
@@ -23,7 +24,7 @@ pub(crate) async fn logs(level: Option<&str>) -> anyhow::Result<()> {
                 Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
-            _ = tokio::signal::ctrl_c() => break,
+            _ = ctrl_c() => break,
         }
     }
     Ok(())
@@ -51,7 +52,7 @@ pub(crate) async fn traffic() -> anyhow::Result<()> {
                 Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
-            _ = tokio::signal::ctrl_c() => break,
+            _ = ctrl_c() => break,
         }
     }
     Ok(())

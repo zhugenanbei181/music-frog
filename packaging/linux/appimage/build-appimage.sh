@@ -26,8 +26,9 @@ if [ ! -f "$BIN_PATH" ]; then
     exit 1
 fi
 
-APP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/infiltrator-appimage.XXXXXX")"
-trap 'rm -rf "$APP_DIR"' EXIT
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/infiltrator-appimage.XXXXXX")"
+APP_DIR="$WORK_DIR/AppDir"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "[build-appimage] Constructing AppDir structure for ${APP_PKG}..."
 mkdir -p "$APP_DIR/usr/bin"
@@ -38,6 +39,8 @@ mkdir -p "$APP_DIR/usr/lib"
 # Copy binary
 cp "$BIN_PATH" "$APP_DIR/usr/bin/$APP_BIN"
 chmod +x "$APP_DIR/usr/bin/$APP_BIN"
+bash "$REPO_ROOT/scripts/fetch-mihomo.sh" --target x86_64-unknown-linux-gnu \
+    --stage "$APP_DIR/usr/bin/mihomo"
 
 # Copy desktop and icon metadata
 cp "$REPO_ROOT/$APP_DESKTOP" "$APP_DIR/${APP_PKG}.desktop"
@@ -53,7 +56,7 @@ chmod +x "$APP_DIR/AppRun"
 # Check for appimagetool
 if ! command -v appimagetool >/dev/null 2>&1; then
     echo "[build-appimage] appimagetool not found, downloading standalone tool..."
-    TOOL_PATH="${TMPDIR:-/tmp}/appimagetool"
+    TOOL_PATH="$WORK_DIR/appimagetool"
     curl --fail --silent --show-error --location --retry 3 \
         -o "$TOOL_PATH" \
         "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"

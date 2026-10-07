@@ -2,12 +2,15 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::rule_provider_projection::provider_cache_line;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
@@ -60,23 +63,7 @@ pub fn provider_unpack_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
     // DUAL-11-07: the observed cache fact published by the shared read model;
     // the surface never invents a directory, count or size.
     let cache = &state.editor.rule_provider_cache;
-    let cache_line = match cache.state {
-        infiltrator_contract::provider_cache::RuleProviderCacheState::Ready
-        | infiltrator_contract::provider_cache::RuleProviderCacheState::Empty => lang
-            .tr("provider_cache_ready")
-            .replace("{dir}", cache.directory.as_deref().unwrap_or_default())
-            .replace("{count}", &cache.file_count.to_string())
-            .replace("{bytes}", &cache.total_bytes.to_string()),
-        infiltrator_contract::provider_cache::RuleProviderCacheState::Unsupported => {
-            lang.tr("provider_cache_unsupported").to_string()
-        }
-        infiltrator_contract::provider_cache::RuleProviderCacheState::Failed => {
-            lang.tr("provider_cache_failed").to_string()
-        }
-        infiltrator_contract::provider_cache::RuleProviderCacheState::Unknown => {
-            lang.tr("provider_cache_unknown").to_string()
-        }
-    };
+    let cache_line = provider_cache_line(cache, lang);
 
     let feedback: Element<'_, Message> = if let Some(msg) = &unp.status_message {
         let failed = unp.is_unpacking || unp.is_purging_cache;

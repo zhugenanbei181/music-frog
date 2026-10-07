@@ -6,6 +6,7 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::{AssetApp, AssetPlugin, Handle};
+use bevy::color::Color;
 use bevy::ecs::system::{Commands, Res};
 use bevy::image::Image;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
@@ -14,6 +15,7 @@ use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::icon::{IconId, IconPlate, IconSources, icon_path, icon_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
+use std::collections::HashSet;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -31,7 +33,7 @@ fn every_id_maps_to_a_distinct_plate_path() {
     let paths: Vec<_> = IconId::ALL.iter().map(|icon| icon_path(*icon)).collect();
     assert_eq!(paths.len(), 10);
     assert_eq!(
-        paths.iter().collect::<std::collections::HashSet<_>>().len(),
+        paths.iter().collect::<HashSet<_>>().len(),
         10,
         "no two ids share a plate"
     );
@@ -113,6 +115,28 @@ fn plate_landing_stamps_a_tinted_image_node() {
 }
 
 #[test]
+fn icon_initialization_preserves_existing_entities_and_tints() {
+    let mut app = headless_app();
+    let tint = Color::srgb(0.25, 0.5, 0.75);
+    let plate = app
+        .world_mut()
+        .commands()
+        .spawn_scene(icon_scene(IconId::ArrowDown, 20.0, tint))
+        .id();
+    app.update();
+    let expected = app
+        .world()
+        .resource::<IconSources>()
+        .handle(IconId::ArrowDown)
+        .unwrap();
+    let node = app.world().get::<ImageNode>(plate).unwrap();
+    assert_eq!(node.image, expected);
+    assert_eq!(node.color, tint);
+    app.update();
+    assert_eq!(app.world().get::<ImageNode>(plate).unwrap().image, expected);
+}
+
+#[test]
 fn unregistered_store_degrades_to_transparent_without_panic() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
@@ -120,7 +144,7 @@ fn unregistered_store_degrades_to_transparent_without_panic() {
     // No host AssetServer → the plugin installs the empty store.
     app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app.add_systems(Startup, |mut commands: Commands| {
-        commands.spawn_scene(icon_scene(IconId::Plus, 16.0, bevy::color::Color::WHITE));
+        commands.spawn_scene(icon_scene(IconId::Plus, 16.0, Color::WHITE));
     });
     app.update();
 

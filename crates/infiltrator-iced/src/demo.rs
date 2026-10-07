@@ -26,10 +26,32 @@
 //! [`AppState`] constructor in [`state`] and the capture-marker plumbing in
 //! [`capture`].
 
+use crate::types::message::Message;
+use crate::view::theme::{theme_from_name, theme_to_name};
+use crate::window_chrome::{MIN_WINDOW_SIZE, window_settings};
+use iced::Task;
+use infiltrator_contract::parity::FeatureId;
+use std::env::{args, var};
 mod capture;
+mod dns_hosts;
+mod dns_leak;
+mod dns_query;
+mod doctor;
+mod filter;
 mod fixtures;
+pub mod frame;
+mod geometry;
+mod interaction;
+mod language;
+mod logs;
 mod proxy_fixtures;
+mod proxy_mode;
+mod rule_list;
+mod rule_statistics;
+mod rule_trace;
+mod snapshot_restore;
 mod state;
+mod telemetry;
 
 use crate::state::AppState;
 use crate::types::app::Route;
@@ -51,21 +73,22 @@ pub struct DemoEnv {
     pub skin: iced::Theme,
     pub window_size: (f32, f32),
     pub capture_marker: Option<PathBuf>,
+    pub scenario: Option<FeatureId>,
 }
 
 impl DemoEnv {
     /// Resolve demo settings from `--demo` argv and the `INFILTRATOR_*`
     /// environment variables. Invalid values fall back to defaults.
     pub fn from_environment() -> Self {
-        let enabled = std::env::args().any(|arg| arg == "--demo")
-            || std::env::var("INFILTRATOR_DEMO").is_ok_and(|v| v.trim() == "1");
+        let enabled = args().any(|arg| arg == "--demo")
+            || var("INFILTRATOR_DEMO").is_ok_and(|v| v.trim() == "1");
         Self {
             enabled,
-            page: std::env::var("INFILTRATOR_PAGE")
+            page: var("INFILTRATOR_PAGE")
                 .ok()
                 .and_then(|v| parse_page(&v))
                 .unwrap_or(Route::Overview),
-            pane: std::env::var("INFILTRATOR_PAGE")
+            pane: var("INFILTRATOR_PAGE")
                 .ok()
                 .and_then(|v| match v.trim().to_ascii_lowercase().as_str() {
                     "mixin" => Some(EditorPane::Mixin),
@@ -73,26 +96,30 @@ impl DemoEnv {
                     _ => None,
                 })
                 .unwrap_or(EditorPane::Profile),
-            providers_tab: std::env::var("INFILTRATOR_PAGE")
+            providers_tab: var("INFILTRATOR_PAGE")
                 .ok()
                 .is_some_and(|v| v.trim().eq_ignore_ascii_case("rules-providers")),
-            lang: std::env::var("INFILTRATOR_LANG")
+            lang: var("INFILTRATOR_LANG")
                 .ok()
                 .filter(|v| v.trim().eq_ignore_ascii_case("en-US"))
                 .map(|_| "en-US".to_string())
                 .unwrap_or_else(|| "zh-CN".to_string()),
-            skin: std::env::var("INFILTRATOR_SKIN")
+            skin: var("INFILTRATOR_SKIN")
                 .ok()
                 .map(|v| parse_skin(&v))
                 .unwrap_or(iced::Theme::Dark),
-            window_size: std::env::var("INFILTRATOR_WINDOW_SIZE")
+            window_size: var("INFILTRATOR_WINDOW_SIZE")
                 .ok()
                 .map(|v| parse_window_size(&v))
                 .unwrap_or(DEFAULT_WINDOW),
-            capture_marker: std::env::var("INFILTRATOR_CAPTURE_MARKER")
+            capture_marker: var("INFILTRATOR_CAPTURE_MARKER")
                 .ok()
                 .map(PathBuf::from)
                 .filter(|p| !p.as_os_str().is_empty()),
+            scenario: var("INFILTRATOR_SCENARIO")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .map(|raw| interaction::parse(&raw)),
         }
     }
 }
@@ -139,12 +166,12 @@ pub fn route_env_name(route: Route) -> &'static str {
 
 /// `light|dark|forest` -> iced theme; unknown values fall back to dark.
 pub fn parse_skin(value: &str) -> iced::Theme {
-    crate::view::theme::theme_from_name(value)
+    theme_from_name(value)
 }
 
 /// Canonical `light` / `dark` / `forest` name of an iced theme (for the capture marker).
 pub fn skin_name(theme: &iced::Theme) -> &'static str {
-    crate::view::theme::theme_to_name(theme)
+    theme_to_name(theme)
 }
 
 /// `WxH` -> `(w, h)`; anything unparsable or non-positive falls back to the
@@ -161,31 +188,36 @@ pub fn parse_window_size(value: &str) -> (f32, f32) {
     }
 }
 
+fn update(state: &mut AppState, message: Message) -> Task<Message> {
+    if state.shell.capture_scenario == Some(FeatureId::LogsRedactedExport) {
+        logs::update(state, message)
+    } else if state.shell.capture_scenario == Some(FeatureId::ProfilesFilterEditor) {
+        filter::update(state, message)
+    } else if state.shell.capture_scenario == Some(FeatureId::RulesStatisticsInspector) {
+        rule_statistics::update(state, message)
+    } else {
+        rule_list::update(state, message)
+    }
+}
+
 /// Run the iced application in demo mode. Same views/update/subscription as
 /// the production entry point, but booting from [`AppState::demo`], sized
 /// from `INFILTRATOR_WINDOW_SIZE` and without any system integration
 /// (no single-instance mutex, no tray, no settings bootstrap).
 pub fn run(env: DemoEnv) -> iced::Result {
     let window_size = env.window_size;
-    application(
-        move || AppState::demo(&env),
-        AppState::update,
-        AppState::view,
-    )
-    .title(AppState::title)
-    .theme(AppState::theme)
-    .subscription(AppState::subscription)
-    // Bundled typography: identical to the production window (see main.rs).
-    .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
-    .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
-    .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
-    .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
-    .default_font(iced::Font::with_name("Inter"))
-    .window(crate::window_chrome::window_settings(
-        window_size,
-        (960.0, 640.0),
-    ))
-    .run()
+    application(move || AppState::demo(&env), update, AppState::view)
+        .title(AppState::title)
+        .theme(AppState::theme)
+        .subscription(AppState::subscription)
+        // Bundled typography: identical to the production window (see main.rs).
+        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
+        .default_font(iced::Font::with_name("Inter"))
+        .window(window_settings(window_size, MIN_WINDOW_SIZE))
+        .run()
 }
 
 #[cfg(test)]

@@ -1,19 +1,21 @@
 //! Subscription scheduler settings card.
 
+use super::helpers::{format_datetime, ua_preset_chip};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     form_input_style, form_pick_style, form_toggle_row, responsive_form_row,
     responsive_form_toggle_row, style_accent, style_ghost, text_btn,
 };
-use crate::view::components::{card, segmented_control};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::segmented_control;
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use iced::widget::{Space, column, pick_list, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::subscription_status_projection::{backup_status, conditional_request};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-use super::helpers::{format_datetime, ua_preset_chip};
 
 pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
@@ -172,16 +174,9 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
                 }),
             Space::new().height(theme::SP_SM),
             if let Some(profile) = selected_profile_meta {
-                let conditional = if profile.etag.is_some() || profile.last_modified.is_some() {
-                    format!(
-                        "{} · ETag: {} · Last-Modified: {}",
-                        lang.tr("profiles_conditional_request"),
-                        profile.etag.as_deref().unwrap_or("-"),
-                        profile.last_modified.as_deref().unwrap_or("-")
-                    )
-                } else {
-                    lang.tr("profiles_conditional_request_empty").into_owned()
-                };
+                let conditional =
+                    conditional_request(profile.etag.as_deref(), profile.last_modified.as_deref())
+                        .render(lang.0);
                 Element::from(text(conditional).size(11).font(MONO).style(|t: &Theme| {
                     text::Style {
                         color: Some(tokens(t).text_secondary),
@@ -192,11 +187,7 @@ pub(super) fn subscription_section<'a>(state: &'a AppState) -> Element<'a, Messa
             },
             Space::new().height(theme::SP_SM),
             if let Some(profile) = selected_profile_meta {
-                let backup_text = if profile.has_backup {
-                    lang.tr("profiles_backup_available").to_string()
-                } else {
-                    lang.tr("profiles_backup_none").to_string()
-                };
+                let backup_text = backup_status(Some(profile.has_backup)).render(lang.0);
                 let restore_action: Element<'_, Message> = if profile.has_backup {
                     text_btn(
                         lang.tr("profiles_restore_backup").to_string(),

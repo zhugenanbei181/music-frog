@@ -1,8 +1,7 @@
 use mihomo_api::error::MihomoError;
+use std::env::var;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::LazyLock;
-use std::sync::RwLock;
+use std::sync::{Arc, LazyLock, RwLock};
 
 static DATA_DIR_OVERRIDE: LazyLock<Arc<RwLock<Option<PathBuf>>>> =
     LazyLock::new(|| Arc::new(RwLock::new(None)));
@@ -30,7 +29,7 @@ pub fn get_home_dir() -> Result<PathBuf, MihomoError> {
         return Ok(path.clone());
     }
 
-    if let Ok(home) = std::env::var("MIHOMO_HOME") {
+    if let Ok(home) = var("MIHOMO_HOME") {
         let path = PathBuf::from(home);
         if !path.as_os_str().is_empty() {
             log::debug!("Using MIHOMO_HOME: {}", path.display());
@@ -49,6 +48,10 @@ pub fn get_home_dir() -> Result<PathBuf, MihomoError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
 
     #[tokio::test]
     async fn test_set_home_dir_override() {
@@ -82,14 +85,14 @@ mod tests {
         clear_home_dir_override();
 
         // Set MIHOMO_HOME environment variable
-        unsafe { std::env::set_var("MIHOMO_HOME", "/env/home") };
+        unsafe { set_var("MIHOMO_HOME", "/env/home") };
 
         let result = get_home_dir();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), PathBuf::from("/env/home"));
 
         // Clean up
-        unsafe { std::env::remove_var("MIHOMO_HOME") };
+        unsafe { remove_var("MIHOMO_HOME") };
     }
 
     #[tokio::test]
@@ -97,7 +100,7 @@ mod tests {
         let _guard = crate::TEST_LOCK.lock().await;
         // Clear override and env var
         clear_home_dir_override();
-        unsafe { std::env::remove_var("MIHOMO_HOME") };
+        unsafe { remove_var("MIHOMO_HOME") };
 
         // This should use dirs::home_dir() and return Ok
         let _result = get_home_dir();

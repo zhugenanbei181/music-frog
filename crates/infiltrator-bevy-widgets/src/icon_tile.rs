@@ -8,6 +8,9 @@
 //! re-projects the tile fill and its icon's tint with no switch-specific
 //! hook and no tree rebuild.
 
+use crate::icon::{IconId, IconTint, icon_scene};
+use crate::palette::UiPalette;
+use crate::theme::radius;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -15,10 +18,6 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, Val, px};
-
-use crate::icon::{IconId, IconTint, icon_scene};
-use crate::palette::UiPalette;
-use crate::theme::radius;
 
 /// Marker on the tile root; [`sync_icon_tile_visuals`] re-projects its fill
 /// and its icon child's tint from the live palette.
@@ -62,7 +61,6 @@ pub fn icon_tile_scene(icon: IconId, size_px: f32, palette: &UiPalette) -> impl 
 /// Repaint icon tiles from the live palette: the root fill and the icon
 /// child's tint. Compare-and-set; the icon's drawn image color follows its
 /// tint through [`crate::icon::sync_icon_tints`].
-#[allow(clippy::type_complexity)]
 pub fn sync_icon_tile_visuals(
     palette: Res<UiPalette>,
     tiles: Query<(Entity, &IconTile, &Children)>,

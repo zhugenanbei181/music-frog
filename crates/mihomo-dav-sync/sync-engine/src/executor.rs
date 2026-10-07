@@ -1,11 +1,10 @@
+use crate::SyncAction;
 use anyhow::Result;
 use chrono::Utc;
-use tokio::fs;
-use tracing::{info, warn};
-
-use crate::SyncAction;
 use dav_client::DavClient;
 use state_store::{StateStore, SyncStateRow};
+use tokio::fs;
+use tracing::{info, warn};
 
 pub struct SyncExecutor<'a> {
     dav: &'a dyn DavClient,

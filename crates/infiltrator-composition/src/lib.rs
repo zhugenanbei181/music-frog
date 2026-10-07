@@ -22,6 +22,9 @@ use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::runtime::{Builder, Runtime};
+use tokio::task::JoinHandle;
+use tokio::time::{MissedTickBehavior, interval, sleep};
 
 /// The watchdog probes process liveness four times per second. This keeps a
 /// dead core inside the three-second recovery budget without busy spinning.
@@ -30,7 +33,7 @@ pub const CORE_WATCHDOG_POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// Owns the host scheduler task that drives the application watchdog.
 /// Dropping it aborts the task so a closed host cannot keep probing a core.
 pub struct CoreWatchdogHandle {
-    task: tokio::task::JoinHandle<()>,
+    task: JoinHandle<()>,
 }
 
 impl Drop for CoreWatchdogHandle {
@@ -44,8 +47,8 @@ impl Drop for CoreWatchdogHandle {
 /// Tokio appears only here as the host scheduler implementation.
 pub fn spawn_core_watchdog(application: Arc<CoreApplication>) -> CoreWatchdogHandle {
     let task = tokio::spawn(async move {
-        let mut interval = tokio::time::interval(CORE_WATCHDOG_POLL_INTERVAL);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut interval = interval(CORE_WATCHDOG_POLL_INTERVAL);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
             if let Err(error) = application.watchdog_tick().await {
@@ -60,12 +63,12 @@ pub fn spawn_core_watchdog(application: Arc<CoreApplication>) -> CoreWatchdogHan
 /// application layer. Tokio is deliberately constructed here, at a
 /// composition root, rather than in `infiltrator-application`.
 pub struct TokioApplicationRuntime {
-    runtime: tokio::runtime::Runtime,
+    runtime: Runtime,
 }
 
 impl TokioApplicationRuntime {
     pub fn new() -> Result<Self, String> {
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .map(|runtime| Self { runtime })
@@ -78,8 +81,8 @@ impl ApplicationRuntime for TokioApplicationRuntime {
         self.runtime.block_on(future);
     }
 
-    fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+    fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
+        Box::pin(sleep(duration))
     }
 }
 
@@ -92,8 +95,8 @@ pub fn spawn_mihomo_overview(config: OverviewConfig) -> OverviewPump {
     let runtime =
         tokio_application_runtime().expect("Tokio application runtime must be constructible");
     let reader: Arc<dyn OverviewReader> =
-        match mihomo_api::client::MihomoClient::new(&config.endpoint, config.secret.clone()) {
-            Ok(client) => Arc::new(mihomo_api::overview::ControllerOverviewReader::new(client)),
+        match MihomoClient::new(&config.endpoint, config.secret.clone()) {
+            Ok(client) => Arc::new(ControllerOverviewReader::new(client)),
             Err(error) => Arc::new(UnavailableOverviewReader::new(PortError::Network(
                 error.to_string(),
             ))),
@@ -116,19 +119,23 @@ where
     let client =
         MihomoClient::new(&controller_url, secret.clone()).map_err(|error| error.to_string())?;
     let runtime = tokio_application_runtime()?;
-    let host = std::sync::Arc::new(IosHostAdapter::new(bridge));
+    let host = Arc::new(IosHostAdapter::new(bridge));
     let application = CoreApplication::new_with_overview(
         host.clone(),
-        std::sync::Arc::new(ControllerReadiness::new(
+        Arc::new(ControllerReadiness::new(
             controller_url.clone(),
             secret.clone(),
         )),
-        std::sync::Arc::new(ControllerOverviewReader::new(client.clone())),
+        Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
-    application.install_command_handler(std::sync::Arc::new(
+    application
+        .install_log_gateway(Arc::new(client.clone()))
+        .map_err(|failure| failure.message)?;
+    application.install_command_handler(Arc::new(
         CommandApplication::new()
-            .with_runtime(std::sync::Arc::new(client))
+            .with_logs(application.log_application())
+            .with_runtime(Arc::new(client))
             .with_application_runtime(runtime)
             .with_mtu(MtuApplication::new(host)),
     ));
@@ -166,3 +173,7 @@ where
     let watchdog = spawn_core_watchdog(application.clone());
     Ok((application, watchdog))
 }
+
+pub mod snapshot_restore_fixture;
+
+pub mod demo_identities;

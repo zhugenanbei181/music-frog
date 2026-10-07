@@ -2,17 +2,44 @@
 //! Seams: Responsive layout breakpoints (Compact, Medium, Expanded, Ultra), theme/density toggles,
 //! AccessKit semantic nodes, and mode segment control (BEVY-005).
 
-use std::sync::{Mutex, mpsc::Receiver};
-use std::time::Instant;
+#[path = "app_query_access.rs"]
+pub mod query_access;
+use self::query_access::{
+    SyncResponsiveShellBottomNavsFilter, SyncResponsiveShellSidebarsFilter,
+    SyncSafeAreaInsetsBottomNavsFilter, SyncSafeAreaInsetsChromeBarsFilter,
+    SyncSafeAreaInsetsShellRootsFilter,
+};
 
+use crate::appearance::{
+    SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin, sync_system_appearance,
+};
+use crate::chrome::WindowChromePlugin;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::command_palette_shell::CommandPalettePlugin;
+use crate::gesture::{GestureHostReport, ShellGesturePlugin};
+use crate::ime::ShellImePlugin;
+use crate::localization::LocalizationPlugin;
+use crate::mini_hud_shell::MiniHudPlugin;
+use crate::pages::profiles_editor::ProfilesEditorPlugin;
+use crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin;
+use crate::route::{ActiveRoute, NavigateBack, NavigateForward, Route, RouteChanged};
+use crate::shell_rail::{
+    sync_bottom_nav_visuals, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
+    sync_sidebar_rail_morphology,
+};
+use crate::shell_readout::{sync_core_status, sync_quota, sync_text};
+use crate::shell_scene::shell_scene_with_toggles;
+use crate::shell_waveform;
+use crate::shortcuts::ShortcutsPlugin;
+use crate::toast::ShellToastPlugin;
+use crate::tray_status::TrayStatusPlugin;
+use crate::{shell_mode_issue, shell_modes};
 use bevy::app::{App, Plugin, Startup, Update};
-use bevy::camera::Camera2d;
-use bevy::camera::ClearColor;
+use bevy::camera::{Camera2d, ClearColor};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::message::MessageWriter;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
@@ -22,29 +49,26 @@ use bevy::scene::CommandsSceneExt;
 use bevy::ui::prelude::{BackgroundColor, Display, Node, UiRect, Val, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
+use bevy::window::{PrimaryWindow, Window};
+use infiltrator_application::proxy_mode_actions::{PendingModeChange, ProxyModeActions};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_application::system_toggle_projection::compact_label;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual, PillLabel};
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::responsive::SafeAreaInsets;
-use infiltrator_bevy_widgets::responsive::{Density, DensitySwitch, ResponsiveContext};
+use infiltrator_bevy_widgets::responsive::{
+    Density, DensitySwitch, ResponsiveContext, SafeAreaInsets,
+};
 use infiltrator_bevy_widgets::theme::{Breakpoint, Theme, space};
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::Failure;
 use infiltrator_contract::shell_gesture;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::ThemePreference;
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
-
-use crate::chrome::ChromeDragBar;
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::controller::FailureDwell;
-use crate::gesture::GestureHostReport;
-use crate::pages::overview::{OverviewModePill, OverviewProjectionUpdated};
-use crate::projection::OverviewState;
-use crate::route::{ActiveRoute, OverviewSourceHandle, Route, RouteChanged};
-use crate::shell_rail::{
-    sync_bottom_nav_visuals, sync_rail_nav_tooltips, sync_sidebar_nav_visuals,
-    sync_sidebar_rail_morphology,
-};
+use std::sync::Mutex;
+use std::sync::mpsc::Receiver;
 
 /// Sidebar rail standard width (px).
 pub const SIDEBAR_WIDTH_PX: f32 = 240.0;
@@ -271,13 +295,18 @@ pub struct RailNavTooltip(pub Route);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SidebarExpandedOnly;
 
-/// Latch for a proxy-mode command in flight.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct ModeCommandInFlight(pub bool);
-
 /// The receipt channel of the in-flight mode command.
 #[derive(Resource, Debug, Default)]
-pub struct PendingModeAck(pub Option<Mutex<Receiver<Result<(), String>>>>);
+pub struct PendingModeAck(pub Option<ModeAckSlot>);
+
+#[derive(Debug)]
+pub struct ModeAckSlot {
+    pub request: PendingModeChange,
+    pub receiver: Mutex<Receiver<Result<ProxyMode, Failure>>>,
+}
+
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ModeActionState(pub ProxyModeActions);
 
 /// Density toggle observer.
 fn on_density_pill_activated(
@@ -304,7 +333,7 @@ fn on_history_back_activated(
     mut commands: Commands,
 ) {
     if buttons.contains(activate.entity) {
-        commands.trigger(crate::route::NavigateBack);
+        commands.trigger(NavigateBack);
     }
 }
 
@@ -315,7 +344,7 @@ fn on_history_forward_activated(
     mut commands: Commands,
 ) {
     if buttons.contains(activate.entity) {
-        commands.trigger(crate::route::NavigateForward);
+        commands.trigger(NavigateForward);
     }
 }
 
@@ -407,79 +436,6 @@ fn on_sidebar_tun_activated(
     ));
 }
 
-/// Mode segment pill observer.
-fn on_mode_pill_activated(
-    activate: On<Activate>,
-    pills: Query<&OverviewModePill>,
-    handle: Option<Res<OverviewSourceHandle>>,
-    mut in_flight: ResMut<ModeCommandInFlight>,
-    mut pending: ResMut<PendingModeAck>,
-) {
-    if in_flight.0 {
-        return;
-    }
-    let Ok(wanted) = pills.get(activate.entity) else {
-        return;
-    };
-    let Some(handle) = handle else {
-        return;
-    };
-    let (ack_tx, ack_rx) = std::sync::mpsc::channel();
-    handle.0.set_mode(wanted.0, ack_tx);
-    in_flight.0 = true;
-    pending.0 = Some(Mutex::new(ack_rx));
-}
-
-/// Drain receipt channel for proxy mode switch.
-fn drain_mode_ack(
-    mut pending: ResMut<PendingModeAck>,
-    mut in_flight: ResMut<ModeCommandInFlight>,
-    handle: Option<Res<OverviewSourceHandle>>,
-    mut dwell: Option<ResMut<FailureDwell>>,
-    mut toast_requests: MessageWriter<crate::toast::ShellToast>,
-    mut commands: Commands,
-) {
-    let Some(slot) = pending.0.as_mut() else {
-        return;
-    };
-    let outcome = match slot
-        .get_mut()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .try_recv()
-    {
-        Ok(receipt) => Some(receipt),
-        Err(std::sync::mpsc::TryRecvError::Empty) => None,
-        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-            Some(Err("模式命令通道已断开".to_owned()))
-        }
-    };
-    let Some(receipt) = outcome else {
-        return;
-    };
-    pending.0 = None;
-    in_flight.0 = false;
-    let Some(handle) = handle else {
-        return;
-    };
-    let mut projection = handle.0.current();
-    match receipt {
-        Ok(()) => commands.trigger(OverviewProjectionUpdated(projection)),
-        Err(reason) => {
-            projection.state = OverviewState::Unavailable;
-            projection.failure = Some(format!("模式切换失败：{reason}"));
-            if let Some(dwell) = dwell.as_deref_mut() {
-                dwell.latch(Instant::now());
-            }
-            // User-visible feedback: one redacted, deduplicated toast per
-            // distinct mode-switch failure (shared notification policy).
-            toast_requests.write(crate::toast::ShellToast::danger(format!(
-                "模式切换失败：{reason}"
-            )));
-            commands.trigger(OverviewProjectionUpdated(projection));
-        }
-    }
-}
-
 /// App shell plugin.
 pub struct ShellPlugin {
     preference: ThemePreference,
@@ -510,42 +466,60 @@ impl Default for ShellPlugin {
 
 impl Plugin for ShellPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(
-            crate::appearance::resolved_skin(self.preference, None),
-        )));
-        app.add_plugins(crate::shortcuts::ShortcutsPlugin);
-        app.add_plugins(crate::toast::ShellToastPlugin);
-        app.add_plugins(crate::command_palette_shell::CommandPalettePlugin);
-        app.add_plugins(crate::pages::profiles_editor::ProfilesEditorPlugin);
-        app.add_plugins(crate::pages::profiles_editor_panes_sync::ProfilesEditorPanesPlugin);
-        app.add_plugins(crate::mini_hud_shell::MiniHudPlugin);
+        app.add_plugins(LocalizationPlugin);
+        app.add_plugins(WidgetsPlugin::new(&Theme::for_mode(resolved_skin(
+            self.preference,
+            None,
+        ))));
+        app.add_plugins(ShortcutsPlugin);
+        app.add_plugins(ShellToastPlugin);
+        app.add_plugins(CommandPalettePlugin);
+        app.add_plugins(ProfilesEditorPlugin);
+        app.add_plugins(ProfilesEditorPanesPlugin);
+        app.add_plugins(MiniHudPlugin);
         // DUAL-15-13/02: the frameless chrome wiring and the honest tray
         // capability report are part of the shell, so headless compositions
         // get the same facts as the windowed launcher.
-        app.add_plugins(crate::chrome::WindowChromePlugin);
-        app.add_plugins(crate::tray_status::TrayStatusPlugin);
+        app.add_plugins(WindowChromePlugin);
+        app.add_plugins(TrayStatusPlugin);
         // DUAL-15-11: the OS IME path (enable + caret area + composition) is
         // part of the shell, so headless compositions see the same plan.
-        app.add_plugins(crate::ime::ShellImePlugin);
+        app.add_plugins(ShellImePlugin);
         // DUAL-15-07: the real touch-gesture consumer (Bevy `TouchInput` →
         // widget recognizer → shared semantic snapshot) is part of the shell,
         // so headless compositions exercise the same recognition path.
-        app.add_plugins(crate::gesture::ShellGesturePlugin);
-        app.insert_resource(crate::appearance::ThemeMode(self.preference));
-        app.init_resource::<crate::appearance::SystemAppearance>();
+        app.add_plugins(ShellGesturePlugin);
+        app.insert_resource(ThemeMode(self.preference));
+        app.init_resource::<SystemAppearance>();
 
         let width = self.initial_width_px.unwrap_or(1180.0);
         let initial_layout = ShellLayoutState::from_width(width);
         app.insert_resource(initial_layout);
         app.insert_resource(ResponsiveContext::new(width, 760.0));
 
-        app.init_resource::<ModeCommandInFlight>();
         app.init_resource::<PendingModeAck>();
+        app.init_resource::<ModeActionState>();
         app.init_resource::<SidebarToggleProjection>();
+        app.add_systems(Update, (sync_text, sync_quota, sync_core_status));
+        app.add_systems(Update, shell_waveform::sync);
+        app.add_systems(
+            Update,
+            (
+                shell_modes::sync,
+                shell_modes::sync_segments,
+                shell_mode_issue::sync,
+            )
+                .chain()
+                .after(shell_modes::drain_ack),
+        );
         app.init_resource::<SafeAreaInsets>();
-        app.add_observer(crate::appearance::on_theme_pill_activated);
+        app.add_observer(on_theme_pill_activated);
         app.add_observer(on_density_pill_activated);
-        app.add_observer(on_mode_pill_activated);
+        app.add_observer(shell_modes::activate);
+        app.add_observer(shell_modes::request);
+        app.add_observer(shell_mode_issue::retry);
+        app.add_observer(shell_mode_issue::dismiss);
+        app.add_observer(shell_mode_issue::settings);
         app.add_observer(on_bottom_nav_activated);
         app.add_observer(on_sidebar_nav_activated);
         app.add_observer(on_sidebar_shortcut_tile_activated);
@@ -568,8 +542,8 @@ impl Plugin for ShellPlugin {
                 sync_rail_nav_tooltips,
                 sync_safe_area_insets.after(sync_responsive_shell),
                 sync_window_clear,
-                crate::appearance::sync_system_appearance,
-                drain_mode_ack,
+                sync_system_appearance,
+                shell_modes::drain_ack,
             ),
         );
     }
@@ -584,7 +558,7 @@ fn spawn_shell(
     palette: Res<UiPalette>,
     toggles: Res<SidebarToggleProjection>,
 ) {
-    commands.spawn_scene(crate::shell_scene::shell_scene_with_toggles(
+    commands.spawn_scene(shell_scene_with_toggles(
         "MusicFrog Infiltrator".to_string(),
         &toggles.0,
         &palette,
@@ -620,6 +594,7 @@ type SidebarToggleQuery<'w, 's> = Query<
 
 fn sync_sidebar_toggle_visuals(
     projection: Res<SidebarToggleProjection>,
+    locale: Res<UiLocale>,
     mut toggles: SidebarToggleQuery,
     mut labels: Query<&mut Text, With<PillLabel>>,
     mut commands: Commands,
@@ -634,7 +609,7 @@ fn sync_sidebar_toggle_visuals(
         visual.0 = state.is_enabled();
         for child in children.iter() {
             if let Ok(mut label) = labels.get_mut(*child) {
-                label.0 = state.compact_label().to_owned();
+                label.0 = compact_label(state, locale.code());
             }
         }
         if state.can_toggle() {
@@ -648,17 +623,19 @@ fn sync_sidebar_toggle_visuals(
 /// Sync top content title with the active route.
 fn sync_content_title(
     active_route: Option<Res<ActiveRoute>>,
-    mut titles: Query<&mut Text, With<ContentTitleLabel>>,
+    locale: Res<UiLocale>,
+    mut titles: Query<(&mut Text, &mut LocalizedText), With<ContentTitleLabel>>,
 ) {
     let target = active_route
         .as_ref()
         .and_then(|r| r.0)
         .unwrap_or(Route::Overview)
-        .label();
-    for mut text in &mut titles {
-        if text.0 != target {
-            text.0 = target.to_owned();
+        .label_key();
+    for (mut text, mut copy) in &mut titles {
+        if copy.key != target {
+            *copy = LocalizedText::plain(target);
         }
+        text.0 = copy.render(&locale);
     }
 }
 
@@ -680,11 +657,11 @@ type DensityPillQuery<'w, 's> = Query<'w, 's, &'static mut Node, DensityPillFilt
 
 /// Update layout mode and toggle sidebar vs bottom navigation bar display based on window width.
 fn sync_responsive_shell(
-    windows: Option<Query<&bevy::window::Window, With<bevy::window::PrimaryWindow>>>,
+    windows: Option<Query<&Window, With<PrimaryWindow>>>,
     mut layout: ResMut<ShellLayoutState>,
     mut responsive_ctx: Option<ResMut<ResponsiveContext>>,
-    mut sidebars: Query<&mut Node, (With<SidebarPanel>, Without<BottomNavBar>)>,
-    mut bottom_navs: Query<&mut Node, (With<BottomNavBar>, Without<SidebarPanel>)>,
+    mut sidebars: Query<&mut Node, SyncResponsiveShellSidebarsFilter>,
+    mut bottom_navs: Query<&mut Node, SyncResponsiveShellBottomNavsFilter>,
     mut content_cols: ContentColQuery,
     mut density_pills: DensityPillQuery,
 ) {
@@ -776,35 +753,13 @@ fn sync_responsive_shell(
 
 /// Synchronize safe-area insets (status bar, gesture navigation bar, camera cutouts)
 /// across ShellRoot, ChromeDragBar, and BottomNavBar.
-#[allow(clippy::type_complexity)]
 pub fn sync_safe_area_insets(
     mut safe_insets: Option<ResMut<SafeAreaInsets>>,
     mut host_report: Option<ResMut<GestureHostReport>>,
     layout: Res<ShellLayoutState>,
-    mut shell_roots: Query<
-        &mut Node,
-        (
-            With<ShellRoot>,
-            Without<BottomNavBar>,
-            Without<ChromeDragBar>,
-        ),
-    >,
-    mut bottom_navs: Query<
-        &mut Node,
-        (
-            With<BottomNavBar>,
-            Without<ShellRoot>,
-            Without<ChromeDragBar>,
-        ),
-    >,
-    mut chrome_bars: Query<
-        &mut Node,
-        (
-            With<ChromeDragBar>,
-            Without<ShellRoot>,
-            Without<BottomNavBar>,
-        ),
-    >,
+    mut shell_roots: Query<&mut Node, SyncSafeAreaInsetsShellRootsFilter>,
+    mut bottom_navs: Query<&mut Node, SyncSafeAreaInsetsBottomNavsFilter>,
+    mut chrome_bars: Query<&mut Node, SyncSafeAreaInsetsChromeBarsFilter>,
 ) {
     let host_changed = host_report.as_ref().is_some_and(|r| r.is_changed());
     let widget_changed = safe_insets.as_ref().is_some_and(|w| w.is_changed());

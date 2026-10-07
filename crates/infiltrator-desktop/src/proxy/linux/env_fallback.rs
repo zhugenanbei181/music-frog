@@ -1,6 +1,8 @@
 use super::{SystemProxyState, parse_endpoint, parse_url_to_endpoint};
 use anyhow::anyhow;
 use std::collections::HashMap;
+use std::env::{remove_var, set_var, var};
+use std::fs::{create_dir_all, remove_file, write};
 use std::path::PathBuf;
 
 /// 环境变量代理模式（http_proxy / https_proxy / all_proxy / no_proxy）。
@@ -95,7 +97,7 @@ pub fn generate_environment_d(endpoint: Option<&str>, bypass: Option<&str>) -> S
 
 /// 定位 environment.d 配置文件路径（`~/.config/environment.d/99-infiltrator-proxy.conf`）。
 pub fn environment_d_path() -> Option<PathBuf> {
-    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME")
+    if let Ok(config_home) = var("XDG_CONFIG_HOME")
         && !config_home.trim().is_empty()
     {
         return Some(
@@ -104,7 +106,7 @@ pub fn environment_d_path() -> Option<PathBuf> {
                 .join("99-infiltrator-proxy.conf"),
         );
     }
-    if let Ok(home) = std::env::var("HOME")
+    if let Ok(home) = var("HOME")
         && !home.trim().is_empty()
     {
         return Some(
@@ -126,26 +128,26 @@ pub fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()>
         let vars = generate_env_vars(Some(ep), bypass);
         for (k, v) in &vars {
             unsafe {
-                std::env::set_var(k, v);
+                set_var(k, v);
             }
         }
         // 尽最大努力写入 environment.d
         if let Some(conf_path) = environment_d_path() {
             if let Some(parent) = conf_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
+                let _ = create_dir_all(parent);
             }
             let content = generate_environment_d(Some(ep), bypass);
-            let _ = std::fs::write(&conf_path, content);
+            let _ = write(&conf_path, content);
         }
     } else {
         for k in PROXY_ENV_KEYS {
             unsafe {
-                std::env::remove_var(k);
+                remove_var(k);
             }
         }
         // 尽最大努力移除 environment.d
         if let Some(conf_path) = environment_d_path() {
-            let _ = std::fs::remove_file(&conf_path);
+            let _ = remove_file(&conf_path);
         }
     }
     Ok(())
@@ -196,5 +198,5 @@ where
 
 /// 读取当前环境变量代理状态。
 pub fn read_state() -> anyhow::Result<SystemProxyState> {
-    Ok(read_state_with(|k| std::env::var(k).ok()))
+    Ok(read_state_with(|k| var(k).ok()))
 }

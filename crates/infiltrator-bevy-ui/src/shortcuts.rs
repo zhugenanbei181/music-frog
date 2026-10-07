@@ -7,25 +7,30 @@
 //! rebinding, and dispatch of bound chords into typed [`UiCommand`]s (or the
 //! local appearance command).
 
+use crate::app::SidebarToggleProjection;
+use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::command_palette::ToggleCommandPalette;
+use crate::mini_hud::ToggleMiniHud;
+use crate::pages::profiles_script_workbench::ScriptWorkbenchState;
+use crate::pages::snapshot_restore::RestoreState;
+use crate::toast::{ToastPolicyGate, now_ms};
 use bevy::app::{App, Plugin, PreUpdate, Update};
 use bevy::ecs::event::Event;
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Res, ResMut};
-use bevy::input::ButtonInput;
+use bevy::ecs::system::{Commands, Res, ResMut, SystemParam};
 use bevy::input::keyboard::KeyCode;
+use bevy::input::{ButtonInput, InputSystems};
+use bevy::time::{Time, Virtual};
+use infiltrator_bevy_widgets::switch::ThemeSwitch;
+use infiltrator_bevy_widgets::toast::{ToastKind, ToastSpawnEvent};
 use infiltrator_contract::shortcuts::{
     KeyModifiers, ShortcutAction, ShortcutChord, ShortcutRegistry,
 };
 use infiltrator_contract::system_toggle::SystemToggle;
-
-use crate::app::SidebarToggleProjection;
-use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
-use crate::command::{CommandSinkHandle, UiCommand};
-use bevy::time::{Time, Virtual};
-use infiltrator_bevy_widgets::switch::ThemeSwitch;
 
 /// The live binding set (shared registry).
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
@@ -157,21 +162,69 @@ pub fn on_cancel_chord_capture(
     hotkey_capture.0 = None;
 }
 
+/// Keyboard capture and binding state for one shortcut dispatch.
+#[derive(SystemParam)]
+pub struct ShortcutInput<'w, 's> {
+    chords: MessageReader<'w, 's, ChordPressed>,
+    bindings: ResMut<'w, ShortcutBindings>,
+    hotkey_capture: ResMut<'w, HotkeyCapture>,
+}
+
+/// Local appearance controls read or changed by a shortcut.
+#[derive(SystemParam)]
+pub struct ShortcutAppearance<'w> {
+    toggles: Res<'w, SidebarToggleProjection>,
+    theme: ResMut<'w, ThemeMode>,
+    appearance: Res<'w, SystemAppearance>,
+}
+
+/// Typed notification delivery and its time-based admission policy.
+#[derive(SystemParam)]
+pub struct ShortcutFeedback<'w> {
+    time: Res<'w, Time<Virtual>>,
+    toast_gate: ResMut<'w, ToastPolicyGate>,
+    toast_spawns: MessageWriter<'w, ToastSpawnEvent>,
+}
+
 /// Resolve a pressed chord: capture it for the pending action, or dispatch it.
-#[allow(clippy::too_many_arguments)]
 pub fn dispatch_chords(
-    mut chords: MessageReader<ChordPressed>,
-    mut bindings: ResMut<ShortcutBindings>,
-    mut hotkey_capture: ResMut<HotkeyCapture>,
-    toggles: Res<SidebarToggleProjection>,
-    mut theme: ResMut<ThemeMode>,
-    appearance: Res<SystemAppearance>,
-    time: Res<Time<Virtual>>,
-    mut toast_gate: ResMut<crate::toast::ToastPolicyGate>,
-    mut toast_spawns: MessageWriter<infiltrator_bevy_widgets::toast::ToastSpawnEvent>,
+    restore: Option<Res<RestoreState>>,
+    script: Option<Res<ScriptWorkbenchState>>,
+    input: ShortcutInput,
+    appearance_state: ShortcutAppearance,
+    feedback: ShortcutFeedback,
     sink: Option<Res<CommandSinkHandle>>,
     mut commands: Commands,
 ) {
+    let ShortcutInput {
+        mut chords,
+        mut bindings,
+        mut hotkey_capture,
+    } = input;
+    let ShortcutAppearance {
+        toggles,
+        mut theme,
+        appearance,
+    } = appearance_state;
+    let ShortcutFeedback {
+        time,
+        mut toast_gate,
+        mut toast_spawns,
+    } = feedback;
+    if restore
+        .as_ref()
+        .is_some_and(|restore| restore.model.visible)
+    {
+        chords.clear();
+        return;
+    }
+    if script
+        .as_deref()
+        .is_some_and(|state| state.model.export_visible)
+    {
+        chords.clear();
+        return;
+    }
     for pressed in chords.read() {
         let chord = ShortcutChord::new(pressed.key.clone(), pressed.modifiers);
         if let Some(action) = hotkey_capture.0 {
@@ -182,10 +235,10 @@ pub fn dispatch_chords(
             if let Some(conflict) = bindings.0.find_conflict(action, &chord) {
                 toast_gate.push(
                     &mut toast_spawns,
-                    infiltrator_bevy_widgets::toast::ToastKind::Warning,
+                    ToastKind::Warning,
                     &conflict.message,
                     5.0,
-                    crate::toast::now_ms(&time),
+                    now_ms(&time),
                 );
                 continue;
             }
@@ -221,10 +274,10 @@ pub fn dispatch_chords(
                 commands.trigger(ThemeSwitch(resolved_skin(next, appearance.0)));
             }
             ShortcutAction::OpenCommandPalette => {
-                commands.trigger(crate::command_palette::ToggleCommandPalette);
+                commands.trigger(ToggleCommandPalette);
             }
             ShortcutAction::ToggleMiniHud => {
-                commands.trigger(crate::mini_hud::ToggleMiniHud);
+                commands.trigger(ToggleMiniHud);
             }
         }
     }
@@ -242,10 +295,7 @@ impl Plugin for ShortcutsPlugin {
         app.add_observer(on_cancel_chord_capture);
         // Read the freshly pressed keys *after* the input plugin has applied
         // this frame's keyboard messages (it clears the just-pressed set).
-        app.add_systems(
-            PreUpdate,
-            forward_pressed_chords.after(bevy::input::InputSystems),
-        );
+        app.add_systems(PreUpdate, forward_pressed_chords.after(InputSystems));
         app.add_systems(Update, dispatch_chords);
     }
 }

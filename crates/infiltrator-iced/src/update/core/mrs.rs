@@ -5,15 +5,19 @@
 //! list. Each candidate cache file is read from disk; only bytes carrying the
 //! MRS magic parse into header metadata via `infiltrator_domain::mrs`.
 
+use crate::configs_dir::{config_manager, configs_dir};
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::MrsProviderDetail;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::mrs::parse_mrs_header;
 use infiltrator_shared::locales::{Lang, Localizer};
 use serde_yaml_ng::Value;
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use std::path::PathBuf;
+use tokio::fs::read;
 
 impl AppState {
     pub(super) fn update_core_mrs(&mut self, message: Message) -> Task<Message> {
@@ -52,13 +56,13 @@ async fn scan_mrs_providers(
     let lang = Lang(&lang_code);
     // 与 manager 同源的 configs 目录（env > settings `configs_dir`），
     // 重定向后相对 `path` 覆盖才能解析到真实 provider 文件。
-    let config_dir = crate::configs_dir::configs_dir().await?;
+    let config_dir = configs_dir().await?;
     let live_behaviors: HashMap<String, String> = live.into_iter().collect();
 
     // Collect provider names + explicit `path` overrides from the profile YAML.
     let mut names: Vec<String> = Vec::new();
     let mut explicit_paths: HashMap<String, PathBuf> = HashMap::new();
-    let manager = crate::configs_dir::config_manager().await?;
+    let manager = config_manager().await?;
     if let Ok(current) = manager.get_current().await
         && let Ok(content) = manager.load(&current).await
         && let Ok(doc) = serde_yaml_ng::from_str::<Value>(&content)
@@ -119,10 +123,10 @@ async fn scan_mrs_providers(
         };
         let mut found = false;
         for path in candidates {
-            match tokio::fs::read(&path).await {
+            match read(&path).await {
                 Ok(bytes) => {
                     detail.file = Some(path.clone());
-                    match infiltrator_domain::mrs::parse_mrs_header(&bytes) {
+                    match parse_mrs_header(&bytes) {
                         Ok(meta) => detail.metadata = Some(meta),
                         Err(error) => {
                             detail.errors.push(format!("{}: {error}", path.display()));
@@ -131,7 +135,7 @@ async fn scan_mrs_providers(
                     found = true;
                     break;
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
                 Err(error) => {
                     detail.errors.push(format!(
                         "{} {}: {error}",

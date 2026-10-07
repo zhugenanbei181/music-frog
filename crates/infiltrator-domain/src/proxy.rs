@@ -1,9 +1,13 @@
+use crate::proxy_observation::RuntimeProxyObservation;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "PascalCase")]
 pub enum Proxy {
+    /// Inbound controller facts cannot be accepted as complete configuration.
+    #[serde(skip)]
+    Observed(RuntimeProxyObservation),
     // Standard Protocols
     Shadowsocks(Shadowsocks),
     Vmess(Vmess),
@@ -222,6 +226,7 @@ pub struct ProxyGroup {
 impl Proxy {
     pub fn name(&self) -> &str {
         match self {
+            Proxy::Observed(p) => &p.name,
             Proxy::Shadowsocks(p) => &p.base.name,
             Proxy::Vmess(p) => &p.base.name,
             Proxy::Trojan(p) => &p.base.name,
@@ -245,6 +250,7 @@ impl Proxy {
 
     pub fn proxy_type(&self) -> &str {
         match self {
+            Proxy::Observed(p) => &p.proxy_type,
             Proxy::Shadowsocks(_) => "Shadowsocks",
             Proxy::Vmess(_) => "Vmess",
             Proxy::Trojan(_) => "Trojan",
@@ -268,6 +274,7 @@ impl Proxy {
 
     pub fn udp(&self) -> bool {
         match self {
+            Proxy::Observed(p) => p.udp == Some(true),
             Proxy::Shadowsocks(p) => p.base.udp,
             Proxy::Vmess(p) => p.base.udp,
             Proxy::Trojan(p) => p.base.udp,
@@ -286,6 +293,7 @@ impl Proxy {
 
     pub fn history(&self) -> &[ProxyHistory] {
         match self {
+            Proxy::Observed(p) => p.history.as_deref().unwrap_or_default(),
             Proxy::Shadowsocks(p) => &p.base.history,
             Proxy::Vmess(p) => &p.base.history,
             Proxy::Trojan(p) => &p.base.history,
@@ -309,6 +317,7 @@ impl Proxy {
 
     pub fn all(&self) -> Option<&[String]> {
         match self {
+            Proxy::Observed(p) => p.all.as_deref(),
             Proxy::Selector(p)
             | Proxy::URLTest(p)
             | Proxy::Fallback(p)
@@ -320,6 +329,7 @@ impl Proxy {
 
     pub fn now(&self) -> Option<&str> {
         match self {
+            Proxy::Observed(p) => p.now.as_deref(),
             Proxy::Selector(p)
             | Proxy::URLTest(p)
             | Proxy::Fallback(p)
@@ -330,6 +340,9 @@ impl Proxy {
     }
 
     pub fn is_group(&self) -> bool {
+        if let Proxy::Observed(p) = self {
+            return p.all.is_some();
+        }
         matches!(
             self,
             Proxy::Selector(_)
@@ -342,6 +355,7 @@ impl Proxy {
 
     pub fn alive(&self) -> bool {
         match self {
+            Proxy::Observed(p) => p.alive == Some(true),
             Proxy::Shadowsocks(p) => p.base.alive,
             Proxy::Vmess(p) => p.base.alive,
             Proxy::Trojan(p) => p.base.alive,
@@ -359,7 +373,8 @@ impl Proxy {
     }
 
     pub fn delay(&self) -> Option<u32> {
-        match self {
+        let explicit = match self {
+            Proxy::Observed(p) => p.delay,
             Proxy::Shadowsocks(p) => p.base.delay,
             Proxy::Vmess(p) => p.base.delay,
             Proxy::Trojan(p) => p.base.delay,
@@ -373,6 +388,27 @@ impl Proxy {
             Proxy::Direct(p) => p.base.delay,
             Proxy::Reject(p) => p.base.delay,
             _ => None,
+        };
+        explicit.or_else(|| self.history().last().map(|sample| sample.delay))
+    }
+
+    pub fn health_observation(&self) -> Option<bool> {
+        if self.is_group() || matches!(self, Self::Unknown) {
+            None
+        } else if let Self::Observed(p) = self {
+            p.alive
+        } else {
+            Some(self.alive())
+        }
+    }
+
+    pub fn udp_observation(&self) -> Option<bool> {
+        if self.is_group() || matches!(self, Self::Unknown) {
+            None
+        } else if let Self::Observed(p) = self {
+            p.udp
+        } else {
+            Some(self.udp())
         }
     }
 }

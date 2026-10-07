@@ -9,14 +9,17 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::{style_accent, style_ghost};
+use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge, card_surface, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::snapshot_presentation;
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::path::PathBuf;
 
 pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     use infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP;
@@ -80,7 +83,10 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 Some(report) => interpolate(
                     &lang.tr("editor_prune_last"),
                     &[
-                        ("source", report.source.label_zh()),
+                        (
+                            "source",
+                            &snapshot_presentation::prune_source(report.source, lang.0),
+                        ),
                         ("count", &report.removed.to_string()),
                     ],
                 ),
@@ -200,7 +206,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 }),
         );
     } else if let Some(history) = history {
-        for entry in history.entries.iter().take(12) {
+        for entry in &history.entries {
             let short_hash = entry.short_hash().to_string();
             let hash_pill =
                 container(
@@ -239,7 +245,7 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
             .width(Length::Fill);
             if entry.is_duplicate {
                 meta = meta.push(
-                    text(lang.tr("editor_prune_duplicates").to_string())
+                    text(lang.tr("snapshot_history_duplicate").to_string())
                         .size(9)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).warning),
@@ -247,33 +253,14 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
                 );
             }
 
-            let snapshot_path = std::path::PathBuf::from(&entry.id);
-            let confirm_pending = state.editor.pending_restore_snapshot.as_deref()
-                == Some(std::path::Path::new(&entry.id));
-            let restore_btn = button(
-                text(if state.editor.is_restoring_snapshot {
-                    "...".to_string()
-                } else if confirm_pending {
-                    lang.tr("editor_restore_confirm").to_string()
-                } else {
-                    lang.tr("editor_restore").to_string()
-                })
-                .size(11)
-                .font(FONT_MEDIUM),
-            )
-            .padding([4, 10])
-            .style(if confirm_pending {
-                style_accent
-            } else {
-                style_ghost
-            })
-            .on_press_maybe(
-                (!state.editor.is_restoring_snapshot).then_some(if confirm_pending {
-                    Message::RestoreProfileSnapshot(snapshot_path.clone())
-                } else {
-                    Message::ArmRestoreProfileSnapshot(snapshot_path.clone())
-                }),
-            );
+            let snapshot_path = PathBuf::from(&entry.id);
+            let restore_btn = button(text(lang.tr("editor_restore")).size(11).font(FONT_MEDIUM))
+                .padding([4, 10])
+                .style(style_ghost)
+                .on_press_maybe(
+                    (!state.editor.snapshot_restore.visible)
+                        .then_some(Message::RestoreProfileSnapshot(snapshot_path)),
+                );
 
             let diff_btn = button(
                 text(lang.tr("snapshot_diff_open").to_string())
@@ -284,16 +271,8 @@ pub(super) fn history_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element
             .style(style_ghost)
             .on_press(Message::OpenSnapshotDiff(entry.id.clone()));
 
-            let mut actions = row![diff_btn, Space::new().width(theme::SP_XS), restore_btn]
+            let actions = row![diff_btn, Space::new().width(theme::SP_XS), restore_btn]
                 .align_y(Alignment::Center);
-            if confirm_pending {
-                actions = actions.push(Space::new().width(theme::SP_XS)).push(
-                    button(text(lang.tr("btn_cancel").to_string()).size(11))
-                        .padding([4, 10])
-                        .style(style_ghost)
-                        .on_press(Message::CancelRestoreProfileSnapshot),
-                );
-            }
 
             let snapshot_card = container(
                 row![meta, actions]

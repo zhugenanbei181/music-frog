@@ -4,28 +4,28 @@
 //! The page scene holds one node per rendered line carrying a marker below;
 //! [`apply_rules_projection`] rewrites those texts when
 //! [`RulesProjectionUpdated`](super::rules::RulesProjectionUpdated) fires, so a
-//! data refresh never rebuilds the tree. This module also owns the
-//! once-per-world bind guard so the observer is registered exactly once.
+//! data refresh never rebuilds the tree. The page plugin registers this observer once at assembly.
 
+#[path = "rules_projection_query_access.rs"]
+pub mod query_access;
+use self::query_access::RuleProjectionTargets;
+
+use super::rules::{LastRulesProjection, RulesProjectionUpdated};
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
-use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
-use bevy::ui::prelude::BackgroundColor;
 use bevy::ui::widget::Text;
-use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family};
-
-use super::rules::{
-    LastRulesProjection, RulesProjectionUpdated, etag_support_label, hit_audit_label,
-    provider_updated_label, rule_hit_label,
+use infiltrator_application::rule_provider_projection::{
+    default_action, etag_support_line, provider_count, provider_fingerprint_line,
+    provider_lifecycle_line, published_truncation, rules_summary,
 };
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-pub struct RulesPageBound;
+use infiltrator_application::rule_row_projection::{row_hits_copy, row_hits_key};
+use infiltrator_application::rule_statistics_projection::project_statistics;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
+use infiltrator_shared::locales::Lang;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -59,6 +59,10 @@ pub struct RuleProxyText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulePayloadText(pub usize);
 
+/// Marker for a rule item's displayed order.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuleIndexText(pub usize);
+
 /// Marker for a rule item type text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RuleTypeText(pub usize);
@@ -80,35 +84,8 @@ pub struct ProviderCountText(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProviderUpdatedText(pub usize);
 
-/// Mount hook for the rules page root: register the projection observer once.
-/// Returns `true` when this call performed the binding.
-pub fn bind_rules_projection(world: &mut DeferredWorld<'_>) -> bool {
-    if world.get_resource::<RulesPageBound>().is_some() {
-        return false;
-    }
-    let mut commands = world.commands();
-    commands.insert_resource(RulesPageBound);
-    // DUAL-12-08: the tracer reverse-apply observer reads the last projection,
-    // so the store must exist from the moment the page is bound.
-    commands.insert_resource(LastRulesProjection::default());
-    commands.add_observer(apply_rules_projection);
-    true
-}
-
-/// DUAL-11-08: the honest publish-cap note. Empty when the rendered list is the
-/// complete profile list. The rendered list itself is a real virtual window
-/// (`sync_rules_window`), so this note now only reports the publisher's cap.
-pub(crate) fn truncation_label(omitted: Option<usize>, limit: usize) -> String {
-    match omitted {
-        Some(omitted) if omitted > 0 => {
-            format!("发布视口已截断 · 已省略 {omitted} 条 (发布上限 {limit} 条)")
-        }
-        _ => String::new(),
-    }
-}
-
 /// DUAL-11-01: chip fill for a rule-type family, from palette tokens only.
-pub(crate) fn rule_type_chip_fill(rule_type: &str, palette: &UiPalette) -> bevy::color::Color {
+pub(crate) fn rule_type_chip_fill(rule_type: &str, palette: &UiPalette) -> Color {
     match matrix_family(rule_type) {
         RuleTypeFamily::Host => palette.accent_container,
         RuleTypeFamily::Geo => palette.icon_tile,
@@ -118,118 +95,25 @@ pub(crate) fn rule_type_chip_fill(rule_type: &str, palette: &UiPalette) -> bevy:
     }
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_rules_projection(
     update: On<RulesProjectionUpdated>,
     mut last: Option<ResMut<LastRulesProjection>>,
     palette: Res<UiPalette>,
-    mut type_fills: Query<(&mut BackgroundColor, &RuleTypeBadge)>,
-    mut lines: Query<
-        (&mut Text, &RulesLine),
-        (
-            With<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut hits: Query<
-        (&mut Text, &RuleHitText),
-        (
-            With<RuleHitText>,
-            Without<RulesLine>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut proxies: Query<
-        (&mut Text, &RuleProxyText),
-        (
-            With<RuleProxyText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut payloads: Query<
-        (&mut Text, &RulePayloadText),
-        (
-            With<RulePayloadText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut types: Query<
-        (&mut Text, &RuleTypeText),
-        (
-            With<RuleTypeText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_names: Query<
-        (&mut Text, &ProviderNameText),
-        (
-            With<ProviderNameText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderCountText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_counts: Query<
-        (&mut Text, &ProviderCountText),
-        (
-            With<ProviderCountText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderUpdatedText>,
-        ),
-    >,
-    mut provider_updates: Query<
-        (&mut Text, &ProviderUpdatedText),
-        (
-            With<ProviderUpdatedText>,
-            Without<RulesLine>,
-            Without<RuleHitText>,
-            Without<RuleProxyText>,
-            Without<RulePayloadText>,
-            Without<RuleTypeText>,
-            Without<ProviderNameText>,
-            Without<ProviderCountText>,
-        ),
-    >,
+    locale: Res<UiLocale>,
+    targets: RuleProjectionTargets,
 ) {
+    let RuleProjectionTargets {
+        mut type_fills,
+        mut lines,
+        mut hits,
+        mut proxies,
+        mut payloads,
+        mut types,
+        mut provider_names,
+        mut provider_counts,
+        mut provider_updates,
+    } = targets;
+
     let projection = &update.0;
 
     for (mut fill, marker) in &mut type_fills {
@@ -241,31 +125,58 @@ pub(crate) fn apply_rules_projection(
         }
     }
 
-    for (mut text, line) in &mut lines {
+    for (mut text, line, copy) in &mut lines {
         let want = match line.0 {
-            RulesLineKind::Summary => format!(
-                "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
+            RulesLineKind::Summary => rules_summary(
                 projection.total_rules,
-                projection.providers.len()
+                projection.providers.len(),
+                locale.code(),
             ),
             RulesLineKind::DefaultAction => {
-                format!("最终匹配目标: {}", projection.default_action)
+                default_action(&projection.default_action, locale.code())
             }
-            RulesLineKind::HitAudit => hit_audit_label(&projection.hit_audit),
-            RulesLineKind::Truncation => truncation_label(
+            RulesLineKind::HitAudit => {
+                let projected = project_statistics(projection.hit_audit.as_ref(), locale.code());
+                let value = projected.summary(locale.code());
+                if let Some(mut copy) = copy {
+                    *copy = LocalizedText::new(projected.key, projected.params);
+                }
+                value
+            }
+            RulesLineKind::Truncation => published_truncation(
                 projection.truncated_rule_count,
                 projection.rule_publish_limit,
+                locale.code(),
             ),
-            RulesLineKind::EtagSupport => etag_support_label(&projection.etag_support),
+            RulesLineKind::EtagSupport => {
+                etag_support_line(&projection.etag_support, &Lang(locale.code()))
+            }
         };
         if text.0 != want {
             text.0 = want;
         }
     }
 
-    for (mut text, marker) in &mut hits {
+    for (mut text, marker, mut copy) in &mut hits {
         if let Some(rule) = projection.rules.get(marker.0) {
-            let want = rule_hit_label(rule);
+            let updated_copy = LocalizedText::new(
+                row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
+                vec![(
+                    "count",
+                    rule.hit_count
+                        .map(|value| value.to_string())
+                        .unwrap_or_default(),
+                )],
+            );
+            if *copy != updated_copy {
+                *copy = updated_copy;
+            }
+            let want = row_hits_copy(
+                rule.hit_count,
+                rule.is_enabled,
+                rule.is_shadowed,
+                locale.code(),
+            );
             if text.0 != want {
                 text.0 = want;
             }
@@ -290,10 +201,7 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker) in &mut types {
         if let Some(rule) = projection.rules.get(marker.0) {
-            let want = format!(
-                "[{}]",
-                infiltrator_domain::rules::matrix::matrix_label(&rule.rule_type)
-            );
+            let want = matrix_label(&rule.rule_type).to_owned();
             if text.0 != want {
                 text.0 = want;
             }
@@ -310,7 +218,7 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker) in &mut provider_counts {
         if let Some(provider) = projection.providers.get(marker.0) {
-            let want = format!("{} 条 ({})", provider.rule_count, provider.behavior);
+            let want = provider_count(provider.rule_count, &provider.behavior, locale.code());
             if text.0 != want {
                 text.0 = want;
             }
@@ -319,7 +227,22 @@ pub(crate) fn apply_rules_projection(
 
     for (mut text, marker) in &mut provider_updates {
         if let Some(provider) = projection.providers.get(marker.0) {
-            let want = provider_updated_label(provider);
+            let want = provider_lifecycle_line(
+                &provider.updated_at,
+                provider.source_url.as_deref(),
+                provider.refresh_interval_secs,
+                &Lang(locale.code()),
+            );
+            let want = provider
+                .cache_fingerprint
+                .as_ref()
+                .map(|observation| {
+                    format!(
+                        "{want} · {}",
+                        provider_fingerprint_line(observation, &Lang(locale.code()))
+                    )
+                })
+                .unwrap_or(want);
             if text.0 != want {
                 text.0 = want;
             }
@@ -328,5 +251,40 @@ pub(crate) fn apply_rules_projection(
 
     if let Some(ref mut last_proj) = last {
         last_proj.0 = Some(projection.clone());
+    }
+}
+
+pub(crate) fn refresh_hit_copy(
+    last: Res<LastRulesProjection>,
+    locale: Res<UiLocale>,
+    mut hits: Query<(&RuleHitText, &mut Text, &mut LocalizedText)>,
+) {
+    let Some(projection) = &last.0 else {
+        return;
+    };
+    for (marker, mut text, mut copy) in &mut hits {
+        if let Some(rule) = projection.rules.get(marker.0) {
+            let updated_copy = LocalizedText::new(
+                row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
+                vec![(
+                    "count",
+                    rule.hit_count
+                        .map(|value| value.to_string())
+                        .unwrap_or_default(),
+                )],
+            );
+            if *copy != updated_copy {
+                *copy = updated_copy;
+            }
+            let value = row_hits_copy(
+                rule.hit_count,
+                rule.is_enabled,
+                rule.is_shadowed,
+                locale.code(),
+            );
+            if text.0 != value {
+                text.0 = value;
+            }
+        }
     }
 }

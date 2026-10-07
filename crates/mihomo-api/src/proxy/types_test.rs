@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn unknown_protocol_type_degrades_gracefully_without_panicking() {
-        // 未来 Mihomo 可能新增协议类型，Unknown 变体保证不会 panic 或 parse error
+        // Future controller protocols retain their reported facts.
         let json = r#"{
             "proxies": {
                 "Future-Node": {
@@ -362,9 +362,11 @@ mod tests {
             }
         }"#;
         let resp: ProxiesResponse = serde_json::from_str(json).unwrap();
-        assert!(
-            matches!(resp.proxies.get("Future-Node").unwrap(), Proxy::Unknown),
-            "未知协议应降级为 Unknown 而非报错"
-        );
+        let node = &resp.proxies["Future-Node"];
+        assert_eq!(node.name(), "Future-Node");
+        assert_eq!(node.proxy_type(), "NewProtocolXYZ");
+        assert_eq!(node.udp_observation(), Some(true));
+        assert_eq!(node.health_observation(), None);
+        assert!(!node.is_group());
     }
 }

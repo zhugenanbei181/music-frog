@@ -1,13 +1,12 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
-
-use tokio::time::{self, Instant};
-
 use super::{
     ConfigReloadFn, FakeIpProbeFn, NodeRetestFn, PipelineStepReport, ProcessRespawnFn,
     SelfHealingPipeline, SelfHealingPipelineReport, SelfHealingTier, StepOutcome, ZombiePurgeFn,
 };
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::time;
+use tokio::time::Instant;
 
 impl Default for SelfHealingPipeline {
     fn default() -> Self {
@@ -80,8 +79,8 @@ impl SelfHealingPipeline {
     /// Executes the 5-tier self-healing pipeline sequentially.
     pub async fn execute(&self, trigger_reason: &str) -> SelfHealingPipelineReport {
         let start_time = Instant::now();
-        let timestamp_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let timestamp_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 

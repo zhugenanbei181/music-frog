@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::{read_dir, read_to_string};
 use std::path::Path;
 
 /// Linux `.desktop` entry representation.
@@ -121,11 +122,11 @@ impl DesktopEntryScanner {
             if !path.exists() || !path.is_dir() {
                 continue;
             }
-            if let Ok(entries) = std::fs::read_dir(path) {
+            if let Ok(entries) = read_dir(path) {
                 for entry in entries.filter_map(|r| r.ok()) {
                     let file_path = entry.path();
                     if file_path.extension().and_then(|e| e.to_str()) == Some("desktop")
-                        && let Ok(content) = std::fs::read_to_string(&file_path)
+                        && let Ok(content) = read_to_string(&file_path)
                         && let Some(desktop_entry) = Self::parse_desktop_file(&content)
                     {
                         let key = desktop_entry

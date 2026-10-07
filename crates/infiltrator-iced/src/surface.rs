@@ -4,12 +4,15 @@
 //! but its canonical cross-surface input is now this contract projection.
 //! Toolkit-specific fields may be derived from it; they must not replace it.
 
+use crate::types::message::Message;
+use iced::futures::channel::mpsc;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, stream};
 use infiltrator_application::surface_application::{SurfacePump, SurfacePumpBridge};
-use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
-use std::hash::Hash;
+use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceEvent, SurfaceSnapshot};
+use std::hash::{Hash, Hasher};
 use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Clone, Debug, Default)]
 pub struct SurfaceModel {
@@ -44,13 +47,13 @@ impl SurfaceBridge {
         }
     }
 
-    pub fn drain_messages(&self) -> Vec<crate::types::message::Message> {
+    pub fn drain_messages(&self) -> Vec<Message> {
         self.bridge
             .drain_events()
             .into_iter()
             .map(|event| match event {
-                infiltrator_contract::surface_snapshot::SurfaceEvent::SnapshotUpdated(snapshot) => {
-                    crate::types::message::Message::SurfaceSnapshotUpdated(Box::new(snapshot))
+                SurfaceEvent::SnapshotUpdated(snapshot) => {
+                    Message::SurfaceSnapshotUpdated(Box::new(snapshot))
                 }
             })
             .collect()
@@ -59,7 +62,7 @@ impl SurfaceBridge {
     /// Poll the bounded application bridge from Iced's declarative
     /// subscription system. The bridge is the only cross-thread input; no
     /// executor, task handle, or toolkit state crosses the application port.
-    pub fn subscription(&self) -> Subscription<crate::types::message::Message> {
+    pub fn subscription(&self) -> Subscription<Message> {
         let input = SurfaceSubscriptionInput {
             identity: self.bridge.identity(),
             bridge: self.bridge.clone(),
@@ -75,32 +78,27 @@ struct SurfaceSubscriptionInput {
 }
 
 impl Hash for SurfaceSubscriptionInput {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.identity.hash(state);
     }
 }
 
-fn build_surface_stream(
-    input: &SurfaceSubscriptionInput,
-) -> BoxStream<'static, crate::types::message::Message> {
+fn build_surface_stream(input: &SurfaceSubscriptionInput) -> BoxStream<'static, Message> {
     let bridge = input.bridge.clone();
-    let channel = stream::channel(
-        64,
-        move |mut output: iced::futures::channel::mpsc::Sender<crate::types::message::Message>| async move {
-            loop {
-                for message in bridge.drain_events().into_iter().map(|event| match event {
-                    infiltrator_contract::surface_snapshot::SurfaceEvent::SnapshotUpdated(
-                        snapshot,
-                    ) => crate::types::message::Message::SurfaceSnapshotUpdated(Box::new(snapshot)),
-                }) {
-                    if output.try_send(message).is_err() {
-                        return;
-                    }
+    let channel = stream::channel(64, move |mut output: mpsc::Sender<Message>| async move {
+        loop {
+            for message in bridge.drain_events().into_iter().map(|event| match event {
+                SurfaceEvent::SnapshotUpdated(snapshot) => {
+                    Message::SurfaceSnapshotUpdated(Box::new(snapshot))
                 }
-                tokio::time::sleep(Duration::from_millis(50)).await;
+            }) {
+                if output.try_send(message).is_err() {
+                    return;
+                }
             }
-        },
-    );
+            sleep(Duration::from_millis(50)).await;
+        }
+    });
     Box::pin(channel)
 }
 

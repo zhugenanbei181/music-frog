@@ -7,8 +7,10 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::script::ScriptAction;
 use crate::view::components::modern_scrollable;
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
@@ -39,7 +41,7 @@ fn kind_button<'a>(label: String, kind: ScriptExportKind, busy: bool) -> Element
                 ..Default::default()
             }
         })
-        .on_press_maybe((!busy).then_some(Message::ExportScriptDraft(kind)))
+        .on_press_maybe((!busy).then_some(Message::Script(ScriptAction::Export(kind))))
         .into()
 }
 
@@ -80,7 +82,7 @@ fn fill(template: &str, pairs: &[(&str, &str)]) -> String {
 /// projection of the last export.
 pub fn export_section<'a>(state: &'a AppState, kinds: &[ScriptExportKind]) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
-    let busy = state.editor.script_sandbox.is_exporting;
+    let busy = state.editor.script_sandbox.is_exporting();
     let mut buttons = row![
         text(lang.tr("script_export_title").to_string())
             .size(11)

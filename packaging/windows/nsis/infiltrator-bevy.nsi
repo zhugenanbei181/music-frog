@@ -25,6 +25,9 @@ ManifestDPIAware true
 !ifndef OUTFILE
   !define OUTFILE "dist\Infiltrator-Bevy-Setup-${ARCH}.exe"
 !endif
+!ifndef KERNEL_PATH
+  !error "KERNEL_PATH must name a verified packaged mihomo executable"
+!endif
 
 Name "Infiltrator Bevy"
 OutFile "${OUTFILE}"
@@ -77,6 +80,9 @@ Section "Infiltrator Bevy Core & GUI" SecCore
 
   SetOutPath "$INSTDIR"
   File "/oname=infiltrator-bevy-ui.exe" "${BINARY_PATH}"
+  File "/oname=mihomo.exe" "${KERNEL_PATH}"
+  File "/oname=Mihomo-LICENSE.txt" "${KERNEL_LICENSE_PATH}"
+  File "/oname=mihomo-assets.json" "${KERNEL_METADATA_PATH}"
 
   ; Write Uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -145,6 +151,9 @@ Section "Uninstall"
 
   ; Remove Installed Files
   Delete "$INSTDIR\infiltrator-bevy-ui.exe"
+  Delete "$INSTDIR\mihomo.exe"
+  Delete "$INSTDIR\Mihomo-LICENSE.txt"
+  Delete "$INSTDIR\mihomo-assets.json"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 

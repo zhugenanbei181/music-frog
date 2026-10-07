@@ -1,6 +1,24 @@
 //! crate 内共用的 ConfigManager / configs 目录构造入口（不导出 crate 外）。
 
 #[cfg(test)]
+use infiltrator_core::doctor_port::MihomoDoctor;
+#[cfg(test)]
+use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
+#[cfg(test)]
+use infiltrator_core::profile_reset::FileProfileReset;
+#[cfg(test)]
+use infiltrator_core::profile_store_io::open;
+#[cfg(test)]
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
+#[cfg(test)]
+use infiltrator_core::sync_port::FileWebDavSync;
+#[cfg(test)]
+use infiltrator_core::version_port::MihomoVersionPort;
+#[cfg(test)]
+use infiltrator_ports::subscription_source::SubscriptionSource;
+#[cfg(test)]
+use mihomo_config::manager::paths::resolve_configs_dir_in;
+#[cfg(test)]
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -50,53 +68,44 @@ pub(crate) async fn app_config_manager() -> anyhow::Result<ConfigManager<Default
 
 #[cfg(test)]
 pub(crate) async fn profile_application() -> anyhow::Result<ProfileApplication> {
-    Ok(ProfileApplication::new(
-        infiltrator_core::profile_store_io::open().await?,
-    ))
+    Ok(ProfileApplication::new(open().await?))
 }
 
 #[cfg(test)]
 pub(crate) async fn configuration_application() -> anyhow::Result<ConfigurationApplication> {
-    Ok(ConfigurationApplication::new(
-        infiltrator_core::profile_store_io::open().await?,
-    ))
+    Ok(ConfigurationApplication::new(open().await?))
 }
 
 #[cfg(test)]
 pub(crate) fn doctor_application() -> anyhow::Result<DoctorApplication> {
-    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect()?;
+    let doctor = MihomoDoctor::detect()?;
     Ok(DoctorApplication::new(Arc::new(doctor)))
 }
 
 #[cfg(test)]
 pub(crate) fn profile_reset_application() -> ProfileResetApplication {
-    ProfileResetApplication::new(Arc::new(
-        infiltrator_core::profile_reset::FileProfileReset::current(),
-    ))
+    ProfileResetApplication::new(Arc::new(FileProfileReset::current()))
 }
 
 #[cfg(test)]
 pub(crate) fn cache_application() -> CacheApplication {
-    CacheApplication::new(Arc::new(
-        infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current(),
-    ))
+    CacheApplication::new(Arc::new(FileFakeIpCache::current()))
 }
 
 #[cfg(test)]
-pub(crate) fn subscription_source()
--> Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource> {
-    Arc::new(infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients())
+pub(crate) fn subscription_source() -> Arc<dyn SubscriptionSource> {
+    Arc::new(HttpSubscriptionSource::with_default_clients())
 }
 
 #[cfg(test)]
 pub(crate) fn sync_application() -> anyhow::Result<SyncApplication> {
-    let sync = infiltrator_core::sync_port::FileWebDavSync::current()?;
+    let sync = FileWebDavSync::current()?;
     Ok(SyncApplication::new(Arc::new(sync)))
 }
 
 #[cfg(test)]
 pub(crate) fn version_application() -> anyhow::Result<VersionApplication> {
-    let version = infiltrator_core::version_port::MihomoVersionPort::current()?;
+    let version = MihomoVersionPort::current()?;
     Ok(VersionApplication::new(Arc::new(version)))
 }
 
@@ -106,7 +115,7 @@ pub(crate) fn version_application() -> anyhow::Result<VersionApplication> {
 pub(crate) async fn app_configs_dir() -> anyhow::Result<PathBuf> {
     let home = get_home_dir()?;
     let settings = load_app_settings().await?;
-    Ok(mihomo_config::manager::paths::resolve_configs_dir_in(
+    Ok(resolve_configs_dir_in(
         settings.configs_dir.as_deref(),
         &home,
     )?)
@@ -115,13 +124,19 @@ pub(crate) async fn app_configs_dir() -> anyhow::Result<PathBuf> {
 #[cfg(test)]
 pub(crate) mod test_env {
     use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
+    #[cfg(test)]
+    use std::env::var;
 
     /// env 是进程级全局状态：调用方必须持有 `mihomo_platform::TEST_LOCK`。
     /// 返回被清除前的旧值，供 [`restore_configs_dir_env`] 恢复。
     pub(crate) fn clear_configs_dir_env() -> Option<String> {
-        let saved = std::env::var(CONFIGS_DIR_ENV).ok();
+        let saved = var(CONFIGS_DIR_ENV).ok();
         // SAFETY: 测试在 TEST_LOCK 互斥下串行修改进程级 env，并在结束时恢复。
-        unsafe { std::env::remove_var(CONFIGS_DIR_ENV) };
+        unsafe { remove_var(CONFIGS_DIR_ENV) };
         saved
     }
 
@@ -130,8 +145,8 @@ pub(crate) mod test_env {
     pub(crate) fn restore_configs_dir_env(saved: Option<String>) {
         // SAFETY: 同 clear_configs_dir_env。
         match saved {
-            Some(value) => unsafe { std::env::set_var(CONFIGS_DIR_ENV, value) },
-            None => unsafe { std::env::remove_var(CONFIGS_DIR_ENV) },
+            Some(value) => unsafe { set_var(CONFIGS_DIR_ENV, value) },
+            None => unsafe { remove_var(CONFIGS_DIR_ENV) },
         }
     }
 }
@@ -141,12 +156,19 @@ mod tests {
     use super::{app_config_manager, app_configs_dir, test_env};
     use infiltrator_core::settings_io;
     use infiltrator_domain::settings::AppSettings;
+    #[cfg(test)]
+    use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
     use mihomo_platform::TEST_LOCK;
+    #[cfg(test)]
+    use mihomo_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use mihomo_platform::paths::set_home_dir_override;
+    #[cfg(test)]
+    use std::env::var;
+    #[cfg(test)]
+    use std::path;
 
-    async fn write_settings_with_configs_dir(
-        home: &std::path::Path,
-        configs_dir: &std::path::Path,
-    ) {
+    async fn write_settings_with_configs_dir(home: &path::Path, configs_dir: &path::Path) {
         let settings = AppSettings {
             configs_dir: Some(configs_dir.to_string_lossy().into_owned()),
             ..AppSettings::default()
@@ -161,8 +183,8 @@ mod tests {
     async fn app_config_manager_follows_settings_configs_dir() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
         let saved_env = test_env::clear_configs_dir_env();
 
         let cloud = temp_dir.path().join("cloud");
@@ -174,7 +196,7 @@ mod tests {
         assert!(!temp_dir.path().join("configs").exists());
 
         test_env::restore_configs_dir_env(saved_env);
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// settings.configs_dir 未设置时 configs 目录仍是默认 `<home>/configs`。
@@ -182,8 +204,8 @@ mod tests {
     async fn app_configs_dir_defaults_to_home_configs() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
         let saved_env = test_env::clear_configs_dir_env();
 
         assert_eq!(
@@ -192,7 +214,7 @@ mod tests {
         );
 
         test_env::restore_configs_dir_env(saved_env);
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// settings 字段与 env 同时设置时 env 优先。
@@ -200,12 +222,12 @@ mod tests {
     async fn app_configs_dir_env_wins_over_settings_field() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let cloud = temp_dir.path().join("cloud");
         write_settings_with_configs_dir(temp_dir.path(), &cloud).await;
-        let saved_env = std::env::var(mihomo_config::manager::paths::CONFIGS_DIR_ENV).ok();
+        let saved_env = var(CONFIGS_DIR_ENV).ok();
         let env_dir = temp_dir
             .path()
             .join("env-dir")
@@ -219,6 +241,6 @@ mod tests {
         );
 
         test_env::restore_configs_dir_env(saved_env);
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 }

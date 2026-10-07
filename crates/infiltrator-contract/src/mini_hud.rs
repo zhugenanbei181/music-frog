@@ -251,7 +251,7 @@ pub const MINI_HUD_WAVEFORM_BARS: usize = 24;
 /// the Iced and Bevy strips disagree whenever one surface received a stale
 /// snapshot). Only real [`TrafficWaveformSnapshot`] samples enter — an empty
 /// snapshot produces an empty strip, never a fabricated flat line.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MiniHudWaveformStrip {
     /// Downlink bars, oldest first, each `0..=PERMILLE`.
     pub down: Vec<u16>,
@@ -318,8 +318,7 @@ fn sanitize_bps(value: f64) -> f64 {
 }
 
 /// The live facts the Mini HUD renders. Every field is a real projection
-/// value; an unknown toggle stays `Unknown` and renders as `—` through the
-/// shared [`SystemToggleState::compact_label`].
+/// value; unknown and pending toggles remain typed facts for the shared presentation owner.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudReadModel {
     pub visible: bool,
@@ -335,17 +334,6 @@ pub struct MiniHudReadModel {
 }
 
 impl MiniHudReadModel {
-    /// The shared status line both surfaces render under the exit-node pill:
-    /// the state letters come from the shared compact labels, so Iced and
-    /// Bevy cannot drift apart.
-    pub fn status_line(&self) -> String {
-        format!(
-            "系统代理: {} · TUN: {}",
-            self.system_proxy.compact_label(),
-            self.tun.compact_label()
-        )
-    }
-
     /// The desired value of the next quick-toggle press, or `None` while the
     /// toggle is not in a state that accepts a user action.
     pub fn next_value(&self, toggle: SystemToggle) -> Option<bool> {
@@ -409,6 +397,8 @@ pub enum MiniHudHostOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::traffic_waveform::TrafficSample;
 
     fn fhd() -> MiniHudDisplay {
         MiniHudDisplay::new(0, 0, 1920, 1080)
@@ -446,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn the_read_model_status_line_is_derived_from_real_toggle_states() {
+    fn the_read_model_retains_real_toggle_states_and_action_gates() {
         let snapshot = SystemToggleSnapshot::from_legacy(true, Some(false), 3)
             .with_pending(SystemToggle::Tun, true);
         let model = MiniHudReadModel::default()
@@ -454,7 +444,8 @@ mod tests {
             .with_traffic(1024, 2_048)
             .with_exit_node("HK-01")
             .with_mode("规则");
-        assert_eq!(model.status_line(), "系统代理: 开 · TUN: …");
+        assert_eq!(model.system_proxy, SystemToggleState::Enabled);
+        assert_eq!(model.tun, SystemToggleState::Pending { desired: true });
         assert_eq!(model.next_value(SystemToggle::SystemProxy), Some(false));
         assert_eq!(
             model.next_value(SystemToggle::Tun),
@@ -477,8 +468,8 @@ mod tests {
         assert_eq!(legacy, MiniHudPlacement::default());
     }
 
-    fn traffic_sample(up: f64, down: f64) -> crate::traffic_waveform::TrafficSample {
-        crate::traffic_waveform::TrafficSample {
+    fn traffic_sample(up: f64, down: f64) -> TrafficSample {
+        TrafficSample {
             sampled_at_epoch_ms: None,
             upload_bps: up,
             download_bps: down,

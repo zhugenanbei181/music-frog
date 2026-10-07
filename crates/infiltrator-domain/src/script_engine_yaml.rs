@@ -1,10 +1,9 @@
 //! YAML AST helper implementations used by script directives.
 
+use super::{COUNTRY_GROUP_DEFS, ScriptError};
 use regex::Regex;
 use serde_yaml_ng::Value;
-use std::collections::HashSet;
-
-use super::{COUNTRY_GROUP_DEFS, ScriptError};
+use std::collections::{HashMap, HashSet};
 
 // --- YAML AST Helpers ---
 
@@ -414,7 +413,7 @@ pub(super) fn rename_nodes_by_regex(
     let proxies_key = Value::String("proxies".to_string());
     let name_key = Value::String("name".to_string());
     let mut renamed_count = 0;
-    let mut rename_map = std::collections::HashMap::new();
+    let mut rename_map = HashMap::new();
 
     if let Some(proxies_seq) = mapping
         .get_mut(&proxies_key)

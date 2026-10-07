@@ -1,7 +1,7 @@
 use super::*;
-
 use crate::view::overview_hero::overview_speedtest_button;
 use crate::view::overview_topology::{topology_badge, topology_route_for_stage};
+use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestProgress};
 use infiltrator_contract::traffic_topology::{
     TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
 };
@@ -20,10 +20,7 @@ fn topology_badge_reflects_the_shared_status_and_count() {
     assert_eq!(topology_badge(&snapshot, &Lang("zh-CN")), "0 连接 · idle");
 
     snapshot.status = TrafficTopologyStatus::Unsupported;
-    assert_eq!(
-        topology_badge(&snapshot, &Lang("zh-CN")),
-        "topology unavailable"
-    );
+    assert_eq!(topology_badge(&snapshot, &Lang("zh-CN")), "拓扑不可用");
 }
 
 #[test]
@@ -57,8 +54,8 @@ fn overview_speedtest_button_renders_when_idle_and_testing() {
     let _btn_idle = overview_speedtest_button(&state, &lang);
 
     // Shared engine phase drives the label/progress and the cancel action.
-    state.diag.speedtest.phase = infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
-    state.diag.speedtest.progress = infiltrator_contract::speedtest::SpeedtestProgress {
+    state.diag.speedtest.phase = SpeedtestPhase::ProbingLatency;
+    state.diag.speedtest.progress = SpeedtestProgress {
         completed_nodes: 3,
         total_nodes: 10,
         percent: 30.0,

@@ -5,12 +5,17 @@
 //! owned `SurfaceSnapshot` values and project them into their native widgets.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface_snapshot::{SurfaceEvent, SurfaceSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::mpsc::{
+    Receiver, RecvTimeoutError, SyncSender, TrySendError, channel, sync_channel,
+};
 use std::sync::{Arc, Mutex};
+use std::thread::Builder;
 use std::time::Duration;
 
 const SNAPSHOT_CAPACITY: usize = 4;
@@ -75,7 +80,7 @@ impl SurfacePump {
             }),
             snapshot_rx: Arc::clone(&snapshot_rx),
         };
-        std::thread::Builder::new()
+        Builder::new()
             .name("infiltrator-surface".to_owned())
             .spawn(move || {
                 pump_loop(
@@ -127,7 +132,7 @@ fn pump_loop(
 ) {
     // A standard-library timeout keeps the worker executor-neutral. The
     // injected ApplicationRuntime still owns every async port call.
-    let (_wake_tx, wake_rx) = std::sync::mpsc::channel::<()>();
+    let (_wake_tx, wake_rx) = channel::<()>();
     loop {
         if stop.load(Ordering::Acquire) {
             return;
@@ -145,7 +150,7 @@ fn pump_loop(
                 let failure = Failure::from(error);
                 snapshot.revision = snapshot.revision.saturating_add(1);
                 snapshot.failure = Some(failure.clone());
-                snapshot.core.lifecycle = infiltrator_contract::snapshot::CoreLifecycle::Failed;
+                snapshot.core.lifecycle = CoreLifecycle::Failed;
                 snapshot.core.revision = snapshot.revision;
                 snapshot.core.failure = Some(failure);
                 snapshot
@@ -178,8 +183,8 @@ fn pump_loop(
             return;
         }
         match wake_rx.recv_timeout(sample_interval) {
-            Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => return,
+            Err(RecvTimeoutError::Timeout) => {}
         }
     }
 }
@@ -200,10 +205,8 @@ impl UnavailableSurfaceReader {
 
 #[async_trait::async_trait]
 impl SurfaceReader for UnavailableSurfaceReader {
-    async fn read(&self) -> Result<SurfaceSnapshot, infiltrator_ports::error::PortError> {
-        Err(infiltrator_ports::error::PortError::Failed(
-            self.failure.message.clone(),
-        ))
+    async fn read(&self) -> Result<SurfaceSnapshot, PortError> {
+        Err(PortError::Failed(self.failure.message.clone()))
     }
 }
 
@@ -217,8 +220,18 @@ mod tests {
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::surface::SurfaceReader;
+    #[cfg(test)]
+    use std::thread::yield_now;
+    #[cfg(test)]
+    use std::time::Instant;
+    #[cfg(test)]
+    use tokio::runtime;
+    #[cfg(test)]
+    use tokio::runtime::Runtime;
+    #[cfg(test)]
+    use tokio::time::sleep;
 
-    struct TokioRuntime(tokio::runtime::Runtime);
+    struct TokioRuntime(Runtime);
 
     impl ApplicationRuntime for TokioRuntime {
         fn block_on(&self, future: ApplicationFuture) {
@@ -226,7 +239,7 @@ mod tests {
         }
 
         fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
-            Box::pin(tokio::time::sleep(duration))
+            Box::pin(sleep(duration))
         }
     }
 
@@ -246,7 +259,7 @@ mod tests {
     #[test]
     fn zero_interval_pump_delivers_one_bounded_snapshot() {
         let runtime = Arc::new(TokioRuntime(
-            tokio::runtime::Builder::new_current_thread()
+            runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("test runtime"),
@@ -258,7 +271,7 @@ mod tests {
         );
         let pump = SurfacePump::spawn(Arc::new(StaticReader), Duration::ZERO, runtime, initial);
         let bridge = pump.bridge();
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let deadline = Instant::now() + Duration::from_secs(2);
         loop {
             let snapshots = bridge.drain();
             if !snapshots.is_empty() {
@@ -266,8 +279,8 @@ mod tests {
                 assert_eq!(snapshots[0].surface, SurfaceKind::BevyDesktop);
                 break;
             }
-            assert!(std::time::Instant::now() < deadline, "pump did not deliver");
-            std::thread::yield_now();
+            assert!(Instant::now() < deadline, "pump did not deliver");
+            yield_now();
         }
     }
 }

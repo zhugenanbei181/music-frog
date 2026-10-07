@@ -5,9 +5,11 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::options::{SyncDiffKeyKind, SyncDiffState};
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card, segmented_control};
-use crate::view::theme::{self, MONO, tokens};
+use crate::view::components::{BadgeKind, badge, segmented_control};
+use crate::view::theme;
+use crate::view::theme::{MONO, tokens};
 use iced::widget::{Space, button, column, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};

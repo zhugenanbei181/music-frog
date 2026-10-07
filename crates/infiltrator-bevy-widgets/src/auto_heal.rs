@@ -1,6 +1,8 @@
 //! Intelligent heuristic network diagnostics and auto-repair interactive wizard state machine.
 
 use bevy::ecs::resource::Resource;
+use infiltrator_shared::i18n_interpolator::localize;
+use std::collections::HashSet;
 
 /// Categorization of detected network / controller failure anomalies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,9 +19,45 @@ pub enum DiagnosticAnomaly {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AutoFixAction {
     pub anomaly: DiagnosticAnomaly,
-    pub title: String,
-    pub description: String,
     pub is_destructive: bool,
+}
+
+impl AutoFixAction {
+    fn copy_keys(&self) -> (&'static str, &'static str) {
+        match self.anomaly {
+            DiagnosticAnomaly::ControllerPortConflict(_) => {
+                ("auto_heal_port_title", "auto_heal_port_description")
+            }
+            DiagnosticAnomaly::TunInterfaceMissing => {
+                ("auto_heal_tun_title", "auto_heal_tun_description")
+            }
+            DiagnosticAnomaly::DnsLeakDetected => {
+                ("auto_heal_dns_title", "auto_heal_dns_description")
+            }
+            DiagnosticAnomaly::SubscriptionExpired => (
+                "auto_heal_subscription_title",
+                "auto_heal_subscription_description",
+            ),
+            DiagnosticAnomaly::HighPacketLoss => {
+                ("auto_heal_loss_title", "auto_heal_loss_description")
+            }
+            DiagnosticAnomaly::ZombieProcessDetected => {
+                ("auto_heal_zombie_title", "auto_heal_zombie_description")
+            }
+        }
+    }
+
+    pub fn title(&self, locale: &str) -> String {
+        let params = match self.anomaly {
+            DiagnosticAnomaly::ControllerPortConflict(port) => vec![("port", port.to_string())],
+            _ => Vec::new(),
+        };
+        localize(locale, self.copy_keys().0, &params)
+    }
+
+    pub fn description(&self, locale: &str) -> String {
+        localize(locale, self.copy_keys().1, &[])
+    }
 }
 
 /// State machine for interactive auto-repair wizard.
@@ -40,44 +78,9 @@ impl AutoHealWizardState {
     pub fn push_anomaly(&mut self, anomaly: DiagnosticAnomaly) {
         if !self.active_anomalies.contains(&anomaly) {
             self.active_anomalies.push(anomaly);
-            let action = match anomaly {
-                DiagnosticAnomaly::ControllerPortConflict(port) => AutoFixAction {
-                    anomaly,
-                    title: format!("轮换控制器端口 (占用: {})", port),
-                    description: "自动寻找未占用的高位空闲端口并重启核心接口".to_string(),
-                    is_destructive: false,
-                },
-                DiagnosticAnomaly::TunInterfaceMissing => AutoFixAction {
-                    anomaly,
-                    title: "重新注册 TUN 虚拟网卡驱动".to_string(),
-                    description: "调用系统网络特权服务重新分配虚拟网络接口".to_string(),
-                    is_destructive: false,
-                },
-                DiagnosticAnomaly::DnsLeakDetected => AutoFixAction {
-                    anomaly,
-                    title: "强制启用 Strict Route 阻断直连 DNS".to_string(),
-                    description: "重写防火墙规则，强制所有 UDP 53 流量重定向至核心 Fake-IP 池"
-                        .to_string(),
-                    is_destructive: false,
-                },
-                DiagnosticAnomaly::SubscriptionExpired => AutoFixAction {
-                    anomaly,
-                    title: "切换备用配置订阅".to_string(),
-                    description: "当前订阅已过期，一键激活最近可用的备用配置档案".to_string(),
-                    is_destructive: false,
-                },
-                DiagnosticAnomaly::HighPacketLoss => AutoFixAction {
-                    anomaly,
-                    title: "自动故障转移到低延迟节点".to_string(),
-                    description: "执行并发测速并将当前策略组切至健康节点".to_string(),
-                    is_destructive: false,
-                },
-                DiagnosticAnomaly::ZombieProcessDetected => AutoFixAction {
-                    anomaly,
-                    title: "清理僵尸核心进程".to_string(),
-                    description: "向残留的孤儿进程发送终止信号并清理临时 PID 锁文件".to_string(),
-                    is_destructive: true,
-                },
+            let action = AutoFixAction {
+                anomaly,
+                is_destructive: matches!(anomaly, DiagnosticAnomaly::ZombieProcessDetected),
             };
             self.pending_actions.push(action);
         }
@@ -383,7 +386,7 @@ impl FailoverRoutingGraph {
 
     /// Detect if the fallback chain starting from `start` contains a circular reference.
     pub fn has_cycle_from(&self, start: &str) -> bool {
-        let mut visited = std::collections::HashSet::new();
+        let mut visited = HashSet::new();
         let mut curr = start;
 
         while let Some(next) = self.fallback_links.get(curr) {
@@ -402,7 +405,7 @@ impl FailoverRoutingGraph {
         start_node: &str,
         is_node_tripped: impl Fn(&str) -> bool,
     ) -> String {
-        let mut visited = std::collections::HashSet::new();
+        let mut visited = HashSet::new();
         let mut curr = start_node;
 
         while visited.insert(curr) {

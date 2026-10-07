@@ -7,30 +7,44 @@
 //! domain seam. The timing waterfall (DUAL-13-04) stays typed unsupported: the
 //! core exposes no DNS/TCP/TLS/TTFB stages, so no fabricated bars are drawn.
 
+#[path = "connections_drawer_query_access.rs"]
+pub mod query_access;
+use self::query_access::ConnectionDrawerControls;
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::connections::{ConnectionsProjection, LastConnectionsProjection};
+use crate::pages::connections_clipboard::CopyConnectionHostButton;
+use bevy::ecs::change_detection::DetectChanges;
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::connection_detail_projection::{kernel_asn_label, kernel_geo_label};
+
+use crate::route::{ActiveRoute, Route};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::input::{ButtonInput, keyboard::KeyCode};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
-    PositionType, UiRect, Val, percent, px,
+    Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::drawer::{DrawerCloseButton, DrawerPlacement, drawer_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::capability::Availability;
+use infiltrator_contract::connection::timing_availability;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::rules::RuleEntry;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::connections::{ConnInspectButton, LastConnectionsProjection};
+use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
+use std::env;
 
 /// Maximum route-chain hops rendered in the drawer.
 const MAX_DRAWER_CHAIN_HOPS: usize = 6;
@@ -91,8 +105,9 @@ pub struct ConnDrawerHopSlot(pub usize);
 pub struct ConnDrawerRuleDraft;
 
 /// Which connection the drawer shows and whether it is open.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ConnectionsDrawerState {
+    pub selected_id: Option<String>,
     pub selected: Option<usize>,
     pub open: bool,
 }
@@ -125,6 +140,21 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
 }
 
 fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let timing_notice = match timing_availability() {
+        Availability::Unsupported { .. } => Lang(&language)
+            .tr("conn_drawer_timing_unsupported")
+            .into_owned(),
+        _ => unreachable!("connection timing capability must be explicit"),
+    };
+    let lang = Lang(&language);
+    let title = lang.tr("conn_drawer_title").into_owned();
+    let close = lang.tr("conn_drawer_close").into_owned();
+    let chain_label = lang.tr("conn_drawer_proxy_chain").into_owned();
+    let add_rule = lang.tr("quick_rule_btn").into_owned();
+    let disconnect = lang.tr("conn_drawer_close_conn_btn").into_owned();
+    let draft_empty = lang.tr("conn_drawer_draft_empty").into_owned();
+    let copy_label = Lang(&language).tr("conn_drawer_copy_host_btn").into_owned();
     let hop_slots: Vec<Box<dyn Scene>> = (0..MAX_DRAWER_CHAIN_HOPS)
         .map(|hop| {
             Box::new(bsn! {
@@ -144,10 +174,13 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
                 width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                overflow: Overflow::scroll_y(),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(space::S12),
             }
-            ConnectionDrawerRoot
+            ConnectionDrawerRoot ScrollArea
             Children [
                 Node {
                     width: percent(100),
@@ -162,7 +195,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Children [
                         @{ icon_tile_scene(IconId::Activity, 24.0, palette) }
                         --
-                        Text({ "单连接深度透视 (Deep Telemetry)".to_owned() }) TextRole(Role::BodyStrong)
+                        Text(title) TextRole(Role::BodyStrong)
                     ]
                     --
                     Node {
@@ -172,7 +205,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerCloseButton
                     Children [
-                        Text({ "关闭".to_owned() }) TextRole(Role::Caption)
+                        Text(close) TextRole(Role::Caption)
                     ]
                 ]
                 --
@@ -195,7 +228,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     column_gap: Val::Px(space::S4),
                 }
                 Children [
-                    Text({ "路由链: ".to_owned() }) TextRole(Role::Caption)
+                    Text(chain_label) TextRole(Role::Caption)
                     --
                     { hop_slots }
                 ]
@@ -208,7 +241,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                 --
                 Text({ "—".to_owned() }) ConnDrawerField(ConnDrawerFieldKind::KernelGeo) TextRole(Role::Mono)
                 --
-                Text({ "内核未提供该连接的 DNS/TCP/TLS/TTFB 耗时明细".to_owned() }) TextRole(Role::Caption)
+                Text(timing_notice) TextRole(Role::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -228,7 +261,7 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerAddRuleButton
                     Children [
-                        Text({ "一键添加为规则".to_owned() }) TextRole(Role::BodyStrong)
+                        Text(add_rule) TextRole(Role::BodyStrong)
                     ]
                     --
                     Node {
@@ -242,11 +275,15 @@ fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
                     Button
                     DrawerCloseConnectionButton
                     Children [
-                        Text({ "断开此连接".to_owned() }) TextRole(Role::BodyStrong)
+                        Text(disconnect) TextRole(Role::BodyStrong)
                     ]
                 ]
                 --
-                Text({ "规则草稿: 尚未生成".to_owned() }) ConnDrawerRuleDraft TextRole(Role::Caption)
+                Node { min_height: px(palette.control_height_px), padding: UiRect::horizontal(px(space::S12)), align_items: AlignItems::Center }
+                Button CopyConnectionHostButton
+                Children [ Text(copy_label) TextRole(Role::BodyStrong) ]
+                --
+                Text(draft_empty) ConnDrawerRuleDraft TextRole(Role::Caption)
             ]
     }
 }
@@ -263,49 +300,39 @@ pub(crate) fn sync_connections_drawer(
 }
 
 /// Inspect / close / add-rule activation for the connections drawer.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
 pub(crate) fn on_connections_drawer_activated(
     activate: On<Activate>,
-    inspect_buttons: Query<&ConnInspectButton>,
-    add_rule_buttons: Query<(), With<DrawerAddRuleButton>>,
-    close_connection_buttons: Query<(), With<DrawerCloseConnectionButton>>,
-    close_buttons: Query<(), With<DrawerCloseButton>>,
     last: Option<Res<LastConnectionsProjection>>,
     mut drawer: Option<ResMut<ConnectionsDrawerState>>,
     mut draft: Option<ResMut<ConnectionsRuleDraft>>,
     handle: Option<Res<CommandSinkHandle>>,
-    mut fields: Query<
-        (&mut Text, &ConnDrawerField),
-        (Without<ConnDrawerHopText>, Without<ConnDrawerRuleDraft>),
-    >,
-    mut hops: Query<
-        (&mut Text, &ConnDrawerHopText),
-        (
-            With<ConnDrawerHopText>,
-            Without<ConnDrawerField>,
-            Without<ConnDrawerRuleDraft>,
-        ),
-    >,
-    mut hop_slots: Query<
-        (&mut Node, &ConnDrawerHopSlot),
-        (
-            With<ConnDrawerHopSlot>,
-            Without<ConnDrawerField>,
-            Without<ConnDrawerRuleDraft>,
-        ),
-    >,
-    mut draft_lines: Query<
-        &mut Text,
-        (
-            With<ConnDrawerRuleDraft>,
-            Without<ConnDrawerField>,
-            Without<ConnDrawerHopText>,
-        ),
-    >,
+    targets: ConnectionDrawerControls,
 ) {
+    let ConnectionDrawerControls {
+        inspect_buttons,
+        add_rule_buttons,
+        close_connection_buttons,
+        close_buttons,
+        mut fields,
+        mut hops,
+        mut hop_slots,
+        mut draft_lines,
+    } = targets;
+
     if let Ok(inspect) = inspect_buttons.get(activate.entity) {
+        let valid = last
+            .as_ref()
+            .and_then(|last| last.0.as_ref())
+            .is_some_and(|projection| projection.connections.get(inspect.0).is_some());
+        if !valid {
+            return;
+        }
         if let Some(state) = drawer.as_deref_mut() {
+            state.selected_id = last
+                .as_ref()
+                .and_then(|last| last.0.as_ref())
+                .and_then(|projection| projection.connections.get(inspect.0))
+                .map(|item| item.id.clone());
             state.selected = Some(inspect.0);
             state.open = true;
         }
@@ -324,18 +351,24 @@ pub(crate) fn on_connections_drawer_activated(
     if close_buttons.contains(activate.entity) {
         if let Some(state) = drawer.as_deref_mut() {
             state.open = false;
+            state.selected = None;
+            state.selected_id = None;
         }
         return;
     }
 
     if add_rule_buttons.contains(activate.entity) {
-        let Some(index) = drawer.as_ref().and_then(|state| state.selected) else {
+        let Some(id) = drawer
+            .as_ref()
+            .filter(|state| state.open)
+            .and_then(|state| state.selected_id.as_ref())
+        else {
             return;
         };
         let Some(item) = last
             .as_ref()
             .and_then(|last| last.0.as_ref())
-            .and_then(|projection| projection.connections.get(index))
+            .and_then(|projection| projection.connections.iter().find(|item| &item.id == id))
         else {
             return;
         };
@@ -347,7 +380,13 @@ pub(crate) fn on_connections_drawer_activated(
         let added = connection_view::append_draft_rule(&mut draft.entries, &spec);
         if let Some(entry) = added {
             for mut text in &mut draft_lines {
-                text.0 = format!("规则草稿: {}", entry.rule);
+                let language =
+                    env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+                text.0 = format!(
+                    "{}: {}",
+                    Lang(&language).tr("conn_drawer_draft"),
+                    entry.rule
+                );
             }
         }
         return;
@@ -359,13 +398,17 @@ pub(crate) fn on_connections_drawer_activated(
         let Some(handle) = handle else {
             return;
         };
-        let Some(index) = drawer.as_ref().and_then(|state| state.selected) else {
+        let Some(id) = drawer
+            .as_ref()
+            .filter(|state| state.open)
+            .and_then(|state| state.selected_id.as_ref())
+        else {
             return;
         };
         let Some(item) = last
             .as_ref()
             .and_then(|last| last.0.as_ref())
-            .and_then(|projection| projection.connections.get(index))
+            .and_then(|projection| projection.connections.iter().find(|item| &item.id == id))
         else {
             return;
         };
@@ -374,26 +417,30 @@ pub(crate) fn on_connections_drawer_activated(
         });
         if let Some(state) = drawer.as_deref_mut() {
             state.open = false;
+            state.selected = None;
+            state.selected_id = None;
         }
     }
 }
 
-#[allow(clippy::type_complexity)]
 fn restamp_drawer<F, H, S>(
-    projection: &crate::pages::connections::ConnectionsProjection,
+    projection: &ConnectionsProjection,
     index: usize,
     fields: &mut Query<(&mut Text, &ConnDrawerField), F>,
     hops: &mut Query<(&mut Text, &ConnDrawerHopText), H>,
     hop_slots: &mut Query<(&mut Node, &ConnDrawerHopSlot), S>,
 ) where
-    F: bevy::ecs::query::QueryFilter,
-    H: bevy::ecs::query::QueryFilter,
-    S: bevy::ecs::query::QueryFilter,
+    F: QueryFilter,
+    H: QueryFilter,
+    S: QueryFilter,
 {
     let Some(item) = projection.connections.get(index) else {
         return;
     };
     let chain = connection_view::route_chain(item);
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let lang = Lang(&language);
+    let translate = |key: &str| lang.tr(key).into_owned();
     for (mut text, field) in fields.iter_mut() {
         text.0 = match field.0 {
             ConnDrawerFieldKind::Host => item.host.clone(),
@@ -419,55 +466,35 @@ fn restamp_drawer<F, H, S>(
             ConnDrawerFieldKind::Network => item.network.to_uppercase(),
             ConnDrawerFieldKind::Traffic => format!(
                 "↑ {}  ↓ {}",
-                crate::pages::overview::format_byte_count(item.upload_total),
-                crate::pages::overview::format_byte_count(item.download_total)
+                format_bytes(item.upload_total),
+                format_bytes(item.download_total)
             ),
             // DUAL-13-10/12: the drawer shows the derived instantaneous rates
             // only once a real window exists; a fresh connection stays honest.
             ConnDrawerFieldKind::Rate => {
-                if item.upload_bps > 0.0 || item.download_bps > 0.0 {
+                if item.rate_observed {
                     format!(
-                        "瞬时 ↑ {}/s  ↓ {}/s",
-                        crate::pages::overview::format_byte_count(item.upload_bps.max(0.0) as u64),
-                        crate::pages::overview::format_byte_count(item.download_bps.max(0.0) as u64)
+                        "{} ↑ {}/s  ↓ {}/s",
+                        lang.tr("conn_drawer_rate_prefix"),
+                        format_bytes(item.upload_bps.max(0.0) as u64),
+                        format_bytes(item.download_bps.max(0.0) as u64)
                     )
                 } else {
-                    "瞬时速率: 等待第二次采样".to_owned()
+                    lang.tr("conn_drawer_rate_pending").into_owned()
                 }
             }
             // DUAL-13-05: the kernel's own GEOIP/IP-ASN rule-evaluation results.
             // The client reads no MMDB and never guesses a location or ASN.
-            ConnDrawerFieldKind::KernelAsn => match connection_view::destination_asn_fact(
-                &item.destination_ip_asn,
-            ) {
-                connection_view::DestinationAsnFact::NotEvaluated => {
-                    "目标 ASN 归属（/connections destinationIPASN）: 内核未对本次连接求值（需 IP-ASN 规则）"
-                        .to_owned()
-                }
-                connection_view::DestinationAsnFact::NoResult => {
-                    "目标 ASN 归属（/connections destinationIPASN）: 内核已求值 · 无该 IP 的记录".to_owned()
-                }
-                connection_view::DestinationAsnFact::Reported(value) => {
-                    format!("目标 ASN 归属（/connections destinationIPASN）: {value}")
-                }
-            },
-            ConnDrawerFieldKind::KernelGeo => match connection_view::destination_geo_fact(
-                item.destination_geo_ip.as_deref(),
-            ) {
-                connection_view::DestinationGeoFact::NotEvaluated => {
-                    "目标地理归属（/connections destinationGeoIP）: 内核未对本次连接求值（需 GEOIP 规则）"
-                        .to_owned()
-                }
-                connection_view::DestinationGeoFact::NoResult => {
-                    "目标地理归属（/connections destinationGeoIP）: 内核已求值 · 无该 IP 的记录".to_owned()
-                }
-                connection_view::DestinationGeoFact::Codes(codes) => {
-                    format!(
-                        "目标地理归属（/connections destinationGeoIP）: {}",
-                        codes.join(", ")
-                    )
-                }
-            },
+            ConnDrawerFieldKind::KernelAsn => format!(
+                "{}: {}",
+                lang.tr("conn_drawer_kernel_asn"),
+                kernel_asn_label(&item.destination_ip_asn, &translate)
+            ),
+            ConnDrawerFieldKind::KernelGeo => format!(
+                "{}: {}",
+                lang.tr("conn_drawer_kernel_geo"),
+                kernel_geo_label(item.destination_geo_ip.as_deref(), &translate)
+            ),
         };
     }
     for (mut text, marker) in hops.iter_mut() {
@@ -481,5 +508,69 @@ fn restamp_drawer<F, H, S>(
         } else {
             Display::None
         };
+    }
+}
+
+type DrawerFieldFilter = (Without<ConnDrawerHopText>, Without<ConnDrawerRuleDraft>);
+type DrawerHopFilter = (
+    With<ConnDrawerHopText>,
+    Without<ConnDrawerField>,
+    Without<ConnDrawerRuleDraft>,
+);
+type DrawerSlotFilter = (
+    With<ConnDrawerHopSlot>,
+    Without<ConnDrawerField>,
+    Without<ConnDrawerRuleDraft>,
+);
+
+/// Live refresh follows identity through reorder and dismisses a vanished connection.
+pub fn reconcile_connection_inspection(
+    last: Option<Res<LastConnectionsProjection>>,
+    mut state: ResMut<ConnectionsDrawerState>,
+    mut fields: Query<(&mut Text, &ConnDrawerField), DrawerFieldFilter>,
+    mut hops: Query<(&mut Text, &ConnDrawerHopText), DrawerHopFilter>,
+    mut slots: Query<(&mut Node, &ConnDrawerHopSlot), DrawerSlotFilter>,
+) {
+    let Some(last) = last else {
+        return;
+    };
+    if !state.open || (!last.is_changed() && !state.is_changed()) {
+        return;
+    }
+    let selected = state.selected_id.as_ref().and_then(|id| {
+        last.0.as_ref().and_then(|projection| {
+            projection
+                .connections
+                .iter()
+                .position(|item| &item.id == id)
+        })
+    });
+    let Some(index) = selected else {
+        *state = ConnectionsDrawerState::default();
+        return;
+    };
+    state.selected = Some(index);
+    restamp_drawer(
+        last.0.as_ref().expect("selected connection projection"),
+        index,
+        &mut fields,
+        &mut hops,
+        &mut slots,
+    );
+}
+
+/// Closing an inspector discards its selection and never submits a command.
+pub fn dismiss_connection_inspection(
+    route: Res<ActiveRoute>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    mut state: ResMut<ConnectionsDrawerState>,
+) {
+    if state.open
+        && (route.0 != Some(Route::Connections)
+            || keys.is_some_and(|keys| keys.just_pressed(KeyCode::Escape)))
+    {
+        state.open = false;
+        state.selected = None;
+        state.selected_id = None;
     }
 }

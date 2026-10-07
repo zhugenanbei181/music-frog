@@ -42,6 +42,15 @@ rejects every imperative/parallel structure route instead:
   fields in place (``node.width = ...``); ``..Node::default()`` spreads inside
   a scene are fine. ``accesskit::Node::new`` is the one mechanical exemption —
   that ``Node`` is the accessibility tree, not UI structure.
+* BEVY-ECS-007 — unrestricted World/EntityWorldMut/UnsafeWorldCell and
+  runtime SystemState access are forbidden, including fields, wrappers and
+  exclusive systems. DeferredWorld is also forbidden: lifecycle observers
+  declare precise ECS access rather than receiving an unrestricted context.
+* BEVY-ECS-008 — App world access is forbidden in production, including plugin
+  assembly. Assets and captures initialize through restricted systems.
+* BEVY-ECS-009 — query complexity and argument-count lint suppression is
+  forbidden. Declare precise QueryData/QueryFilter and cohesive SystemParam
+  access; blanket warnings/clippy suppressions cannot bypass this boundary.
 * BEVY-BSN-006 — the mount seam must stay a seam: ``.insert(ChildOf(...))``
   (direct or tuple-first argument) is only legal inside the same statement as
   a ``spawn_scene`` call — the ``spawn_scene(scene).insert(ChildOf(slot))``
@@ -87,6 +96,7 @@ import pathlib
 import re
 import sys
 from dataclasses import dataclass
+from rust_syntax import mask_noncode, mask_test_items
 
 SCAN_ROOTS = (
     "crates/infiltrator-bevy-widgets/src",
@@ -275,6 +285,18 @@ def mount_anchored_to_spawn_scene(masked: str, offset: int) -> bool:
     return "spawn_scene" in masked[statement_start:offset]
 
 
+def balanced_end(masked: str, opening: int, left: str, right: str) -> int | None:
+    depth = 0
+    for index in range(opening, len(masked)):
+        if masked[index] == left:
+            depth += 1
+        elif masked[index] == right:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
+
+
 def analyze(rel_path: str, text: str) -> list[Violation]:
     """Violations for one file: `text` is raw Rust, masking happens here."""
     original = text
@@ -351,6 +373,20 @@ def analyze(rel_path: str, text: str) -> list[Violation]:
                 "direct entity spawn is forbidden; mount UI through spawn_scene",
             )
         )
+    runtime = mask_test_items(mask_noncode(text))
+    for match in re.finditer(r"\b(?:World|DeferredWorld|EntityWorldMut|UnsafeWorldCell|SystemState)\b", runtime):
+        violations.append(Violation(rel_path, line_number(original, match.start()), "BEVY-ECS-007",
+            "unrestricted ECS access is forbidden in runtime code; declare Query/resources/events"))
+    for match in re.finditer(r"(?:\.\s*|\bApp\s*::\s*)world(?:_mut)?\s*\(", runtime):
+        violations.append(Violation(rel_path, line_number(original, match.start()), "BEVY-ECS-008",
+            "App world access is forbidden in production; initialize through scoped systems"))
+    suppression = re.compile(
+        r"#\s*!?\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*"
+        r"(?:\bclippy\s*::\s*(?:type_complexity|too_many_arguments|all)\b|\bwarnings\b)"
+    )
+    for match in suppression.finditer(runtime):
+        violations.append(Violation(rel_path, line_number(original, match.start()), "BEVY-ECS-009",
+            "ECS access complexity cannot be suppressed; declare typed queries and scoped parameters"))
     return violations
 
 
@@ -425,6 +461,32 @@ def self_test() -> int:
             ok = False
             print(f"  [FAIL] {label}: expected {want}, found {got}")
 
+    expect("lifetime-bound World access is still forbidden", "fn business<'w>(world: &'w mut World) {}", ["BEVY-ECS-007"])
+    expect("exclusive World system is forbidden", "fn business(world: &mut World) {}", ["BEVY-ECS-007"])
+    expect("quoted comment cannot hide a World system", '// next "caption"\nfn business(world: &mut World) {}', ["BEVY-ECS-007"])
+    expect("World field and query wrapper cannot disguise access", "struct Scope { world: World, state: SystemState<Res<X>> }", ["BEVY-ECS-007", "BEVY-ECS-007"])
+    expect("test assembly is masked but subsequent runtime remains checked", "#[cfg(test)] fn fixture(world: &mut World) {} fn runtime(world: &World) {}", ["BEVY-ECS-007"])
+    expect("restricted ECS parameters are allowed", "fn business(query: Query<&Fact>, state: Res<State>, commands: Commands) {}", [])
+    expect("lifecycle observers declare restricted parameters", "fn hook(insert: On<Insert<Copy>>, query: Query<&Copy>, commands: Commands) {}", [])
+    expect("business cannot substitute App for World", "fn business(app: &mut App) { app.world_mut().resource_mut::<State>(); }", ["BEVY-ECS-008"])
+    expect("capture install cannot edit live world", "fn install(app: &mut App) { app.world().resource::<State>(); }", ["BEVY-ECS-008"])
+    expect("a build name is not a Plugin boundary", "impl Service { fn build(app: &mut App) { app.world_mut(); } }", ["BEVY-ECS-008"])
+    expect("plugin assembly cannot bypass scoped access", "impl Plugin for Skin { fn build(&self, app: &mut App) { app.world_mut().register_required_components::<A, B>(); } }", ["BEVY-ECS-008"])
+    expect("framework registration uses App API", "impl Plugin for Skin { fn build(&self, app: &mut App) { app.register_required_components::<A, B>(); } }", [])
+    expect("UFCS cannot acquire application World", "fn install(app: &mut App) { App::world_mut(app); }", ["BEVY-ECS-008"])
+    expect("inner lint suppression is forbidden", "#![allow(clippy::type_complexity)] fn edit() {}", ["BEVY-ECS-009"])
+    expect("query lint suppression is forbidden", "#[allow(clippy::type_complexity)] fn draw() {}", ["BEVY-ECS-009"])
+    expect("argument lint expectation is still suppression", "#[expect(clippy::too_many_arguments)] fn edit() {}", ["BEVY-ECS-009"])
+    expect("conditional suppression cannot bypass the boundary", "#[cfg_attr(feature = \"render\", allow(clippy::type_complexity))] fn edit() {}", ["BEVY-ECS-009"])
+    expect("combined multiline suppression is forbidden", "#[allow(\nclippy::too_many_arguments,\nclippy::type_complexity\n)] fn edit() {}", ["BEVY-ECS-009"])
+    expect("blanket warnings cannot hide access complexity", "#[allow(warnings)] fn edit() {}", ["BEVY-ECS-009"])
+    expect("blanket clippy cannot hide access complexity", "#[allow(clippy::all)] fn edit() {}", ["BEVY-ECS-009"])
+    expect("unrelated lint and literal text do not fake a boundary violation", "#[allow(non_upper_case_globals)] const x: &str = \"#[allow(clippy::type_complexity)]\";", [])
+    expect("ordinary DeferredWorld input is forbidden", "fn business(world: DeferredWorld) {}", ["BEVY-ECS-007"])
+    expect("DeferredWorld fields cannot hide access", "struct Service<'w> { access: DeferredWorld<'w> }", ["BEVY-ECS-007"])
+    expect("a hook cannot forward its entire context", "fn hook(mut world: DeferredWorld, context: HookContext) { business(world); }", ["BEVY-ECS-007"])
+    expect("a hook cannot borrow its entire context", "fn hook(mut world: DeferredWorld, context: HookContext) { business(&mut world); }", ["BEVY-ECS-007"])
+    expect("a hook cannot obtain the whole context even for component access", "fn hook(mut world: DeferredWorld, context: HookContext) { let copy = world.get::<Copy>(context.entity); }", ["BEVY-ECS-007"])
     expect(
         "bsn! scene with Node/Children/Text is the sanctioned route",
         """

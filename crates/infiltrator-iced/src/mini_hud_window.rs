@@ -13,11 +13,13 @@
 //! tasks on the update path. A host without a live window stays typed
 //! unsupported instead of claiming the window moved.
 
+use crate::host::mini_hud::bind_window_handle;
 use crate::types::message::Message;
-use iced::window::{Id, Level};
-use iced::{Point, Size, Task};
+use iced::window::{Id, Level, resize, set_min_size, set_resizable};
+use iced::{Point, Size, Task, window};
 use infiltrator_contract::mini_hud::MiniHudPlacement;
 use infiltrator_ports::mini_hud_window::MiniHudWindowHandle;
+use std::mem::take;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -61,7 +63,7 @@ impl IcedMiniHudWindowHandle {
     /// Take the placements the host port accepted while the window was live.
     pub fn take_pending(&self) -> Vec<MiniHudPlacement> {
         match self.state.pending.lock() {
-            Ok(mut pending) => std::mem::take(&mut *pending),
+            Ok(mut pending) => take(&mut *pending),
             Err(_) => Vec::new(),
         }
     }
@@ -100,7 +102,7 @@ impl MiniHudWindowHandle for IcedMiniHudWindowHandle {
 /// composition constructor; binding is idempotent.
 pub fn install_host_handle() -> Arc<IcedMiniHudWindowHandle> {
     let handle = IcedMiniHudWindowHandle::host();
-    crate::host::mini_hud::bind_window_handle(handle.clone());
+    bind_window_handle(handle.clone());
     handle
 }
 
@@ -110,9 +112,9 @@ pub fn enter(window: Option<Id>, placement: MiniHudPlacement) -> Task<Message> {
         return Task::none();
     };
     Task::batch(vec![
-        iced::window::set_resizable(id, false),
-        iced::window::set_min_size(id, Some(Size::new(HUD_SIZE.0, HUD_SIZE.1))),
-        iced::window::resize(id, Size::new(HUD_SIZE.0, HUD_SIZE.1)),
+        set_resizable(id, false),
+        set_min_size(id, Some(Size::new(HUD_SIZE.0, HUD_SIZE.1))),
+        resize(id, Size::new(HUD_SIZE.0, HUD_SIZE.1)),
         move_to(window, placement),
         set_level(window, placement.pinned),
     ])
@@ -124,17 +126,17 @@ pub fn exit(window: Option<Id>) -> Task<Message> {
         return Task::none();
     };
     Task::batch(vec![
-        iced::window::set_min_size(id, Some(Size::new(MAIN_MIN_SIZE.0, MAIN_MIN_SIZE.1))),
-        iced::window::resize(id, Size::new(MAIN_SIZE.0, MAIN_SIZE.1)),
-        iced::window::set_resizable(id, true),
-        iced::window::set_level(id, Level::Normal),
+        set_min_size(id, Some(Size::new(MAIN_MIN_SIZE.0, MAIN_MIN_SIZE.1))),
+        resize(id, Size::new(MAIN_SIZE.0, MAIN_SIZE.1)),
+        set_resizable(id, true),
+        window::set_level(id, Level::Normal),
     ])
 }
 
 /// Move the window to the persisted placement.
 pub fn move_to(window: Option<Id>, placement: MiniHudPlacement) -> Task<Message> {
     match window {
-        Some(id) => iced::window::move_to(id, Point::new(placement.x as f32, placement.y as f32)),
+        Some(id) => window::move_to(id, Point::new(placement.x as f32, placement.y as f32)),
         None => Task::none(),
     }
 }
@@ -142,7 +144,7 @@ pub fn move_to(window: Option<Id>, placement: MiniHudPlacement) -> Task<Message>
 /// Apply the always-on-top level (only meaningful while the HUD is mounted).
 pub fn set_level(window: Option<Id>, pinned: bool) -> Task<Message> {
     match window {
-        Some(id) => iced::window::set_level(
+        Some(id) => window::set_level(
             id,
             if pinned {
                 Level::AlwaysOnTop
@@ -172,8 +174,8 @@ pub fn host_requests_task(window: Option<Id>) -> Task<Message> {
             .into_iter()
             .flat_map(|placement| {
                 [
-                    iced::window::move_to(id, Point::new(placement.x as f32, placement.y as f32)),
-                    iced::window::set_level(
+                    window::move_to(id, Point::new(placement.x as f32, placement.y as f32)),
+                    window::set_level(
                         id,
                         if placement.pinned {
                             Level::AlwaysOnTop

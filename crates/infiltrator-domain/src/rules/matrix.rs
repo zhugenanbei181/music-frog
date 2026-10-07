@@ -10,6 +10,7 @@
 //! Iced editor already tolerated (`DOMAINSUFFIX`, `ipcidr6`) keep resolving.
 
 use super::types::RuleType;
+use crate::sub_rules::LogicalRuleAst;
 
 /// Semantic family of a rule type. Surfaces map this to their own chip/badge
 /// colors; the domain never names a UI color.
@@ -71,7 +72,7 @@ pub struct RuleTypeSpec {
     /// Display label shared by both surfaces (`DomainSuffix`).
     pub label: &'static str,
     pub family: RuleTypeFamily,
-    /// Whether the rule type composes other rules (`AND(...)`).
+    /// Whether the rule type composes other rules (`AND,((...))`).
     pub is_logical: bool,
     /// Whether the parsed rule accepts a trailing `no-resolve` flag.
     pub accepts_no_resolve: bool,
@@ -87,7 +88,7 @@ pub const UNKNOWN_RULE_TYPE_SPEC: RuleTypeSpec = RuleTypeSpec {
 };
 
 /// Every rule-type spelling the dual surface renders, in presentation order.
-pub const RULE_TYPE_MATRIX: [RuleTypeSpec; 33] = [
+pub const RULE_TYPE_MATRIX: [RuleTypeSpec; 34] = [
     spec("DOMAIN", "Domain", RuleTypeFamily::Host, false, false),
     spec(
         "DOMAIN-SUFFIX",
@@ -110,7 +111,7 @@ pub const RULE_TYPE_MATRIX: [RuleTypeSpec; 33] = [
         false,
         false,
     ),
-    spec("RULE-SET", "RuleSet", RuleTypeFamily::Host, false, false),
+    spec("RULE-SET", "RuleSet", RuleTypeFamily::Host, false, true),
     spec("GEOSITE", "GeoSite", RuleTypeFamily::Geo, false, false),
     spec("GEOIP", "GeoIP", RuleTypeFamily::Geo, false, true),
     spec("SRC-GEOIP", "SrcGeoIP", RuleTypeFamily::Geo, false, true),
@@ -188,11 +189,24 @@ pub const RULE_TYPE_MATRIX: [RuleTypeSpec; 33] = [
         false,
         false,
     ),
-    spec("AND", "And", RuleTypeFamily::Composite, true, true),
-    spec("OR", "Or", RuleTypeFamily::Composite, true, true),
-    spec("NOT", "Not", RuleTypeFamily::Composite, true, true),
-    spec("SUB-RULE", "SubRule", RuleTypeFamily::Composite, true, true),
+    spec("AND", "And", RuleTypeFamily::Composite, true, false),
+    spec("OR", "Or", RuleTypeFamily::Composite, true, false),
+    spec("NOT", "Not", RuleTypeFamily::Composite, true, false),
+    spec(
+        "SUB-RULE",
+        "SubRule",
+        RuleTypeFamily::Composite,
+        true,
+        false,
+    ),
     spec("MATCH", "Match", RuleTypeFamily::Terminal, false, false),
+    spec(
+        "SRC-IP-SUFFIX",
+        "SrcIPSuffix",
+        RuleTypeFamily::Address,
+        false,
+        true,
+    ),
 ];
 
 const fn spec(
@@ -279,6 +293,7 @@ impl RuleType {
             Self::IpCidr(_) => &RULE_TYPE_MATRIX[8],
             Self::IpCidr6(_) => &RULE_TYPE_MATRIX[9],
             Self::IpSuffix(_) => &RULE_TYPE_MATRIX[10],
+            Self::SrcIpSuffix(_) => &RULE_TYPE_MATRIX[33],
             Self::IpAsn(_) => &RULE_TYPE_MATRIX[11],
             Self::SrcIpCidr(_) => &RULE_TYPE_MATRIX[12],
             Self::SrcIpAsn(_) => &RULE_TYPE_MATRIX[13],
@@ -297,11 +312,11 @@ impl RuleType {
             Self::ProcessName(_) => &RULE_TYPE_MATRIX[26],
             Self::ProcessNameRegex(_) => &RULE_TYPE_MATRIX[27],
             Self::Logical(logical) => match &logical.payload {
-                crate::sub_rules::LogicalRuleAst::And(_) => &RULE_TYPE_MATRIX[28],
-                crate::sub_rules::LogicalRuleAst::Or(_) => &RULE_TYPE_MATRIX[29],
-                crate::sub_rules::LogicalRuleAst::Not(_) => &RULE_TYPE_MATRIX[30],
-                crate::sub_rules::LogicalRuleAst::SubRule(_) => &RULE_TYPE_MATRIX[31],
-                crate::sub_rules::LogicalRuleAst::Leaf(_) => &RULE_TYPE_MATRIX[32],
+                LogicalRuleAst::And(_) => &RULE_TYPE_MATRIX[28],
+                LogicalRuleAst::Or(_) => &RULE_TYPE_MATRIX[29],
+                LogicalRuleAst::Not(_) => &RULE_TYPE_MATRIX[30],
+                LogicalRuleAst::SubRule(_) => &RULE_TYPE_MATRIX[31],
+                LogicalRuleAst::Leaf(_) => &RULE_TYPE_MATRIX[32],
             },
             Self::Match => &RULE_TYPE_MATRIX[32],
             Self::Unknown(_, _) => &UNKNOWN_RULE_TYPE_SPEC,
@@ -362,7 +377,11 @@ mod tests {
     fn every_catalogue_entry_parses_to_its_own_spelling() {
         for spec in RULE_TYPE_MATRIX.iter() {
             let parsed = if spec.is_logical {
-                parse_rule_str(&format!("{}((DOMAIN,a.com),TARGET)", spec.name))
+                parse_rule_str(&if spec.name == "SUB-RULE" {
+                    "SUB-RULE,(DOMAIN,a.com),TARGET".to_owned()
+                } else {
+                    format!("{},((DOMAIN,a.com)),TARGET", spec.name)
+                })
             } else if spec.name == "MATCH" {
                 parse_rule_str("MATCH,TARGET")
             } else {
@@ -413,6 +432,7 @@ mod tests {
             RuleType::IpCidr(payload.clone()),
             RuleType::IpCidr6(payload.clone()),
             RuleType::IpSuffix(payload.clone()),
+            RuleType::SrcIpSuffix(payload.clone()),
             RuleType::IpAsn(payload.clone()),
             RuleType::SrcIpCidr(payload.clone()),
             RuleType::SrcIpAsn(payload.clone()),
@@ -437,10 +457,10 @@ mod tests {
             assert_eq!(matrix_label(variant.name()), variant.spec().label);
         }
         let logical = [
-            ("AND((DOMAIN,a.com),T)", "AND"),
-            ("OR((DOMAIN,a.com),T)", "OR"),
-            ("NOT((DOMAIN,a.com),T)", "NOT"),
-            ("SUB-RULE((DOMAIN,a.com),T)", "SUB-RULE"),
+            ("AND,((DOMAIN,a.com)),T", "AND"),
+            ("OR,((DOMAIN,a.com)),T", "OR"),
+            ("NOT,((DOMAIN,a.com)),T", "NOT"),
+            ("SUB-RULE,(DOMAIN,a.com),T", "SUB-RULE"),
         ];
         for (raw, spelling) in logical {
             let parsed = parse_rule_str(raw).unwrap();

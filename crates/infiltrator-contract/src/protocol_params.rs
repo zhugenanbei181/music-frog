@@ -19,13 +19,13 @@
 //! facts the pinned core silently ignores/falls back on are notes rather than
 //! blocking issues (see [`ProtocolParamsReport::notes`]).
 
-use serde::{Deserialize, Serialize};
-
 use crate::protocol_fidelity::{ProtocolDraft, ProtocolFamily, ProtocolIssue};
 use crate::protocol_params_ext::{
     AnyTlsParams, Sip003Plugin, SshParams, TransportParams, TrojanSsParams, WireGuardParams,
     is_base64, is_positive_number_or_bandwidth, note, push,
 };
+use crate::protocol_trust::TlsTrustParams;
+use serde::{Deserialize, Serialize};
 
 /// SIP003 plugins the pinned mihomo v1.19.18 implements (`adapter/outbound/shadowsocks.go`).
 pub const KNOWN_SIP003_PLUGINS: [&str; 6] = [
@@ -389,7 +389,7 @@ pub struct ProtocolParams {
     pub anytls: AnyTlsParams,
     pub trojan_ss: TrojanSsParams,
     /// DUAL-05-13: custom CA / certificate whitelist.
-    pub tls_trust: crate::protocol_trust::TlsTrustParams,
+    pub tls_trust: TlsTrustParams,
 }
 
 impl ProtocolParams {

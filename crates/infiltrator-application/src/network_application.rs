@@ -1,6 +1,6 @@
 //! Public-egress network use-cases over an injected probe port.
 
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::PublicIpSnapshot;
 use infiltrator_ports::public_ip_probe::PublicIpProbe;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
@@ -36,7 +36,7 @@ impl NetworkApplication {
             .map_err(Failure::from)?
             .ok_or_else(|| {
                 Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
+                    ErrorCode::NotReady,
                     "no usable HTTP proxy endpoint is configured",
                     false,
                 )

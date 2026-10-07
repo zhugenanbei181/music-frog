@@ -7,6 +7,7 @@
 //! unsupported status and the command answers with a typed refusal instead of
 //! a fabricated number.
 
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::dns_latency::{
     DnsLatencyProbeRequest, DnsLatencyReport, DnsLatencyStatus, DnsProbeTarget, MAX_REPORTED_RTT_MS,
 };
@@ -76,17 +77,14 @@ impl DnsLatencyApplication {
 
 /// The application is itself the host port surfaces call, so a probe started
 /// from either surface lands in the one shared `last` report the reader
-/// publishes. This mirrors `RuleTracerApplication` implementing `RuleTracerPort`.
+/// publishes. Commands and readers share this application instance.
 #[async_trait::async_trait]
 impl DnsLatencyProbePort for DnsLatencyApplication {
     async fn probe(&self, request: DnsLatencyProbeRequest) -> Result<DnsLatencyReport, PortError> {
         let Some(port) = self.port.as_ref() else {
             let report = DnsLatencyReport::unsupported(NO_PROBER_REASON);
             *self.last.lock().expect("dns latency report lock") = report;
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Dns,
-                NO_PROBER_REASON,
-            ));
+            return Err(PortError::unsupported(Capability::Dns, NO_PROBER_REASON));
         };
         let timeout_ms = request.timeout_ms.min(MAX_REPORTED_RTT_MS);
         let request = request.with_timeout_ms(timeout_ms);

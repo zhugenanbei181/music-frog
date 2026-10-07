@@ -1,11 +1,9 @@
 //! Pure derivation of the selected active outbound node from Mihomo proxies.
 
-use std::collections::HashMap;
-
-use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
-
 use crate::filter::extract_country_code;
 use crate::proxy::Proxy;
+use infiltrator_contract::active_exit::{ActiveExitSnapshot, ActiveExitStatus};
+use std::collections::HashMap;
 
 /// Derive the selected exit from the controller's proxy map. Selection is
 /// deterministic: `PROXIES`, then `GLOBAL`, then the first sorted group.

@@ -5,37 +5,56 @@
 //! command (`LoadProfileOptions`, `SaveMixinOverlay`, `SaveSubscriptionFilter`)
 //! and every rendered fact is restamped from the shared projection.
 
-use bevy::app::{App, Plugin, Update};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::command_events::CommandExecutedEvent;
+use crate::pages::profiles::{
+    LastProfilesProjection, ProfilesProjection, ProfilesProjectionUpdated,
+};
+use crate::pages::profiles_editor_body::editor_rows_scene;
+use crate::pages::profiles_editor_copy::replay_mixin_copy;
+use crate::pages::profiles_editor_filter::{self, EditorFilterText};
+use crate::pages::profiles_editor_mixin_studio::{
+    on_mixin_toggle_activated, refresh_mixin_studio_body,
+};
+use crate::pages::profiles_editor_panes::{
+    EditorFilterDedupButton, EditorFilterField, EditorFilterSaveButton, EditorFilterStatusText,
+    MixinEditorBody, MixinEditorDiagnosticPill, MixinEditorDiagnosticText, MixinEditorFocusButton,
+    MixinEditorReloadButton, MixinEditorSaveButton, MixinEditorSnippetButton,
+    MixinEditorStatusText, ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneArea,
+    ProfileEditorPaneButton,
+};
+use crate::pages::profiles_editor_state::ProfileEditorState;
+use crate::pages::profiles_editor_transactions::{self, submit_document, submit_mixin};
+use crate::pages::profiles_mixin_copy::replay_studio_copy;
+use crate::pages::profiles_script_workbench::ScriptWorkbenchState;
+use crate::pages::snapshot_restore::RestoreState;
+use crate::shortcuts::modifiers_from_keyboard;
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
-use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::ButtonState;
+use bevy::ecs::query::{QueryFilter, With, Without};
+use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::{ButtonInput, ButtonState};
+use bevy::input_focus::InputFocus;
 use bevy::scene::CommandsSceneExt;
-use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, Display, Node};
-use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
-use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
-use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles::{LastProfilesProjection, ProfilesProjection};
-use crate::pages::profiles_editor_body::editor_rows_scene;
-use crate::pages::profiles_editor_panes::{
-    EditorFilterDedupButton, EditorFilterField, EditorFilterFieldKind, EditorFilterSaveButton,
-    EditorFilterStatusText, MixinEditorBody, MixinEditorDiagnosticPill, MixinEditorDiagnosticText,
-    MixinEditorFocusButton, MixinEditorReloadButton, MixinEditorSaveButton,
-    MixinEditorSnippetButton, MixinEditorStatusText, ProfileEditorOptionsState, ProfileEditorPane,
-    ProfileEditorPaneArea, ProfileEditorPaneButton, chip_background, filter_status_line,
+use infiltrator_bevy_widgets::button::{
+    sync_button_disabled, sync_control_labels, sync_control_visuals,
 };
-use crate::pages::profiles_editor_state::{ProfileEditorState, diagnostic_line, status_line};
+use infiltrator_bevy_widgets::multiline_editor::MultilineEditor;
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::text_input::render::sync_text_fields;
+use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
+use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
+use infiltrator_domain::mixin_studio::preflight_mixin;
 
 /// Toggle each pane area to the active pane and restamp the switcher chips.
 pub fn sync_profile_editor_pane_areas(
@@ -68,7 +87,7 @@ pub fn sync_profile_editor_pane_areas(
 
 /// The profile the editor card is bound to: the loaded document's profile, or
 /// the active profile in the shared projection when nothing is loaded yet.
-fn editor_profile(
+pub(super) fn editor_profile(
     document: &ProfileEditorState,
     last: Option<&ProfilesProjection>,
 ) -> Option<String> {
@@ -85,69 +104,58 @@ fn editor_profile(
 }
 
 /// Adopt the shared sidecar snapshot and restamp the pane status lines.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+#[derive(QueryFilter)]
+pub struct MixinStatusFilter {
+    status: With<MixinEditorStatusText>,
+    filter: Without<EditorFilterStatusText>,
+    diagnostic: Without<MixinEditorDiagnosticText>,
+    pill: Without<MixinEditorDiagnosticPill>,
+}
+#[derive(QueryFilter)]
+pub struct MixinDiagnosticFilter {
+    diagnostic: With<MixinEditorDiagnosticText>,
+    status: Without<MixinEditorStatusText>,
+    filter: Without<EditorFilterStatusText>,
+    pill: Without<MixinEditorDiagnosticPill>,
+}
+#[derive(QueryFilter)]
+pub struct MixinPillFilter {
+    pill: With<MixinEditorDiagnosticPill>,
+    status: Without<MixinEditorStatusText>,
+    filter: Without<EditorFilterStatusText>,
+    diagnostic: Without<MixinEditorDiagnosticText>,
+}
+#[derive(SystemParam)]
+pub struct EditorPaneProjection<'w, 's> {
+    options: ResMut<'w, ProfileEditorOptionsState>,
+    document: Res<'w, ProfileEditorState>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    filter_inputs: Query<'w, 's, (&'static EditorFilterText, &'static TextField)>,
+}
 pub fn sync_profile_editor_panes(
-    update: On<crate::pages::profiles::ProfilesProjectionUpdated>,
-    mut options: ResMut<ProfileEditorOptionsState>,
-    document: Res<ProfileEditorState>,
-    palette: Res<UiPalette>,
-    handle: Option<Res<CommandSinkHandle>>,
-    mut mixin_status: Query<
-        &mut Text,
-        (
-            With<MixinEditorStatusText>,
-            Without<EditorFilterStatusText>,
-            Without<MixinEditorDiagnosticText>,
-            Without<MixinEditorDiagnosticPill>,
-        ),
-    >,
-    mut mixin_diagnostics: Query<
-        (&mut Text, &mut TextColor),
-        (
-            With<MixinEditorDiagnosticText>,
-            Without<MixinEditorStatusText>,
-            Without<EditorFilterStatusText>,
-            Without<MixinEditorDiagnosticPill>,
-        ),
-    >,
-    mut filter_status: Query<
-        &mut Text,
-        (
-            With<EditorFilterStatusText>,
-            Without<MixinEditorStatusText>,
-            Without<MixinEditorDiagnosticText>,
-            Without<MixinEditorDiagnosticPill>,
-        ),
-    >,
-    mut pills: Query<
-        (&mut Text, &mut BackgroundColor),
-        (
-            With<MixinEditorDiagnosticPill>,
-            Without<MixinEditorStatusText>,
-            Without<EditorFilterStatusText>,
-            Without<MixinEditorDiagnosticText>,
-        ),
-    >,
-    mut dedup_chips: Query<
-        (&EditorFilterDedupButton, &mut BackgroundColor),
-        (
-            Without<MixinEditorDiagnosticPill>,
-            Without<MixinEditorStatusText>,
-            Without<EditorFilterStatusText>,
-        ),
-    >,
-    fields: Query<(&EditorFilterField, &Children)>,
-    mut text_fields: Query<&mut TextField>,
+    update: On<ProfilesProjectionUpdated>,
+    view: EditorPaneProjection,
 ) {
+    let EditorPaneProjection {
+        mut options,
+        document,
+        handle,
+        filter_inputs,
+    } = view;
+    profiles_editor_filter::capture(&mut options, &filter_inputs);
     let projection = &update.0;
     let profile = editor_profile(&document, Some(projection));
     if let Some(snapshot) = projection.profile_options.as_ref()
         && profile
             .as_deref()
-            .is_none_or(|name| name == snapshot.profile.as_str())
+            .is_none_or(|name| name == snapshot.source.profile.as_str())
     {
-        options.adopt_snapshot(&snapshot.profile, &snapshot.mixin_yaml, &snapshot.filter);
+        options.adopt_snapshot(&snapshot.source, &snapshot.mixin_yaml, &snapshot.filter);
     }
+    options
+        .mixin
+        .session
+        .observe_read_status(&projection.editor_read, true);
     // The pane may have been opened before the document (and therefore the
     // sidecar profile) was known; ask the shared application once it is, so an
     // open pane never sits blank until the user clicks reload.
@@ -156,73 +164,9 @@ pub fn sync_profile_editor_panes(
         && projection
             .profile_options
             .as_ref()
-            .is_none_or(|snapshot| snapshot.profile != profile)
+            .is_none_or(|snapshot| snapshot.source.profile != profile)
     {
         request_sidecar(&mut options, profile, handle);
-    }
-
-    // Mixin status line: the shared status projection, never a local guess.
-    let status = status_line(&options.mixin, Some(projection));
-    for mut text in &mut mixin_status {
-        if text.0 != status {
-            text.0 = status.clone();
-        }
-    }
-
-    // Mixin shared preflight verdict + its pill.
-    let (diagnostic_text, has_error) = diagnostic_line(&options.mixin);
-    let verdict_color = if has_error {
-        palette.danger
-    } else {
-        palette.success
-    };
-    for (mut text, mut text_color) in &mut mixin_diagnostics {
-        if text.0 != diagnostic_text {
-            text.0 = diagnostic_text.clone();
-        }
-        if text_color.0 != verdict_color {
-            text_color.0 = verdict_color;
-        }
-    }
-    let pill_label = if has_error {
-        "语法错误".to_owned()
-    } else {
-        "语法通过".to_owned()
-    };
-    for (mut text, mut background) in &mut pills {
-        if text.0 != pill_label {
-            text.0 = pill_label.clone();
-        }
-        if background.0 != verdict_color {
-            background.0 = verdict_color;
-        }
-    }
-
-    // Filter pane: restamp the four fields + dedup chips from the shared draft.
-    for (field, children) in &fields {
-        let Some(editor_kind) = field.kind else {
-            continue;
-        };
-        let value = editor_kind.draft_field().value(&options.filter).to_owned();
-        for child in children.iter() {
-            if let Ok(mut text_field) = text_fields.get_mut(*child)
-                && text_field.0.text() != value
-            {
-                text_field.0.apply(TextFieldInput::SetText(value.clone()));
-            }
-        }
-    }
-    for (chip, mut background) in &mut dedup_chips {
-        let target = chip_background(options.filter.dedup_index == chip.index, &palette);
-        if background.0 != target {
-            background.0 = target;
-        }
-    }
-    let filter_text = filter_status_line(&options);
-    for mut text in &mut filter_status {
-        if text.0 != filter_text {
-            text.0 = filter_text.clone();
-        }
     }
 }
 
@@ -325,30 +269,26 @@ pub fn on_mixin_editor_save(
         return;
     }
     let projection = last.as_ref().and_then(|last| last.0.as_ref());
-    let Some(profile) = editor_profile(&document, projection) else {
+    if editor_profile(&document, projection).is_none() {
         return;
-    };
-    if options.mixin.diagnostic.is_some() {
-        options.mixin.notice = Some("Mixin 覆盖未通过共享语法预检，未提交".to_owned());
+    }
+    if let Some(diagnostic) = options.mixin.diagnostic.as_ref() {
+        options.mixin.notice = Some(diagnostic.message.clone());
         return;
     }
     // DUAL-10-10: the shared preflight (syntax + merge + output validation)
     // is the real gate; a local YAML-only check would miss a merge that the
     // kernel cannot load.
     let base = document.buffer.full_text();
-    let report =
-        infiltrator_domain::mixin_studio::preflight_mixin(&base, &options.mixin.buffer.full_text());
+    let report = preflight_mixin(&base, &options.mixin.buffer.full_text());
     if let Some(error) = report.error {
-        options.mixin.notice = Some(format!("Mixin 覆盖未通过共享预检：{error}"));
+        options.mixin.notice = Some(error);
         return;
     }
     options.mixin.notice = None;
     // The dirty flag clears when the shared snapshot publishes the stored
     // bytes back (a failed save leaves the buffer marked as unsaved).
-    handle.submit(UiCommand::SaveMixinOverlay {
-        profile,
-        mixin_yaml: options.mixin.buffer.full_text(),
-    });
+    submit_mixin(&mut options.mixin, &handle);
 }
 
 /// Grab the keyboard for the Mixin buffer.
@@ -358,6 +298,9 @@ pub fn on_mixin_editor_focus(
     mut options: ResMut<ProfileEditorOptionsState>,
 ) {
     if buttons.get(activate.entity).is_err() {
+        return;
+    }
+    if !options.mixin.session.can_edit() {
         return;
     }
     options.mixin.focused = !options.mixin.focused;
@@ -373,10 +316,12 @@ pub fn on_mixin_editor_snippet_activated(
     let Ok(button) = buttons.get(activate.entity) else {
         return;
     };
-    let Some(snippet) = infiltrator_contract::yaml_snippets::YAML_SNIPPETS.get(button.index) else {
+    let Some(snippet) = YAML_SNIPPETS.get(button.index) else {
         return;
     };
-    let _ = options.mixin.insert_snippet(snippet.id);
+    if options.mixin.session.can_edit() {
+        let _ = options.mixin.insert_snippet(snippet.id);
+    }
 }
 
 /// Pick the dedup strategy of the shared draft.
@@ -388,8 +333,9 @@ pub fn on_editor_filter_dedup_activated(
     let Ok(button) = buttons.get(activate.entity) else {
         return;
     };
-    options.filter.dedup_index = button.index;
-    options.filter_notice = None;
+    if let Some(mode) = SubscriptionFilterDedup::from_index(button.index) {
+        options.filter.pick(mode);
+    }
 }
 
 /// Commit the shared filter draft. The shared parser gates the submit first,
@@ -402,6 +348,7 @@ pub fn on_editor_filter_save(
     last: Option<Res<LastProfilesProjection>>,
     handle: Option<Res<CommandSinkHandle>>,
     mut options: ResMut<ProfileEditorOptionsState>,
+    fields: Query<(&EditorFilterText, &TextField)>,
 ) {
     let Some(handle) = handle else {
         return;
@@ -410,21 +357,35 @@ pub fn on_editor_filter_save(
         return;
     }
     let projection = last.as_ref().and_then(|last| last.0.as_ref());
-    let Some(profile) = editor_profile(&document, projection) else {
-        options.filter_notice = Some("没有打开任何配置，过滤管道未提交".to_owned());
+    if editor_profile(&document, projection).as_deref() != options.filter.source_profile() {
         return;
+    }
+    profiles_editor_filter::capture(&mut options, &fields);
+    if fields
+        .iter()
+        .any(|(_, field)| !field.0.preedit().is_empty())
+    {
+        return;
+    }
+    let pending = match options.filter.begin() {
+        Ok(pending) => pending,
+        Err(_) => return,
     };
-    match infiltrator_domain::profile_options::filter_spec_from_draft(&options.filter) {
-        Ok(_) => {
-            options.filter_notice = None;
-            handle.submit(UiCommand::SaveSubscriptionFilter {
-                profile_id: profile,
-                filter: options.filter.clone(),
-            });
-        }
-        Err(error) => {
-            options.filter_notice = Some(format!("draft 无法编译：{error}"));
-        }
+    let command = UiCommand::SaveSubscriptionFilter {
+        source: pending.source.source,
+        filter: pending.draft,
+    };
+    if let Some(id) = handle.submit_tracked(command) {
+        options.filter_request = Some((id, pending.token));
+    } else {
+        options.filter.finish(
+            pending.token,
+            Err(Failure::new(
+                ErrorCode::NotReady,
+                "Filter service has no terminal acknowledgment",
+                true,
+            )),
+        );
     }
 }
 
@@ -463,18 +424,50 @@ pub fn on_editor_filter_field_activated(
 /// One keyboard seam for the whole editor card: the active pane owns the keys.
 /// The profile document and the Mixin overlay share the same buffer rules; the
 /// Filter pane feeds the focused controlled text field.
-pub fn route_editor_keyboard(
-    mut keys: MessageReader<KeyboardInput>,
-    keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    mut document: ResMut<ProfileEditorState>,
-    mut options: ResMut<ProfileEditorOptionsState>,
-    fields: Query<(&EditorFilterField, &Children)>,
-    mut text_fields: Query<&mut TextField>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
+#[derive(SystemParam)]
+pub struct EditorKeyboard<'w, 's> {
+    restore: Option<Res<'w, RestoreState>>,
+    keys: MessageReader<'w, 's, KeyboardInput>,
+    keyboard: Option<Res<'w, ButtonInput<KeyCode>>>,
+    document: ResMut<'w, ProfileEditorState>,
+    options: ResMut<'w, ProfileEditorOptionsState>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    script: Option<Res<'w, ScriptWorkbenchState>>,
+    focus: Res<'w, InputFocus>,
+    native: Query<'w, 's, (), With<MultilineEditor>>,
+}
+pub fn route_editor_keyboard(context: EditorKeyboard) {
+    let EditorKeyboard {
+        restore,
+        mut keys,
+        keyboard,
+        mut document,
+        mut options,
+        handle,
+        script,
+        focus,
+        native,
+    } = context;
+    if restore
+        .as_ref()
+        .is_some_and(|restore| restore.model.visible)
+    {
+        keys.clear();
+        return;
+    }
+    if script
+        .as_deref()
+        .is_some_and(|script| script.model.export_visible)
+        || focus.get().is_some_and(|entity| native.contains(entity))
+    {
+        document.focused = false;
+        options.mixin.focused = false;
+        keys.clear();
+        return;
+    }
     let modifiers = keyboard
         .as_deref()
-        .map(crate::shortcuts::modifiers_from_keyboard)
+        .map(modifiers_from_keyboard)
         .unwrap_or_default();
     let pressed: Vec<Key> = keys
         .read()
@@ -484,7 +477,7 @@ pub fn route_editor_keyboard(
     let modified = modifiers.ctrl || modifiers.alt || modifiers.meta;
     match options.pane {
         ProfileEditorPane::Profile => {
-            if !document.focused {
+            if !document.focused || !document.session.can_edit() {
                 return;
             }
             for key in &pressed {
@@ -494,11 +487,7 @@ pub fn route_editor_keyboard(
                         && !modifiers.meta
                         && matches!(key, Key::Character(text) if text.eq_ignore_ascii_case("s"));
                     if is_save && let Some(handle) = handle.as_ref() {
-                        handle.submit(UiCommand::SaveProfileDocument {
-                            profile: document.profile.clone(),
-                            content: document.buffer.full_text(),
-                            allow_protected: document.protection_override,
-                        });
+                        submit_document(&mut document, handle);
                     }
                     continue;
                 }
@@ -506,7 +495,7 @@ pub fn route_editor_keyboard(
             }
         }
         ProfileEditorPane::Mixin => {
-            if !options.mixin.focused {
+            if !options.mixin.focused || !options.mixin.session.can_edit() {
                 return;
             }
             for key in &pressed {
@@ -519,17 +508,14 @@ pub fn route_editor_keyboard(
                         && !options.mixin.profile.is_empty()
                         && let Some(handle) = handle.as_ref()
                     {
-                        let report = infiltrator_domain::mixin_studio::preflight_mixin(
+                        let report = preflight_mixin(
                             &document.buffer.full_text(),
                             &options.mixin.buffer.full_text(),
                         );
                         if report.is_blocking() {
                             options.mixin.notice = report.error;
                         } else {
-                            handle.submit(UiCommand::SaveMixinOverlay {
-                                profile: options.mixin.profile.clone(),
-                                mixin_yaml: options.mixin.buffer.full_text(),
-                            });
+                            submit_mixin(&mut options.mixin, handle);
                         }
                     }
                     continue;
@@ -537,93 +523,101 @@ pub fn route_editor_keyboard(
                 options.mixin.apply_key(key);
             }
         }
-        ProfileEditorPane::Filter => {
-            let Some(kind) = options.filter_focus else {
-                return;
-            };
-            if modified {
-                return;
-            }
-            for key in &pressed {
-                if *key == Key::Tab {
-                    options.filter_focus = Some(next_filter_field(kind));
-                    continue;
-                }
-                if *key == Key::Escape {
-                    options.filter_focus = None;
-                    continue;
-                }
-                let Some(input) = filter_field_input(key) else {
-                    continue;
-                };
-                for (field, children) in &fields {
-                    if field.kind != Some(kind) {
-                        continue;
-                    }
-                    for child in children.iter() {
-                        if let Ok(mut text_field) = text_fields.get_mut(*child) {
-                            text_field.0.apply(input.clone());
-                            let text = text_field.0.text().to_owned();
-                            let mut draft = options.filter.clone();
-                            kind.draft_field().set(&mut draft, text);
-                            options.filter = draft;
-                        }
-                    }
-                }
-            }
-        }
+        ProfileEditorPane::Filter => {}
     }
 }
 
-fn next_filter_field(kind: EditorFilterFieldKind) -> EditorFilterFieldKind {
-    match kind {
-        EditorFilterFieldKind::Include => EditorFilterFieldKind::Exclude,
-        EditorFilterFieldKind::Exclude => EditorFilterFieldKind::ExcludeTypes,
-        EditorFilterFieldKind::ExcludeTypes => EditorFilterFieldKind::Renames,
-        EditorFilterFieldKind::Renames => EditorFilterFieldKind::Include,
-    }
-}
-
-fn filter_field_input(key: &Key) -> Option<TextFieldInput> {
-    match key {
-        Key::Character(text) => Some(TextFieldInput::Insert(text.to_string())),
-        Key::Space => Some(TextFieldInput::Insert(" ".to_owned())),
-        Key::Backspace => Some(TextFieldInput::Backspace),
-        Key::Delete => Some(TextFieldInput::Delete),
-        Key::ArrowLeft => Some(TextFieldInput::Left(false)),
-        Key::ArrowRight => Some(TextFieldInput::Right(false)),
-        Key::Home => Some(TextFieldInput::Home),
-        Key::End => Some(TextFieldInput::End),
-        _ => None,
-    }
-}
-
-/// Register the pane systems and observers.
 pub struct ProfilesEditorPanesPlugin;
 
 impl Plugin for ProfilesEditorPanesPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ProfileEditorOptionsState>();
+        app.add_observer(profiles_editor_transactions::receive);
+        app.add_observer(profiles_editor_transactions::discard);
+        app.add_observer(profiles_editor_filter::initialize);
+        app.add_observer(profiles_editor_filter::discard);
+        app.add_systems(
+            Update,
+            (
+                profiles_editor_filter::receive,
+                profiles_editor_filter::replay,
+                profiles_editor_filter::render_status,
+                profiles_editor_filter::controls,
+            )
+                .chain()
+                .before(sync_control_visuals)
+                .before(sync_control_labels)
+                .before(sync_text_fields),
+        );
+        app.add_systems(
+            PostUpdate,
+            (
+                profiles_editor_filter::replay,
+                profiles_editor_filter::render_status,
+                profiles_editor_filter::controls,
+                profiles_editor_transactions::controls,
+                ApplyDeferred,
+            )
+                .chain()
+                .before(sync_button_disabled),
+        );
         app.add_observer(on_profile_editor_pane_activated);
         app.add_observer(on_mixin_editor_focus);
         app.add_observer(on_mixin_editor_reload);
         app.add_observer(on_mixin_editor_save);
-        app.add_observer(crate::pages::profiles_editor_mixin_studio::on_mixin_toggle_activated);
+        app.add_observer(on_mixin_toggle_activated);
         app.add_observer(on_mixin_editor_snippet_activated);
         app.add_observer(on_editor_filter_dedup_activated);
         app.add_observer(on_editor_filter_save);
+        app.add_observer(finish_editor_filter);
         app.add_observer(on_editor_filter_field_activated);
         app.add_observer(sync_profile_editor_panes);
         app.add_systems(
             Update,
             (
                 sync_profile_editor_pane_areas,
+                replay_mixin_copy,
+                replay_studio_copy,
                 // The studio rebuild respawns the middle column's editor body,
                 // so it must run before the editor rows are restamped.
-                crate::pages::profiles_editor_mixin_studio::refresh_mixin_studio_body,
+                refresh_mixin_studio_body,
                 refresh_mixin_editor_body,
+                ApplyDeferred,
+                profiles_editor_transactions::controls,
+                ApplyDeferred,
             )
-                .chain(),
+                .chain()
+                .before(sync_control_visuals)
+                .before(sync_control_labels)
+                .before(sync_text_fields),
         );
+    }
+}
+
+fn finish_editor_filter(
+    event: On<CommandExecutedEvent>,
+    mut options: ResMut<ProfileEditorOptionsState>,
+) {
+    let Some((id, token)) = options.filter_request else {
+        return;
+    };
+    let Some(pending) = &options.filter.pending else {
+        return;
+    };
+    if event.request_id != id
+        || event.command
+            != (UiCommand::SaveSubscriptionFilter {
+                source: pending.source.source.clone(),
+                filter: pending.draft.clone(),
+            })
+    {
+        return;
+    }
+    let result = event
+        .result
+        .clone()
+        .and_then(CommandOutput::into_subscription_filter);
+    if options.filter.finish(token, result) {
+        options.filter_request = None;
     }
 }

@@ -1,7 +1,6 @@
-//! MusicFrog Infiltrator — Bevy UI frontend shell (M1 shell + the M2
-//! Overview page slice).
+//! MusicFrog Infiltrator — independent Bevy UI product.
 //!
-//! The strategic unified desktop+mobile surface (charter:
+//! The ECS desktop/mobile peer of the Iced product (charter:
 //! docs/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
 //! composition only: `DefaultPlugins` is singleton infrastructure and stays
 //! out of [`app::ShellPlugin`] so headless tests exercise the real shell
@@ -16,6 +15,8 @@
 //! [`command`] the UI command sink pipeline, and [`capture`] the headless
 //! screenshot forensics seam (env-driven skin/window-size/marker, read only here).
 
+use infiltrator_bevy_widgets::shader_fx::ModernSurfacePlugin;
+use infiltrator_contract::theme::ThemePreference;
 pub mod a11y;
 pub mod app;
 pub mod appearance;
@@ -24,6 +25,7 @@ pub mod capture;
 pub mod chrome;
 pub mod command;
 pub mod command_events;
+pub mod command_execution;
 pub mod command_palette;
 pub mod command_palette_shell;
 pub mod controller;
@@ -31,47 +33,60 @@ pub mod domain_state;
 pub mod gesture;
 pub mod history;
 pub mod ime;
+mod ime_native;
+pub mod interaction_capture;
+pub mod launch;
 pub mod lifecycle;
+pub mod localization;
+pub mod localized_widgets;
 pub mod mini_hud;
+pub mod mini_hud_refresh;
 pub mod mini_hud_shell;
 pub mod pages;
 pub mod pipeline;
 pub mod projection;
 pub mod route;
+pub mod shell_mode_issue;
+pub mod shell_modes;
 pub mod shell_rail;
+pub mod shell_readout;
 pub mod shell_scene;
+pub mod shell_waveform;
 pub mod shortcuts;
 pub mod surface;
 pub mod toast;
 pub mod tray_status;
 
+use crate::command::UiCommandSink;
+use crate::command_execution::ApplicationCommandSink;
+use crate::pages::connections_clipboard::ClipboardHost;
 use bevy::DefaultPlugins;
 use bevy::app::{App, PluginGroup};
 use bevy::window::{ExitCondition, Window, WindowPlugin, WindowResolution};
 use infiltrator_application::command_application::CommandHandler;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use std::sync::Arc;
 
-use crate::command::UiCommandSink;
-
-/// Launch the windowed Bevy shell. Desktop: one primary window titled
-/// "MusicFrog Infiltrator — Bevy", the sidebar/content shell with a live
-/// light/dark affordance, embedded widget typography, AccessKit semantic
-/// seeds (published by the windowed composition's winit bridge).
-///
-/// Capture knobs (see [`capture`]): `INFILTRATOR_BEVY_SKIN` seeds the
-/// cold-start theme, `INFILTRATOR_BEVY_WINDOW_SIZE` the window
-/// resolution, and `INFILTRATOR_CAPTURE_MARKER` installs the
-/// frame-counted readiness writer. All three default to the plain demo
-/// launch (dark, 1180x760, no marker).
-///
-/// Data-source knob (see [`controller`]): `INFILTRATOR_BEVY_CONTROLLER`
-/// (plus optional `INFILTRATOR_BEVY_SECRET`) switches the Overview page
-/// from the demo fixture to the live mihomo controller pump; unset env
-/// keeps the demo frontend, a configured-but-unreachable controller
-/// projects the typed unavailable state.
+/// Launch the native product. Deterministic fixtures require `INFILTRATOR_DEMO=1`.
 pub fn run() {
-    run_with_command_sink(Arc::new(command::DemoCommandSink::accepting()));
+    launch::run();
+}
+
+/// Explicit isolated composition for screenshots and UI development.
+pub fn run_demo() {
+    run_with_command_sink_and_surface(Arc::new(command::DemoCommandSink::accepting()), None, None);
+}
+
+/// Render the actual host initialization failure on every page and reject commands.
+pub fn run_unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) {
+    let source = surface::UnavailableSurfaceSource::new(surface, host, failure.clone());
+    run_with_command_sink_and_surface(
+        Arc::new(launch::UnavailableCommandSink::new(failure)),
+        Some(Arc::new(source)),
+        None,
+    );
 }
 
 /// Launch the shell with a host-composed application command service. The
@@ -80,8 +95,8 @@ pub fn run() {
 /// client for command dispatch.
 pub fn run_with_application(application: Arc<CoreApplication>) {
     run_with_command_sink_and_surface(
-        Arc::new(command::ApplicationCommandSink::new(application)),
-        None,
+        Arc::new(ApplicationCommandSink::new(application)),
+        Some(Arc::new(surface::UnavailableSurfaceSource::default())),
         None,
     );
 }
@@ -94,7 +109,7 @@ pub fn run_with_application_and_surface(
     source: Arc<dyn surface::SurfaceSource>,
 ) {
     run_with_command_sink_and_surface(
-        Arc::new(command::ApplicationCommandSink::new(application)),
+        Arc::new(ApplicationCommandSink::new(application)),
         Some(source),
         None,
     );
@@ -109,7 +124,7 @@ pub fn run_with_application_surface_pump(
 ) {
     let drain = surface::SurfaceDrainPlugin::new(&source);
     run_with_command_sink_and_surface(
-        Arc::new(command::ApplicationCommandSink::new(application)),
+        Arc::new(ApplicationCommandSink::new(application)),
         Some(Arc::new(source)),
         Some(drain),
     );
@@ -127,10 +142,13 @@ pub fn run_with_application_and_handler(
     run_with_application(application);
 }
 
-/// Launch the windowed shell with an arbitrary command sink. This is useful
-/// for native composition roots and for deterministic demo/test hosts.
+/// Commands without a page reader show explicit unavailable data. Fixture hosts use `run_demo`.
 pub fn run_with_command_sink(sink: Arc<dyn UiCommandSink>) {
-    run_with_command_sink_and_surface(sink, None, None);
+    run_with_command_sink_and_surface(
+        sink,
+        Some(Arc::new(surface::UnavailableSurfaceSource::default())),
+        None,
+    );
 }
 
 fn run_with_command_sink_and_surface(
@@ -142,7 +160,7 @@ fn run_with_command_sink_and_surface(
     // the shell follows the OS appearance (shared `ThemePreference`).
     let preference = capture::skin_from_env()
         .map(appearance::contract_skin_from_widget)
-        .map(infiltrator_contract::theme::ThemePreference::Fixed)
+        .map(ThemePreference::Fixed)
         .unwrap_or_default();
     let (width, height) = capture::window_size_from_env().unwrap_or((1180, 760));
     let marker = capture::marker_path_from_env();
@@ -162,7 +180,9 @@ fn run_with_command_sink_and_surface(
         exit_condition: ExitCondition::OnPrimaryClosed,
         ..WindowPlugin::default()
     }));
+    app.insert_resource(ClipboardHost);
     app.add_plugins(app::ShellPlugin::new_with_width(preference, width as f32));
+    app.add_plugins(ModernSurfacePlugin);
     // DUAL-15-08: the real Bevy power knob follows the shared render cadence.
     app.add_plugins(cadence::CadencePlugin);
     // DUAL-15-13 / DUAL-15-02: the frameless chrome path and the honest tray
@@ -201,6 +221,13 @@ fn run_with_command_sink_and_surface(
             plugin
         };
         app.add_plugins(plugin);
+    }
+    if let Some(feature) = interaction_capture::feature_from_environment() {
+        assert!(
+            !live_controller,
+            "interaction capture requires the isolated demo composition"
+        );
+        interaction_capture::InteractionCapture::install(&mut app, feature);
     }
     app.run();
 }

@@ -1,5 +1,6 @@
 use super::*;
-use infiltrator_contract::command::{CommandResult, ProxyMode};
+use crate::command_application::{CommandFuture, CommandHandler};
+use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode};
 use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_domain::watchdog::WatchdogConfig;
 use infiltrator_ports::application_runtime::{
@@ -11,6 +12,14 @@ use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
 use std::sync::atomic::AtomicBool;
+use std::{thread, time};
+use tokio::runtime::Builder;
+use tokio::time::sleep;
+
+#[path = "core_application/telemetry_tests.rs"]
+mod telemetry_tests;
+#[path = "core_application/transaction_tests.rs"]
+mod transaction_tests;
 
 struct FakeProcess {
     running: AtomicBool,
@@ -146,16 +155,10 @@ struct FakeOverview {
 
 struct FakeCommandHandler;
 
-impl crate::command_application::CommandHandler for FakeCommandHandler {
-    fn handle(
-        &self,
-        intent: infiltrator_contract::command::CommandIntent,
-    ) -> crate::command_application::CommandFuture {
+impl CommandHandler for FakeCommandHandler {
+    fn handle(&self, intent: CommandIntent) -> CommandFuture {
         Box::pin(async move {
-            if matches!(
-                intent,
-                infiltrator_contract::command::CommandIntent::ClearLogs
-            ) {
+            if matches!(intent, CommandIntent::ClearLogs) {
                 Ok(())
             } else {
                 Err(Failure::unsupported("fake handler rejected command"))
@@ -168,15 +171,15 @@ struct TestRuntime;
 
 impl ApplicationRuntime for TestRuntime {
     fn block_on(&self, future: ApplicationFuture) {
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime")
             .block_on(future);
     }
 
-    fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+    fn sleep(&self, duration: time::Duration) -> ApplicationSleep<'_> {
+        Box::pin(sleep(duration))
     }
 }
 
@@ -204,8 +207,8 @@ fn application(process: FakeProcess, readiness: Result<String, PortError>) -> Co
             endpoint: readiness,
         }),
         ReadinessPolicy {
-            timeout: std::time::Duration::from_millis(100),
-            poll_interval: std::time::Duration::from_millis(1),
+            timeout: time::Duration::from_millis(100),
+            poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
     )
@@ -340,18 +343,35 @@ async fn dispatch_returns_id_and_completes_through_event_queue() {
     let request_id = app.dispatch(CommandIntent::StartCore);
     assert_eq!(request_id, RequestId(1));
 
-    for _ in 0..16 {
-        if app
-            .drain_events()
-            .iter()
-            .any(|event| matches!(event, CoreEvent::CommandCompleted { .. }))
-        {
-            assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
-            return;
+    let deadline = time::Instant::now() + time::Duration::from_secs(5);
+    loop {
+        for event in app.drain_events() {
+            match event {
+                CoreEvent::CommandCompleted {
+                    request_id: completed,
+                    ..
+                } if completed == request_id => {
+                    assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
+                    assert_eq!(app.snapshot().generation, 1);
+                    assert!(app.snapshot().session_token.is_some());
+                    return;
+                }
+                CoreEvent::CommandFailed {
+                    request_id: failed,
+                    failure,
+                    ..
+                } if failed == request_id => {
+                    panic!("dispatched start command failed: {failure:?}");
+                }
+                _ => {}
+            }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        assert!(
+            time::Instant::now() < deadline,
+            "dispatched start command has no correlated terminal event"
+        );
+        sleep(time::Duration::from_millis(1)).await;
     }
-    panic!("dispatched command did not complete");
 }
 
 #[tokio::test]
@@ -452,8 +472,8 @@ async fn start_reconciles_orphan_state_before_spawning_a_new_session() {
             endpoint: Ok("http://127.0.0.1:9090".to_string()),
         }),
         ReadinessPolicy {
-            timeout: std::time::Duration::from_millis(100),
-            poll_interval: std::time::Duration::from_millis(1),
+            timeout: time::Duration::from_millis(100),
+            poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
     );
@@ -508,14 +528,14 @@ async fn watchdog_detects_exit_and_restarts_with_a_new_session() {
             endpoint: Ok("http://127.0.0.1:9090".to_string()),
         }),
         ReadinessPolicy {
-            timeout: std::time::Duration::from_millis(100),
-            poll_interval: std::time::Duration::from_millis(1),
+            timeout: time::Duration::from_millis(100),
+            poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
     );
     app.configure_watchdog(WatchdogConfig {
-        initial_retry_delay: std::time::Duration::ZERO,
-        max_retry_delay: std::time::Duration::from_millis(1),
+        initial_retry_delay: time::Duration::ZERO,
+        max_retry_delay: time::Duration::from_millis(1),
         max_restart_attempts: 2,
     });
 
@@ -571,14 +591,14 @@ async fn watchdog_opens_the_circuit_after_repeated_restart_failures() {
             endpoint: Ok("http://127.0.0.1:9090".to_string()),
         }),
         ReadinessPolicy {
-            timeout: std::time::Duration::from_millis(100),
-            poll_interval: std::time::Duration::from_millis(1),
+            timeout: time::Duration::from_millis(100),
+            poll_interval: time::Duration::from_millis(1),
         },
         runtime(),
     );
     app.configure_watchdog(WatchdogConfig {
-        initial_retry_delay: std::time::Duration::ZERO,
-        max_retry_delay: std::time::Duration::from_millis(1),
+        initial_retry_delay: time::Duration::ZERO,
+        max_retry_delay: time::Duration::from_millis(1),
         max_restart_attempts: 2,
     });
 
@@ -637,7 +657,38 @@ fn dispatch_does_not_require_a_caller_owned_runtime() {
             assert_eq!(app.snapshot().lifecycle, CoreLifecycle::Running);
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(1));
+        thread::sleep(time::Duration::from_millis(1));
     }
     panic!("dispatched command did not complete without a caller runtime");
+}
+
+#[test]
+fn tracked_completion_survives_lifecycle_event_ring_eviction() {
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".into()),
+    );
+    app.install_command_handler(Arc::new(FakeCommandHandler));
+    let (id, first) = app.dispatch_tracked(CommandIntent::ClearLogs);
+    for _ in 0..300 {
+        let (next_id, reply) = app.dispatch_tracked(CommandIntent::ClearLogs);
+        assert_eq!(
+            reply.recv_timeout(time::Duration::from_secs(5)).unwrap(),
+            CommandResult::Completed {
+                request_id: next_id
+            }
+        );
+    }
+    // The transient lifecycle queue has lost the first event, but its private acknowledgment survives.
+    assert!(!app.drain_events().iter().any(
+        |event| matches!(event, CoreEvent::CommandCompleted { request_id, .. } if *request_id == id)
+    ));
+    assert_eq!(
+        first.recv_timeout(time::Duration::from_secs(5)).unwrap(),
+        CommandResult::Completed { request_id: id }
+    );
 }

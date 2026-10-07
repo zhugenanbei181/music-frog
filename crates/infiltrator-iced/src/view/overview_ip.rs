@@ -6,9 +6,11 @@ use crate::types::message::Message;
 use crate::view::component_forms::style_ghost;
 use crate::view::components::{card_surface, chip, icon_button};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn current_ip_card<'a>(
@@ -32,10 +34,7 @@ pub fn current_ip_card<'a>(
         .unwrap_or("ipapi.is");
 
     let copy_msg = Message::ShowToast(
-        infiltrator_shared::i18n_interpolator::interpolate(
-            &lang.tr("overview_copied_ip"),
-            &[("ip", public_ip_str)],
-        ),
+        interpolate(&lang.tr("overview_copied_ip"), &[("ip", public_ip_str)]),
         ToastStatus::Success,
     );
 

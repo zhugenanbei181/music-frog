@@ -4,18 +4,17 @@
 //! token tracks, fills, thumb geometry, dual-thumb range projections, and
 //! compare-and-set repaint stylists.
 
+use crate::palette::UiPalette;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{Changed, With, Without};
+use bevy::ecs::query::{Changed, QueryFilter, With, Without};
 use bevy::ecs::system::Query;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Node, PositionType, Val, percent, px,
 };
 use bevy::ui_widgets::{Slider, SliderRange, SliderThumb, SliderValue};
-
-use crate::palette::UiPalette;
 
 /// Marker on the fill bar; its width carries the value between range start
 /// and the thumb. Pure routing for the repaint system.
@@ -63,6 +62,33 @@ pub struct RangeSliderThumbMin;
 /// Marker on the upper/end thumb of a range slider.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RangeSliderThumbMax;
+
+#[derive(QueryFilter)]
+pub struct SliderFillFilter {
+    with_slider_fill: With<SliderFill>,
+    without_slider_thumb: Without<SliderThumb>,
+}
+
+#[derive(QueryFilter)]
+pub struct RangeSliderFillFilter {
+    with_range_slider_fill: With<RangeSliderFill>,
+    without_range_slider_thumb_min: Without<RangeSliderThumbMin>,
+    without_range_slider_thumb_max: Without<RangeSliderThumbMax>,
+}
+
+#[derive(QueryFilter)]
+pub struct RangeSliderThumbMinFilter {
+    with_range_slider_thumb_min: With<RangeSliderThumbMin>,
+    without_range_slider_fill: Without<RangeSliderFill>,
+    without_range_slider_thumb_max: Without<RangeSliderThumbMax>,
+}
+
+#[derive(QueryFilter)]
+pub struct RangeSliderThumbMaxFilter {
+    with_range_slider_thumb_max: With<RangeSliderThumbMax>,
+    without_range_slider_fill: Without<RangeSliderFill>,
+    without_range_slider_thumb_min: Without<RangeSliderThumbMin>,
+}
 
 /// The single value's travel through its range as 0..=1, clamped.
 pub fn slider_fraction(value: f32, start: f32, end: f32) -> f32 {
@@ -235,11 +261,10 @@ pub fn range_slider_scene(
 }
 
 /// Restamp fill width and thumb travel from the live [`SliderValue`].
-#[allow(clippy::type_complexity)]
 pub fn sync_slider_visuals(
     mut sliders: Query<(Entity, &SliderValue, &SliderRange), Changed<SliderValue>>,
     groups: Query<&Children>,
-    mut fills: Query<&mut Node, (With<SliderFill>, Without<SliderThumb>)>,
+    mut fills: Query<&mut Node, SliderFillFilter>,
     mut thumbs: Query<&mut Node, With<SliderThumb>>,
 ) {
     for (entity, value, range) in &mut sliders {
@@ -259,34 +284,12 @@ pub fn sync_slider_visuals(
 }
 
 /// Restamp dual-thumb range slider fill and thumb positions from live [`RangeSliderValues`].
-#[allow(clippy::type_complexity)]
 pub fn sync_range_slider_visuals(
     sliders: Query<(Entity, &RangeSliderValues, &RangeSliderRange), Changed<RangeSliderValues>>,
     groups: Query<&Children>,
-    mut fills: Query<
-        &mut Node,
-        (
-            With<RangeSliderFill>,
-            Without<RangeSliderThumbMin>,
-            Without<RangeSliderThumbMax>,
-        ),
-    >,
-    mut min_thumbs: Query<
-        &mut Node,
-        (
-            With<RangeSliderThumbMin>,
-            Without<RangeSliderFill>,
-            Without<RangeSliderThumbMax>,
-        ),
-    >,
-    mut max_thumbs: Query<
-        &mut Node,
-        (
-            With<RangeSliderThumbMax>,
-            Without<RangeSliderFill>,
-            Without<RangeSliderThumbMin>,
-        ),
-    >,
+    mut fills: Query<&mut Node, RangeSliderFillFilter>,
+    mut min_thumbs: Query<&mut Node, RangeSliderThumbMinFilter>,
+    mut max_thumbs: Query<&mut Node, RangeSliderThumbMaxFilter>,
 ) {
     for (entity, values, range) in &sliders {
         let (s_pct, e_pct) = range_slider_fractions(values.start, values.end, range.min, range.max);

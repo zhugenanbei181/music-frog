@@ -26,11 +26,34 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::NavigateForward => write!(f, "NavigateForward"),
         Message::StartProxy => write!(f, "StartProxy"),
         Message::StopProxy => write!(f, "StopProxy"),
+        Message::TestInspectedProxy => write!(f, "TestInspectedProxy"),
+        Message::ProxyInspectionProbed {
+            name,
+            token,
+            result,
+        } => write!(
+            f,
+            "ProxyInspectionProbed({name}, token={token}, {result:?})"
+        ),
         Message::ProxyStarted(Ok(_), token) => write!(f, "ProxyStarted(Ok, token={token})"),
         Message::ProxyStarted(Err(e), token) => {
             write!(f, "ProxyStarted(Err({:?}), token={token})", e)
         }
+        Message::ProxyStopFinished(result, token) => {
+            write!(f, "ProxyStopFinished({result:?}, token={token})")
+        }
         Message::ProxyStopped => write!(f, "ProxyStopped"),
+        Message::CoreControlFinished {
+            action,
+            token,
+            result,
+            ..
+        } => {
+            write!(
+                f,
+                "CoreControlFinished({action:?}, {result:?}, token={token})"
+            )
+        }
         Message::SettingsLoaded(Ok(_)) => write!(f, "SettingsLoaded(Ok)"),
         Message::SettingsLoaded(Err(e)) => write!(f, "SettingsLoaded(Err({:?}))", e),
         Message::LoadProfiles => write!(f, "LoadProfiles"),
@@ -150,6 +173,15 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ProfilesCleared(Ok(_)) => write!(f, "ProfilesCleared(Ok)"),
         Message::ProfilesCleared(Err(e)) => write!(f, "ProfilesCleared(Err({:?}))", e),
         Message::LoadProxies => write!(f, "LoadProxies"),
+        Message::ProxiesLoadedForSession {
+            generation,
+            session_token,
+            result,
+        } => write!(
+            f,
+            "ProxiesLoadedForSession(generation={generation}, token={session_token:?}, success={})",
+            result.is_ok()
+        ),
         Message::ProxiesLoaded(Ok(p)) => write!(f, "ProxiesLoaded(Ok({} proxies))", p.len()),
         Message::ProxiesLoaded(Err(e)) => write!(f, "ProxiesLoaded(Err({:?}))", e),
         Message::SelectProxy(g, n) => write!(f, "SelectProxy({}, {})", g, n),
@@ -234,6 +266,19 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             "RuntimeStreamStateChanged({kind:?}, generation={generation}, state={state:?})"
         ),
         Message::RuntimePollFailed(error) => write!(f, "RuntimePollFailed({error})"),
+        Message::LogsCommandFinished { generation, result } => write!(
+            f,
+            "LogsCommandFinished(generation={generation}, result={result:?})"
+        ),
+        Message::ToggleLogFollow => write!(f, "ToggleLogFollow"),
+        Message::LogsScrolled {
+            offset,
+            content,
+            viewport,
+        } => write!(
+            f,
+            "LogsScrolled(offset={offset}, content={content}, viewport={viewport})"
+        ),
         Message::ClearRuntimeLogs => write!(f, "ClearRuntimeLogs"),
         Message::SetLogLevel(l) => write!(f, "SetLogLevel({})", l),
         Message::SetCoreLogLevel(l) => write!(f, "SetCoreLogLevel({})", l),
@@ -255,21 +300,23 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ConnectionsPrevPage => write!(f, "ConnectionsPrevPage"),
         Message::ConnectionsNextPage => write!(f, "ConnectionsNextPage"),
         Message::FetchRuntimeConfig => write!(f, "FetchRuntimeConfig"),
+        Message::RuntimeConfigReadFinished {
+            generation,
+            mode_epoch,
+            result,
+        } => write!(
+            f,
+            "RuntimeConfigReadFinished(gen={generation}, epoch={mode_epoch}, success={})",
+            result.is_ok()
+        ),
         Message::FetchIpInfo => write!(f, "FetchIpInfo"),
         Message::RuntimeConfigFetched(Ok(config), generation) => {
             write!(
                 f,
-                "RuntimeConfigFetched(gen={}, {}, {}, {} DNS, {} FB, {}, {}, {}, {}, {})",
-                generation,
+                "RuntimeConfigFetched(gen={generation}, mode={}, tun={:?}, DNS observed={})",
                 config.mode,
-                config.tun_enabled,
-                config.dns_nameservers.len(),
-                config.dns_fallback.len(),
-                config.dns_enhanced_mode,
-                config.tun_stack,
-                config.tun_auto_route,
-                config.tun_strict_route,
-                config.sniffer_enabled
+                config.tun.as_ref().and_then(|tun| tun.enable),
+                config.dns.is_some()
             )
         }
         Message::RuntimeConfigFetched(Err(e), generation) => {
@@ -311,8 +358,13 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::SetTunAutoRoute(a) => write!(f, "SetTunAutoRoute({})", a),
         Message::SetTunStrictRoute(s) => write!(f, "SetTunStrictRoute({})", s),
         Message::SetSnifferEnabled(s) => write!(f, "SetSnifferEnabled({})", s),
-        Message::ModeSetResult(Ok(_)) => write!(f, "ModeSetResult(Ok)"),
-        Message::ModeSetResult(Err(e)) => write!(f, "ModeSetResult(Err({:?}))", e),
+        Message::ProxyModeFinished { request, result } => write!(
+            f,
+            "ProxyModeFinished({request:?}, success={})",
+            result.is_ok()
+        ),
+        Message::RetryProxyMode => write!(f, "RetryProxyMode"),
+        Message::DismissProxyModeFailure => write!(f, "DismissProxyModeFailure"),
         Message::RuntimePatchResult(Ok(_), token, generation) => write!(
             f,
             "RuntimePatchResult(Ok, token={token}, generation={generation})"

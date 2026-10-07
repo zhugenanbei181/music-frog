@@ -1,16 +1,16 @@
+use crate::paths::get_home_dir;
 use async_trait::async_trait;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
-use std::path::PathBuf;
-use std::sync::Mutex;
-
 use mihomo_api::error::{MihomoError, Result};
-use tokio::time::Duration;
-
-use crate::paths::get_home_dir;
+use std::path::PathBuf;
+use std::result;
+use std::sync::{Mutex, PoisonError};
+use tokio::task::spawn_blocking;
+use tokio::time::{Duration, sleep};
 pub struct ProcessCoreController {
     binary_path: PathBuf,
     config_path: PathBuf,
@@ -96,7 +96,7 @@ fn map_port_error(error: MihomoError) -> PortError {
 
 #[async_trait]
 impl CoreProcess for ProcessCoreController {
-    async fn start(&self) -> std::result::Result<(), PortError> {
+    async fn start(&self) -> result::Result<(), PortError> {
         self.cleanup_orphaned().await?;
         if self
             .read_running_pid()
@@ -113,13 +113,13 @@ impl CoreProcess for ProcessCoreController {
         *self
             .owned_pid
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(spawned.pid);
+            .unwrap_or_else(PoisonError::into_inner) = Some(spawned.pid);
         if let Err(error) = process::write_pid_file(&self.pid_file, spawned.pid).await {
             let _ = process::kill_process(spawned.pid);
             *self
                 .owned_pid
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                .unwrap_or_else(PoisonError::into_inner) = None;
             return Err(map_port_error(error));
         }
 
@@ -129,14 +129,11 @@ impl CoreProcess for ProcessCoreController {
         // when this process exits.
         #[cfg(windows)]
         if let Some(job) = spawned.job {
-            let mut slot = self
-                .job
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut slot = self.job.lock().unwrap_or_else(PoisonError::into_inner);
             *slot = Some(job);
         }
 
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(500)).await;
 
         if !process::is_process_alive(spawned.pid) {
             process::remove_pid_file(&self.pid_file)
@@ -145,14 +142,14 @@ impl CoreProcess for ProcessCoreController {
             *self
                 .owned_pid
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                .unwrap_or_else(PoisonError::into_inner) = None;
             return Err(PortError::Failed("Service failed to start".to_string()));
         }
 
         Ok(())
     }
 
-    async fn stop(&self) -> std::result::Result<(), PortError> {
+    async fn stop(&self) -> result::Result<(), PortError> {
         let pid = process::read_pid_file(&self.pid_file)
             .await
             .map_err(map_port_error)?;
@@ -164,7 +161,7 @@ impl CoreProcess for ProcessCoreController {
             *self
                 .owned_pid
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                .unwrap_or_else(PoisonError::into_inner) = None;
             return Err(PortError::Failed("Service is not running".to_string()));
         }
 
@@ -175,12 +172,12 @@ impl CoreProcess for ProcessCoreController {
         *self
             .owned_pid
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            .unwrap_or_else(PoisonError::into_inner) = None;
 
         Ok(())
     }
 
-    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         if self
             .read_running_pid()
             .await
@@ -197,7 +194,7 @@ impl CoreProcess for ProcessCoreController {
         None
     }
 
-    async fn cleanup_orphaned(&self) -> std::result::Result<Option<u32>, PortError> {
+    async fn cleanup_orphaned(&self) -> result::Result<Option<u32>, PortError> {
         let pid = match process::read_pid_file(&self.pid_file).await {
             Ok(pid) => pid,
             Err(MihomoError::NotFound(_)) => return Ok(None),
@@ -206,7 +203,7 @@ impl CoreProcess for ProcessCoreController {
         let owned_pid = *self
             .owned_pid
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         if owned_pid == Some(pid) {
             return Ok(None);
         }
@@ -223,7 +220,7 @@ impl CoreProcess for ProcessCoreController {
                 if !process::is_process_alive(pid) {
                     break;
                 }
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                sleep(Duration::from_millis(50)).await;
             }
             if process::is_process_alive(pid) {
                 return Err(PortError::Failed(format!(
@@ -258,14 +255,10 @@ impl Default for KeyringCredentialStore {
 
 #[async_trait]
 impl SecureStore for KeyringCredentialStore {
-    async fn get(
-        &self,
-        service: &str,
-        key: &str,
-    ) -> std::result::Result<Option<String>, PortError> {
+    async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
         let service = service.to_string();
         let key = key.to_string();
-        tokio::task::spawn_blocking(move || -> std::result::Result<Option<String>, PortError> {
+        spawn_blocking(move || -> result::Result<Option<String>, PortError> {
             let entry = match keyring::Entry::new(&service, &key) {
                 Ok(entry) => entry,
                 Err(err) => {
@@ -286,16 +279,11 @@ impl SecureStore for KeyringCredentialStore {
         .map_err(|e| PortError::Failed(format!("Keyring task failed: {e}")))?
     }
 
-    async fn set(
-        &self,
-        service: &str,
-        key: &str,
-        value: &str,
-    ) -> std::result::Result<(), PortError> {
+    async fn set(&self, service: &str, key: &str, value: &str) -> result::Result<(), PortError> {
         let service = service.to_string();
         let key = key.to_string();
         let value = value.to_string();
-        tokio::task::spawn_blocking(move || -> std::result::Result<(), PortError> {
+        spawn_blocking(move || -> result::Result<(), PortError> {
             let entry = keyring::Entry::new(&service, &key)
                 .map_err(|err| PortError::Failed(format!("Keyring init failed: {err}")))?;
             entry
@@ -307,10 +295,10 @@ impl SecureStore for KeyringCredentialStore {
         .map_err(|e| PortError::Failed(format!("Keyring task failed: {e}")))?
     }
 
-    async fn delete(&self, service: &str, key: &str) -> std::result::Result<(), PortError> {
+    async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
         let service = service.to_string();
         let key = key.to_string();
-        tokio::task::spawn_blocking(move || -> std::result::Result<(), PortError> {
+        spawn_blocking(move || -> result::Result<(), PortError> {
             let entry = keyring::Entry::new(&service, &key)
                 .map_err(|err| PortError::Failed(format!("Keyring init failed: {err}")))?;
             entry
@@ -339,9 +327,17 @@ impl DataDirProvider for DesktopDataDirProvider {
 
 mod process {
     use mihomo_api::error::{MihomoError, Result};
-    use std::fs::OpenOptions;
+    #[cfg(windows)]
+    use std::ffi::c_void;
+    use std::fs::{File, OpenOptions, canonicalize};
+    #[cfg(target_os = "linux")]
+    use std::io;
+    #[cfg(windows)]
+    use std::mem::size_of;
     use std::path::{Path, PathBuf};
-    use std::process::{Command, Stdio};
+    use std::process::{Command, Stdio, id};
+    #[cfg(windows)]
+    use std::ptr::null;
     use sysinfo::{Pid, ProcessStatus, ProcessesToUpdate, System};
     use tokio::fs;
 
@@ -395,7 +391,7 @@ mod process {
     #[cfg(target_os = "linux")]
     pub(crate) fn parent_death_signal(
         parent_pid: u32,
-    ) -> impl FnMut() -> std::io::Result<()> + Send + Sync {
+    ) -> impl FnMut() -> io::Result<()> + Send + Sync {
         move || {
             // SAFETY: raw libc calls only, executed in the forked child before
             // exec. Every call here (prctl, getppid, _exit) is
@@ -445,12 +441,9 @@ mod process {
             // SAFETY: plain kernel32 calls with valid/null arguments; `job` is
             // closed on the failure path to avoid leaking the raw handle.
             unsafe {
-                let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+                let job = CreateJobObjectW(null(), null());
                 if job.is_null() {
-                    log::warn!(
-                        "CreateJobObjectW failed: {}",
-                        std::io::Error::last_os_error()
-                    );
+                    log::warn!("CreateJobObjectW failed: {}", io::Error::last_os_error());
                     return None;
                 }
 
@@ -459,13 +452,13 @@ mod process {
                 if SetInformationJobObject(
                     job,
                     JobObjectExtendedLimitInformation,
-                    &limits as *const _ as *const std::ffi::c_void,
-                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                    &limits as *const _ as *const c_void,
+                    size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
                 ) == 0
                 {
                     log::warn!(
                         "SetInformationJobObject failed: {}",
-                        std::io::Error::last_os_error()
+                        io::Error::last_os_error()
                     );
                     CloseHandle(job);
                     return None;
@@ -486,7 +479,7 @@ mod process {
             if assigned == 0 {
                 log::warn!(
                     "AssignProcessToJobObject failed: {}",
-                    std::io::Error::last_os_error()
+                    io::Error::last_os_error()
                 );
             }
         }
@@ -531,7 +524,7 @@ mod process {
         // before spawn for the fork/prctl race guard inside the closure.
         #[cfg(target_os = "linux")]
         {
-            let parent_pid = std::process::id();
+            let parent_pid = id();
             // SAFETY: the closure only runs async-signal-safe libc calls in
             // the forked child before exec; see `parent_death_signal`.
             unsafe {
@@ -581,7 +574,7 @@ mod process {
         Ok(log_dir.join("mihomo.log"))
     }
 
-    fn open_log_file(path: &Path) -> Result<std::fs::File> {
+    fn open_log_file(path: &Path) -> Result<File> {
         OpenOptions::new()
             .create(true)
             .append(true)
@@ -619,19 +612,32 @@ mod process {
         })
     }
 
+    /// Read the exact process identity; absence or mismatch always fails closed.
+    #[cfg(target_os = "linux")]
+    pub fn process_matches_binary(pid: u32, binary: &Path) -> bool {
+        let Ok(expected) = canonicalize(binary) else {
+            return false;
+        };
+        let Ok(actual) = canonicalize(format!("/proc/{pid}/exe")) else {
+            return false;
+        };
+        actual == expected
+    }
+
+    #[cfg(not(target_os = "linux"))]
     pub fn process_matches_binary(pid: u32, binary: &Path) -> bool {
         let mut system = System::new();
-        system.refresh_processes(ProcessesToUpdate::All, true);
+        system.refresh_processes(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), true);
         let Some(process) = system.process(Pid::from_u32(pid)) else {
             return false;
         };
         let Some(actual) = process.exe() else {
             return false;
         };
-        let Ok(expected) = std::fs::canonicalize(binary) else {
+        let Ok(expected) = canonicalize(binary) else {
             return false;
         };
-        let Ok(actual) = std::fs::canonicalize(actual) else {
+        let Ok(actual) = canonicalize(actual) else {
             return false;
         };
         actual == expected
@@ -670,16 +676,42 @@ mod process {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::process;
+    #[cfg(all(test, target_os = "linux"))]
+    use crate::paths::clear_home_dir_override;
+    #[cfg(all(test, target_os = "linux"))]
+    use crate::paths::set_home_dir_override;
     use infiltrator_ports::core_process::CoreProcess;
+    #[cfg(all(test, target_os = "linux"))]
+    use std::env::{current_exe, split_paths, var_os};
+    #[cfg(all(test, target_os = "linux"))]
+    use std::fs::Permissions;
+    use std::fs::canonicalize;
+    #[cfg(all(test, target_os = "linux"))]
+    #[cfg(target_os = "linux")]
+    use std::fs::read_link;
+    #[cfg(all(test, target_os = "linux"))]
+    use std::fs::set_permissions;
+    #[cfg(all(test, target_os = "linux"))]
+    use std::fs::write;
     use std::os::unix::process::CommandExt;
-    use std::process::Command;
+    use std::path::PathBuf;
+    #[cfg(all(test, target_os = "linux"))]
+    use std::process::id;
+    use std::process::{Child, Command};
+    #[cfg(all(test, target_os = "linux"))]
+    use std::ptr::null_mut;
+    #[cfg(all(test, target_os = "linux"))]
+    use std::time;
+    use tokio::task::yield_now;
+    use tokio::time::sleep;
+    use tokio::time::timeout;
 
     /// Happy path: with a correct parent pid, the pre_exec closure arms
     /// PR_SET_PDEATHSIG successfully and lets exec proceed, so the spawned
     /// `sh` runs to completion with exit code 0.
     #[test]
     fn parent_death_signal_allows_normal_spawn() {
-        let parent = std::process::id();
+        let parent = id();
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg("exit 0");
         // SAFETY: closure only runs async-signal-safe libc calls in the child.
@@ -721,17 +753,15 @@ mod tests {
         // Fake core: a long-running executable so spawn_daemon's liveness
         // checks see a running process.
         let script = dir.path().join("fake-mihomo");
-        std::fs::write(&script, "#!/bin/sh\nwhile :; do sleep 60; done\n")
-            .expect("write fake core");
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod fake core");
+        write(&script, "#!/bin/sh\nwhile :; do sleep 60; done\n").expect("write fake core");
+        set_permissions(&script, Permissions::from_mode(0o755)).expect("chmod fake core");
 
         let config = dir.path().join("config.yaml");
-        std::fs::write(&config, "mixed-port: 7890\n").expect("write config");
+        write(&config, "mixed-port: 7890\n").expect("write config");
 
-        crate::paths::set_home_dir_override(dir.path().to_path_buf());
+        set_home_dir_override(dir.path().to_path_buf());
         let spawned = process::spawn_daemon(&script, &config).await;
-        crate::paths::clear_home_dir_override();
+        clear_home_dir_override();
 
         let spawned = spawned.expect("spawn_daemon should succeed");
         assert!(
@@ -748,13 +778,12 @@ mod tests {
         let mut reaped = false;
         for _ in 0..20 {
             // SAFETY: the fake core is a direct child of this test process.
-            let rc =
-                unsafe { libc::waitpid(spawned.pid as i32, std::ptr::null_mut(), libc::WNOHANG) };
+            let rc = unsafe { libc::waitpid(spawned.pid as i32, null_mut(), libc::WNOHANG) };
             if rc == spawned.pid as i32 || rc == -1 {
                 reaped = true;
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            sleep(time::Duration::from_millis(100)).await;
         }
         assert!(reaped, "fake core was not reaped after kill");
         assert!(
@@ -779,6 +808,47 @@ mod tests {
         assert!(process::read_pid_file(&pid_file).await.is_err());
     }
 
+    /// An assertion failure still reaps the exact child created by this fixture.
+    struct OwnedTestChild(Child);
+    impl Drop for OwnedTestChild {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    /// Resolve the requested executable before spawn and await its actual exec identity.
+    /// Sampling `/proc/exe` immediately after spawn can observe the pre-exec image.
+    async fn spawn_test_sleep() -> (OwnedTestChild, PathBuf) {
+        let executable = split_paths(&var_os("PATH").expect("test executable path"))
+            .map(|directory| directory.join("sleep"))
+            .find(|candidate| candidate.is_file())
+            .expect("sleep fixture executable");
+        let binary = canonicalize(&executable).expect("canonical fixture executable");
+        let mut child = OwnedTestChild(
+            Command::new(executable)
+                .arg("60")
+                .spawn()
+                .expect("spawn sleep fixture"),
+        );
+        let pid = child.0.id();
+        timeout(time::Duration::from_secs(5), async {
+            loop {
+                if process::process_matches_binary(pid, &binary) {
+                    break;
+                }
+                assert!(
+                    child.0.try_wait().expect("child status").is_none(),
+                    "fixture exited before exec readiness"
+                );
+                yield_now().await;
+            }
+        })
+        .await
+        .expect("fixture exec readiness");
+        (child, binary)
+    }
+
     /// A new host instance must reclaim a live core record left by a crashed
     /// instance, but only after verifying that the PID belongs to the expected
     /// executable. This is the non-Linux fallback for the kernel death signal.
@@ -786,28 +856,28 @@ mod tests {
     #[tokio::test]
     async fn cleanup_orphaned_reclaims_a_live_expected_process() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let mut child = Command::new("sleep")
-            .arg("60")
-            .spawn()
-            .expect("spawn fake orphan");
-        let pid = child.id();
-        let binary =
-            std::fs::read_link(format!("/proc/{pid}/exe")).expect("read fake orphan executable");
+        let (mut child, binary) = spawn_test_sleep().await;
+        let pid = child.0.id();
         let pid_file = dir.path().join("mihomo.pid");
         process::write_pid_file(&pid_file, pid)
             .await
             .expect("write orphan pid");
 
         let controller = super::ProcessCoreController::with_pid_file(
-            binary,
+            binary.clone(),
             dir.path().join("config.yaml"),
             pid_file.clone(),
         );
         let reclaimed = CoreProcess::cleanup_orphaned(&controller)
             .await
-            .expect("cleanup orphan");
+            .unwrap_or_else(|error| {
+                panic!(
+                    "cleanup orphan: {error}; expected={binary:?}; actual={:?}",
+                    read_link(format!("/proc/{pid}/exe"))
+                )
+            });
         assert_eq!(reclaimed, Some(pid));
-        let _ = child.wait();
+        let _ = child.0.wait();
         assert!(!pid_file.exists());
         assert!(!process::is_process_alive(pid));
     }
@@ -836,17 +906,14 @@ mod tests {
     #[tokio::test]
     async fn cleanup_orphaned_refuses_an_unrelated_live_process() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let mut child = Command::new("sleep")
-            .arg("60")
-            .spawn()
-            .expect("spawn unrelated process");
-        let pid = child.id();
+        let (mut child, _) = spawn_test_sleep().await;
+        let pid = child.0.id();
         let pid_file = dir.path().join("mihomo.pid");
         process::write_pid_file(&pid_file, pid)
             .await
             .expect("write unrelated pid");
         let controller = super::ProcessCoreController::with_pid_file(
-            std::env::current_exe().expect("test executable"),
+            current_exe().expect("test executable"),
             dir.path().join("config.yaml"),
             pid_file.clone(),
         );
@@ -855,8 +922,8 @@ mod tests {
             .expect_err("unrelated process must be refused");
         assert!(error.to_string().contains("unrelated process"));
         assert!(process::is_process_alive(pid));
-        child.kill().expect("kill unrelated process");
-        let _ = child.wait();
+        child.0.kill().expect("kill unrelated process");
+        let _ = child.0.wait();
         let _ = process::remove_pid_file(&pid_file).await;
     }
 
@@ -865,7 +932,7 @@ mod tests {
     #[test]
     fn parent_death_signal_closure_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>(_: &T) {}
-        let closure = process::parent_death_signal(std::process::id());
+        let closure = process::parent_death_signal(id());
         assert_send_sync(&closure);
     }
 }

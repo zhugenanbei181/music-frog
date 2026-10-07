@@ -2,39 +2,47 @@
 //! versions with progress streaming and managing installed kernels
 //! (list, default selection, delete).
 
+use crate::host::desktop::system_proxy_port;
+use crate::host::storage::{factory_reset, home_dir, profile_store, reset_profiles_to_default};
+use crate::settings_store::load;
 use crate::state::AppState;
-use crate::types::app::ToastStatus;
+use crate::types::app::{CoreDownloadProgress, ToastStatus};
 use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
+use crate::version_application::application;
+use iced::futures::channel::mpsc;
 use iced::{Task, stream};
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_application::failure_projection::failure_message;
+use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError, from_mihomo};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreReleaseChannel, VersionDownloadProgress,
 };
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::version::VersionProgressSink;
-use infiltrator_shared::locales::Localizer;
-use std::sync::Arc;
+use infiltrator_shared::autostart::set_autostart_enabled;
+use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use tokio::task::spawn_blocking;
+use tokio::time::timeout;
 
 struct IcedVersionProgressSink {
-    output: std::sync::Mutex<iced::futures::channel::mpsc::Sender<Message>>,
+    output: Mutex<mpsc::Sender<Message>>,
     cancel: Arc<AtomicBool>,
     token: u64,
-    previous: std::sync::Mutex<(Instant, u64)>,
+    previous: Mutex<(Instant, u64)>,
 }
 
 impl IcedVersionProgressSink {
-    fn new(
-        output: iced::futures::channel::mpsc::Sender<Message>,
-        cancel: Arc<AtomicBool>,
-        token: u64,
-    ) -> Self {
+    fn new(output: mpsc::Sender<Message>, cancel: Arc<AtomicBool>, token: u64) -> Self {
         Self {
-            output: std::sync::Mutex::new(output),
+            output: Mutex::new(output),
             cancel,
             token,
-            previous: std::sync::Mutex::new((Instant::now(), 0)),
+            previous: Mutex::new((Instant::now(), 0)),
         }
     }
 }
@@ -52,7 +60,7 @@ impl VersionProgressSink for IcedVersionProgressSink {
         *previous = (now, progress.downloaded);
         if let Ok(mut output) = self.output.lock() {
             let _ = output.try_send(Message::CoreDownloadProgress(
-                crate::types::app::CoreDownloadProgress {
+                CoreDownloadProgress {
                     downloaded: progress.downloaded,
                     total: progress.total,
                     speed_bytes,
@@ -67,9 +75,8 @@ impl VersionProgressSink for IcedVersionProgressSink {
     }
 }
 
-fn version_application()
--> Result<infiltrator_application::version_application::VersionApplication, InfiltratorError> {
-    crate::version_application::application()
+fn version_application() -> Result<VersionApplication, InfiltratorError> {
+    application()
 }
 
 fn parse_release_channel(value: &str) -> CoreReleaseChannel {
@@ -85,6 +92,7 @@ impl AppState {
     /// `update_core` chain, so its fallback arm returns `Task::none()` for
     /// every message no core domain owns.
     pub(super) fn update_core_kernels(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::CheckCoreUpdate => {
                 self.runtime.is_checking_update = true;
@@ -141,12 +149,14 @@ impl AppState {
                 let application = match version_application() {
                     Ok(application) => application,
                     Err(error) => {
-                        return Task::done(Message::CoreDownloadFinished(Err(error), token));
+                        return Task::done(Message::CoreDownloadFinished(
+                            Err(Failure::new(ErrorCode::NotReady, error.to_string(), false)),
+                            token,
+                        ));
                     }
                 };
-                let stream = stream::channel(
-                    100,
-                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let stream =
+                    stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
                         let progress =
                             Arc::new(IcedVersionProgressSink::new(output.clone(), cancel, token));
                         match application.install(version.clone(), progress).await {
@@ -155,14 +165,11 @@ impl AppState {
                                     .try_send(Message::CoreDownloadFinished(Ok(version), token));
                             }
                             Err(failure) => {
-                                let _ = output.try_send(Message::CoreDownloadFinished(
-                                    Err(InfiltratorError::Download(failure.message)),
-                                    token,
-                                ));
+                                let _ = output
+                                    .try_send(Message::CoreDownloadFinished(Err(failure), token));
                             }
                         }
-                    },
-                );
+                    });
                 Task::run(stream, |m| m)
             }
             Message::CoreDownloadProgress(progress, token) => {
@@ -204,16 +211,15 @@ impl AppState {
                     Err(e) => {
                         self.runtime.core_integrity = CoreArtifactVerification::Rejected {
                             version: "unknown".to_owned(),
-                            failure: infiltrator_contract::error::Failure::new(
-                                infiltrator_contract::error::ErrorCode::Internal,
-                                e.to_string(),
-                                true,
-                            ),
+                            failure: e.clone(),
                         };
-                        self.set_error(&e);
-                        let cancelled = e.to_string().contains("下载已取消");
+                        let cancelled = e.code == ErrorCode::Canceled;
+                        let message = failure_message(&e, &self.shell.lang);
+                        if !cancelled {
+                            self.set_error(&message);
+                        }
                         Task::done(Message::ShowToast(
-                            e.to_string(),
+                            message,
                             if cancelled {
                                 ToastStatus::Warning
                             } else {
@@ -305,23 +311,21 @@ impl AppState {
                     .runtime
                     .system_proxy_application
                     .clone()
-                    .unwrap_or_else(|| {
-                        infiltrator_application::system_proxy_application::SystemProxyApplication::new(
-                            crate::host::desktop::system_proxy_port(),
-                        )
-                    });
-                self.runtime.status = crate::types::runtime::RuntimeStatus::Stopped;
+                    .unwrap_or_else(|| SystemProxyApplication::new(system_proxy_port()));
+                self.runtime.status = RuntimeStatus::Stopped;
                 Task::perform(
                     async move {
                         if let Some(runtime) = runtime {
-                            tokio::time::timeout(
+                            timeout(
                                 Duration::from_secs(5),
                                 ManagedRuntime::shutdown(runtime.as_ref()),
                             )
                             .await
                             .map_err(|_| {
                                 InfiltratorError::Internal(
-                                    "停止内核超时，未执行恢复出厂".to_string(),
+                                    Lang(&copy_locale)
+                                        .tr("core_reset_stop_timeout")
+                                        .into_owned(),
                                 )
                             })?
                             .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
@@ -331,20 +335,16 @@ impl AppState {
                             .set_enabled(false, None, None)
                             .await
                             .map_err(|failure| InfiltratorError::Privilege(failure.message))?;
-                        infiltrator_shared::autostart::set_autostart_enabled(
-                            crate::AUTOSTART_REG_NAME,
-                            false,
-                        )
-                        .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
+                        set_autostart_enabled(crate::AUTOSTART_REG_NAME, false)
+                            .map_err(|error| InfiltratorError::Internal(error.to_string()))?;
 
-                        let home = crate::host::storage::home_dir()
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        let home = home_dir().map_err(from_mihomo)?;
 
                         // 必须趁 settings.toml 还在时解析 configs 目录
                         // （settings 的 configs_dir 可指向云同步目录）并枚举
                         // profile 名清 keyring；settings 一旦先删，云目录里的
                         // cache.db / geoip / options / snapshots 就会整体漏删。
-                        let manager = crate::host::storage::profile_store().await.ok();
+                        let manager = profile_store().await.ok();
                         let configs_dir = manager.as_ref().map(|m| m.config_dir().to_path_buf());
                         if let Some(manager) = &manager {
                             match manager.list_profiles().await {
@@ -379,19 +379,18 @@ impl AppState {
 
                         // 纯文件系统清理：settings/config.toml 删除失败整体
                         // 报错；目录/日志失败只记 warning（契约见模块文档）。
-                        let warnings = tokio::task::spawn_blocking(move || {
-                            crate::host::storage::factory_reset(&home, configs_dir.as_deref())
-                        })
-                        .await
-                        .map_err(|error| InfiltratorError::Internal(error.to_string()))?
-                        .map_err(|error| InfiltratorError::Config(error.to_string()))?;
+                        let warnings =
+                            spawn_blocking(move || factory_reset(&home, configs_dir.as_deref()))
+                                .await
+                                .map_err(|error| InfiltratorError::Internal(error.to_string()))?
+                                .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         for warning in &warnings {
                             log::warn!("factory reset: {warning}");
                         }
 
                         // settings 已删，configs 回落 `<home>/configs`：重建
                         // default 配置与当前指针，落出厂态。
-                        crate::host::storage::reset_profiles_to_default()
+                        reset_profiles_to_default()
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
                         Ok(())
@@ -406,7 +405,7 @@ impl AppState {
                         let demo = self.shell.demo;
                         let capture_marker = self.shell.capture_marker.clone();
                         // 在状态整体重置前取旧语言：fresh 状态尚未载入偏好。
-                        let toast_done = infiltrator_shared::locales::Lang(&self.shell.lang)
+                        let toast_done = Lang(&self.shell.lang)
                             .tr("toast_factory_reset_done")
                             .into_owned();
                         let tray_controller = self.shell.tray_controller.take();
@@ -421,7 +420,7 @@ impl AppState {
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::LoadKernels),
-                            Task::perform(crate::settings_store::load(), Message::SettingsLoaded),
+                            Task::perform(load(), Message::SettingsLoaded),
                             Task::done(Message::ShowToast(toast_done, ToastStatus::Success)),
                         ])
                     }
@@ -429,8 +428,7 @@ impl AppState {
                         self.set_error(&error);
                         let toast = format!(
                             "{}: {error}",
-                            infiltrator_shared::locales::Lang(&self.shell.lang)
-                                .tr("factory_reset_failed")
+                            Lang(&self.shell.lang).tr("factory_reset_failed")
                         );
                         Task::done(Message::ShowToast(toast, ToastStatus::Error))
                     }

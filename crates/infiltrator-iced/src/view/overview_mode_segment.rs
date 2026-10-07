@@ -2,21 +2,16 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, R_CONTROL, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::proxy_mode_projection::{mode_copy, mode_status_copy};
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let current_mode = state
-        .runtime
-        .proxy_mode
-        .as_deref()
-        .and_then(ProxyMode::from_wire)
-        .unwrap_or(ProxyMode::Rule);
-
-    let script_enabled = state.runtime.script_block_present;
+    let current_mode = state.runtime.proxy_mode_state.current;
 
     let mut pills_row = row![]
         .spacing(theme::SP_SM)
@@ -24,19 +19,11 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
         .width(Length::Fill);
 
     for mode in ProxyMode::ALL {
-        let is_current = mode == current_mode;
-        let is_selectable = if mode == ProxyMode::Script {
-            script_enabled
-        } else {
-            true
-        };
+        let is_current = Some(mode) == current_mode;
+        let is_selectable = state.runtime.pending_runtime_patch.is_none()
+            && state.runtime.proxy_mode_state.is_mode_selectable(mode);
 
-        let label = match mode {
-            ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
-            ProxyMode::Global => lang.tr("mode_global").into_owned(),
-            ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
-            ProxyMode::Script => lang.tr("mode_script").into_owned(),
-        };
+        let label = mode_copy(mode, lang.0);
 
         let btn_content = text(label).size(13).font(if is_current {
             FONT_SEMIBOLD
@@ -92,19 +79,11 @@ pub fn overview_mode_segment<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'
                 color: Some(tokens(t).text_primary)
             }),
         Space::new().width(Length::Fill),
-        text(lang.tr("overview_current_prefix").replace(
-            "{}",
-            &match current_mode {
-                ProxyMode::Rule => lang.tr("mode_rule").into_owned(),
-                ProxyMode::Global => lang.tr("mode_global").into_owned(),
-                ProxyMode::Direct => lang.tr("mode_direct").into_owned(),
-                ProxyMode::Script => lang.tr("mode_script").into_owned(),
-            },
-        ),)
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary)
-        }),
+        text(mode_status_copy(&state.runtime.proxy_mode_state, lang.0))
+            .size(12)
+            .style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_secondary)
+            }),
     ]
     .align_y(Alignment::Center)
     .width(Length::Fill);

@@ -17,28 +17,43 @@
 //! card renders the exact same projection. The pane row states the honest
 //! engine fact (a directive DSL, not a JavaScript engine).
 
+use crate::localized_widgets::{localized_field_scene, localized_pill_scene};
+use crate::pages::profiles::ProfilesProjection;
+use crate::pages::profiles_editor_filter::{
+    EditorFilterDiscard, EditorFilterText, EditorFilterTransaction,
+};
+use crate::pages::profiles_editor_mixin_studio::MixinStudioBody;
+use crate::pages::profiles_editor_state::{ProfileEditorState, diagnostic_line, status_line};
+use crate::pages::profiles_editor_transactions::EditorMutationControl;
+use crate::pages::profiles_editor_transactions::discard_scene;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::resource::Resource;
 use bevy::scene::{Scene, bsn};
+use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, FlexWrap,
+    JustifyContent, Node, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-use infiltrator_bevy_widgets::editor::CodeEditorState;
+use infiltrator_application::profile_editor_projection;
+use infiltrator_application::subscription_filter_copy::status;
+use infiltrator_application::subscription_filter_editor::SubscriptionFilterEditor;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::command::RequestId;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::subscription_filter_form::{FilterField, FilterObservation};
+use infiltrator_contract::subscription_import::SubscriptionFilterDedup;
 use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
-
-use crate::pages::profiles::ProfilesProjection;
-use crate::pages::profiles_editor_mixin_studio::MixinStudioBody;
-use crate::pages::profiles_editor_state::{ProfileEditorState, diagnostic_line, status_line};
 
 /// Which document the editor card shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -52,76 +67,11 @@ pub enum ProfileEditorPane {
 impl ProfileEditorPane {
     pub const ALL: [Self; 3] = [Self::Profile, Self::Mixin, Self::Filter];
 
-    pub const fn label_zh(self) -> &'static str {
+    pub const fn label_key(self) -> &'static str {
         match self {
-            Self::Profile => "配置文档",
-            Self::Mixin => "Mixin 覆盖",
-            Self::Filter => "订阅过滤",
-        }
-    }
-}
-
-/// One editable field of the shared subscription-filter draft.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum EditorFilterFieldKind {
-    Include,
-    Exclude,
-    ExcludeTypes,
-    Renames,
-}
-
-impl EditorFilterFieldKind {
-    pub const ALL: [Self; 4] = [
-        Self::Include,
-        Self::Exclude,
-        Self::ExcludeTypes,
-        Self::Renames,
-    ];
-
-    pub const fn placeholder_zh(self) -> &'static str {
-        match self {
-            Self::Include => "包含关键字（逗号/换行分隔，支持正则）",
-            Self::Exclude => "排除关键字（逗号/换行分隔，支持正则）",
-            Self::ExcludeTypes => "协议排除（如 ss, vmess, trojan）",
-            Self::Renames => "重命名规则（模式 => 替换，一行一条）",
-        }
-    }
-
-    pub const fn draft_field(self) -> SubscriptionFilterDraftField {
-        match self {
-            Self::Include => SubscriptionFilterDraftField::Include,
-            Self::Exclude => SubscriptionFilterDraftField::Exclude,
-            Self::ExcludeTypes => SubscriptionFilterDraftField::ExcludeTypes,
-            Self::Renames => SubscriptionFilterDraftField::Renames,
-        }
-    }
-}
-
-/// Which text field of the shared draft a surface is editing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SubscriptionFilterDraftField {
-    Include,
-    Exclude,
-    ExcludeTypes,
-    Renames,
-}
-
-impl SubscriptionFilterDraftField {
-    pub fn value(self, draft: &SubscriptionFilterDraft) -> &str {
-        match self {
-            Self::Include => &draft.include,
-            Self::Exclude => &draft.exclude,
-            Self::ExcludeTypes => &draft.exclude_types,
-            Self::Renames => &draft.renames,
-        }
-    }
-
-    pub fn set(self, draft: &mut SubscriptionFilterDraft, value: String) {
-        match self {
-            Self::Include => draft.include = value,
-            Self::Exclude => draft.exclude = value,
-            Self::ExcludeTypes => draft.exclude_types = value,
-            Self::Renames => draft.renames = value,
+            Self::Profile => "editor_pane_yaml",
+            Self::Mixin => "editor_pane_mixin",
+            Self::Filter => "editor_pane_filter",
         }
     }
 }
@@ -129,7 +79,7 @@ impl SubscriptionFilterDraftField {
 /// The filter field root; its first child is the controlled `TextField`.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EditorFilterField {
-    pub kind: Option<EditorFilterFieldKind>,
+    pub kind: Option<FilterField>,
 }
 
 /// Pane switch button.
@@ -200,13 +150,13 @@ pub struct ProfileEditorOptionsState {
     /// The last stored Mixin YAML adopted from the shared snapshot.
     pub mixin_loaded: Option<String>,
     /// The shared filter draft currently rendered by the Filter pane.
-    pub filter: SubscriptionFilterDraft,
+    pub filter: SubscriptionFilterEditor,
     /// The last stored draft adopted from the shared snapshot; compared so a
     /// re-published cache never clobbers an in-progress edit.
-    pub filter_loaded: Option<SubscriptionFilterDraft>,
-    pub filter_focus: Option<EditorFilterFieldKind>,
+    pub filter_focus: Option<FilterField>,
+    pub filter_request: Option<(RequestId, u64)>,
+    pub filter_restore: bool,
     /// Last refusal/notice from a filter action.
-    pub filter_notice: Option<String>,
     /// The profile whose sidecar has already been requested, so opening a
     /// pane does not spam the shared command pump.
     pub requested_for: Option<String>,
@@ -221,10 +171,10 @@ impl Default for ProfileEditorOptionsState {
             pane: ProfileEditorPane::Profile,
             mixin: ProfileEditorState::default(),
             mixin_loaded: None,
-            filter: SubscriptionFilterDraft::default(),
-            filter_loaded: None,
+            filter: SubscriptionFilterEditor::default(),
             filter_focus: None,
-            filter_notice: None,
+            filter_request: None,
+            filter_restore: false,
             requested_for: None,
             studio_generation: (u64::MAX, u64::MAX),
         }
@@ -237,7 +187,7 @@ impl ProfileEditorOptionsState {
     pub fn from_projection(projection: &ProfilesProjection) -> Self {
         let mut state = Self::default();
         if let Some(options) = projection.profile_options.as_ref() {
-            state.adopt_snapshot(&options.profile, &options.mixin_yaml, &options.filter);
+            state.adopt_snapshot(&options.source, &options.mixin_yaml, &options.filter);
         }
         state
     }
@@ -247,12 +197,16 @@ impl ProfileEditorOptionsState {
     /// cache never overwrites an in-progress edit.
     pub fn adopt_snapshot(
         &mut self,
-        profile: &str,
+        source: &ProfileSourceIdentity,
         mixin_yaml: &str,
         filter: &SubscriptionFilterDraft,
     ) {
-        self.mixin.profile = profile.to_owned();
-        if self.mixin_loaded.as_deref() != Some(mixin_yaml) {
+        if self
+            .mixin
+            .session
+            .observe(source, mixin_yaml, &self.mixin.buffer.full_text())
+        {
+            self.mixin.profile = source.profile.clone();
             self.mixin.buffer = CodeEditorState::new(mixin_yaml);
             self.mixin.loaded_content = Some(mixin_yaml.to_owned());
             self.mixin_loaded = Some(mixin_yaml.to_owned());
@@ -261,10 +215,15 @@ impl ProfileEditorOptionsState {
             self.mixin.generation = self.mixin.generation.wrapping_add(1);
             self.mixin.refresh_preflight();
         }
-        if self.filter_loaded.as_ref() != Some(filter) {
-            self.filter_loaded = Some(filter.clone());
-            self.filter = filter.clone();
-        }
+        let before = self.filter.draft.clone();
+        self.filter.observe_profile(
+            &source.profile,
+            Ok(FilterObservation {
+                source: source.clone(),
+                filter: filter.clone(),
+            }),
+        );
+        self.filter_restore |= before != self.filter.draft;
     }
 }
 
@@ -278,7 +237,7 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             } else {
                 palette.surface_elevated
             };
-            let label = pane.label_zh();
+            let label = LocalizedText::plain(pane.label_key());
             let pane = *pane;
             Box::new(bsn! {
                             Node {
@@ -292,7 +251,7 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                             Button
                             ProfileEditorPaneButton { pane }
                             Children [
-                                Text({ label.to_owned() }) TextRole(Role::Caption)
+                                label TextRole(Role::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -309,9 +268,9 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
             Children [
                 { buttons }
                 --
-                Text({ "脚本控制台由共享读模型驱动：Iced 经 ScriptApplication 运行并发布 SurfaceSnapshot.script_sandbox，Bevy 控制台渲染同一投影（指令 DSL，非 JavaScript 引擎）".to_owned() })
+                LocalizedText::plain("profiles_script_console_hint")
                 TextRole(Role::Caption)
-                bevy::text::TextColor({ note_color })
+                TextColor({ note_color })
             ]
     })
 }
@@ -319,18 +278,14 @@ pub fn pane_switch_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
 /// The Mixin pane: hint, status, shared preflight, the three-column workspace,
 /// snippet bar and actions.
 pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) -> Box<dyn Scene> {
-    let (diagnostic_text, has_error) = diagnostic_line(&state.mixin);
-    let status = status_line(&state.mixin, None);
+    let (diagnostic_text, has_error) = diagnostic_line(&state.mixin, UiLocale::default().code());
+    let status = status_line(&state.mixin, None, UiLocale::default().code());
     let error_color = if has_error {
         palette.danger
     } else {
         palette.success
     };
-    let pill_label = if has_error {
-        "语法错误"
-    } else {
-        "语法通过"
-    };
+    let pill_label = profile_editor_projection::syntax_label(has_error, UiLocale::default().code());
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -344,7 +299,7 @@ pub fn mixin_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) 
                 }
                 MixinStudioBody
                 --
-                Text({ "Mixin 覆盖：保存先剥离上一版注入的规则行，再经共享保真引擎合并并应用".to_owned() })
+                LocalizedText::plain("profiles_mixin_save_hint")
                 TextRole(Role::Caption)
                 --
                 Text(status) MixinEditorStatusText TextRole(Role::Caption)
@@ -394,9 +349,10 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 }
                 BackgroundColor({ background })
                 Button
+                EditorMutationControl
                 MixinEditorFocusButton
                 Children [
-                    Text({ "编辑 Mixin（键盘）".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_edit_action") TextRole(Role::Caption)
                 ]
                 --
                 Node {
@@ -410,7 +366,7 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 Button
                 MixinEditorReloadButton
                 Children [
-                    Text({ "重新加载 Mixin".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_reload_action") TextRole(Role::Caption)
                 ]
                 --
                 Node {
@@ -422,10 +378,13 @@ fn mixin_actions_scene(palette: &UiPalette) -> Box<dyn Scene> {
                 }
                 BackgroundColor({ accent })
                 Button
+                EditorMutationControl
                 MixinEditorSaveButton
                 Children [
-                    Text({ "保存 Mixin（共享用例）".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_mixin_save_action") TextRole(Role::Caption)
                 ]
+                --
+                @{ discard_scene(true, palette) }
             ]
     })
 }
@@ -435,7 +394,7 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
         .iter()
         .enumerate()
         .map(|(index, snippet)| {
-            let label = snippet.label_zh.to_owned();
+            let label = LocalizedText::plain(snippet.label_key);
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
@@ -447,9 +406,10 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
                             }
                             BackgroundColor({ background })
                             Button
+                            EditorMutationControl
                             MixinEditorSnippetButton { index }
                             Children [
-                                Text({ label }) TextRole(Role::Caption)
+                                label TextRole(Role::Caption)
                             ]
             }) as Box<dyn Scene>
         })
@@ -463,7 +423,7 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
                 row_gap: Val::Px(space::S4),
             }
             Children [
-                Text({ "插入共享片段".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("profiles_snippet_insert_action") TextRole(Role::Caption)
                 --
                 { buttons }
             ]
@@ -473,38 +433,18 @@ fn mixin_snippet_bar(palette: &UiPalette) -> Box<dyn Scene> {
 /// The Filter pane: the four shared draft fields, the dedup strategy and the
 /// shared pipeline submit.
 pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette) -> Box<dyn Scene> {
-    let fields: Vec<Box<dyn Scene>> = EditorFilterFieldKind::ALL
+    let fields: Vec<Box<dyn Scene>> = FilterField::ALL
         .iter()
-        .map(|kind| filter_field_scene(*kind, kind.draft_field().value(&state.filter), palette))
+        .filter(|kind| **kind != FilterField::Advanced)
+        .map(|kind| filter_field_scene(*kind, kind.value(&state.filter.draft), palette))
         .collect();
-    let chips: Vec<Box<dyn Scene>> = (0..4usize)
-        .map(|index| {
-            let label = ["关闭", "保留首个", "保留最后", "追加序号"][index];
-            let selected = state.filter.dedup_index == index;
-            let background = if selected {
-                palette.accent
-            } else {
-                palette.surface_elevated
-            };
-            Box::new(bsn! {
-                            Node {
-                                min_height: px(24.0),
-                                padding: UiRect::horizontal(Val::Px(space::S8)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
-                            }
-                            BackgroundColor({ background })
-                            Button
-                            EditorFilterDedupButton { index }
-                            Children [
-                                Text({ label.to_owned() }) TextRole(Role::Caption)
-                            ]
-            }) as Box<dyn Scene>
-        })
-        .collect();
+    let chips: Vec<Box<dyn Scene>> = SubscriptionFilterDedup::ALL.into_iter().map(|mode| {
+        let index = mode.index();
+        let selected = state.filter.selected() == Some(mode);
+        Box::new(bsn! { @{ localized_pill_scene(LocalizedText::plain(mode.label_key()), selected, palette) } EditorFilterDedupButton { index } ButtonDisabled(false) }) as Box<dyn Scene>
+    }).collect();
     let status = filter_status_line(state);
-    let accent = palette.accent;
+    let border = palette.border;
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -512,10 +452,18 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 row_gap: Val::Px(space::S8),
             }
             Children [
-                Text({ "订阅过滤：保存即用共享管道重跑当前配置，并持久化同一 draft".to_owned() })
+                LocalizedText::plain("profiles_filter_save_hint")
                 TextRole(Role::Caption)
                 --
                 { fields }
+                --
+                Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S8), border: UiRect::all(px(1.0)), padding: UiRect::all(px(space::S6))}
+                BorderColor::all(border)
+                EditorFilterTransaction
+                Children [
+                    @{ filter_field_scene(FilterField::Advanced, FilterField::Advanced.value(&state.filter.draft), palette) }
+                    --
+                LocalizedText::plain("filter_advanced_help") TextRole(Role::Caption)
                 --
                 Node {
                     width: percent(100),
@@ -525,7 +473,7 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    Text({ "重复节点去重".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("profiles_filter_deduplicate") TextRole(Role::Caption)
                     --
                     { chips }
                 ]
@@ -539,31 +487,19 @@ pub fn filter_pane_scene(state: &ProfileEditorOptionsState, palette: &UiPalette)
                 Children [
                     Text(status) EditorFilterStatusText TextRole(Role::Caption)
                     --
-                    Node {
-                        min_height: px(26.0),
-                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
-                    }
-                    BackgroundColor({ accent })
-                    Button
-                    EditorFilterSaveButton
-                    Children [
-                        Text({ "应用过滤（共享管道）".to_owned() }) TextRole(Role::Body)
-                    ]
+                    @{ localized_pill_scene(LocalizedText::plain("filter_form_discard"), false, palette) } EditorFilterDiscard ButtonDisabled(false)
+                    --
+                    @{ localized_pill_scene(LocalizedText::plain("profiles_filter_apply_action"), false, palette) } EditorFilterSaveButton ButtonDisabled(false)
+
+                ]
                 ]
             ]
     })
 }
 
-fn filter_field_scene(
-    kind: EditorFilterFieldKind,
-    value: &str,
-    palette: &UiPalette,
-) -> Box<dyn Scene> {
+fn filter_field_scene(kind: FilterField, value: &str, palette: &UiPalette) -> Box<dyn Scene> {
     let initial = value.to_owned();
-    let placeholder = kind.placeholder_zh().to_owned();
+    let placeholder = LocalizedText::plain(filter_placeholder_key(kind));
     Box::new(bsn! {
             Node {
                 width: percent(100),
@@ -571,7 +507,7 @@ fn filter_field_scene(
             Button
             EditorFilterField { kind: { Some(kind) } }
             Children [
-                @{ text_field_with_placeholder_scene(initial, placeholder, palette) }
+                @{ localized_field_scene(initial, placeholder, palette) } EditorFilterText(kind) NativeTextField({ match kind { FilterField::Include => 100, FilterField::Exclude => 101, FilterField::Protocols => 102, FilterField::Renames => 103, FilterField::Advanced => 104 } })
             ]
     })
 }
@@ -579,27 +515,17 @@ fn filter_field_scene(
 /// Status text for the Filter pane: how much of the shared draft is active,
 /// plus the last refusal.
 pub fn filter_status_line(state: &ProfileEditorOptionsState) -> String {
-    let draft = &state.filter;
-    let mut status = if draft.is_empty() {
-        "过滤管道：未启用（draft 为空）".to_owned()
-    } else {
-        format!(
-            "过滤管道：包含 `{}` · 排除 `{}` · 协议排除 `{}` · 重命名 {}",
-            draft.include,
-            draft.exclude,
-            draft.exclude_types,
-            if draft.renames.trim().is_empty() {
-                "0 条".to_owned()
-            } else {
-                format!("{} 行", draft.renames.lines().count())
-            }
-        )
-    };
-    if let Some(notice) = state.filter_notice.as_deref() {
-        status.push_str(" · ");
-        status.push_str(notice);
+    status(&state.filter, "zh-CN")
+}
+
+fn filter_placeholder_key(kind: FilterField) -> &'static str {
+    match kind {
+        FilterField::Include => "field_filter_include",
+        FilterField::Exclude => "field_filter_exclude",
+        FilterField::Protocols => "field_filter_protocols",
+        FilterField::Renames => "field_filter_renames",
+        FilterField::Advanced => "filter_advanced_ph",
     }
-    status
 }
 
 /// Palette token used by tests to assert the dedup chips restamp.

@@ -1,11 +1,12 @@
 //! Iced-side access to the application settings facade.
 
+use crate::host::storage::settings_store;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_domain::settings::AppSettings;
 
 async fn application() -> Result<SettingsApplication, InfiltratorError> {
-    let store = crate::host::storage::settings_store()
+    let store = settings_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     Ok(SettingsApplication::new(store))

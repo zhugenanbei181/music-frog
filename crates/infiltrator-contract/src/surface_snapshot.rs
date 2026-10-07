@@ -4,22 +4,80 @@
 //! Bevy, Compose, Admin and CLI adapters may project these values differently,
 //! but they must not invent a second business-facing page state model.
 
+use crate::active_exit::ActiveExitSnapshot;
+use crate::aggregator::{AggregationReport, AggregationTemplate};
+use crate::apply_transaction::ApplyTransactionSnapshot;
 use crate::capability::CapabilitySnapshot;
 use crate::command::ProxyMode;
 use crate::controller::ControllerAuthSnapshot;
-use crate::error::Failure;
+use crate::dns::{
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsFallbackPolicy, DnsServerTag,
+    FakeIpMappingPool,
+};
+use crate::dns_cache::DnsCacheSnapshot;
+use crate::dns_hosts::DnsHostsProfile;
+use crate::dns_latency::DnsLatencyReport;
+use crate::dns_leak::DnsLeakReport;
+use crate::dns_query::DnsQuerySnapshot;
+use crate::dns_self_heal::DnsSelfHealSnapshot;
+use crate::doctor::{DoctorCheckKind, DoctorStatus};
+use crate::error::{ErrorCode, Failure};
+use crate::ipv6::Ipv6RoutingSnapshot;
 use crate::lan::LanSecuritySnapshot;
+use crate::language::LanguageSettingsSnapshot;
+use crate::logs::LogStreamState;
+use crate::mini_hud::MiniHudPlacement;
+use crate::mrs_acceleration::MrsAccelerationSnapshot;
 use crate::mtu::MtuNegotiationSnapshot;
+use crate::network_roaming::NetworkRoamingSnapshot;
 use crate::offline_startup::OfflineStartupSnapshot;
+use crate::overview_layout::OverviewLayoutSnapshot;
+use crate::pac::PacSnapshot;
 use crate::port_conflict::PortConflictSnapshot;
+use crate::privileged_network::PrivilegedNetworkSnapshot;
+use crate::profile_editor_read::ProfileEditorSnapshot;
+use crate::profile_protection::ProfileWriteProtection;
+use crate::profile_source::ProfileSourceIdentity;
+use crate::protocol_fidelity::ProtocolStudioSnapshot;
+use crate::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
+use crate::proxies::{ProxyFilterAliveSnapshot, ProxyGroupClassification, ProxySortOrder};
+use crate::proxy_inspection::ProxyInspectionSnapshot;
+use crate::proxy_probe_options::ProxyProbeSettingsSnapshot;
+use crate::public_ip::PublicIpProbeSnapshot;
+use crate::reconnect_mask::ReconnectMaskSnapshot;
 use crate::resources::CoreResourceSnapshot;
+use crate::responsive_viewport::ResponsiveViewportSnapshot;
+use crate::rule_document::RuleDocumentSnapshot;
+use crate::rule_hit_audit::RuleHitAuditSnapshot;
+use crate::rule_provider_snapshot::RuleProviderSnapshot;
+use crate::rule_snapshot::RuleSnapshot;
+use crate::rule_trace_run::RuleTraceExecution;
+use crate::rule_tracer::RuleTracerSnapshot;
+use crate::rules_workspace::RulesJsonDocumentSnapshot;
+use crate::runtime_control::RuntimeControlSnapshot;
+use crate::script_export::ScriptExportSnapshot;
+use crate::script_sandbox::ScriptSandboxSnapshot;
+use crate::search_text::SearchTextRun;
 use crate::service_mode::ServiceModeSnapshot;
+use crate::shell_readout::ShellReadoutSnapshot;
 use crate::snapshot::{CoreLifecycle, CoreSnapshot};
+use crate::snapshot_history::SnapshotHistorySnapshot;
+use crate::speedtest::SpeedtestSnapshot;
+use crate::stun_probe::StunProbeReport;
+use crate::subscription_import::SubscriptionFilterDraft;
+use crate::subscription_quota::SubscriptionQuotaSnapshot;
 use crate::surface::{HostKind, SurfaceKind};
-use crate::system_proxy::SystemProxyRecoverySnapshot;
-use crate::system_proxy::SystemProxySnapshot;
+use crate::sync_snapshot::SyncPageSnapshot;
+use crate::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
+use crate::traffic_scale::TrafficScaleSnapshot;
+use crate::traffic_topology::TrafficTopologySnapshot;
+use crate::traffic_waveform::TrafficWaveformSnapshot;
+use crate::uwp::UwpLoopbackSnapshot;
 use crate::version::CoreVersionSnapshot;
+use crate::vpn::VpnSessionSnapshot;
+use crate::yaml_ast_diff::YamlAstDiffSnapshot;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Canonical page vocabulary shared by the two primary UI surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -148,6 +206,9 @@ pub struct ProxyNodeSnapshot {
     pub name: String,
     pub node_type: String,
     pub delay_ms: Option<u32>,
+    /// Controller-reported health; None means the source supplied no flag.
+    #[serde(default)]
+    pub alive: Option<bool>,
     pub selected: bool,
     pub favorite: bool,
     pub features: Vec<String>,
@@ -158,36 +219,43 @@ pub struct ProxyGroupSnapshot {
     pub name: String,
     pub group_type: String,
     #[serde(default)]
-    pub classification: Option<crate::proxies::ProxyGroupClassification>,
+    pub classification: Option<ProxyGroupClassification>,
     pub current: String,
     pub expanded: bool,
     pub proxies: Vec<ProxyNodeSnapshot>,
 }
 
 impl ProxyGroupSnapshot {
-    pub fn resolved_classification(&self) -> crate::proxies::ProxyGroupClassification {
+    pub fn resolved_classification(&self) -> ProxyGroupClassification {
         self.classification
-            .or_else(|| crate::proxies::ProxyGroupClassification::from_str_loose(&self.group_type))
-            .unwrap_or(crate::proxies::ProxyGroupClassification::Selector)
+            .or_else(|| ProxyGroupClassification::from_str_loose(&self.group_type))
+            .unwrap_or(ProxyGroupClassification::Selector)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProxiesPageSnapshot {
+    #[serde(default)]
+    pub name_runs: BTreeMap<String, Vec<SearchTextRun>>,
+    #[serde(default)]
+    pub search_query: String,
+    /// Full observed catalogue, unaffected by view filters or group ordering.
+    #[serde(default)]
+    pub node_details: Vec<ProxyInspectionSnapshot>,
     pub groups: Vec<ProxyGroupSnapshot>,
     pub testing: bool,
     pub active_exit: String,
     #[serde(default)]
-    pub filter_alive: crate::proxies::ProxyFilterAliveSnapshot,
+    pub filter_alive: ProxyFilterAliveSnapshot,
     #[serde(default)]
-    pub sort_order: crate::proxies::ProxySortOrder,
+    pub sort_order: ProxySortOrder,
     #[serde(default)]
     pub compact_view: bool,
     /// DUAL-05: the shared custom-node protocol studio (URI decode/encode,
     /// typed cipher / REALITY / smux descriptors, codec audit). Both surfaces
     /// render this single projection; neither keeps a second protocol source.
     #[serde(default)]
-    pub custom_node: crate::protocol_fidelity::ProtocolStudioSnapshot,
+    pub custom_node: ProtocolStudioSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -196,9 +264,9 @@ pub struct ProfileSnapshot {
     pub name: String,
     pub url: String,
     pub updated_at: String,
-    pub upload_bytes: u64,
-    pub download_bytes: u64,
-    pub total_bytes: u64,
+    pub upload_bytes: Option<u64>,
+    pub download_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
     pub is_active: bool,
     /// Per-profile conditional-request User-Agent (empty = provider default).
     #[serde(default)]
@@ -234,16 +302,25 @@ pub struct ProfileSnapshot {
     pub auto_reload_core: bool,
     /// DUAL-07-08: the profile's stored node-keyword filter draft.
     #[serde(default)]
-    pub filter: crate::subscription_import::SubscriptionFilterDraft,
+    pub filter: SubscriptionFilterDraft,
+    #[serde(default = "unobserved_filter_source")]
+    pub filter_source: Result<ProfileSourceIdentity, Failure>,
     /// DUAL-09-12: direct-edit protection derived from the subscription
     /// source. Both surfaces render the same classification.
     #[serde(default)]
-    pub write_protection: crate::profile_protection::ProfileWriteProtection,
+    pub write_protection: ProfileWriteProtection,
 }
 
 /// DUAL-07-09: the profile metadata default for the auto-reload preference.
 fn default_auto_reload_core() -> bool {
     true
+}
+fn unobserved_filter_source() -> Result<ProfileSourceIdentity, Failure> {
+    Err(Failure::new(
+        ErrorCode::NotReady,
+        "Profile filter source has not been observed",
+        true,
+    ))
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -254,10 +331,10 @@ pub struct ProfilesPageSnapshot {
     /// DUAL-08: the last shared aggregation preview, or `None` when no draft
     /// has been previewed in this process yet.
     #[serde(default)]
-    pub aggregation: Option<crate::aggregator::AggregationReport>,
+    pub aggregation: Option<AggregationReport>,
     /// DUAL-08-13: persisted aggregation template library.
     #[serde(default)]
-    pub aggregation_templates: Vec<crate::aggregator::AggregationTemplate>,
+    pub aggregation_templates: Vec<AggregationTemplate>,
     /// Whether the profile store exposed the template sidecar. `false` means
     /// the host keeps no template library (typed unsupported) or the read
     /// failed — surfaces must not render that as "no templates".
@@ -266,68 +343,19 @@ pub struct ProfilesPageSnapshot {
     /// DUAL-09-06/07: the active profile's snapshot history plus the shared
     /// prune view. `None` means no history has been loaded in this process yet.
     #[serde(default)]
-    pub snapshot_history: Option<crate::snapshot_history::SnapshotHistorySnapshot>,
+    pub snapshot_history: Option<SnapshotHistorySnapshot>,
     /// DUAL-09-11: the last apply transaction of the host core. `None` means no
     /// transaction has run in this process yet — surfaces must not claim the
     /// config is verified.
     #[serde(default)]
-    pub apply_transaction: Option<crate::apply_transaction::ApplyTransactionSnapshot>,
-    /// DUAL-09-03/14: the stored document the editor surfaces render. `None`
-    /// means no document has been loaded yet.
-    #[serde(default)]
-    pub profile_document: Option<crate::profile_document::ProfileDocumentSnapshot>,
-    /// DUAL-09-14: the stored Mixin overlay + filter draft the editor panes
-    /// edit. `None` means the sidecar has not been loaded in this process yet.
-    #[serde(default)]
-    pub profile_options: Option<crate::profile_options::ProfileOptionsSnapshot>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct RuleSnapshot {
-    pub id: usize,
-    pub rule_type: String,
-    pub payload: String,
-    pub proxy: String,
-    pub hit_count: u64,
-    #[serde(default)]
-    pub is_enabled: bool,
-    #[serde(default)]
-    pub no_resolve: bool,
-    #[serde(default)]
-    pub last_hit_secs: Option<u64>,
-    #[serde(default)]
-    pub is_shadowed: bool,
-    #[serde(default)]
-    pub shadow_reason: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RuleProviderSnapshot {
-    pub name: String,
-    pub rule_count: usize,
-    pub behavior: String,
-    pub updated_at: String,
-    /// DUAL-11-04: the `rule-providers` source URL declared in the active
-    /// profile, when the provider is config-backed (runtime-only providers
-    /// honestly report `None` instead of a fabricated address).
-    #[serde(default)]
-    pub source_url: Option<String>,
-    /// DUAL-11-05: the `interval` declared for this provider in the active
-    /// profile, in seconds. The mihomo kernel owns the scheduled refresh (and
-    /// the `ETag`/`If-None-Match` conditional cache behind it); the client only
-    /// publishes the declared schedule, never a fabricated cache hit/miss.
-    #[serde(default)]
-    pub refresh_interval_secs: Option<u64>,
-    /// DUAL-11-05: the client's own observation of this provider's local cache
-    /// file (size + SHA-256 + last-modified, compared against the previous
-    /// observation). `None` means this client has no local file to fingerprint;
-    /// it is never a claim about the kernel's HTTP validator.
-    #[serde(default)]
-    pub cache_fingerprint: Option<crate::provider_cache::ProviderCacheFingerprint>,
+    pub apply_transaction: Option<ApplyTransactionSnapshot>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RulesPageSnapshot {
+    /// Complete editable source; the rendered `rules` window is never a save payload.
+    #[serde(default)]
+    pub document: Option<RuleDocumentSnapshot>,
     /// DUAL-11-08: total rules present in the active profile, *before* the
     /// honest publish cap. `rules.len()` is the published window and may be
     /// smaller; both facts are published so a surface never reports a truncated
@@ -337,28 +365,28 @@ pub struct RulesPageSnapshot {
     pub providers: Vec<RuleProviderSnapshot>,
     pub rules: Vec<RuleSnapshot>,
     #[serde(default)]
-    pub tracer: crate::rule_tracer::RuleTracerSnapshot,
+    pub tracer: RuleTracerSnapshot,
     #[serde(default)]
-    pub mrs_acceleration: crate::mrs_acceleration::MrsAccelerationSnapshot,
+    pub mrs_acceleration: MrsAccelerationSnapshot,
     #[serde(default)]
-    pub total_hits: u64,
+    pub hit_audit: Option<RuleHitAuditSnapshot>,
     /// DUAL-11-08: cap the publisher applied to `rules` (0 = uncapped).
     #[serde(default)]
     pub rule_publish_limit: usize,
     /// DUAL-11-07: the observed kernel rule-provider cache location.
     #[serde(default)]
-    pub provider_cache: crate::provider_cache::RuleProviderCacheSnapshot,
+    pub provider_cache: RuleProviderCacheSnapshot,
     /// DUAL-11-05: the kernel's real `etag-support` capability declared by the
     /// active profile (a top-level key; mihomo defaults it to `true`). The
     /// client publishes the declaration, never the per-request `304` outcome,
     /// which stays inside the kernel.
     #[serde(default)]
-    pub etag_support: crate::provider_cache::KernelEtagSupportSnapshot,
+    pub etag_support: KernelEtagSupportSnapshot,
     /// DUAL-11-14: the rules-workspace JSON documents, serialised from the same
     /// active profile the Iced JSON editors load through their ports. Empty on
     /// hosts without a configuration application.
     #[serde(default)]
-    pub json_documents: Vec<crate::rules_workspace::RulesJsonDocumentSnapshot>,
+    pub json_documents: Vec<RulesJsonDocumentSnapshot>,
 }
 
 impl RulesPageSnapshot {
@@ -377,6 +405,11 @@ impl RulesPageSnapshot {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConnectionSnapshot {
     pub id: String,
+    /// Controller start timestamp; empty means it was not observed.
+    #[serde(default)]
+    pub start: String,
+    #[serde(default)]
+    pub destination_host: String,
     pub host: String,
     pub process: String,
     pub rule: String,
@@ -416,6 +449,8 @@ pub struct ConnectionSnapshot {
     /// `destination_asn_fact` reduction and never invent an ASN.
     #[serde(default)]
     pub destination_ip_asn: String,
+    #[serde(default)]
+    pub rate_observed: bool,
     pub upload_bps: f64,
     pub download_bps: f64,
     pub upload_total: u64,
@@ -432,6 +467,10 @@ pub struct ConnectionsPageSnapshot {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogSnapshot {
+    #[serde(default)]
+    pub id: u64,
+    #[serde(default)]
+    pub raw: Option<String>,
     pub timestamp: String,
     pub level: String,
     pub tag: String,
@@ -440,6 +479,8 @@ pub struct LogSnapshot {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogsPageSnapshot {
+    #[serde(default)]
+    pub stream: LogStreamState,
     pub total_entries: usize,
     pub active_level: Option<String>,
     pub entries: Vec<LogSnapshot>,
@@ -452,29 +493,29 @@ pub struct DnsServerSnapshot {
     pub latency_ms: Option<u32>,
     pub is_fallback: bool,
     #[serde(default)]
-    pub tags: Vec<crate::dns::DnsServerTag>,
+    pub tags: Vec<DnsServerTag>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsPageSnapshot {
     /// Domain mapping mode (`dns.enhanced-mode`).
     #[serde(default)]
-    pub enhanced_mode: crate::dns::DnsEnhancedMode,
+    pub enhanced_mode: DnsEnhancedMode,
     pub cache_entries: usize,
     pub fake_ip_range: String,
     pub servers: Vec<DnsServerSnapshot>,
     /// The six system-level switches of the DNS workbench form.
     #[serde(default)]
-    pub switches: crate::dns::DnsCoreSwitches,
+    pub switches: DnsCoreSwitches,
     /// Fake-IP filter mode (`dns.fake-ip-filter-mode`).
     #[serde(default)]
-    pub filter_mode: crate::dns::DnsFakeIpFilterMode,
+    pub filter_mode: DnsFakeIpFilterMode,
     /// Tier-1 bootstrap resolvers (`dns.default-nameserver`).
     #[serde(default)]
     pub default_nameserver: Vec<String>,
     /// Fallback resolver policy (`dns.fallback-filter`).
     #[serde(default)]
-    pub fallback_policy: crate::dns::DnsFallbackPolicy,
+    pub fallback_policy: DnsFallbackPolicy,
     /// `dns.fake-ip-filter` patterns or rules.
     #[serde(default)]
     pub fake_ip_filter: Vec<String>,
@@ -484,39 +525,36 @@ pub struct DnsPageSnapshot {
     /// `dns.direct-nameserver` resolvers.
     #[serde(default)]
     pub direct_nameserver: Vec<String>,
-    /// Honest per-target report of the last DNS cache flush.
-    #[serde(default)]
-    pub cache_flush: crate::dns::DnsCacheFlushReport,
     /// DUAL-14-06: the observed Fake-IP bindings published to both surfaces.
     #[serde(default)]
-    pub fake_ip_pool: crate::dns::FakeIpMappingPool,
+    pub fake_ip_pool: FakeIpMappingPool,
     /// DUAL-14-10: the last real per-nameserver latency probe of this host.
     #[serde(default)]
-    pub latency: crate::dns_latency::DnsLatencyReport,
-    /// DUAL-14-08: the last real DNS leak cross-source probe of this host.
-    #[serde(default)]
-    pub leak: crate::dns_leak::DnsLeakReport,
+    pub latency: DnsLatencyReport,
     /// DUAL-14-09 (re-scoped): the last real STUN UDP-egress probe of this
     /// host/process, compared against the expected proxied egress. This is the
     /// host's own UDP mapping, not a browser WebRTC result.
     #[serde(default)]
-    pub stun: crate::stun_probe::StunProbeReport,
+    pub stun: StunProbeReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     #[serde(default)]
-    pub self_heal: crate::dns_self_heal::DnsSelfHealSnapshot,
-    /// DUAL-14-11: the configured `dns.hosts` mapping as flat rows.
-    #[serde(default)]
-    pub hosts: Vec<crate::dns::DnsHostEntry>,
+    pub self_heal: DnsSelfHealSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DoctorCheckSnapshot {
+    #[serde(default)]
+    pub kind: Option<DoctorCheckKind>,
+    #[serde(default)]
+    pub detail_copy_key: Option<String>,
     pub id: String,
     pub name: String,
     pub category: String,
-    pub state: String,
+    pub state: DoctorStatus,
     pub detail: String,
     pub fix_available: bool,
+    #[serde(default)]
+    pub hint: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -524,6 +562,10 @@ pub struct DoctorPageSnapshot {
     pub overall_healthy: bool,
     pub last_run: String,
     pub checks: Vec<DoctorCheckSnapshot>,
+    #[serde(default)]
+    pub report_started_at: Option<u64>,
+    #[serde(default)]
+    pub report_finished_at: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -541,67 +583,47 @@ pub struct AppRoutingPageSnapshot {
     pub include_system: bool,
     pub apps: Vec<AppSnapshot>,
     #[serde(default)]
-    pub uwp_loopback: crate::uwp::UwpLoopbackSnapshot,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SyncConflictSnapshot {
-    pub remote_device: String,
-    pub conflict_time: String,
-    pub conflicting_keys: Vec<(String, String, String)>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SnapshotItemSnapshot {
-    pub id: String,
-    pub timestamp: String,
-    pub device: String,
-    pub size_bytes: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SyncPageSnapshot {
-    pub status: String,
-    pub server_url: String,
-    pub username: String,
-    pub last_sync: Option<String>,
-    pub auto_sync: bool,
-    pub conflict: Option<SyncConflictSnapshot>,
-    pub snapshots: Vec<SnapshotItemSnapshot>,
+    pub uwp_loopback: UwpLoopbackSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettingsPageSnapshot {
+    #[serde(default)]
+    pub close_to_tray: Option<bool>,
+    #[serde(default)]
+    pub notifications_enabled: Option<bool>,
+    #[serde(default = "default_language_code")]
+    pub language: String,
     pub autostart: bool,
     pub system_proxy: bool,
-    pub mixed_port: u16,
-    pub allow_lan: bool,
-    #[serde(default = "default_lan_bind_address")]
-    pub lan_bind_address: String,
+    pub mixed_port: Option<u16>,
+    pub allow_lan: Option<bool>,
     #[serde(default)]
-    pub lan_security: LanSecuritySnapshot,
+    pub lan_bind_address: Option<String>,
     #[serde(default)]
-    pub ipv6_routing: crate::ipv6::Ipv6RoutingSnapshot,
+    pub lan_security: Option<LanSecuritySnapshot>,
     #[serde(default)]
-    pub pac: crate::pac::PacSnapshot,
-    pub tun_enabled: bool,
-    pub tun_stack: String,
+    pub ipv6_routing: Option<Ipv6RoutingSnapshot>,
     #[serde(default)]
-    pub tun_auto_route: bool,
+    pub pac: PacSnapshot,
+    pub tun_enabled: Option<bool>,
+    pub tun_stack: Option<String>,
     #[serde(default)]
-    pub tun_strict_route: bool,
-    pub controller_port: u16,
-    pub log_level: String,
+    pub tun_auto_route: Option<bool>,
+    #[serde(default)]
+    pub tun_strict_route: Option<bool>,
+    pub controller_port: Option<u16>,
+    pub log_level: Option<String>,
     #[serde(default)]
     pub core_channel: String,
     /// Persisted Mini HUD placement (shared geometry, DUAL-15-04). Carried in
     /// the settings page snapshot so both surfaces read one placement.
     #[serde(default)]
-    pub mini_hud: crate::mini_hud::MiniHudPlacement,
+    pub mini_hud: MiniHudPlacement,
 }
 
-fn default_lan_bind_address() -> String {
-    crate::lan::DEFAULT_BIND_ADDRESS.to_owned()
+fn default_language_code() -> String {
+    "zh-CN".into()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -653,9 +675,37 @@ impl SurfacePages {
     }
 }
 
+pub fn unobserved_hosts() -> PageData<DnsHostsProfile> {
+    PageData::unavailable(Failure::unsupported(
+        "no profile-backed Hosts reader is configured",
+    ))
+}
+
 /// One canonical read model consumed by every inbound surface.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SurfaceSnapshot {
+    #[serde(default)]
+    pub runtime_control: RuntimeControlSnapshot,
+    #[serde(default)]
+    pub shell_readout: ShellReadoutSnapshot,
+    #[serde(default)]
+    pub probe_settings: ProxyProbeSettingsSnapshot,
+    #[serde(default)]
+    pub language_settings: LanguageSettingsSnapshot,
+    /// Independent echo observation stays available when DNS configuration reads fail.
+    #[serde(default)]
+    pub dns_leak: DnsLeakReport,
+    /// Independent flush outcomes survive unavailable DNS configuration.
+    #[serde(default = "DnsCacheSnapshot::unavailable")]
+    pub dns_cache: DnsCacheSnapshot,
+    #[serde(default = "DnsQuerySnapshot::unavailable")]
+    pub dns_query: DnsQuerySnapshot,
+    /// Simulation results survive unrelated page/provider read failures.
+    #[serde(default)]
+    pub rule_trace: RuleTraceExecution,
+    /// Profile-backed root Hosts have independent provenance from runtime DNS fallback.
+    #[serde(default = "unobserved_hosts")]
+    pub dns_hosts: PageData<DnsHostsProfile>,
     pub surface: SurfaceKind,
     pub origin: SurfaceOrigin,
     pub generation: u64,
@@ -693,50 +743,52 @@ pub struct SurfaceSnapshot {
     pub system_proxy_recovery: SystemProxyRecoverySnapshot,
     /// Physical-link/default-gateway observation and TUN route recovery.
     #[serde(default)]
-    pub network_roaming: crate::network_roaming::NetworkRoamingSnapshot,
+    pub network_roaming: NetworkRoamingSnapshot,
     /// Android VpnService permission/foreground/tun2proxy session state.
     #[serde(default)]
-    pub vpn: crate::vpn::VpnSessionSnapshot,
+    pub vpn: VpnSessionSnapshot,
     /// Bounded live upload/download samples shared by both primary surfaces.
     #[serde(default)]
-    pub traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot,
+    pub traffic_waveform: TrafficWaveformSnapshot,
     /// Dynamic shared max/unit/tick scale for the traffic waveform.
     #[serde(default)]
-    pub traffic_scale: crate::traffic_scale::TrafficScaleSnapshot,
+    pub traffic_scale: TrafficScaleSnapshot,
     /// Live routing chain derived from controller connections/configuration.
     #[serde(default)]
-    pub traffic_topology: crate::traffic_topology::TrafficTopologySnapshot,
+    pub traffic_topology: TrafficTopologySnapshot,
     /// Current selected proxy-group outbound node and its available facts.
     #[serde(default)]
-    pub active_exit: crate::active_exit::ActiveExitSnapshot,
+    pub active_exit: ActiveExitSnapshot,
     #[serde(default)]
-    pub public_ip: crate::public_ip::PublicIpProbeSnapshot,
+    pub public_ip: PublicIpProbeSnapshot,
     #[serde(default)]
-    pub overview_layout: crate::overview_layout::OverviewLayoutSnapshot,
+    pub overview_layout: OverviewLayoutSnapshot,
     #[serde(default)]
-    pub reconnect_mask: crate::reconnect_mask::ReconnectMaskSnapshot,
+    pub reconnect_mask: ReconnectMaskSnapshot,
     #[serde(default)]
-    pub viewport: crate::responsive_viewport::ResponsiveViewportSnapshot,
+    pub viewport: ResponsiveViewportSnapshot,
     /// Current active subscription usage and expiry facts.
     #[serde(default)]
-    pub subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot,
+    pub subscription_quota: SubscriptionQuotaSnapshot,
+    #[serde(default)]
+    pub profile_editor: ProfileEditorSnapshot,
     /// Host-injected privileged-network regression readback.
     #[serde(default)]
-    pub privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot,
+    pub privileged_network: PrivilegedNetworkSnapshot,
     /// AST configuration diff and snapshot comparison readback.
     #[serde(default)]
-    pub yaml_ast_diff: Option<crate::yaml_ast_diff::YamlAstDiffSnapshot>,
+    pub yaml_ast_diff: Option<YamlAstDiffSnapshot>,
     /// DUAL-10-05/14: the shared directive-DSL sandbox console read model published
     /// by `ScriptApplication` (no JavaScript engine is bundled).
     #[serde(default)]
-    pub script_sandbox: Option<crate::script_sandbox::ScriptSandboxSnapshot>,
+    pub script_sandbox: Option<ScriptSandboxSnapshot>,
     /// DUAL-10-12: the shared export read model published by
     /// `ScriptExportApplication` (real file name/bytes/checksum + host outcome).
     #[serde(default)]
-    pub script_export: Option<crate::script_export::ScriptExportSnapshot>,
+    pub script_export: Option<ScriptExportSnapshot>,
     /// Shared concurrent speedtest, jitter, and packet loss telemetry.
     #[serde(default)]
-    pub speedtest: crate::speedtest::SpeedtestSnapshot,
+    pub speedtest: SpeedtestSnapshot,
 }
 
 /// Surface-level event vocabulary. Toolkit adapters may translate this into
@@ -749,6 +801,15 @@ pub enum SurfaceEvent {
 impl SurfaceSnapshot {
     pub fn unavailable(surface: SurfaceKind, host: HostKind, failure: Failure) -> Self {
         Self {
+            shell_readout: Default::default(),
+            runtime_control: Default::default(),
+            probe_settings: Default::default(),
+            language_settings: Default::default(),
+            dns_leak: Default::default(),
+            dns_cache: DnsCacheSnapshot::unavailable(),
+            dns_query: DnsQuerySnapshot::unavailable(),
+            rule_trace: RuleTraceExecution::default(),
+            dns_hosts: unobserved_hosts(),
             surface,
             origin: SurfaceOrigin::Live,
             generation: 0,
@@ -758,7 +819,7 @@ impl SurfaceSnapshot {
                 generation: 0,
                 session_token: None,
                 revision: 0,
-                proxy_mode: Some(ProxyMode::Rule),
+                proxy_mode: None,
                 core_version: None,
                 sampled_at_epoch_ms: None,
                 failure: Some(failure.clone()),
@@ -780,22 +841,23 @@ impl SurfaceSnapshot {
             mtu: MtuNegotiationSnapshot::default(),
             system_proxy: SystemProxySnapshot::default(),
             system_proxy_recovery: SystemProxyRecoverySnapshot::default(),
-            network_roaming: crate::network_roaming::NetworkRoamingSnapshot::default(),
-            vpn: crate::vpn::VpnSessionSnapshot::default(),
-            privileged_network: crate::privileged_network::PrivilegedNetworkSnapshot::default(),
-            traffic_waveform: crate::traffic_waveform::TrafficWaveformSnapshot::default(),
-            traffic_scale: crate::traffic_scale::TrafficScaleSnapshot::default(),
-            traffic_topology: crate::traffic_topology::TrafficTopologySnapshot::default(),
-            active_exit: crate::active_exit::ActiveExitSnapshot::default(),
-            public_ip: crate::public_ip::PublicIpProbeSnapshot::default(),
-            overview_layout: crate::overview_layout::OverviewLayoutSnapshot::default(),
-            reconnect_mask: crate::reconnect_mask::ReconnectMaskSnapshot::default(),
-            viewport: crate::responsive_viewport::ResponsiveViewportSnapshot::default(),
-            subscription_quota: crate::subscription_quota::SubscriptionQuotaSnapshot::default(),
+            network_roaming: NetworkRoamingSnapshot::default(),
+            vpn: VpnSessionSnapshot::default(),
+            privileged_network: PrivilegedNetworkSnapshot::default(),
+            traffic_waveform: TrafficWaveformSnapshot::default(),
+            traffic_scale: TrafficScaleSnapshot::default(),
+            traffic_topology: TrafficTopologySnapshot::default(),
+            active_exit: ActiveExitSnapshot::default(),
+            public_ip: PublicIpProbeSnapshot::default(),
+            overview_layout: OverviewLayoutSnapshot::default(),
+            reconnect_mask: ReconnectMaskSnapshot::default(),
+            viewport: ResponsiveViewportSnapshot::default(),
+            subscription_quota: SubscriptionQuotaSnapshot::default(),
+            profile_editor: ProfileEditorSnapshot::default(),
             yaml_ast_diff: None,
             script_sandbox: None,
             script_export: None,
-            speedtest: crate::speedtest::SpeedtestSnapshot::default(),
+            speedtest: SpeedtestSnapshot::default(),
         }
     }
 
@@ -824,6 +886,10 @@ impl SurfaceSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::offline_startup::StartupNetworkPolicy;
+    #[cfg(test)]
+    use crate::session::SessionToken;
 
     #[test]
     fn page_vocabulary_has_exactly_eleven_entries() {
@@ -849,12 +915,12 @@ mod tests {
         );
         current.generation = 4;
         current.core.generation = 4;
-        current.core.session_token = Some(crate::session::SessionToken::new(40));
+        current.core.session_token = Some(SessionToken::new(40));
         current.revision = 10;
         current.core.revision = 10;
 
         let mut stale = current.clone();
-        stale.core.session_token = Some(crate::session::SessionToken::new(39));
+        stale.core.session_token = Some(SessionToken::new(39));
         stale.revision = 11;
         stale.core.revision = 11;
         assert!(!stale.is_newer_than(&current));
@@ -862,7 +928,7 @@ mod tests {
         let mut next = current.clone();
         next.generation = 5;
         next.core.generation = 5;
-        next.core.session_token = Some(crate::session::SessionToken::new(50));
+        next.core.session_token = Some(SessionToken::new(50));
         next.revision = 1;
         next.core.revision = 1;
         assert!(next.is_newer_than(&current));
@@ -883,7 +949,7 @@ mod tests {
         );
         assert_eq!(
             snapshot.offline_startup.policy,
-            crate::offline_startup::StartupNetworkPolicy::OfflineFirst
+            StartupNetworkPolicy::OfflineFirst
         );
         assert!(!snapshot.offline_startup.is_offline_startable());
     }

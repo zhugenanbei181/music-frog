@@ -2,6 +2,7 @@
 //! the palette resource and restamps text and control fills in place — the
 //! same entities before and after, no remount of the scene tree.
 
+use super::support::headless_app;
 use bevy::app::Startup;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Res};
@@ -13,8 +14,6 @@ use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
-
-use super::support::headless_app;
 
 #[test]
 fn switch_to_light_rethemes_the_mounted_tree_in_place() {

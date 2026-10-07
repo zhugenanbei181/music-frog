@@ -5,6 +5,7 @@ use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::ui::Val;
 use bevy::ui::prelude::Node;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -100,5 +101,5 @@ fn tooltip_scene_spawns_bubble() {
     let world = app.world_mut();
     let mut bubbles = world.query::<(&TooltipBubble, &Node)>();
     let (_, node) = bubbles.iter(world).next().expect("tooltip bubble mounted");
-    assert!(matches!(node.left, bevy::ui::Val::Px(_)));
+    assert!(matches!(node.left, Val::Px(_)));
 }

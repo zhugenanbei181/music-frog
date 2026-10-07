@@ -7,9 +7,10 @@
 use infiltrator_domain::diagnostics::{
     DiagnosticConnection, DnsResolutionLog, LeakTestOutcome, PrivacyLeakDetectionSuite,
 };
+use mihomo_api::types::Connection;
 
 pub fn evaluate_mihomo_connections(
-    connections: &[mihomo_api::types::Connection],
+    connections: &[Connection],
     dns_logs: &[DnsResolutionLog],
 ) -> LeakTestOutcome {
     let converted = connections

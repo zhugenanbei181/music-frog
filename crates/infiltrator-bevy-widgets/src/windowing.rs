@@ -3,6 +3,8 @@
 use bevy::ecs::component::Component;
 use bevy::ecs::resource::Resource;
 use bevy::math::Vec2;
+#[cfg(target_os = "linux")]
+use std::env::var_os;
 
 /// Docking split slot orientation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -206,8 +208,8 @@ impl WindowBackdropSpec {
         }
         #[cfg(target_os = "linux")]
         {
-            let is_wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
-                || std::env::var_os("XDG_SESSION_TYPE")
+            let is_wayland = var_os("WAYLAND_DISPLAY").is_some()
+                || var_os("XDG_SESSION_TYPE")
                     .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case("wayland"));
             if is_wayland {
                 Self::for_platform(

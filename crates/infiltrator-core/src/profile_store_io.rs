@@ -1,12 +1,13 @@
 //! Composition adapter that exposes the concrete ConfigManager as ProfileStore.
 
+use crate::settings_io::app_config_manager;
 use infiltrator_ports::profile_store::ProfileStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Construct the default profile store for the current host.
 pub async fn open() -> anyhow::Result<Arc<dyn ProfileStore>> {
-    Ok(Arc::new(crate::settings_io::app_config_manager().await?))
+    Ok(Arc::new(app_config_manager().await?))
 }
 
 /// Resolve the same configs directory used by the profile store.

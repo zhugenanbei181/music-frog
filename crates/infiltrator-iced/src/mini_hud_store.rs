@@ -5,26 +5,25 @@
 //! this module only hands the facade the host settings store and reports the
 //! stored placement back to the Elm state.
 
+use crate::host::mini_hud::window_port;
+use crate::host::storage::settings_store;
 use infiltrator_application::mini_hud_application::MiniHudApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudPlacement};
+use infiltrator_ports::settings_store::SettingsStore;
+use std::sync::Arc;
 
 /// The shared application facade over the desktop host's floating-window port.
 /// The port is bound to the Iced window handle by
 /// [`crate::mini_hud_window::install_host_handle`]; an unbound host keeps the
 /// typed unsupported outcome.
-fn facade(
-    store: std::sync::Arc<dyn infiltrator_ports::settings_store::SettingsStore>,
-) -> MiniHudApplication {
-    MiniHudApplication::with_window_port(
-        SettingsApplication::new(store),
-        crate::host::mini_hud::window_port(),
-    )
+fn facade(store: Arc<dyn SettingsStore>) -> MiniHudApplication {
+    MiniHudApplication::with_window_port(SettingsApplication::new(store), window_port())
 }
 
 async fn application() -> Result<MiniHudApplication, InfiltratorError> {
-    let store = crate::host::storage::settings_store()
+    let store = settings_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     Ok(facade(store))

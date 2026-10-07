@@ -1,13 +1,19 @@
 //! Custom shader effects, analytical SDF box shadows, Kawase blur metrics, and OKLCH color science.
 
-use bevy::app::{App, Plugin};
+use crate::shader_assets;
+use crate::surface_shader::{SurfaceShaderMode, release_retired, sync};
+use bevy::app::{App, Plugin, PostUpdate};
 use bevy::asset::{Asset, AssetApp, embedded_asset};
 use bevy::color::{Color, LinearRgba};
+use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::math::Vec2;
 use bevy::reflect::TypePath;
+use bevy::render::RenderPlugin;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
-use bevy::shader::{Shader, ShaderRef};
+use bevy::shader::ShaderRef;
+use bevy::ui::UiSystems;
 use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
+use std::f32::consts::TAU;
 
 /// Fallback mode for shader effects on low-power or non-shader targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -335,7 +341,7 @@ impl GlowSpec {
 
     /// Calculate animated alpha at time `t` seconds with sine wave modulation.
     pub fn current_alpha(&self, time_secs: f32) -> f32 {
-        let phase = (time_secs * self.pulse_frequency_hz * std::f32::consts::TAU).sin();
+        let phase = (time_secs * self.pulse_frequency_hz * TAU).sin();
         let normalized = (phase + 1.0) * 0.5; // [0.0, 1.0]
         self.min_alpha + normalized * (self.max_alpha - self.min_alpha)
     }
@@ -363,7 +369,7 @@ impl ModernSurfaceElevation {
     }
 }
 
-/// Uniform data transmitted to the `modern_surface.wgsl` shader.
+/// Uniform data transmitted to the `modern_surface.wesl` shader.
 #[derive(ShaderType, Clone, Copy, Debug, PartialEq)]
 pub struct ModernSurfaceUniform {
     pub color: LinearRgba,
@@ -380,7 +386,7 @@ pub struct ModernSurfaceUniform {
     pub key_alpha: f32,
 }
 
-/// GPU UI material rendering G2 continuous squircle surfaces and analytical drop shadows.
+/// GPU UI material rendering superellipse cards and analytical drop shadows.
 #[derive(AsBindGroup, Asset, TypePath, Debug, Clone, PartialEq)]
 pub struct ModernSurfaceMaterial {
     #[uniform(0)]
@@ -389,12 +395,12 @@ pub struct ModernSurfaceMaterial {
 
 impl UiMaterial for ModernSurfaceMaterial {
     fn fragment_shader() -> ShaderRef {
-        "embedded://infiltrator_bevy_widgets/modern_surface.wgsl".into()
+        "embedded://infiltrator_bevy_widgets/modern_surface.wesl".into()
     }
 }
 
 impl ModernSurfaceMaterial {
-    /// Create a modern surface card with G2 curvature, border, and analytical shadow.
+    /// Create a superellipse card with border and analytical shadow.
     pub fn card(
         dimensions: Vec2,
         radius: f32,
@@ -443,9 +449,17 @@ pub struct ModernSurfacePlugin;
 
 impl Plugin for ModernSurfacePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<Shader>();
-        embedded_asset!(app, "modern_surface.wgsl");
-        app.add_plugins(UiMaterialPlugin::<ModernSurfaceMaterial>::default());
+        // Shader libraries belong to the renderer. Headless tests need only the
+        // material store and its handle-drop tracking, not another Shader store.
+        if app.is_plugin_added::<RenderPlugin>() {
+            shader_assets::install(app);
+            embedded_asset!(app, "modern_surface.wesl");
+            app.add_plugins(UiMaterialPlugin::<ModernSurfaceMaterial>::default());
+        } else {
+            app.init_asset::<ModernSurfaceMaterial>();
+        }
+        app.init_resource::<SurfaceShaderMode>();
+        app.add_systems(PostUpdate, (release_retired, sync).after(UiSystems::Layout));
     }
 }
 
@@ -454,6 +468,8 @@ mod tests {
     use super::*;
     use bevy::MinimalPlugins;
     use bevy::asset::{AssetPlugin, Assets};
+    #[cfg(test)]
+    use std::f32::consts::FRAC_1_SQRT_2;
 
     #[test]
     fn test_sdf_rounded_box_distance_and_coverage() {
@@ -507,8 +523,7 @@ mod tests {
 
         // At corner diagonal: (half_size - radius + radius * cos(45deg))
         // Superellipse with p=5.0 fills corner more than circle with p=2.0
-        let corner_pt = (size * 0.5) - Vec2::splat(radius)
-            + Vec2::splat(radius * std::f32::consts::FRAC_1_SQRT_2);
+        let corner_pt = (size * 0.5) - Vec2::splat(radius) + Vec2::splat(radius * FRAC_1_SQRT_2);
         let d_circ = circular.distance_at(corner_pt);
         let d_super = superellipse.distance_at(corner_pt);
         assert!(

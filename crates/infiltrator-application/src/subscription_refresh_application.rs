@@ -21,7 +21,9 @@
 //! The profile store adapter and the outbound subscription source stay ports;
 //! only the orchestration is shared.
 
-use futures_util::stream::{self, StreamExt};
+use crate::profile_application::ProfileApplication;
+use futures_util::stream;
+use futures_util::stream::StreamExt;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::subscription_import::{
     CoreReloadOutcome, SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
@@ -37,8 +39,6 @@ use infiltrator_ports::subscription_source::SubscriptionSource;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-
-use crate::profile_application::ProfileApplication;
 
 /// Process-wide registry of subscription refreshes currently in flight.
 ///

@@ -6,8 +6,22 @@ use super::pidfile::{PidFileState, ProcessState, inspect_process, read_pid_state
 use super::*;
 use crate::settings_io::{save_settings, test_support};
 use infiltrator_domain::settings::AppSettings;
+use std::fs::Permissions;
+#[cfg(unix)]
+use std::fs::copy;
+use std::fs::{create_dir_all, set_permissions, write};
 use std::path::Path;
+#[cfg(unix)]
+use std::process;
+#[cfg(unix)]
+use std::process::Child;
+#[cfg(unix)]
+use std::thread;
+#[cfg(unix)]
+use std::time;
 use tempfile::TempDir;
+#[cfg(unix)]
+use tokio::time::sleep;
 
 const ALL_IDS: &[&str] = &[
     "config.settings_parse",
@@ -45,26 +59,26 @@ async fn save_profile(env: &DoctorEnv, content: &str) {
 }
 
 fn write_pid_file(env: &DoctorEnv, pid: u32) {
-    std::fs::write(env.pid_file(), pid.to_string()).unwrap();
+    write(env.pid_file(), pid.to_string()).unwrap();
 }
 
 fn install_fake_core(env: &DoctorEnv, version: &str, executable: bool) {
     let dir = env.home().join("versions").join(version);
-    std::fs::create_dir_all(&dir).unwrap();
+    create_dir_all(&dir).unwrap();
     let binary = dir.join(if cfg!(windows) {
         "mihomo.exe"
     } else {
         "mihomo"
     });
-    std::fs::write(&binary, "#!/bin/sh\nexit 0\n").unwrap();
+    write(&binary, "#!/bin/sh\nexit 0\n").unwrap();
     #[cfg(unix)]
     if executable {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        set_permissions(&binary, Permissions::from_mode(0o755)).unwrap();
     }
     #[cfg(not(unix))]
     let _ = executable;
-    std::fs::write(
+    write(
         env.home().join("config.toml"),
         format!("[default]\nversion = \"{version}\"\n"),
     )
@@ -74,16 +88,16 @@ fn install_fake_core(env: &DoctorEnv, version: &str, executable: bool) {
 /// `/bin/sleep` copied under `name` so the OS process table shows a process
 /// with that name; `mihomo-*` names are treated as live core processes.
 #[cfg(unix)]
-fn spawn_named_sleep(dir: &Path, name: &str) -> std::process::Child {
+fn spawn_named_sleep(dir: &Path, name: &str) -> Child {
     let program = dir.join(name);
-    std::fs::copy("/bin/sleep", &program).expect("copy sleep binary");
+    copy("/bin/sleep", &program).expect("copy sleep binary");
     // ETXTBSY: the kernel may still hold a write reference right after copy;
     // retry a handful of times with a short sleep to absorb the race.
     for attempt in 0..10 {
-        match std::process::Command::new(&program).arg("30").spawn() {
+        match process::Command::new(&program).arg("30").spawn() {
             Ok(child) => return child,
             Err(e) if e.raw_os_error() == Some(26 /* ETXTBSY */) && attempt < 9 => {
-                std::thread::sleep(std::time::Duration::from_millis(10));
+                thread::sleep(time::Duration::from_millis(10));
             }
             Err(e) => panic!("spawn fake process: {e}"),
         }
@@ -92,7 +106,7 @@ fn spawn_named_sleep(dir: &Path, name: &str) -> std::process::Child {
 }
 
 #[cfg(unix)]
-fn stop_child(mut child: std::process::Child) {
+fn stop_child(mut child: Child) {
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -105,7 +119,7 @@ async fn wait_alive(pid: u32, hint: &str) -> bool {
         if inspect_process(pid, hint) == ProcessState::AliveCore {
             return true;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        sleep(time::Duration::from_millis(50)).await;
     }
     false
 }
@@ -220,7 +234,7 @@ async fn settings_parse_check_covers_missing_valid_and_broken() {
         DoctorStatus::Pass
     );
 
-    std::fs::write(env.settings_file(), "language = [unclosed").unwrap();
+    write(env.settings_file(), "language = [unclosed").unwrap();
     let report = run_with(&env, Some("config.settings_parse")).await;
     assert_eq!(
         status_of(&report, "config.settings_parse"),
@@ -348,8 +362,8 @@ async fn current_yaml_skips_when_profile_path_unavailable() {
     let (_dir, env) = temp_env("yaml-skip");
     // Unresolvable configs dir (broken settings file) makes the path
     // derivation fail, which this check reports as Skip rather than Fail.
-    std::fs::create_dir_all(env.home()).unwrap();
-    std::fs::write(env.home().join("config.toml"), "= not toml").unwrap();
+    create_dir_all(env.home()).unwrap();
+    write(env.home().join("config.toml"), "= not toml").unwrap();
     let report = run_with(&env, Some("config.current_yaml")).await;
     assert_eq!(
         status_of(&report, "config.current_yaml"),
@@ -377,7 +391,7 @@ async fn binary_available_requires_executable_default_core() {
     {
         use std::os::unix::fs::PermissionsExt;
         let binary = env.home().join("versions/v1.0/mihomo");
-        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o644)).unwrap();
+        set_permissions(&binary, Permissions::from_mode(0o644)).unwrap();
         let report = run_with(&env, Some("version.binary_available")).await;
         assert_eq!(
             status_of(&report, "version.binary_available"),
@@ -408,7 +422,7 @@ async fn dead_pid_file_warns_fails_and_fix_removes() {
 #[tokio::test]
 async fn malformed_pid_file_fails_and_fix_removes() {
     let (_dir, env) = temp_env("pid-bad");
-    std::fs::write(env.pid_file(), "not-a-pid").unwrap();
+    write(env.pid_file(), "not-a-pid").unwrap();
 
     let report = run_with(&env, Some("service.stale_pid")).await;
     assert_eq!(status_of(&report, "service.stale_pid"), DoctorStatus::Fail);

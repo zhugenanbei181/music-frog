@@ -5,6 +5,7 @@ use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::vpn::{
     VpnConfiguration, VpnSessionSnapshot, VpnSessionState, VpnStartRequest,
 };
+use infiltrator_domain::vpn_policy::{validate_configuration, validate_start_request};
 use infiltrator_ports::vpn_service::VpnServicePort;
 use std::sync::Arc;
 
@@ -58,7 +59,7 @@ impl VpnServiceApplication {
         &self,
         configuration: VpnConfiguration,
     ) -> Result<VpnSessionSnapshot, Failure> {
-        infiltrator_domain::vpn_policy::validate_configuration(&configuration)
+        validate_configuration(&configuration)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         let snapshot = self
             .port
@@ -72,7 +73,7 @@ impl VpnServiceApplication {
     /// tunnel FD. Both the request and the host-reported Running/foreground
     /// state are validated before success is returned.
     pub async fn start(&self, request: VpnStartRequest) -> Result<VpnSessionSnapshot, Failure> {
-        infiltrator_domain::vpn_policy::validate_start_request(&request)
+        validate_start_request(&request)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         let reported = self.port.start(request).await.map_err(Failure::from)?;
         let observed = self.port.snapshot().await.map_err(Failure::from)?;
@@ -179,10 +180,12 @@ mod tests {
     use async_trait::async_trait;
     use infiltrator_contract::vpn::{VpnConfiguration, VpnRoute, VpnSessionState, VpnStartRequest};
     use infiltrator_ports::error::PortError;
+    #[cfg(test)]
+    use std::sync;
 
     struct FakePort {
-        snapshot: std::sync::Mutex<VpnSessionSnapshot>,
-        starts: std::sync::Mutex<usize>,
+        snapshot: sync::Mutex<VpnSessionSnapshot>,
+        starts: sync::Mutex<usize>,
     }
 
     #[async_trait]
@@ -266,8 +269,8 @@ mod tests {
     #[tokio::test]
     async fn application_requires_foreground_running_readback() {
         let port = Arc::new(FakePort {
-            snapshot: std::sync::Mutex::new(VpnSessionSnapshot::default()),
-            starts: std::sync::Mutex::new(0),
+            snapshot: sync::Mutex::new(VpnSessionSnapshot::default()),
+            starts: sync::Mutex::new(0),
         });
         let application = VpnServiceApplication::new(port.clone());
         let requested = application.request_start().await.expect("request start");
@@ -289,8 +292,8 @@ mod tests {
     #[tokio::test]
     async fn invalid_fd_is_rejected_before_host_start() {
         let port = Arc::new(FakePort {
-            snapshot: std::sync::Mutex::new(VpnSessionSnapshot::default()),
-            starts: std::sync::Mutex::new(0),
+            snapshot: sync::Mutex::new(VpnSessionSnapshot::default()),
+            starts: sync::Mutex::new(0),
         });
         let application = VpnServiceApplication::new(port.clone());
         let mut request = request();

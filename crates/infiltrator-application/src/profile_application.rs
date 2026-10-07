@@ -4,18 +4,26 @@
 //! the boundary between a stored profile and a live managed runtime. Concrete
 //! config managers and filesystem details stay in outbound adapters.
 
+use crate::profile_editor_observations::EditorObservations;
 use chrono::Utc;
-use futures_util::stream::{self, StreamExt};
+use futures_util::stream;
+use futures_util::stream::StreamExt;
+use infiltrator_contract::aggregator::AggregationTemplate;
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::subscription_filter_result::SubscriptionFilterApplied;
 use infiltrator_contract::subscription_import::{
     CoreReloadOutcome, SubscriptionBatchReport, SubscriptionImportChannel,
     SubscriptionImportReport, SubscriptionQuotaFacts, SubscriptionScheduleDraft,
     SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_domain::apply::ApplyStrategy;
-use infiltrator_domain::filter::FilterReport;
-use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::filter::SubscriptionFilterPipeline;
+use infiltrator_domain::profile_converter::ProfileConverter;
+use infiltrator_domain::profile_options::FilterSpec;
 use infiltrator_domain::profiles::{
     ProfileDetail, ProfileInfo, ProfileMetadata, sanitize_profile_name,
 };
@@ -24,22 +32,33 @@ use infiltrator_domain::subscription_scheduler_policy::{
     CronSchedule, FormatDetector, QuotaWarningPolicy, SubscriptionSchedule,
 };
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::subscription_source::{
-    ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionSource,
+    ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
 };
 use std::fmt::Display;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+mod workspace;
 
 #[derive(Clone)]
 pub struct ProfileApplication {
     store: Arc<dyn ProfileStore>,
+    pub(crate) editor_observations: Arc<Mutex<EditorObservations>>,
 }
 
 impl ProfileApplication {
     pub fn new(store: Arc<dyn ProfileStore>) -> Self {
-        Self { store }
+        Self {
+            store,
+            editor_observations: Arc::new(Mutex::new(EditorObservations::default())),
+        }
+    }
+
+    pub fn apply_transaction(&self, profile: &str) -> Option<ApplyTransactionSnapshot> {
+        self.store.apply_transaction(profile)
     }
 
     pub fn config_dir(&self) -> PathBuf {
@@ -111,6 +130,7 @@ impl ProfileApplication {
             .delete_profile(&name)
             .await
             .map_err(Failure::from)?;
+        self.retire_editor_profile(&name);
         self.store
             .delete_options(&name)
             .await
@@ -213,8 +233,7 @@ impl ProfileApplication {
     ) -> Result<SubscriptionImportReport, Failure> {
         let name = valid_name(name)?;
         let converted =
-            infiltrator_domain::profile_converter::ProfileConverter::detect_and_convert(content)
-                .unwrap_or_else(|_| content.to_string());
+            ProfileConverter::detect_and_convert(content).unwrap_or_else(|_| content.to_string());
         if converted.trim().is_empty() {
             return Err(Failure::new(
                 ErrorCode::Configuration,
@@ -222,7 +241,7 @@ impl ProfileApplication {
                 false,
             ));
         }
-        infiltrator_domain::config::validate_yaml(&converted)
+        validate_yaml(&converted)
             .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
         let format = FormatDetector::detect(&converted);
         let node_count = FormatDetector::count_nodes(&converted);
@@ -240,25 +259,8 @@ impl ProfileApplication {
         })
     }
 
-    /// DUAL-07-08: load a profile's option sidecar (filter + mixin).
-    pub async fn load_options(&self, name: &str) -> Result<ProfileOptions, Failure> {
-        let name = valid_name(name)?;
-        self.store.load_options(&name).await.map_err(Failure::from)
-    }
-
-    /// DUAL-07-08: persist a profile's option sidecar.
-    pub async fn save_options(&self, name: &str, options: &ProfileOptions) -> Result<(), Failure> {
-        let name = valid_name(name)?;
-        self.store
-            .save_options(&name, options)
-            .await
-            .map_err(Failure::from)
-    }
-
     /// DUAL-08-13: load the persisted aggregation template library.
-    pub async fn load_aggregation_templates(
-        &self,
-    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, Failure> {
+    pub async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, Failure> {
         self.store
             .load_aggregation_templates()
             .await
@@ -268,7 +270,7 @@ impl ProfileApplication {
     /// DUAL-08-13: persist the aggregation template library.
     pub async fn save_aggregation_templates(
         &self,
-        templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+        templates: &[AggregationTemplate],
     ) -> Result<(), Failure> {
         self.store
             .save_aggregation_templates(templates)
@@ -283,32 +285,52 @@ impl ProfileApplication {
     pub async fn apply_subscription_filter<R: ManagedRuntime + ?Sized>(
         &self,
         runtime: Option<Arc<R>>,
-        name: &str,
+        expected: &ProfileSourceIdentity,
         spec: FilterSpec,
-    ) -> Result<FilterReport, Failure> {
-        let name = valid_name(name)?;
+    ) -> Result<SubscriptionFilterApplied, Failure> {
+        let name = valid_name(&expected.profile)?;
         let rule = spec
             .to_rule()
             .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        let content = self.store.load(&name).await.map_err(Failure::from)?;
-        let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
-            .apply_to_yaml(&content)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        infiltrator_domain::config::validate_yaml(&filtered)
-            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
-        self.save_profile_content(runtime, name.clone(), filtered, ApplyStrategy::PreferReload)
-            .await?;
-        let mut options = self
+        let workspace = self
             .store
-            .load_options(&name)
+            .load_workspace(&name)
             .await
             .map_err(Failure::from)?;
+        if workspace.source != *expected {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "The filter source changed; inspect the current profile and options",
+                true,
+            ));
+        }
+        let (filtered, report) = SubscriptionFilterPipeline::new(rule)
+            .apply_to_yaml(&workspace.content)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        validate_yaml(&filtered)
+            .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
+        let mut options = workspace.options;
         options.filter = Some(spec);
-        self.store
-            .save_options(&name, &options)
-            .await
-            .map_err(Failure::from)?;
-        Ok(report)
+        let update = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::Derived,
+            content: filtered,
+            options,
+        };
+        let committed = if let Some(runtime) = runtime {
+            runtime
+                .apply_profile_workspace(expected, &update, ApplyStrategy::PreferReload)
+                .await
+                .map_err(Failure::from)?
+        } else {
+            self.store
+                .compare_and_save_workspace(expected, &update)
+                .await
+                .map_err(Failure::from)?
+        };
+        Ok(SubscriptionFilterApplied {
+            source: committed.source,
+            report,
+        })
     }
 
     pub async fn update_subscription<S: SubscriptionSource + ?Sized>(
@@ -368,7 +390,7 @@ impl ProfileApplication {
                         false,
                     ));
                 }
-                infiltrator_domain::config::validate_yaml(&document.content).map_err(|error| {
+                validate_yaml(&document.content).map_err(|error| {
                     Failure::new(ErrorCode::Configuration, error.to_string(), false)
                 })?;
                 let new_bytes = document.content.len();
@@ -659,35 +681,6 @@ impl ProfileApplication {
         ))
     }
 
-    /// DUAL-09-12: commit a *user-edited* document. Remote subscriptions stay
-    /// protected unless the caller explicitly unlocks them; Mixin/filter,
-    /// import, aggregation and restore paths keep using
-    /// [`ProfileApplication::save_profile_content`] because they are either
-    /// the sanctioned override or a provider-owned write.
-    pub async fn save_edited_profile_content<R: ManagedRuntime + ?Sized>(
-        &self,
-        runtime: Option<Arc<R>>,
-        profile: String,
-        content: String,
-        strategy: ApplyStrategy,
-        allow_protected: bool,
-    ) -> Result<(), Failure> {
-        let name = valid_name(&profile)?;
-        let protection = self.write_protection(&name).await?;
-        if protection.is_protected() && !allow_protected {
-            return Err(Failure::new(
-                ErrorCode::Configuration,
-                format!(
-                    "profile `{name}` is a protected remote subscription: {}",
-                    protection.hint_zh()
-                ),
-                false,
-            ));
-        }
-        self.save_profile_content(runtime, name, content, strategy)
-            .await
-    }
-
     pub async fn save_current_profile_content<F, E, R>(
         &self,
         runtime: Option<Arc<R>>,
@@ -757,7 +750,7 @@ impl ProfileApplication {
     }
 }
 
-fn valid_name(name: &str) -> Result<String, Failure> {
+pub(crate) fn valid_name(name: &str) -> Result<String, Failure> {
     sanitize_profile_name(name)
         .map_err(|error| Failure::new(ErrorCode::InvalidInput, error.to_string(), false))
 }
@@ -766,7 +759,7 @@ async fn commit_subscription_document(
     store: &Arc<dyn ProfileStore>,
     name: &str,
     source_url: &str,
-    document: infiltrator_ports::subscription_source::SubscriptionDocument,
+    document: SubscriptionDocument,
 ) -> Result<(), Failure> {
     if document.content.trim().is_empty() {
         return Err(Failure::new(
@@ -775,7 +768,7 @@ async fn commit_subscription_document(
             false,
         ));
     }
-    infiltrator_domain::config::validate_yaml(&document.content)
+    validate_yaml(&document.content)
         .map_err(|error| Failure::new(ErrorCode::Configuration, error.to_string(), false))?;
     store
         .save(name, &document.content)
@@ -795,8 +788,8 @@ async fn commit_subscription_document(
 }
 
 fn apply_subscription_metadata(
-    metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
-    userinfo: Option<infiltrator_domain::subscription::SubscriptionUserInfo>,
+    metadata: &mut ProfileMetadata,
+    userinfo: Option<SubscriptionUserInfo>,
     now: chrono::DateTime<Utc>,
 ) {
     apply_subscription_quota(metadata, userinfo);
@@ -805,8 +798,8 @@ fn apply_subscription_metadata(
 }
 
 fn apply_subscription_quota(
-    metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
-    userinfo: Option<infiltrator_domain::subscription::SubscriptionUserInfo>,
+    metadata: &mut ProfileMetadata,
+    userinfo: Option<SubscriptionUserInfo>,
 ) {
     if let Some(info) = userinfo {
         metadata.traffic_upload = info.upload;
@@ -816,10 +809,7 @@ fn apply_subscription_quota(
     }
 }
 
-fn schedule_next_update(
-    metadata: &mut infiltrator_domain::profiles::ProfileMetadata,
-    now: chrono::DateTime<Utc>,
-) {
+fn schedule_next_update(metadata: &mut ProfileMetadata, now: chrono::DateTime<Utc>) {
     if !metadata.auto_update_enabled {
         metadata.next_update = None;
         return;

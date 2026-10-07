@@ -7,6 +7,7 @@
 use crate::settings_application::SettingsApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord, ShortcutRegistry};
+use infiltrator_ports::settings_store::SettingsStore;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -19,7 +20,7 @@ impl ShortcutApplication {
         Self { settings }
     }
 
-    pub fn from_store(store: Arc<dyn infiltrator_ports::settings_store::SettingsStore>) -> Self {
+    pub fn from_store(store: Arc<dyn SettingsStore>) -> Self {
         Self::new(SettingsApplication::new(store))
     }
 
@@ -103,10 +104,16 @@ fn invalid_input(message: String) -> Failure {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use infiltrator_contract::shortcuts::KeyModifiers;
+    #[cfg(test)]
+    use infiltrator_contract::shortcuts::ShortcutBinding;
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::settings_store::SettingsStore;
     use std::sync::Mutex;
+    #[cfg(test)]
+    use tokio::runtime::Builder;
 
     #[derive(Default)]
     struct MemorySettingsStore {
@@ -136,7 +143,7 @@ mod tests {
     #[test]
     fn empty_settings_seed_the_product_defaults() {
         let application = application();
-        let registry = tokio::runtime::Builder::new_current_thread()
+        let registry = Builder::new_current_thread()
             .build()
             .expect("runtime")
             .block_on(application.registry())
@@ -151,13 +158,8 @@ mod tests {
     #[test]
     fn capture_persists_and_rejects_conflicts() {
         let application = application();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime");
-        let chord = ShortcutChord::new(
-            "Y",
-            infiltrator_contract::shortcuts::KeyModifiers::ctrl_alt(),
-        );
+        let runtime = Builder::new_current_thread().build().expect("runtime");
+        let chord = ShortcutChord::new("Y", KeyModifiers::ctrl_alt());
         let updated = runtime
             .block_on(application.capture(ShortcutAction::ToggleTun, chord.clone()))
             .expect("capture");
@@ -180,19 +182,14 @@ mod tests {
                 .get(ShortcutAction::ToggleMiniHud)
                 .expect("bound")
                 .chord,
-            ShortcutChord::new(
-                "M",
-                infiltrator_contract::shortcuts::KeyModifiers::ctrl_alt()
-            )
+            ShortcutChord::new("M", KeyModifiers::ctrl_alt())
         );
     }
 
     #[test]
     fn enable_disable_and_reset_round_trip_through_the_store() {
         let application = application();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime");
+        let runtime = Builder::new_current_thread().build().expect("runtime");
         let disabled = runtime
             .block_on(application.set_enabled(ShortcutAction::ToggleTun, false))
             .expect("disable");
@@ -213,18 +210,14 @@ mod tests {
     #[test]
     fn a_stored_custom_chord_blocks_later_captures() {
         let application = application();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime");
+        let runtime = Builder::new_current_thread().build().expect("runtime");
         // Seed a stored binding that occupies the palette default chord.
         runtime
             .block_on(application.settings.update(|settings| {
-                settings
-                    .shortcuts
-                    .push(infiltrator_contract::shortcuts::ShortcutBinding::new(
-                        ShortcutAction::CycleTheme,
-                        ShortcutChord::ctrl_key("K"),
-                    ));
+                settings.shortcuts.push(ShortcutBinding::new(
+                    ShortcutAction::CycleTheme,
+                    ShortcutChord::ctrl_key("K"),
+                ));
             }))
             .expect("seed");
         let registry = runtime.block_on(application.registry()).expect("registry");

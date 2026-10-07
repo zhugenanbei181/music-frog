@@ -7,19 +7,28 @@
 //! active profile all go through that one application. This module owns only
 //! the surface state machine around it.
 
+use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::update::core::profile_apply::save_task;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
+use infiltrator_application::protocol_codec_application::{
+    ProtocolCodecApplication, publish_studio,
+};
+use infiltrator_application::protocol_form::ProtocolInputs;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
+use infiltrator_contract::protocol_trust::CaTrustReport;
+use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
+use std::sync::{Arc, Mutex};
 
 /// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.
-async fn scan_dialer_chains()
--> Result<infiltrator_contract::dialer_chain::DialerChainReport, InfiltratorError> {
-    let store = crate::configs_dir::config_manager().await?;
+async fn scan_dialer_chains() -> Result<DialerChainReport, InfiltratorError> {
+    let store = config_manager().await?;
     let application = ProfileApplication::new(store);
     let (_profile, content) = application
         .current_content()
@@ -31,11 +40,7 @@ async fn scan_dialer_chains()
 
 impl AppState {
     /// DUAL-05-13: this host's CA reader, if it composed one.
-    fn certificate_authority_port(
-        &self,
-    ) -> Option<
-        std::sync::Arc<dyn infiltrator_ports::certificate_authority::CertificateAuthorityPort>,
-    > {
+    fn certificate_authority_port(&self) -> Option<Arc<dyn CertificateAuthorityPort>> {
         self.runtime
             .runtime
             .as_ref()
@@ -43,9 +48,7 @@ impl AppState {
     }
 
     /// DUAL-05-13: resolve the draft's CA request and refresh the studio.
-    fn refresh_custom_node_ca_trust(
-        &mut self,
-    ) -> infiltrator_contract::protocol_trust::CaTrustReport {
+    fn refresh_custom_node_ca_trust(&mut self) -> CaTrustReport {
         let draft = self.runtime.custom_node_studio.draft.clone();
         let params = draft
             .as_ref()
@@ -59,19 +62,33 @@ impl AppState {
 
     /// DUAL-05-01/02/11/14: the shared protocol codec handlers.
     pub(super) fn update_protocol_codec(&mut self, message: Message) -> Task<Message> {
+        if !self.runtime.custom_node_modal_open
+            && !matches!(
+                message,
+                Message::OpenCustomNodeModal
+                    | Message::CustomNodeSaved(_)
+                    | Message::CustomNodeDialerScanned(_)
+            )
+        {
+            return Task::none();
+        }
         match message {
             Message::OpenCustomNodeModal => {
+                if self.runtime.custom_node_saving {
+                    return Task::none();
+                }
                 // DUAL-05: the modal is a projection of the shared studio, so
                 // opening it seeds an explicit draft instead of leaving the
                 // form in a "no facts" limbo.
                 self.runtime.custom_node_modal_open = true;
                 self.runtime.custom_node_uri_input.clear();
+                self.runtime.custom_node_inputs = ProtocolInputs::default();
                 self.runtime.custom_node_studio =
                     ProtocolCodecApplication::publish_draft(ProtocolDraft::new("vless"), None);
                 self.refresh_custom_node_ca_trust();
                 // DUAL-05-09/10: the dialer graph is a profile fact, so the
                 // modal scans the active profile through the shared analyzer.
-                Task::perform(scan_dialer_chains(), Message::CustomNodeDialerScanned)
+                Task::none()
             }
             Message::ScanCustomNodeDialer => {
                 Task::perform(scan_dialer_chains(), Message::CustomNodeDialerScanned)
@@ -98,6 +115,20 @@ impl AppState {
                 self.runtime.custom_node_uri_input = u;
                 Task::none()
             }
+            Message::UpdateCustomNodeField(id, raw) => {
+                let Some(draft) = self.runtime.custom_node_studio.draft.clone() else {
+                    return Task::none();
+                };
+                match self.runtime.custom_node_inputs.edit(&draft, id, raw) {
+                    Ok(next) => {
+                        self.update_protocol_codec(Message::UpdateCustomNodeDraft(Box::new(next)))
+                    }
+                    Err(error) => {
+                        self.runtime.custom_node_studio.last_error = Some(error.message);
+                        Task::none()
+                    }
+                }
+            }
             Message::UpdateCustomNodeDraft(draft) => {
                 // One shared re-derivation: report + URI gaps come from the
                 // application, never from the view.
@@ -116,6 +147,7 @@ impl AppState {
                 let uri = self.runtime.custom_node_uri_input.trim().to_string();
                 match ProtocolCodecApplication::draft_from_uri(&uri) {
                     Ok(draft) => {
+                        self.runtime.custom_node_inputs = ProtocolInputs::default();
                         let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
                         self.runtime.custom_node_studio =
                             ProtocolCodecApplication::publish_draft(draft, preview);
@@ -133,9 +165,7 @@ impl AppState {
                             .custom_node_studio
                             .clone()
                             .with_error(failure.message.clone());
-                        infiltrator_application::protocol_codec_application::publish_studio(
-                            next.clone(),
-                        );
+                        publish_studio(next.clone());
                         self.runtime.custom_node_studio = next;
                         Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
                     }
@@ -153,9 +183,7 @@ impl AppState {
                         .custom_node_studio
                         .clone()
                         .with_error(failure.clone());
-                    infiltrator_application::protocol_codec_application::publish_studio(
-                        next.clone(),
-                    );
+                    publish_studio(next.clone());
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(failure, ToastStatus::Error));
                 };
@@ -168,6 +196,11 @@ impl AppState {
                 Task::none()
             }
             Message::SaveCustomNodeForm => {
+                if self.runtime.custom_node_saving
+                    || !self.runtime.custom_node_inputs.errors.is_empty()
+                {
+                    return Task::none();
+                }
                 let Some(draft) = self.runtime.custom_node_studio.draft.clone() else {
                     let failure = "no node draft to save".to_string();
                     let next = self
@@ -175,9 +208,7 @@ impl AppState {
                         .custom_node_studio
                         .clone()
                         .with_error(failure.clone());
-                    infiltrator_application::protocol_codec_application::publish_studio(
-                        next.clone(),
-                    );
+                    publish_studio(next.clone());
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(failure, ToastStatus::Error));
                 };
@@ -188,30 +219,63 @@ impl AppState {
                         .custom_node_studio
                         .clone()
                         .with_error(issues.clone());
-                    infiltrator_application::protocol_codec_application::publish_studio(
-                        next.clone(),
-                    );
+                    publish_studio(next.clone());
                     self.runtime.custom_node_studio = next;
                     return Task::done(Message::ShowToast(issues, ToastStatus::Error));
+                }
+                self.runtime.custom_node_saving = true;
+                if let Some(application) = self.commands.clone() {
+                    return Task::perform(
+                        async move {
+                            match (application
+                                .execute(CommandIntent::SaveCustomNodeDraft {
+                                    draft: Box::new(draft),
+                                })
+                                .await)
+                                .into_unit()
+                            {
+                                Ok(()) => Ok(()),
+                                Err(failure) => Err(InfiltratorError::Config(failure.message)),
+                            }
+                        },
+                        Message::CustomNodeSaved,
+                    );
                 }
                 let runtime = self.runtime.runtime.clone();
                 // DUAL-05-14: the splice keeps every other profile section and
                 // every unknown node key; the old parse/export round trip
                 // silently dropped rules/dns/proxy-groups.
-                crate::update::core::profile_apply::save_task(
+                let committed = Arc::new(Mutex::new(None));
+                let written = committed.clone();
+                save_task(
                     runtime,
                     move |content| {
-                        ProtocolCodecApplication::upsert_draft_into_profile(content, &draft)
-                            .map(|commit| commit.profile_yaml)
-                            .map_err(|failure| anyhow::anyhow!(failure.message))
+                        let commit =
+                            ProtocolCodecApplication::upsert_draft_into_profile(content, &draft)
+                                .map_err(|failure| anyhow::anyhow!(failure.message))?;
+                        let content = commit.profile_yaml.clone();
+                        *written.lock().expect("protocol commit") = Some(commit);
+                        Ok(content)
                     },
                     Message::CustomNodeSaved,
                 )
+                .map(move |message| {
+                    if matches!(message, Message::CustomNodeSaved(Ok(())))
+                        && let Some(commit) = committed.lock().expect("protocol commit").take()
+                    {
+                        ProtocolCodecApplication::publish_commit(&commit);
+                    }
+                    message
+                })
             }
             Message::CustomNodeSaved(result) => {
-                self.runtime.custom_node_modal_open = false;
+                if !self.runtime.custom_node_saving {
+                    return Task::none();
+                }
+                self.runtime.custom_node_saving = false;
                 match result {
                     Ok(_) => {
+                        self.runtime.custom_node_modal_open = false;
                         self.runtime.custom_node_uri_input.clear();
                         // DUAL-05-13/09: the save published the written
                         // document's dialer verdict; re-derive the CA state so
@@ -226,6 +290,7 @@ impl AppState {
                         ])
                     }
                     Err(e) => {
+                        self.runtime.custom_node_studio.last_error = Some(e.to_string());
                         self.set_error(&e);
                         Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
                     }

@@ -6,8 +6,8 @@
 
 use async_trait::async_trait;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
-use infiltrator_contract::capability::Capability;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::capability::{Availability, Capability};
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::speedtest::{SpeedtestScope, SpeedtestSnapshot};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::speedtest::SpeedtestPort;
@@ -26,14 +26,10 @@ impl DesktopSpeedtestPort {
 
 fn map_failure(error: Failure) -> PortError {
     match error.code {
-        infiltrator_contract::error::ErrorCode::Unsupported => {
-            PortError::unsupported(Capability::Speedtest, error.message)
-        }
-        infiltrator_contract::error::ErrorCode::Permission => {
-            PortError::PermissionDenied(error.message)
-        }
-        infiltrator_contract::error::ErrorCode::Storage => PortError::NotFound(error.message),
-        infiltrator_contract::error::ErrorCode::Network => PortError::Network(error.message),
+        ErrorCode::Unsupported => PortError::unsupported(Capability::Speedtest, error.message),
+        ErrorCode::Permission => PortError::PermissionDenied(error.message),
+        ErrorCode::Storage => PortError::NotFound(error.message),
+        ErrorCode::Network => PortError::Network(error.message),
         _ => PortError::Failed(error.message),
     }
 }
@@ -110,7 +106,12 @@ pub struct UnsupportedSpeedtestPort;
 #[async_trait]
 impl SpeedtestPort for UnsupportedSpeedtestPort {
     fn snapshot(&self) -> SpeedtestSnapshot {
-        SpeedtestSnapshot::default()
+        SpeedtestSnapshot {
+            availability: Some(Availability::Unsupported {
+                reason: "speedtest engine is not available on this host".into(),
+            }),
+            ..SpeedtestSnapshot::default()
+        }
     }
 
     async fn run_scope(

@@ -2,18 +2,20 @@
 
 use async_trait::async_trait;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
+use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::speedtest::{
     JitterCalculation, PacketLossRating, SpeedtestPhase, SpeedtestScope,
 };
 use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, Shadowsocks};
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
 use std::time::Duration;
 
 type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
@@ -58,10 +60,7 @@ impl RuntimeGateway for MockGateway {
     async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
         Ok(())
     }
-    async fn set_proxy_mode(
-        &self,
-        _mode: infiltrator_contract::command::ProxyMode,
-    ) -> Result<(), PortError> {
+    async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
         Ok(())
     }
     async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
@@ -123,25 +122,13 @@ impl RuntimeGateway for MockGateway {
     async fn stream_logs(
         &self,
         _level: Option<String>,
-    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+    ) -> Result<RuntimeStream<String>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
-    async fn stream_traffic(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
-        PortError,
-    > {
+    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
-    async fn stream_connections(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<
-            infiltrator_domain::runtime::ConnectionSnapshot,
-        >,
-        PortError,
-    > {
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
 }
@@ -204,7 +191,7 @@ async fn test_group_06_semaphore_concurrency_30() {
     // 60 nodes total; default limit = 30
     let proxies = create_test_topology(60);
     let gateway = Arc::new(MockGateway::new(proxies).with_delay_fn(|_p, _u, _t| {
-        std::thread::sleep(Duration::from_millis(15));
+        sleep(Duration::from_millis(15));
         Ok(40)
     }));
 

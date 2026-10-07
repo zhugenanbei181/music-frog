@@ -12,6 +12,7 @@
 //! * `subscription_store` — credential-store persistence of subscription URLs
 //! * `metadata` — settings-TOML mapping helpers
 
+use std::path;
 mod active;
 mod controller;
 mod defaults;
@@ -19,17 +20,26 @@ mod defaults;
 mod manager_test;
 mod metadata;
 pub mod paths;
-mod profiles;
+mod profile_protection;
+pub(crate) mod profiles;
 mod subscription_store;
 
+use crate::profile_write_boundary::shared_boundary;
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::RwLock;
+use tokio::sync::Mutex;
 
 pub struct ConfigManager<S: SecureStore> {
     config_dir: PathBuf,
     settings_file: PathBuf,
     credential_store: S,
+    write_boundary: Arc<Mutex<()>>,
+    pub(crate) apply_observations: RwLock<BTreeMap<String, ApplyTransactionSnapshot>>,
 }
 
 impl<S: SecureStore> ConfigManager<S> {
@@ -48,18 +58,28 @@ impl<S: SecureStore> ConfigManager<S> {
         credential_store: S,
     ) -> Result<Self> {
         let config_dir = paths::resolve_configs_dir_in(configs_dir, &home)?;
+        let write_boundary = shared_boundary(&config_dir)?;
         let settings_file = home.join("config.toml");
 
         Ok(Self {
             config_dir,
             settings_file,
             credential_store,
+            write_boundary,
+            apply_observations: RwLock::new(BTreeMap::new()),
         })
     }
 
     /// 解析后的 configs（profiles yaml）存储目录。目录可能尚不存在
     /// （创建归 doctor fix 与各 save 流程）。
-    pub fn config_dir(&self) -> &std::path::Path {
+    pub fn config_dir(&self) -> &path::Path {
         &self.config_dir
+    }
+
+    /// Adapter transaction boundary shared by every manager of this store.
+    /// Hold only across persistence comparison/publication; never across
+    /// lifecycle callbacks that can themselves repair or save a profile.
+    pub async fn lock_profile_writes(&self) -> impl Send + '_ {
+        self.write_boundary.lock().await
     }
 }

@@ -2,6 +2,7 @@
 
 use bevy::ecs::component::Component;
 use bevy::math::Vec2;
+use std::mem::take;
 
 /// Classification of a preedit segment in CJK IME composition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -474,7 +475,7 @@ impl PreeditStateMachine {
 
     /// Commit the preedit composition, returning the text to insert.
     pub fn commit(&mut self) -> String {
-        let text = std::mem::take(&mut self.raw_text);
+        let text = take(&mut self.raw_text);
         self.clauses.clear();
         self.cursor = 0;
         self.active_clause = None;

@@ -5,6 +5,8 @@
 //! `#[ignore]`d and documented.
 
 use super::*;
+#[cfg(feature = "network-tests")]
+use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::stun_probe::{StunMappedAddress, StunProbeStatus, StunProbeTransport};
 use tokio::net::UdpSocket;
 
@@ -183,8 +185,7 @@ async fn live_public_stun_server_observes_this_hosts_udp_mapping() {
     let probe = UdpStunProbe::new();
     let observation = StunProbePort::observe(
         &probe,
-        StunProbeRequest::new(infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER)
-            .with_timeout_ms(4_000),
+        StunProbeRequest::new(DEFAULT_STUN_SERVER).with_timeout_ms(4_000),
     )
     .await
     .expect("observe");

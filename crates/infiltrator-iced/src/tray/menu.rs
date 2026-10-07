@@ -6,8 +6,6 @@
 //! Red line: a pure function of the snapshot — no app-state access, no I/O,
 //! no backend calls — so the whole menu is testable headlessly.
 
-use infiltrator_shared::locales::{Lang, Localizer};
-
 use super::spec::{
     TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_CANCEL_CORE_DOWNLOAD, TRAY_ACTION_CANCEL_SYNC,
     TRAY_ACTION_CHECK_CORE_UPDATE, TRAY_ACTION_FACTORY_RESET, TRAY_ACTION_FLUSH_FAKEIP,
@@ -27,6 +25,7 @@ use super::spec::{
     TRAY_SUBMENU_SYNC, TrayActionId, TrayMenuItem, TrayMenuSpec, TrayProxyGroup, TrayProxyNode,
     TraySpec, TraySpecContext, encode_pair_payload, load_icon_rgba, tray_status_key,
 };
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Translation closure type shared by the section builders below.
 type Tr<'a> = &'a (dyn Fn(&str) -> String + 'a);

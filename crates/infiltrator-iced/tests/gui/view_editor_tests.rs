@@ -1,4 +1,9 @@
 use super::*;
+use crate::test_mounts::profile_edit_fixture;
+use iced::widget::text_editor::{Action, Cursor, Motion, Position};
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
+use std::path::PathBuf;
 
 #[test]
 fn test_format_short_sha() {
@@ -42,9 +47,15 @@ fn test_editor_view_with_syntax_error() {
 
 // ---- DUAL-09-02/04: shared snippet catalogue + windowed editor ---------------
 
-fn caret_on(line: usize, column: usize) -> iced::widget::text_editor::Cursor {
-    iced::widget::text_editor::Cursor {
-        position: iced::widget::text_editor::Position { line, column },
+fn seed_document(state: &mut AppState, content: &str) {
+    let reply =
+        profile_edit_fixture::document(state, PathBuf::from("main.yaml"), content.to_owned());
+    let _ = state.update(reply);
+}
+
+fn caret_on(line: usize, column: usize) -> Cursor {
+    Cursor {
+        position: Position { line, column },
         selection: None,
     }
 }
@@ -55,7 +66,7 @@ fn the_snippet_bar_renders_the_shared_catalogue_and_not_a_local_copy() {
 
     let (mut state, _) = AppState::new();
     state.editor.editor_pane = EditorPane::Profile;
-    state.editor.editor_content = iced::widget::text_editor::Content::with_text("proxies:\n");
+    seed_document(&mut state, "proxies:\n");
     let _v = view(&state);
 
     // The bar is rendered from the catalogue, so every catalogue id is a
@@ -74,8 +85,7 @@ fn the_snippet_bar_renders_the_shared_catalogue_and_not_a_local_copy() {
 fn insert_yaml_snippet_splices_through_the_shared_application() {
     let (mut state, _) = AppState::new();
     state.editor.editor_pane = EditorPane::Profile;
-    state.editor.editor_content =
-        iced::widget::text_editor::Content::with_text("proxies:\n  - name: keep\n");
+    seed_document(&mut state, "proxies:\n  - name: keep\n");
     state.editor.editor_content.move_to(caret_on(1, 16));
 
     let _ = state.update(Message::InsertYamlSnippet("ss"));
@@ -99,7 +109,7 @@ fn insert_yaml_snippet_splices_through_the_shared_application() {
 fn a_snippet_that_would_break_the_document_is_refused_and_the_buffer_survives() {
     let (mut state, _) = AppState::new();
     state.editor.editor_pane = EditorPane::Profile;
-    state.editor.editor_content = iced::widget::text_editor::Content::with_text("mode: rule\n");
+    seed_document(&mut state, "mode: rule\n");
     // Splitting the scalar to open a block sequence is not valid YAML.
     state.editor.editor_content.move_to(caret_on(0, 6));
 
@@ -119,7 +129,7 @@ fn the_windowed_editor_and_gutter_follow_the_shared_viewport() {
     let large: String = (0..400)
         .map(|index| format!("key-{index}: value-{index}\n"))
         .collect();
-    state.editor.editor_content = iced::widget::text_editor::Content::with_text(&large);
+    seed_document(&mut state, &large);
     assert_eq!(
         state.editor.profile_viewport.first_line(),
         0,
@@ -131,9 +141,7 @@ fn the_windowed_editor_and_gutter_follow_the_shared_viewport() {
     // A caret step past the window edge moves the shared window, which is the
     // fact the gutter renders from.
     state.editor.editor_content.move_to(caret_on(300, 0));
-    let _ = state.update(Message::EditorAction(
-        iced::widget::text_editor::Action::Move(iced::widget::text_editor::Motion::Down),
-    ));
+    let _ = state.update(Message::EditorAction(Action::Move(Motion::Down)));
     assert!(
         state.editor.profile_viewport.first_line() > 0,
         "the window followed the caret into view"
@@ -147,7 +155,7 @@ fn the_windowed_editor_and_gutter_follow_the_shared_viewport() {
 
 // ---- DUAL-09-05/06/07: shared formatter + shared prune view -----------------
 
-fn history_fixture() -> infiltrator_contract::snapshot_history::SnapshotHistorySnapshot {
+fn history_fixture() -> SnapshotHistorySnapshot {
     use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
     SnapshotHistorySnapshot {
         profile: "main".to_owned(),
@@ -183,8 +191,7 @@ fn format_yaml_editor_keeps_comments_through_the_shared_engine() {
     let (mut state, _) = AppState::new();
     // Four-space indentation with a handwritten comment: a serde re-serialize
     // would drop the comment; the shared AST formatter must keep it.
-    state.editor.editor_content =
-        text_editor::Content::with_text("# 手写注释\nrules:\n    - MATCH,DIRECT\n");
+    seed_document(&mut state, "# 手写注释\nrules:\n    - MATCH,DIRECT\n");
     let _ = state.update(Message::FormatYamlEditor);
     let text = state.editor.editor_content.text();
     assert!(text.contains("# 手写注释"), "comment kept: {text}");
@@ -197,7 +204,7 @@ fn format_yaml_editor_keeps_comments_through_the_shared_engine() {
 #[test]
 fn format_yaml_editor_refuses_an_invalid_buffer_without_rewriting_it() {
     let (mut state, _) = AppState::new();
-    state.editor.editor_content = text_editor::Content::with_text("mode: [\n");
+    seed_document(&mut state, "mode: [\n");
     let _ = state.update(Message::FormatYamlEditor);
     assert_eq!(
         state.editor.editor_content.text(),
@@ -230,7 +237,7 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
     }
 
     let _ = state.update(Message::ProfileSnapshotsLoaded(Err(
-        infiltrator_contract::error::InfiltratorError::Config("boom".to_owned()),
+        InfiltratorError::Config("boom".to_owned()),
     )));
     assert!(!state.editor.is_loading_snapshots);
 }
@@ -238,7 +245,7 @@ fn snapshot_history_state_follows_the_shared_prune_view_and_renders_it() {
 #[test]
 fn editor_live_preflight_reports_the_shared_diagnostic_line() {
     let (mut state, _) = AppState::new();
-    state.editor.editor_content = text_editor::Content::with_text("mode: [\n");
+    seed_document(&mut state, "mode: [\n");
     let _ = state.update(Message::EditorAction(text_editor::Action::Edit(
         text_editor::Edit::Paste("x".to_string().into()),
     )));

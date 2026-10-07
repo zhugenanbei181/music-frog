@@ -6,10 +6,14 @@
 
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
-use crate::types::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::doctor::DoctorAction;
+use infiltrator_contract::doctor::{BootstrapReport, DoctorFixReport, DoctorReport};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_desktop::admin_client::AdminApiClient;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 impl AppState {
     /// 内嵌 admin server 的 API 基址：实际绑定地址优先（端口被占时会向上
@@ -26,6 +30,9 @@ impl AppState {
     pub(super) fn update_core_doctor(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::RunDoctor => {
+                if self.commands.is_some() {
+                    return self.shared_doctor_command(DoctorAction::Diagnose);
+                }
                 if self.diag.doctor.is_running {
                     return Task::none();
                 }
@@ -34,7 +41,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        crate::host::admin_client::AdminApiClient::new(base)
+                        AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .get::<DoctorReport>("/api/doctor")
                             .await
@@ -43,6 +50,27 @@ impl AppState {
                     Message::DoctorReportReady,
                 )
             }
+            Message::DoctorCommandFinished { token, result } => {
+                let failure = result.as_ref().err().cloned();
+                if self.diag.doctor.action.finish(token, result) {
+                    self.diag.doctor.error = failure.map(|failure| failure.message);
+                    if self.shell.demo
+                        && let Some(doctor) = &self.diag.doctor.capture_observation
+                    {
+                        let mut snapshot =
+                            self.surface.latest().expect("capture observation").clone();
+                        snapshot.revision += 1;
+                        snapshot.pages.doctor = doctor.page();
+                        self.apply_shared_surface_snapshot(snapshot);
+                    }
+                }
+                Task::none()
+            }
+            Message::RetryDoctorCommand if !self.diag.doctor.action.can_retry() => Task::none(),
+            Message::RetryDoctorCommand => match self.diag.doctor.action.retry_action.clone() {
+                Some(action) => self.shared_doctor_command(action),
+                None => Task::none(),
+            },
             Message::DoctorReportReady(result) => {
                 self.diag.doctor.is_running = false;
                 match result {
@@ -54,7 +82,13 @@ impl AppState {
                 }
                 Task::none()
             }
+            Message::RepairDoctorIssue(id) => {
+                self.shared_doctor_command(DoctorAction::RepairOne(id))
+            }
             Message::RunDoctorFix => {
+                if self.commands.is_some() {
+                    return self.shared_doctor_command(DoctorAction::RepairAll);
+                }
                 if self.diag.doctor.is_fixing {
                     return Task::none();
                 }
@@ -62,7 +96,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        crate::host::admin_client::AdminApiClient::new(base)
+                        AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .post::<DoctorFixReport, _>("/api/doctor/fix", &serde_json::json!({}))
                             .await
@@ -79,7 +113,7 @@ impl AppState {
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
                             Task::done(Message::ShowToast(
-                                doctor_fix_toast(&report),
+                                doctor_fix_toast(&report, &self.shell.lang),
                                 ToastStatus::Success,
                             )),
                         ])
@@ -91,6 +125,9 @@ impl AppState {
                 }
             }
             Message::RunBootstrap => {
+                if self.commands.is_some() {
+                    return self.shared_doctor_command(DoctorAction::Bootstrap);
+                }
                 if self.diag.doctor.is_bootstrapping {
                     return Task::none();
                 }
@@ -98,7 +135,7 @@ impl AppState {
                 let base = self.admin_api_base();
                 Task::perform(
                     async move {
-                        crate::host::admin_client::AdminApiClient::new(base)
+                        AdminApiClient::new(base)
                             .map_err(|e| InfiltratorError::Internal(e.to_string()))?
                             .post::<BootstrapReport, _>("/api/bootstrap", &serde_json::json!({}))
                             .await
@@ -115,7 +152,7 @@ impl AppState {
                         Task::batch(vec![
                             Task::done(Message::RunDoctor),
                             Task::done(Message::ShowToast(
-                                bootstrap_toast(&report),
+                                bootstrap_toast(&report, &self.shell.lang),
                                 ToastStatus::Success,
                             )),
                         ])
@@ -131,25 +168,36 @@ impl AppState {
     }
 }
 
-fn doctor_fix_toast(report: &DoctorFixReport) -> String {
+fn doctor_fix_toast(report: &DoctorFixReport, code: &str) -> String {
     if report.actions.is_empty() {
-        "体检修复：无需修复".to_string()
+        Lang(code).tr("doctor_no_repair_needed").into_owned()
     } else {
-        format!(
-            "体检修复：已执行 {} 项（{}）",
-            report.actions.len(),
-            report
-                .actions
-                .iter()
-                .map(|action| action.id.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
+        localize(
+            code,
+            "doctor_repair_result",
+            &[
+                ("count", report.actions.len().to_string()),
+                (
+                    "ids",
+                    report
+                        .actions
+                        .iter()
+                        .map(|action| action.id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                ),
+            ],
         )
     }
 }
-
-fn bootstrap_toast(report: &BootstrapReport) -> String {
+fn bootstrap_toast(report: &BootstrapReport, code: &str) -> String {
     let executed = report.steps.iter().filter(|step| step.executed).count();
-    let skipped = report.steps.len() - executed;
-    format!("初始化引导：执行 {executed} 步，跳过 {skipped} 步")
+    localize(
+        code,
+        "doctor_bootstrap_result",
+        &[
+            ("executed", executed.to_string()),
+            ("skipped", (report.steps.len() - executed).to_string()),
+        ],
+    )
 }

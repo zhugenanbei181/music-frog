@@ -1,9 +1,15 @@
 //! Bevy projection and actions for physical-link roaming recovery.
 
+use super::settings_core::SettingsProjection;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::settings::LastSettingsProjection;
+use crate::surface::LatestSurfaceSnapshot;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::lifecycle::Insert;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
+use bevy::ecs::query::{Or, QueryData, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -12,17 +18,14 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::network_status_projection::{
+    roaming_interfaces, roaming_route, roaming_status,
+};
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::network_roaming::{
-    NetworkRoamingEvent, NetworkRoamingSnapshot, NetworkRoamingStatus,
-};
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::SettingsProjection;
-use crate::command::{CommandSinkHandle, UiCommand};
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NetworkRoamingRefreshButton;
@@ -31,19 +34,18 @@ pub struct NetworkRoamingRefreshButton;
 pub struct NetworkRoamingRepairButton;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Text)]
 pub struct NetworkRoamingStatusLine;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Text)]
 pub struct NetworkRoamingInterfacesLine;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Text)]
 pub struct NetworkRoamingRouteLine;
 
-pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let snapshot = &projection.network_roaming;
-    let status = format_status(&snapshot.status);
-    let interfaces = format_interfaces(snapshot);
-    let route = format_route(snapshot);
+pub(super) fn scene(_projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -52,7 +54,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         row_gap: Val::Px(space::S6),
                     }
                     Children [
-                        Text({ "物理网卡漫游与默认网关感知 (Network Roaming)".to_owned() }) TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_network_roaming_title") TextRole(Role::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -63,11 +65,11 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         }
                         BackgroundColor({ palette.surface_elevated })
                         Children [
-                            Text(status) NetworkRoamingStatusLine TextRole(Role::Mono)
+                            Text({ String::new() }) NetworkRoamingStatusLine TextRole(Role::Mono)
                             --
-                            Text(interfaces) NetworkRoamingInterfacesLine TextRole(Role::Caption)
+                            Text({ String::new() }) NetworkRoamingInterfacesLine TextRole(Role::Caption)
                             --
-                            Text(route) NetworkRoamingRouteLine TextRole(Role::Mono)
+                            Text({ String::new() }) NetworkRoamingRouteLine TextRole(Role::Mono)
                             --
                             Node {
                                 width: percent(100),
@@ -87,7 +89,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 NetworkRoamingRefreshButton
                                 Button
                                 Children [
-                                    Text({ "刷新链路".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_network_refresh_action") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -101,7 +103,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 NetworkRoamingRepairButton
                                 Button
                                 Children [
-                                    Text({ "立即修复 TUN 路由".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("settings_tun_repair_action") TextRole(Role::BodyStrong)
                                 ]
                             ]
                         ]
@@ -127,91 +129,66 @@ pub(super) fn on_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity)]
-pub(super) fn apply_projection(
-    update: On<SettingsProjectionUpdated>,
-    mut lines: Query<(
-        &mut Text,
-        Option<&NetworkRoamingStatusLine>,
-        Option<&NetworkRoamingInterfacesLine>,
-        Option<&NetworkRoamingRouteLine>,
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct RoamingLine {
+    text: &'static mut Text,
+    status: Option<&'static NetworkRoamingStatusLine>,
+    interfaces: Option<&'static NetworkRoamingInterfacesLine>,
+    route: Option<&'static NetworkRoamingRouteLine>,
+}
+#[derive(QueryFilter)]
+pub struct RoamingFilter {
+    line: Or<(
+        With<NetworkRoamingStatusLine>,
+        With<NetworkRoamingInterfacesLine>,
+        With<NetworkRoamingRouteLine>,
     )>,
+}
+pub(super) fn replay(
+    locale: Res<UiLocale>,
+    last: Res<LastSettingsProjection>,
+    mut lines: Query<RoamingLine, RoamingFilter>,
 ) {
-    let snapshot = &update.0.network_roaming;
-    let status = format_status(&snapshot.status);
-    let interfaces = format_interfaces(snapshot);
-    let route = format_route(snapshot);
-    for (mut line, status_line, interface_line, route_line) in &mut lines {
-        if status_line.is_some() {
-            line.0 = status.clone();
-        }
-        if interface_line.is_some() {
-            line.0 = interfaces.clone();
-        }
-        if route_line.is_some() {
-            line.0 = route.clone();
-        }
+    if !locale.is_changed() && !last.is_changed() {
+        return;
+    }
+    let Some(projection) = &last.0 else {
+        return;
+    };
+    let snapshot = &projection.network_roaming;
+    let status = roaming_status(&snapshot.status, locale.code());
+    let interfaces = roaming_interfaces(snapshot, locale.code());
+    let route = roaming_route(snapshot, locale.code());
+    for mut line in &mut lines {
+        let value = if line.status.is_some() {
+            &status
+        } else if line.interfaces.is_some() {
+            &interfaces
+        } else if line.route.is_some() {
+            &route
+        } else {
+            continue;
+        };
+        line.text.0.clone_from(value);
     }
 }
 
-pub(super) fn format_status(status: &NetworkRoamingStatus) -> String {
-    match status {
-        NetworkRoamingStatus::Unknown => "未探测".to_owned(),
-        NetworkRoamingStatus::Stable => "链路稳定 · 自动路由已监控".to_owned(),
-        NetworkRoamingStatus::Recovering => "正在修复 TUN 路由".to_owned(),
-        NetworkRoamingStatus::Degraded { reason } => format!("降级 · {reason}"),
-        NetworkRoamingStatus::Unsupported { reason } => format!("宿主不支持 · {reason}"),
-        NetworkRoamingStatus::Failed { failure } => format!("修复失败 · {}", failure.message),
-    }
-}
-
-fn format_interfaces(snapshot: &NetworkRoamingSnapshot) -> String {
-    if snapshot.interfaces.is_empty() {
-        return "接口事实尚未可用".to_owned();
-    }
-    snapshot
-        .interfaces
-        .iter()
-        .take(12)
-        .map(|interface| {
-            let state = if interface.is_up { "up" } else { "down" };
-            let gateway = interface.gateway_ip.as_deref().unwrap_or("—");
-            format!("{} [{state}] gw={gateway}", interface.name)
-        })
-        .collect::<Vec<_>>()
-        .join(" · ")
-}
-
-fn format_route(snapshot: &NetworkRoamingSnapshot) -> String {
-    let active = snapshot.active_interface.as_deref().unwrap_or("—");
-    let gateway = snapshot.default_gateway.as_deref().unwrap_or("—");
-    let mtu = snapshot
-        .physical_mtu
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "—".to_owned());
-    let tun_mtu = snapshot
-        .recommended_tun_mtu
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "—".to_owned());
-    let event = snapshot
-        .last_event
-        .as_ref()
-        .map(format_event)
-        .unwrap_or_else(|| "无最近事件".to_owned());
-    format!(
-        "active={active} · gateway={gateway} · physical MTU={mtu} → TUN MTU={tun_mtu} · {event}"
-    )
-}
-
-fn format_event(event: &NetworkRoamingEvent) -> String {
-    match event {
-        NetworkRoamingEvent::InitialObservation { .. } => "初始观测".to_owned(),
-        NetworkRoamingEvent::GatewayChanged { .. } => "检测到默认网关迁移".to_owned(),
-        NetworkRoamingEvent::InterfaceAddressChanged { interface } => {
-            format!("地址变化: {interface}")
-        }
-        NetworkRoamingEvent::RoutesRepaired { detail, .. } => format!("路由已修复: {detail}"),
-        NetworkRoamingEvent::RepairSkipped { reason } => format!("跳过修复: {reason}"),
-        NetworkRoamingEvent::RepairFailed { failure } => format!("修复失败: {}", failure.message),
-    }
+pub(super) fn initialize<T: Component>(
+    insert: On<Insert<T>>,
+    locale: Res<UiLocale>,
+    latest: Res<LatestSurfaceSnapshot>,
+    mut lines: Query<RoamingLine, RoamingFilter>,
+) {
+    let Ok(mut line) = lines.get_mut(insert.entity) else {
+        return;
+    };
+    let snapshot = &latest.0.network_roaming;
+    line.text.0 = if line.status.is_some() {
+        roaming_status(&snapshot.status, locale.code())
+    } else if line.interfaces.is_some() {
+        roaming_interfaces(snapshot, locale.code())
+    } else {
+        roaming_route(snapshot, locale.code())
+    };
 }

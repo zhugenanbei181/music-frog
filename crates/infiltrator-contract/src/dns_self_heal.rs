@@ -111,13 +111,24 @@ impl DnsSelfHealSnapshot {
         self.checks.iter().find(|check| check.kind == kind)
     }
 
-    /// The worst observed state; an empty snapshot is honestly `Unknown`.
+    /// Observed faults take precedence; incomplete coverage cannot claim health.
     pub fn overall_state(&self) -> DnsSelfHealState {
-        self.checks
+        let worst = self
+            .checks
             .iter()
             .map(|check| check.state)
             .max_by_key(|state| state.rank())
-            .unwrap_or(DnsSelfHealState::Unknown)
+            .unwrap_or(DnsSelfHealState::Unknown);
+        if worst == DnsSelfHealState::Healthy
+            && DnsSelfHealKind::ALL.iter().any(|kind| {
+                self.check(*kind)
+                    .is_none_or(|check| check.state == DnsSelfHealState::Unknown)
+            })
+        {
+            DnsSelfHealState::Unknown
+        } else {
+            worst
+        }
     }
 
     /// Whether any check suggests a repair.
@@ -183,9 +194,8 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_fact_never_outweighs_a_healthy_one() {
-        // Unknown must not beat Healthy: a host that observed a good port
-        // cannot be downgraded merely because another probe was absent.
+    fn partial_healthy_facts_do_not_claim_complete_health_or_hide_observed_faults() {
+        // The observed port stays healthy; incomplete coverage stays unknown.
         let snapshot = DnsSelfHealSnapshot::new(vec![
             check(DnsSelfHealKind::ListenPort, DnsSelfHealState::Healthy, None),
             check(
@@ -194,7 +204,11 @@ mod tests {
                 None,
             ),
         ]);
-        assert_eq!(snapshot.overall_state(), DnsSelfHealState::Healthy);
+        assert_eq!(snapshot.overall_state(), DnsSelfHealState::Unknown);
+        assert_eq!(
+            snapshot.check(DnsSelfHealKind::ListenPort).unwrap().state,
+            DnsSelfHealState::Healthy
+        );
         assert!(!snapshot.needs_repair());
 
         let critical = DnsSelfHealSnapshot::new(vec![check(

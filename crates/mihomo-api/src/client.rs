@@ -1,5 +1,7 @@
 use crate::error::{MihomoError, Result};
+use crate::runtime_proxy::ControllerProxy;
 use crate::types::*;
+use infiltrator_contract::error::Failure;
 use infiltrator_domain::proxy::Proxy;
 use reqwest::Client;
 use serde_json::{Value, json};
@@ -18,8 +20,8 @@ pub enum StreamEvent<T> {
     Connecting,
     Connected,
     Item(T),
-    Reconnecting(String),
-    Failed(String),
+    Reconnecting(Failure),
+    Failed(Failure),
 }
 
 #[derive(Clone)]
@@ -85,7 +87,7 @@ impl MihomoClient {
         let url = self.build_url("/version")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -93,7 +95,7 @@ impl MihomoClient {
         let url = self.build_url("/configs")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -101,7 +103,7 @@ impl MihomoClient {
         let url = self.build_url("/rules")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let list: RuleList = resp.json().await?;
         Ok(list.rules)
     }
@@ -111,7 +113,7 @@ impl MihomoClient {
         log::debug!("Fetching proxies from: {}", url);
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let data: ProxiesResponse = resp.json().await?;
         log::debug!("Received {} proxies", data.proxies.len());
         Ok(data.proxies)
@@ -121,15 +123,16 @@ impl MihomoClient {
         let url = self.build_url(&format!("/proxies/{}", name))?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
-        Ok(resp.json().await?)
+        let resp = req.send().await?.error_for_status()?;
+        let ControllerProxy(proxy) = resp.json().await?;
+        Ok(proxy)
     }
 
     pub async fn switch_proxy(&self, group: &str, name: &str) -> Result<()> {
         let url = self.build_url(&format!("/proxies/{}", group))?;
         let req = self.client.put(url).json(&json!({ "name": name }));
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -140,7 +143,7 @@ impl MihomoClient {
         )?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let data: DelayTestResponse = resp.json().await?;
         Ok(data.delay)
     }
@@ -168,7 +171,7 @@ impl MihomoClient {
         let url = self.build_url("/providers/proxies")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let list: ProxyProviderList = resp.json().await?;
         Ok(list.providers)
     }
@@ -177,7 +180,7 @@ impl MihomoClient {
         let url = self.build_url("/providers/rules")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let list: RuleProviderList = resp.json().await?;
         Ok(list.providers)
     }
@@ -193,7 +196,7 @@ impl MihomoClient {
         let url = self.build_url("/providers/rules")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let list: RuleProviderList = resp.json().await?;
         Ok(list
             .providers
@@ -206,7 +209,7 @@ impl MihomoClient {
         let url = self.build_url(&format!("/providers/proxies/{}", name))?;
         let req = self.client.put(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -214,7 +217,7 @@ impl MihomoClient {
         let url = self.build_url(&format!("/providers/rules/{}", name))?;
         let req = self.client.put(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -222,7 +225,7 @@ impl MihomoClient {
         let url = self.build_url("/cache/fakeip/flush")?;
         let req = self.client.post(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -233,7 +236,7 @@ impl MihomoClient {
             .append_pair("type", q_type);
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -241,7 +244,7 @@ impl MihomoClient {
         let url = self.build_url("/script")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -249,7 +252,7 @@ impl MihomoClient {
         let url = self.build_url("/memory")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -266,7 +269,7 @@ impl MihomoClient {
         log::debug!("Fetching connections from: {}", url);
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         let data: ConnectionsResponse = resp.json().await?;
         log::debug!("Received {} connections", data.connections.len());
         Ok(data)
@@ -276,7 +279,7 @@ impl MihomoClient {
         let url = self.build_url(&format!("/connections/{}", id))?;
         let req = self.client.delete(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -284,7 +287,7 @@ impl MihomoClient {
         let url = self.build_url("/connections")?;
         let req = self.client.delete(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -303,7 +306,7 @@ impl MihomoClient {
         let url = self.build_url("/restart")?;
         let req = self.client.post(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -319,7 +322,7 @@ impl MihomoClient {
         let url = self.build_url("/upgrade/geo")?;
         let req = self.client.post(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -335,7 +338,7 @@ impl MihomoClient {
             self.build_url_with_segments(&["providers", "proxies", provider, "healthcheck"])?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        req.send().await?;
+        req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -349,7 +352,7 @@ impl MihomoClient {
         let url = self.build_url("/cache/fakeip")?;
         let req = self.client.get(url);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -374,7 +377,7 @@ impl MihomoClient {
             .append_pair("timeout", &timeout_ms.to_string());
         let req = self.client.get(endpoint);
         let req = self.add_auth(req);
-        let resp = req.send().await?;
+        let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
 }
@@ -386,3 +389,7 @@ mod auth_tests;
 #[cfg(test)]
 #[path = "client_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "controller_status_tests.rs"]
+mod status_tests;

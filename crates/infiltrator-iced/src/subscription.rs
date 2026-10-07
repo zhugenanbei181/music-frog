@@ -1,17 +1,27 @@
+use crate::admin_server::admin_commands_subscription;
+use crate::ime::composition_message;
 use crate::state::AppState;
 use crate::tray::tray_events_subscription;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::runtime::{RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
 use futures_util::StreamExt;
+use futures_util::stream::pending;
+use iced::event::listen_with;
+use iced::futures::channel::mpsc;
 use iced::futures::stream::BoxStream;
-use iced::{Subscription, stream, window};
+use iced::system::theme_changes;
+use iced::theme::Mode;
+use iced::{Subscription, keyboard, stream, window};
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_contract::cadence::RenderCadence;
+use infiltrator_contract::shortcuts::KeyModifiers;
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::time::{self, sleep};
 
 #[derive(Clone)]
 struct RuntimeStreamInput {
@@ -19,6 +29,7 @@ struct RuntimeStreamInput {
     generation: u64,
     gateway: Arc<dyn HostRuntime>,
     log_level: String,
+    shared_logs: bool,
 }
 
 #[derive(Clone)]
@@ -28,16 +39,17 @@ struct SystemProxyWatchdogInput {
 }
 
 impl Hash for SystemProxyWatchdogInput {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.identity.hash(state);
     }
 }
 
 impl Hash for RuntimeStreamInput {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.identity.hash(state);
         self.generation.hash(state);
         self.log_level.hash(state);
+        self.shared_logs.hash(state);
     }
 }
 
@@ -47,158 +59,163 @@ impl Hash for RuntimeStreamInput {
 pub(crate) fn runtime_streams_subscription(
     runtime: &Arc<dyn HostRuntime>,
     log_level: &str,
+    shared_logs: bool,
 ) -> Subscription<Message> {
     let input = RuntimeStreamInput {
         identity: Arc::as_ptr(runtime) as *const () as usize,
         generation: runtime.generation(),
         gateway: runtime.clone(),
         log_level: log_level.to_string(),
+        shared_logs,
     };
     Subscription::run_with(input, build_runtime_stream)
 }
 
 fn build_runtime_stream(input: &RuntimeStreamInput) -> BoxStream<'static, Message> {
     let input = input.clone();
-    let channel = stream::channel(
-        256,
-        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-            loop {
+    let channel = stream::channel(256, move |mut output: mpsc::Sender<Message>| async move {
+        loop {
+            if !input.shared_logs {
                 let _ = output.try_send(stream_state(
                     RuntimeStreamKind::Logs,
                     input.generation,
                     RuntimeStreamState::Connecting,
                 ));
-                let _ = output.try_send(stream_state(
-                    RuntimeStreamKind::Traffic,
-                    input.generation,
-                    RuntimeStreamState::Connecting,
-                ));
-                let _ = output.try_send(stream_state(
-                    RuntimeStreamKind::Connections,
-                    input.generation,
-                    RuntimeStreamState::Connecting,
-                ));
+            }
+            let _ = output.try_send(stream_state(
+                RuntimeStreamKind::Traffic,
+                input.generation,
+                RuntimeStreamState::Connecting,
+            ));
+            let _ = output.try_send(stream_state(
+                RuntimeStreamKind::Connections,
+                input.generation,
+                RuntimeStreamState::Connecting,
+            ));
 
-                let logs = input
+            let logs = if input.shared_logs {
+                Ok(Box::pin(pending()) as BoxStream<'static, RuntimeStreamEvent<String>>)
+            } else {
+                input
                     .gateway
                     .stream_logs(Some(input.log_level.clone()))
-                    .await;
-                let traffic = input.gateway.stream_traffic().await;
-                let connections = input.gateway.stream_connections().await;
+                    .await
+            };
+            let traffic = input.gateway.stream_traffic().await;
+            let connections = input.gateway.stream_connections().await;
 
-                let (mut logs, mut traffic, mut connections) = match (logs, traffic, connections) {
-                    (Ok(logs), Ok(traffic), Ok(connections)) => (logs, traffic, connections),
-                    (logs, traffic, connections) => {
-                        if let Err(error) = logs {
-                            let _ = output.try_send(stream_state(
-                                RuntimeStreamKind::Logs,
-                                input.generation,
-                                RuntimeStreamState::Failed(error.to_string()),
-                            ));
-                        }
-                        if let Err(error) = traffic {
-                            let _ = output.try_send(stream_state(
-                                RuntimeStreamKind::Traffic,
-                                input.generation,
-                                RuntimeStreamState::Failed(error.to_string()),
-                            ));
-                        }
-                        if let Err(error) = connections {
-                            let _ = output.try_send(stream_state(
-                                RuntimeStreamKind::Connections,
-                                input.generation,
-                                RuntimeStreamState::Failed(error.to_string()),
-                            ));
-                        }
-                        tokio::time::sleep(Duration::from_secs(3)).await;
-                        continue;
+            let (mut logs, mut traffic, mut connections) = match (logs, traffic, connections) {
+                (Ok(logs), Ok(traffic), Ok(connections)) => (logs, traffic, connections),
+                (logs, traffic, connections) => {
+                    if let Err(error) = logs {
+                        let _ = output.try_send(stream_state(
+                            RuntimeStreamKind::Logs,
+                            input.generation,
+                            RuntimeStreamState::Failed(error.to_string()),
+                        ));
                     }
-                };
-
-                loop {
-                    tokio::select! {
-                        item = logs.next() => match item {
-                            Some(RuntimeStreamEvent::Item(line)) => {
-                                if output.try_send(Message::RuntimeStreamLogReceived(input.generation, line)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Connecting) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Connected) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
-                                if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                            }
-                            None => break,
-                        },
-                        item = traffic.next() => match item {
-                            Some(RuntimeStreamEvent::Item(data)) => {
-                                if output
-                                    .try_send(Message::RuntimeStreamTrafficReceived(
-                                        input.generation,
-                                        data,
-                                    ))
-                                    .is_err()
-                                {
-                                    return;
-                                }
-                            }
-                            Some(RuntimeStreamEvent::Connecting) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Connected) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
-                                if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                            }
-                            None => break,
-                        },
-                        item = connections.next() => match item {
-                            Some(RuntimeStreamEvent::Item(snapshot)) => {
-                                if output
-                                    .try_send(Message::RuntimeStreamConnectionsReceived(
-                                        input.generation,
-                                        snapshot,
-                                    ))
-                                    .is_err()
-                                {
-                                    return;
-                                }
-                            }
-                            Some(RuntimeStreamEvent::Connecting) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Connected) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
-                            }
-                            Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
-                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Failed(error))).is_err() { return; }
-                                if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
-                            }
-                            None => break,
-                        },
+                    if let Err(error) = traffic {
+                        let _ = output.try_send(stream_state(
+                            RuntimeStreamKind::Traffic,
+                            input.generation,
+                            RuntimeStreamState::Failed(error.to_string()),
+                        ));
                     }
+                    if let Err(error) = connections {
+                        let _ = output.try_send(stream_state(
+                            RuntimeStreamKind::Connections,
+                            input.generation,
+                            RuntimeStreamState::Failed(error.to_string()),
+                        ));
+                    }
+                    sleep(Duration::from_secs(3)).await;
+                    continue;
                 }
+            };
 
-                for kind in [
-                    RuntimeStreamKind::Logs,
-                    RuntimeStreamKind::Traffic,
-                    RuntimeStreamKind::Connections,
-                ] {
-                    let _ = output.try_send(stream_state(
-                        kind,
-                        input.generation,
-                        RuntimeStreamState::Reconnecting,
-                    ));
+            loop {
+                tokio::select! {
+                    item = logs.next() => match item {
+                        Some(RuntimeStreamEvent::Item(line)) => {
+                            if output.try_send(Message::RuntimeStreamLogReceived(input.generation, line)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Connecting) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Connected) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Logs, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                        }
+                        None => break,
+                    },
+                    item = traffic.next() => match item {
+                        Some(RuntimeStreamEvent::Item(data)) => {
+                            if output
+                                .try_send(Message::RuntimeStreamTrafficReceived(
+                                    input.generation,
+                                    data,
+                                ))
+                                .is_err()
+                            {
+                                return;
+                            }
+                        }
+                        Some(RuntimeStreamEvent::Connecting) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Connected) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Traffic, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                        }
+                        None => break,
+                    },
+                    item = connections.next() => match item {
+                        Some(RuntimeStreamEvent::Item(snapshot)) => {
+                            if output
+                                .try_send(Message::RuntimeStreamConnectionsReceived(
+                                    input.generation,
+                                    snapshot,
+                                ))
+                                .is_err()
+                            {
+                                return;
+                            }
+                        }
+                        Some(RuntimeStreamEvent::Connecting) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connecting)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Connected) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Connected)).is_err() { return; }
+                        }
+                        Some(RuntimeStreamEvent::Reconnecting(error)) | Some(RuntimeStreamEvent::Failed(error)) => {
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Failed(error.message))).is_err() { return; }
+                            if output.try_send(stream_state(RuntimeStreamKind::Connections, input.generation, RuntimeStreamState::Reconnecting)).is_err() { return; }
+                        }
+                        None => break,
+                    },
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await;
             }
-        },
-    );
+
+            for kind in [
+                RuntimeStreamKind::Logs,
+                RuntimeStreamKind::Traffic,
+                RuntimeStreamKind::Connections,
+            ] {
+                let _ = output.try_send(stream_state(
+                    kind,
+                    input.generation,
+                    RuntimeStreamState::Reconnecting,
+                ));
+            }
+            sleep(Duration::from_secs(1)).await;
+        }
+    });
     Box::pin(channel)
 }
 
@@ -217,22 +234,19 @@ pub(crate) fn system_proxy_watchdog_subscription(
 
 fn build_system_proxy_watchdog(input: &SystemProxyWatchdogInput) -> BoxStream<'static, Message> {
     let application = input.application.clone();
-    let channel = stream::channel(
-        16,
-        move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(3));
-            loop {
-                interval.tick().await;
-                let snapshot = application.snapshot().await;
-                if output
-                    .try_send(Message::SystemProxyReconciled(snapshot))
-                    .is_err()
-                {
-                    return;
-                }
+    let channel = stream::channel(16, move |mut output: mpsc::Sender<Message>| async move {
+        let mut interval = time::interval(Duration::from_secs(3));
+        loop {
+            interval.tick().await;
+            let snapshot = application.snapshot().await;
+            if output
+                .try_send(Message::SystemProxyReconciled(snapshot))
+                .is_err()
+            {
+                return;
             }
-        },
-    );
+        }
+    });
     Box::pin(channel)
 }
 
@@ -255,7 +269,7 @@ impl AppState {
 
         // 1b. Admin host commands (context -> app bridge for the Web UI)
         if let Some(rx) = &self.shell.admin_commands {
-            subs.push(crate::admin_server::admin_commands_subscription(rx));
+            subs.push(admin_commands_subscription(rx));
         }
 
         // 1c. Shared application surface snapshots. The desktop/mobile
@@ -275,16 +289,13 @@ impl AppState {
 
         // 2. Scheduled subscription auto-update checks
         subs.push(Subscription::run(|| {
-            stream::channel(
-                100,
-                |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    let mut sub_interval = tokio::time::interval(Duration::from_secs(900));
-                    loop {
-                        sub_interval.tick().await;
-                        let _ = output.try_send(Message::TickSubUpdate);
-                    }
-                },
-            )
+            stream::channel(100, |mut output: mpsc::Sender<Message>| async move {
+                let mut sub_interval = time::interval(Duration::from_secs(900));
+                loop {
+                    sub_interval.tick().await;
+                    let _ = output.try_send(Message::TickSubUpdate);
+                }
+            })
         }));
 
         // 3. WebDAV scheduling is independent of the core lifecycle: profile
@@ -303,22 +314,23 @@ impl AppState {
                 .saturating_mul(60);
             subs.push(Subscription::run_with(interval_secs, |seconds: &u64| {
                 let interval = Duration::from_secs(*seconds);
-                stream::channel(
-                    100,
-                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let mut sync_interval = tokio::time::interval(interval);
-                        loop {
-                            sync_interval.tick().await;
-                            let _ = output.try_send(Message::TickWebDavSync);
-                        }
-                    },
-                )
+                stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
+                    let mut sync_interval = time::interval(interval);
+                    loop {
+                        sync_interval.tick().await;
+                        let _ = output.try_send(Message::TickWebDavSync);
+                    }
+                })
             }));
         }
         if let Some(runtime) = self.runtime.runtime.as_ref()
             && matches!(self.runtime.status, RuntimeStatus::Running)
         {
-            subs.push(runtime_streams_subscription(runtime, &self.diag.log_level));
+            subs.push(runtime_streams_subscription(
+                runtime,
+                &self.diag.log_level,
+                self.commands.is_some(),
+            ));
         }
         if self.runtime.runtime.is_some()
             && self.shell.current_route == Route::Runtime
@@ -326,17 +338,13 @@ impl AppState {
             && matches!(self.runtime.status, RuntimeStatus::Running)
         {
             subs.push(Subscription::run(|| {
-                stream::channel(
-                    100,
-                    |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                        let mut refresh_interval =
-                            tokio::time::interval(Duration::from_millis(2000));
-                        loop {
-                            refresh_interval.tick().await;
-                            let _ = output.try_send(Message::TickRuntimeRefresh);
-                        }
-                    },
-                )
+                stream::channel(100, |mut output: mpsc::Sender<Message>| async move {
+                    let mut refresh_interval = time::interval(Duration::from_millis(2000));
+                    loop {
+                        refresh_interval.tick().await;
+                        let _ = output.try_send(Message::TickRuntimeRefresh);
+                    }
+                })
             }));
         }
 
@@ -344,20 +352,19 @@ impl AppState {
         // `update` 对照共享 `ShortcutRegistry` 解析（Command Palette
         // Ctrl+K / Cmd+K、系统代理、TUN、Mini HUD、主题循环），捕获模式下
         // 则作为新的绑定组合键。订阅是纯转发，因此不需要捕获状态。
-        subs.push(iced::event::listen_with(|event, _status, _window| {
-            let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, modifiers, .. }) =
-                event
+        subs.push(listen_with(|event, _status, _window| {
+            let iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) = event
             else {
                 return None;
             };
             let key_name = match &key {
-                iced::keyboard::Key::Character(character) => character.to_string(),
-                iced::keyboard::Key::Named(named) => format!("{named:?}"),
+                keyboard::Key::Character(character) => character.to_string(),
+                keyboard::Key::Named(named) => format!("{named:?}"),
                 _ => return None,
             };
             Some(Message::KeyboardChord {
                 key: key_name,
-                modifiers: infiltrator_contract::shortcuts::KeyModifiers {
+                modifiers: KeyModifiers {
                     ctrl: modifiers.control(),
                     shift: modifiers.shift(),
                     alt: modifiers.alt(),
@@ -368,8 +375,7 @@ impl AppState {
 
         // 4a. 系统外观订阅：`system` 偏好下即时跟随 OS 明暗切换。
         subs.push(
-            iced::system::theme_changes()
-                .map(|mode| Message::SystemThemeChanged(matches!(mode, iced::theme::Mode::Dark))),
+            theme_changes().map(|mode| Message::SystemThemeChanged(matches!(mode, Mode::Dark))),
         );
 
         // 4b. 窗口尺寸订阅：唯一驱动共享 4 阶响应式投影的来源。窗口拖拽
@@ -390,23 +396,26 @@ impl AppState {
         //     事件映射进共享组合语法。候选框位置由 iced 的 `text_input`
         //     经 `set_ime_cursor_area` 自行携带，shell 只记录会话状态，
         //     组合期间的按键不再被当作全局和弦。
-        subs.push(iced::event::listen_with(|event, _status, _window| {
-            crate::ime::composition_message(&event)
+        subs.push(listen_with(|event, _status, _window| {
+            composition_message(&event)
         }));
 
         // 5. 高性能动画订阅：只有正在转场、概览拓扑流动或连接高吞吐脉冲时
         //    才开启帧回调；帧率由共享 `RenderCadence` 决定（前台跟随真实
         //    帧信号，后台 2 FPS）。
-        if self.shell.transition.start_time.is_some()
+        let capture_pending = self.capture_geometry_pending();
+        if capture_pending
+            || self.shell.transition.start_time.is_some()
             || (self.shell.current_route == Route::Overview
                 && self.runtime.traffic_topology.is_flowing())
             || (self.shell.current_route == Route::Runtime && self.diag.connection_pulse_active())
         {
-            subs.push(frame_cadence_subscription(
-                infiltrator_contract::cadence::RenderCadence::from_focused(
-                    self.shell.window_focused,
-                ),
-            ));
+            let cadence = if capture_pending {
+                RenderCadence::Active
+            } else {
+                RenderCadence::from_focused(self.shell.window_focused)
+            };
+            subs.push(frame_cadence_subscription(cadence));
         }
 
         Subscription::batch(subs)
@@ -416,32 +425,24 @@ impl AppState {
 /// The animation frame tick at the shared cadence (DUAL-15-08): the foreground
 /// keeps Iced's real frame signal, the background is a 2 FPS timer, and a
 /// suspended host schedules no frames at all.
-pub(crate) fn frame_cadence_subscription(
-    cadence: infiltrator_contract::cadence::RenderCadence,
-) -> Subscription<Message> {
+pub(crate) fn frame_cadence_subscription(cadence: RenderCadence) -> Subscription<Message> {
     use infiltrator_contract::cadence::RenderCadence;
     match cadence {
         RenderCadence::Active => window::frames().map(Message::TickFrame),
         RenderCadence::Background => Subscription::run_with(cadence, |cadence: &RenderCadence| {
             let cadence = *cadence;
-            stream::channel(
-                4,
-                move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    let Some(interval) = cadence.frame_interval() else {
-                        return;
-                    };
-                    let mut ticker = tokio::time::interval(interval);
-                    loop {
-                        ticker.tick().await;
-                        if output
-                            .try_send(Message::TickFrame(std::time::Instant::now()))
-                            .is_err()
-                        {
-                            break;
-                        }
+            stream::channel(4, move |mut output: mpsc::Sender<Message>| async move {
+                let Some(interval) = cadence.frame_interval() else {
+                    return;
+                };
+                let mut ticker = time::interval(interval);
+                loop {
+                    ticker.tick().await;
+                    if output.try_send(Message::TickFrame(Instant::now())).is_err() {
+                        break;
                     }
-                },
-            )
+                }
+            })
         }),
         RenderCadence::Suspended => Subscription::none(),
     }

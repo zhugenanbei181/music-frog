@@ -2,18 +2,24 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_accent};
-use crate::view::components::{BadgeKind, badge, card, toggle_switch};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge, toggle_switch};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::host_network_projection::pac;
+use infiltrator_contract::pac::PacServiceState;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let pac = &state.runtime.pac_manager;
+    let manager = &state.runtime.pac_manager;
+    let status = pac(&manager.snapshot, lang.0);
+    let running = matches!(manager.snapshot.state, PacServiceState::Running { .. });
 
-    let toggle = toggle_switch(pac.is_pac_mode_active, Message::TogglePacMode);
+    let toggle = toggle_switch(manager.is_pac_mode_active, Message::TogglePacMode);
 
     let compile_btn = button(
         row![
@@ -31,10 +37,10 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
 
     let bypass_input = text_input(
         "localhost, 127.*, 192.168.*, 10.*, *.lan",
-        if pac.bypass_subnets.is_empty() {
+        if manager.bypass_subnets.is_empty() {
             "localhost, 127.*, 192.168.*, 10.*"
         } else {
-            &pac.bypass_subnets
+            &manager.bypass_subnets
         },
     )
     .on_input(Message::UpdatePacBypassSubnets)
@@ -44,13 +50,7 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
     .width(Length::Fill)
     .style(form_input_style);
 
-    let url_display = if pac.is_pac_mode_active && !pac.pac_url.is_empty() {
-        pac.pac_url.as_str()
-    } else {
-        "Disabled (turn on PAC mode to bind service)"
-    };
-
-    let status_feedback: Element<'_, Message> = if let Some(st) = &pac.last_compile_status {
+    let status_feedback: Element<'_, Message> = if let Some(st) = &manager.last_compile_status {
         container(
             row![
                 svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
@@ -87,7 +87,7 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
                         color: Some(tokens(t).text_secondary)
                     }),
                 Space::new().width(theme::SP_SM),
-                text(url_display)
+                text(status.clone())
                     .size(12)
                     .font(MONO)
                     .style(|t: &Theme| text::Style {
@@ -95,12 +95,8 @@ pub fn pac_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message
                     }),
                 Space::new().width(Length::Fill),
                 badge(
-                    if pac.is_pac_mode_active {
-                        "PAC Running"
-                    } else {
-                        "PAC Idle"
-                    },
-                    if pac.is_pac_mode_active {
+                    status,
+                    if running {
                         BadgeKind::Success
                     } else {
                         BadgeKind::Neutral

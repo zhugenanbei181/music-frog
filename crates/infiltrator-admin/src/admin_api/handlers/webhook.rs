@@ -1,10 +1,6 @@
 //! Generic automation endpoint for Alfred / Raycast / Apple Shortcuts
 //! (`POST /admin/api/webhook`).
 
-use axum::Json;
-use chrono::Utc;
-use log::info;
-
 use crate::admin_api::events::{
     AdminEvent, EVENT_DOCTOR_FIX, EVENT_PROFILES_CHANGED, EVENT_PROXY_CHANGED,
     EVENT_RUNTIME_CHANGED, EVENT_SETTINGS_CHANGED,
@@ -19,9 +15,15 @@ use crate::admin_api::models::{
     ApiError, ProfilesUpdateAllResponse, WebhookPayload, WebhookResponse,
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::scheduler::subscription::update_all_subscriptions;
+use crate::shared_bridge::{AdminSharedBridge, BridgeRequest};
+use axum::{Json, extract};
+use chrono::Utc;
+use infiltrator_application::proxy_application::test_proxy_delays;
+use log::info;
 
 pub async fn handle_webhook_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<WebhookPayload>,
 ) -> Result<Json<WebhookResponse>, ApiError> {
     let raw_action = payload
@@ -203,7 +205,7 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
         || raw_action == "UpdateSubscriptions"
         || raw_action == "UpdateAll"
     {
-        let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
+        let summary = update_all_subscriptions(&state.ctx)
             .await
             .map_err(|e| ApiError::internal(e.to_string()))?;
         state
@@ -257,14 +259,8 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
                 .map_err(|e| ApiError::internal(e.to_string()))?;
             let mut results = Vec::new();
             let candidates = collect_delay_test_candidates(None, &proxies, &mut results);
-            let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
-                client,
-                candidates,
-                test_url.to_string(),
-                timeout_ms,
-                30,
-            )
-            .await;
+            let outcomes =
+                test_proxy_delays(client, candidates, test_url.to_string(), timeout_ms, 30).await;
             let success_count = outcomes.iter().filter(|o| o.result.is_ok()).count();
             return Ok(Json(WebhookResponse {
                 success: true,
@@ -433,11 +429,11 @@ pub async fn handle_webhook_http<C: AdminApiContext>(
 
     // Fallback: AdminSharedBridge intent resolution
     info!("delegating unknown webhook action to bridge: '{raw_action}'");
-    let bridge_req = crate::shared_bridge::BridgeRequest {
+    let bridge_req = BridgeRequest {
         intent: raw_action.to_string(),
         payload: payload.payload.or(payload.params),
     };
-    let bridge_resp = crate::shared_bridge::AdminSharedBridge::handle_intent(&bridge_req, "en-US");
+    let bridge_resp = AdminSharedBridge::handle_intent(&bridge_req, "en-US");
     if bridge_resp.success {
         Ok(Json(WebhookResponse {
             success: true,

@@ -10,11 +10,14 @@
 //! dash from `Checked`/`Indeterminate` and the live palette every pass
 //! (compare-and-set).
 
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::camera::visibility::Visibility;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{Has, With, Without};
+use bevy::ecs::query::{Has, QueryData, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -23,10 +26,6 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui::{BorderColor, Checked};
 use bevy::ui_widgets::Checkbox;
-
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Tri-state checkbox value representation.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -72,6 +71,14 @@ pub struct CheckboxBox;
 /// Marker on the indeterminate horizontal dash indicator.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CheckboxDash;
+
+#[derive(QueryData)]
+pub struct CheckboxObservation {
+    children: &'static Children,
+    checked: Has<Checked>,
+    indeterminate: Has<Indeterminate>,
+    tristate_opt: Option<&'static TriStateCheckbox>,
+}
 
 /// The box fill for one tri-state: unchecked sits on elevated surface;
 /// checked and indeterminate fill the box with the accent token.
@@ -129,6 +136,19 @@ pub fn checkbox_border(checked: bool, palette: &UiPalette) -> Color {
 
 /// Declarative scene constructor for a tri-state checkbox row.
 pub fn tri_checkbox_scene(label: String, state: TriState, palette: &UiPalette) -> Box<dyn Scene> {
+    tri_checkbox_with_label_scene(
+        Box::new(bsn! { Text(label) TextRole(Role::Body) }),
+        state,
+        palette,
+    )
+}
+
+/// Keep the native checkbox behavior while the caller owns the label scene.
+pub fn tri_checkbox_with_label_scene(
+    label: Box<dyn Scene>,
+    state: TriState,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
     match state {
         TriState::Checked => Box::new(checked_row(label, palette)),
         TriState::Unchecked => Box::new(unchecked_row(label, palette)),
@@ -136,16 +156,37 @@ pub fn tri_checkbox_scene(label: String, state: TriState, palette: &UiPalette) -
     }
 }
 
-/// One check row: the official behavior primitive plus the token box and a body label.
+/// One check row with a plain data label.
 pub fn checkbox_scene(label: String, checked: bool, palette: &UiPalette) -> Box<dyn Scene> {
-    if checked {
-        Box::new(checked_row(label, palette))
-    } else {
-        Box::new(unchecked_row(label, palette))
-    }
+    tri_checkbox_scene(
+        label,
+        if checked {
+            TriState::Checked
+        } else {
+            TriState::Unchecked
+        },
+        palette,
+    )
 }
 
-fn checked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
+/// One check row whose label may react to application locale without replacing the row.
+pub fn checkbox_with_label_scene(
+    label: impl Scene,
+    checked: bool,
+    palette: &UiPalette,
+) -> Box<dyn Scene> {
+    tri_checkbox_with_label_scene(
+        Box::new(label),
+        if checked {
+            TriState::Checked
+        } else {
+            TriState::Unchecked
+        },
+        palette,
+    )
+}
+
+fn checked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Checked, palette);
     let edge = tri_checkbox_border(TriState::Checked, palette);
     bsn! {
@@ -189,12 +230,12 @@ fn checked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     CheckboxDash
                 ]
                 --
-                Text(label) TextRole(Role::Body)
+                @{ label }
             ]
     }
 }
 
-fn unchecked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
+fn unchecked_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Unchecked, palette);
     let edge = tri_checkbox_border(TriState::Unchecked, palette);
     bsn! {
@@ -237,12 +278,12 @@ fn unchecked_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     CheckboxDash
                 ]
                 --
-                Text(label) TextRole(Role::Body)
+                @{ label }
             ]
     }
 }
 
-fn indeterminate_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
+fn indeterminate_row(label: Box<dyn Scene>, palette: &UiPalette) -> impl Scene + use<> {
     let fill = tri_checkbox_fill(TriState::Indeterminate, palette);
     let edge = tri_checkbox_border(TriState::Indeterminate, palette);
     bsn! {
@@ -286,25 +327,16 @@ fn indeterminate_row(label: String, palette: &UiPalette) -> impl Scene + use<> {
                     CheckboxDash
                 ]
                 --
-                Text(label) TextRole(Role::Body)
+                @{ label }
             ]
     }
 }
 
 /// Repaint every check box from the row's state and the live palette.
 /// Compare-and-set: a box whose fill already matches is left untouched.
-#[allow(clippy::type_complexity)]
 pub fn sync_checkbox_visuals(
     palette: Res<UiPalette>,
-    rows: Query<
-        (
-            &Children,
-            Has<Checked>,
-            Has<Indeterminate>,
-            Option<&TriStateCheckbox>,
-        ),
-        With<Checkbox>,
-    >,
+    rows: Query<CheckboxObservation, With<Checkbox>>,
     mut boxes: Query<(
         &CheckboxBox,
         &mut BackgroundColor,
@@ -313,7 +345,13 @@ pub fn sync_checkbox_visuals(
     )>,
     mut dashes: Query<(&CheckboxDash, &mut Visibility, &mut BackgroundColor), Without<CheckboxBox>>,
 ) {
-    for (children, checked, indeterminate, tristate_opt) in &rows {
+    for CheckboxObservationItem {
+        children,
+        checked,
+        indeterminate,
+        tristate_opt,
+    } in &rows
+    {
         let state =
             if indeterminate || tristate_opt == Some(&TriStateCheckbox(TriState::Indeterminate)) {
                 TriState::Indeterminate

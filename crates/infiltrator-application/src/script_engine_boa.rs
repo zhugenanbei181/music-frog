@@ -25,16 +25,15 @@
 //! * The regex **directive DSL library is not ported** to JavaScript here, so
 //!   `supports_directive_dsl = false` and a run reports no matched directives.
 
-use std::cell::RefCell;
-use std::time::Instant;
-
-use boa_engine::error::JsNativeErrorKind;
+use boa_engine::error::{EngineError, JsNativeErrorKind};
 use boa_engine::object::ObjectInitializer;
 use boa_engine::property::Attribute;
 use boa_engine::{Context, JsValue, NativeFunction, Source, js_string};
 use infiltrator_contract::script_sandbox::{ScriptEngineCapabilities, ScriptEngineKind};
 use infiltrator_domain::script_engine::{HookStage, ScriptError, ScriptExecutionResult};
 use infiltrator_ports::script_engine::ScriptEnginePort;
+use std::cell::RefCell;
+use std::time::Instant;
 
 /// Loop iterations allowed per millisecond of the negotiated timeout. Boa has
 /// no wall-clock interrupt, so this is the enforceable stop for a runaway
@@ -79,10 +78,7 @@ impl BoaScriptEngine {
     /// Map a Boa error onto the shared typed engine error vocabulary.
     fn map_error(&self, error: &boa_engine::JsError, syntax_hint: bool) -> ScriptError {
         if let Some(engine_error) = error.as_engine()
-            && matches!(
-                engine_error,
-                boa_engine::error::EngineError::RuntimeLimit(_)
-            )
+            && matches!(engine_error, EngineError::RuntimeLimit(_))
         {
             return ScriptError::Timeout(self.timeout_ms);
         }

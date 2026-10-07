@@ -6,11 +6,17 @@
 //! **Scene Adapters**: [`modal_scene`] and [`confirm_dialog_scene`] build declarative
 //! centered overlay panels on token surface and border layers.
 
+use crate::button::{ButtonVariant, button_scene};
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::Message;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
@@ -20,13 +26,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::button::{ButtonVariant, button_scene};
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Semantic kind of a dialog.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -116,6 +115,18 @@ pub struct ModalOpenEvent(pub Entity);
 /// Message to close a modal dialog.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModalCloseEvent(pub Entity);
+
+#[derive(QueryFilter)]
+pub struct ModalScrimFilter {
+    with_modal_scrim: With<ModalScrim>,
+    without_modal_dialog_card: Without<ModalDialogCard>,
+}
+
+#[derive(QueryFilter)]
+pub struct ModalDialogCardFilter {
+    with_modal_dialog_card: With<ModalDialogCard>,
+    without_modal_scrim: Without<ModalScrim>,
+}
 
 /// Construct a general modal dialog scene.
 pub fn modal_scene(
@@ -220,14 +231,10 @@ pub fn confirm_dialog_scene(
 }
 
 /// System to repaint modal card and scrim from live palette.
-#[allow(clippy::type_complexity)]
 pub fn sync_modal_visuals(
     palette: Res<UiPalette>,
-    mut scrims: Query<&mut BackgroundColor, (With<ModalScrim>, Without<ModalDialogCard>)>,
-    mut cards: Query<
-        (&mut BackgroundColor, &mut BorderColor),
-        (With<ModalDialogCard>, Without<ModalScrim>),
-    >,
+    mut scrims: Query<&mut BackgroundColor, ModalScrimFilter>,
+    mut cards: Query<(&mut BackgroundColor, &mut BorderColor), ModalDialogCardFilter>,
 ) {
     let scrim_bg = palette.scrim;
     for mut fill in &mut scrims {

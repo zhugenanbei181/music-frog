@@ -3,28 +3,24 @@
 //!
 //! Track 2 / Group 04: Proxies & Sorting.
 
-use futures_util::stream::{self, StreamExt};
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::proxies::{
-    ProxyFilterAliveSnapshot, ProxyGroupClassification, ProxyUiPreferences,
-};
-use infiltrator_contract::surface_snapshot::{ProxyGroupSnapshot, ProxyNodeSnapshot};
-use infiltrator_domain::proxy::{Proxy, ProxyGroup, ProxyHistory};
-use infiltrator_ports::runtime_gateway::RuntimeGateway;
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use crate::proxy_preferences_application::ProxyPreferencesApplication;
+use futures_util::stream;
+use futures_util::stream::StreamExt;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::proxies::ProxyGroupClassification;
+use infiltrator_domain::proxy::{ProxyGroup, ProxyHistory};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use std::sync::Arc;
 
 /// A controller-neutral leaf proxy projection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProxyNode {
     pub name: String,
     pub proxy_type: String,
-    pub udp: bool,
+    pub udp: Option<bool>,
     pub history: Vec<ProxyHistory>,
     pub delay: Option<u32>,
-    pub alive: bool,
+    pub alive: Option<bool>,
 }
 
 /// Detailed proxy strategy group projection with typed classification.
@@ -75,10 +71,10 @@ impl ProxyApplication {
                 (!proxy.is_group()).then(|| ProxyNode {
                     name,
                     proxy_type: proxy.proxy_type().to_string(),
-                    udp: proxy.udp(),
+                    udp: proxy.udp_observation(),
                     history: proxy.history().to_vec(),
                     delay: proxy.delay(),
-                    alive: proxy.alive(),
+                    alive: proxy.health_observation(),
                 })
             })
             .collect::<Vec<_>>();
@@ -212,143 +208,12 @@ impl ProxyApplication {
             .await
             .map_err(Failure::from)
     }
-
-    /// Project all proxy groups and their leaf nodes into dual-surface snapshots.
-    ///
-    /// Applies:
-    /// - 5-group classification (Selector, URLTest, Fallback, LoadBalance, Relay)
-    /// - Group expansion/collapse state from preferences
-    /// - Node alive-only filtering
-    /// - Four-way sorting with favorite pinning
-    /// - Custom drag-and-drop group reordering
-    pub fn project_groups_snapshot(
-        proxies: &HashMap<String, Proxy>,
-        preferences: &ProxyUiPreferences,
-    ) -> (Vec<ProxyGroupSnapshot>, ProxyFilterAliveSnapshot) {
-        // Step 1: Compute global alive filter telemetry
-        let candidate_stats = proxies
-            .values()
-            .filter(|p| !p.is_group() && !matches!(p, Proxy::Unknown))
-            .map(|p| (p.delay(), p.alive()));
-        let alive_snapshot = ProxyFilterAliveSnapshot::derive_from_candidates(
-            candidate_stats,
-            preferences.filter_alive,
-        );
-
-        // Step 2: Build each group snapshot
-        let mut groups: Vec<ProxyGroupSnapshot> = proxies
-            .iter()
-            .filter_map(|(name, proxy)| {
-                if !proxy.is_group() {
-                    return None;
-                }
-                let members = proxy.all()?;
-                let current = proxy.now().unwrap_or_default().to_string();
-                let raw_type = proxy.proxy_type();
-                let classification = ProxyGroupClassification::from_str_loose(raw_type)
-                    .unwrap_or(ProxyGroupClassification::Selector);
-                let expanded = preferences.is_group_expanded(name);
-
-                // Collect member nodes with alive filter & favorite metadata
-                let mut node_snapshots = Vec::new();
-                for member_name in members {
-                    let Some(member_proxy) = proxies.get(member_name) else {
-                        continue;
-                    };
-                    let delay = member_proxy.delay();
-                    let alive = member_proxy.alive();
-
-                    // Apply Filter Alive if enabled
-                    if preferences.filter_alive
-                        && !ProxyFilterAliveSnapshot::is_node_alive(delay, alive)
-                    {
-                        continue;
-                    }
-
-                    let is_fav = preferences.is_favorite(member_name);
-                    let is_selected = member_name == &current;
-                    let mut features = Vec::new();
-                    if member_proxy.udp() {
-                        features.push("UDP".to_string());
-                    }
-
-                    node_snapshots.push((
-                        ProxyNodeSnapshot {
-                            name: member_name.clone(),
-                            node_type: member_proxy.proxy_type().to_string(),
-                            delay_ms: delay,
-                            selected: is_selected,
-                            favorite: is_fav,
-                            features,
-                        },
-                        delay,
-                        is_fav,
-                    ));
-                }
-
-                // Apply four-way sorting + favorite pinning
-                let sort_order = preferences.sort_order;
-                node_snapshots.sort_by(
-                    |(left_node, left_delay, left_fav), (right_node, right_delay, right_fav)| {
-                        sort_order.compare_candidates(
-                            &left_node.name,
-                            *left_delay,
-                            *left_fav,
-                            &right_node.name,
-                            *right_delay,
-                            *right_fav,
-                        )
-                    },
-                );
-
-                let sorted_nodes = node_snapshots
-                    .into_iter()
-                    .map(|(node, _, _)| node)
-                    .collect();
-
-                Some(ProxyGroupSnapshot {
-                    name: name.clone(),
-                    group_type: raw_type.to_string(),
-                    classification: Some(classification),
-                    current,
-                    expanded,
-                    proxies: sorted_nodes,
-                })
-            })
-            .collect();
-
-        // Step 3: Reorder groups according to user preferences or alphabetical default
-        if !preferences.custom_group_order.is_empty() {
-            let order_map: HashMap<&str, usize> = preferences
-                .custom_group_order
-                .iter()
-                .enumerate()
-                .map(|(idx, name)| (name.as_str(), idx))
-                .collect();
-
-            groups.sort_by(|left, right| {
-                match (
-                    order_map.get(left.name.as_str()),
-                    order_map.get(right.name.as_str()),
-                ) {
-                    (Some(li), Some(ri)) => li.cmp(ri),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => left.name.cmp(&right.name),
-                }
-            });
-        } else {
-            groups.sort_by(|left, right| left.name.cmp(&right.name));
-        }
-
-        (groups, alive_snapshot)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProxyDelayOutcome {
     pub proxy_name: String,
-    pub result: Result<u32, String>,
+    pub result: Result<u32, Failure>,
 }
 
 /// Test a bounded set of proxies concurrently through the runtime gateway.
@@ -366,7 +231,7 @@ pub async fn test_proxy_delays<G: RuntimeGateway + ?Sized>(
             let result = gateway
                 .test_delay(&proxy_name, &test_url, timeout_ms)
                 .await
-                .map_err(|error| error.to_string());
+                .map_err(Failure::from);
             ProxyDelayOutcome { proxy_name, result }
         }
     }))
@@ -378,14 +243,21 @@ pub async fn test_proxy_delays<G: RuntimeGateway + ?Sized>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proxy_projection::project_groups_snapshot;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use infiltrator_contract::command::ProxyMode;
     use infiltrator_contract::proxies::ProxySortOrder;
+    use infiltrator_contract::proxies::ProxyUiPreferences;
+    use infiltrator_domain::proxy::Proxy;
     use infiltrator_domain::proxy::{ProxyBase, Shadowsocks};
+    use infiltrator_domain::proxy_observation::RuntimeProxyObservation;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_gateway::RuntimeStream;
+    use std::collections::HashMap;
     use std::sync::Mutex;
 
     struct MockGateway {
@@ -431,10 +303,7 @@ mod tests {
         async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
             Ok(())
         }
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
+        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
             Ok(())
         }
         async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
@@ -479,6 +348,25 @@ mod tests {
         async fn get_memory(&self) -> Result<MemoryData, PortError> {
             Err(PortError::Failed("not implemented".into()))
         }
+    }
+
+    #[tokio::test]
+    async fn runtime_node_listing_preserves_unknown_flags_and_reported_zero_observations() {
+        let facts: RuntimeProxyObservation = serde_json::from_str(
+            r#"{"name":"leaf","type":"Shadowsocks","history":[{"time":"last","delay":0}]}"#,
+        )
+        .unwrap();
+        let gateway = Arc::new(MockGateway::new(HashMap::from([(
+            "leaf".into(),
+            Proxy::Observed(facts),
+        )])));
+        let nodes = ProxyApplication::new(gateway).list_nodes().await.unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].name, "leaf");
+        assert_eq!(nodes[0].proxy_type, "Shadowsocks");
+        assert_eq!(nodes[0].alive, None);
+        assert_eq!(nodes[0].udp, None);
+        assert_eq!(nodes[0].delay, Some(0));
     }
 
     fn sample_proxies() -> HashMap<String, Proxy> {
@@ -607,7 +495,7 @@ mod tests {
         let mut prefs = ProxyUiPreferences::default();
 
         // 1. Default: LatencyAsc, FilterAlive off
-        let (groups, alive) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
+        let (groups, alive) = project_groups_snapshot(&proxies, &prefs);
         assert_eq!(alive.total_nodes, 3);
         assert_eq!(alive.alive_nodes, 2);
         assert_eq!(alive.dead_nodes, 1);
@@ -620,7 +508,7 @@ mod tests {
 
         // 2. FilterAlive on -> Dead node eliminated
         prefs.filter_alive = true;
-        let (groups_alive, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
+        let (groups_alive, _) = project_groups_snapshot(&proxies, &prefs);
         let selector_alive = groups_alive
             .iter()
             .find(|g| g.name == "SelectorGroup")
@@ -631,7 +519,7 @@ mod tests {
         // 3. Favorite pinning beats lower latency
         prefs.filter_alive = false;
         prefs.favorite_proxies.push("Node-A".to_string()); // 100ms pinned
-        let (groups_fav, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
+        let (groups_fav, _) = project_groups_snapshot(&proxies, &prefs);
         let selector_fav = groups_fav
             .iter()
             .find(|g| g.name == "SelectorGroup")
@@ -642,7 +530,7 @@ mod tests {
         // 4. Sort NameDesc
         prefs.favorite_proxies.clear();
         prefs.sort_order = ProxySortOrder::NameDesc;
-        let (groups_desc, _) = ProxyApplication::project_groups_snapshot(&proxies, &prefs);
+        let (groups_desc, _) = project_groups_snapshot(&proxies, &prefs);
         let selector_desc = groups_desc
             .iter()
             .find(|g| g.name == "SelectorGroup")

@@ -1,14 +1,13 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Duration;
-use tokio::time::Instant;
-
 use mihomo_platform::crash_reporter::{DnsCrashWatchdog, DnsStateSentinel, StandaloneDnsWatchdog};
 use mihomo_platform::interface_watcher::{
     GatewayHotplugArbiter, GatewayMigrationAction, HotplugDebouncer, InterfaceType,
     NetworkInterfaceSnapshot,
 };
 use mihomo_platform::power::{SelfHealingPipeline, SelfHealingTier};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
+use tokio::time::Instant;
 
 fn create_test_iface(
     name: &str,

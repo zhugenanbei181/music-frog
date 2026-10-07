@@ -3,26 +3,23 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
 use crate::view::waveform::TrafficChart;
 use iced::widget::{Space, canvas, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::traffic_scale::compute_from_rates;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let (up_speed, down_speed) = state
-        .diag
-        .traffic
-        .as_ref()
-        .map(|t| (t.up, t.down))
-        .unwrap_or((0, 0));
-
+    let rates = state.traffic_readout();
     let speed_legend = row![
-        speed_pill(Icon::ArrowUp, up_speed, |t| tokens(t).success),
+        speed_pill(Icon::ArrowUp, rates.upload, |t| tokens(t).success),
         Space::new().width(theme::SP_MD),
-        speed_pill(Icon::ArrowDown, down_speed, |t| tokens(t).accent),
+        speed_pill(Icon::ArrowDown, rates.download, |t| tokens(t).accent),
     ]
     .align_y(Alignment::Center);
     let scale = if state.runtime.traffic_waveform.is_drawable() {
@@ -40,7 +37,7 @@ pub fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Messag
             .iter()
             .map(|(_, down)| *down as f64)
             .collect();
-        infiltrator_domain::traffic_scale::compute_from_rates(&upload, &download, 0)
+        compute_from_rates(&upload, &download, 0)
     };
 
     let card_header = row![
@@ -93,22 +90,19 @@ pub fn traffic_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Messag
 
 fn speed_pill<'a>(
     glyph: Icon,
-    bytes_per_second: u64,
+    value: String,
     color: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     container(
         row![
             icon_themed(glyph, 13.0, color),
             Space::new().width(theme::SP_XS),
-            text(format!(
-                "{}/s",
-                crate::utils::format_bytes(bytes_per_second)
-            ))
-            .size(13)
-            .font(MONO)
-            .style(move |t: &Theme| text::Style {
-                color: Some(color(t))
-            }),
+            text(value)
+                .size(13)
+                .font(MONO)
+                .style(move |t: &Theme| text::Style {
+                    color: Some(color(t))
+                }),
         ]
         .align_y(Alignment::Center),
     )

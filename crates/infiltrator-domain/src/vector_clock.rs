@@ -24,8 +24,6 @@ pub enum ClockOrdering {
     Concurrent,
 }
 
-pub type ClockRelation = ClockOrdering;
-
 impl ClockOrdering {
     pub fn is_equal(&self) -> bool {
         matches!(self, ClockOrdering::Equal)

@@ -7,14 +7,21 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::types::rule_list::RuleListAction;
 use crate::types::rules::RuleBadgeKind;
-use crate::view::components::{BadgeKind, card, icon_button, segmented_control};
+use crate::view::component_card::card;
+use crate::view::components::{BadgeKind, icon_button, modern_scrollable, segmented_control};
+use crate::view::rules_tracer::{TRACER_SCROLL_ID, tracer_view};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_LG, tokens};
-use iced::widget::{Space, column, row, text};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::widget::{Id, Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::rule_list_projection::{editor_preview, editor_status};
 use infiltrator_contract::rules_workspace::RulesTab;
-use infiltrator_domain::rules::matrix::RuleTypeFamily;
+use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rules::matrix::{RuleTypeFamily, matrix_family, matrix_label};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub(crate) mod providers;
@@ -24,7 +31,7 @@ pub(crate) mod rules_list;
 /// `DomainSuffix`, `IPCIDR`, `GeoIP`, `Match`, `RuleSet`, …) for all 33
 /// catalogue spellings (DUAL-11-01). Unknown spellings keep their raw text.
 pub fn display_rule_type(rule_type: &str) -> String {
-    infiltrator_domain::rules::matrix::matrix_label(rule_type)
+    matrix_label(rule_type)
 }
 
 /// Map rule type and classifier to the shared badge palette (DUAL-11-01). The
@@ -32,7 +39,7 @@ pub fn display_rule_type(rule_type: &str) -> String {
 /// semantics rather than by a per-surface spelling list; `kind` is only the
 /// fallback for a spelling the catalogue does not know.
 pub fn semantic_badge_kind(rule_type: &str, kind: RuleBadgeKind) -> BadgeKind {
-    match infiltrator_domain::rules::matrix::matrix_family(rule_type) {
+    match matrix_family(rule_type) {
         RuleTypeFamily::Host => BadgeKind::Accent,
         RuleTypeFamily::Address => BadgeKind::Warning,
         RuleTypeFamily::Unknown => match kind {
@@ -46,13 +53,25 @@ pub fn semantic_badge_kind(rule_type: &str, kind: RuleBadgeKind) -> BadgeKind {
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let filtered_count = state.editor.rules_filtered_indices.len();
-    let save_rules_action = rules_list::save_action(
-        state.editor.rules_dirty,
-        state.editor.is_saving_rules,
-        lang.tr("rules_save_btn").to_string(),
-        lang.tr("rules_saved").to_string(),
-        Message::SaveRules,
-    );
+    let save_rules_action = container(
+        button(text(lang.tr("rules_save_btn").to_string())).on_press_maybe(
+            state
+                .editor
+                .rule_list
+                .can_save()
+                .then_some(Message::SaveRules),
+        ),
+    )
+    .id(InteractionRegion::RuleListSave.id());
+    let discard = container(
+        button(text(lang.tr("rules_draft_discard").to_string())).on_press_maybe(
+            (state.editor.rule_list.pending.is_none()
+                && !state.editor.rule_list.awaiting_read
+                && (state.editor.rule_list.dirty() || state.editor.rule_list.source_changed()))
+            .then_some(Message::RuleList(RuleListAction::Discard)),
+        ),
+    )
+    .id(InteractionRegion::RuleListDiscard.id());
 
     let header = row![
         text(lang.tr("rules_title").to_string())
@@ -62,12 +81,16 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 color: Some(tokens(t).text_primary)
             }),
         Space::new().width(theme::SP_MD),
-        text(format!("{} / {}", filtered_count, state.editor.rules.len()))
-            .size(13)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary)
-            }),
+        text(format!(
+            "{} / {}",
+            filtered_count,
+            state.editor.rule_list.draft.len()
+        ))
+        .size(13)
+        .font(MONO)
+        .style(|t: &Theme| text::Style {
+            color: Some(tokens(t).text_tertiary)
+        }),
         Space::new().width(Length::Fill),
         if state.editor.is_loading_rules || state.editor.is_loading_providers {
             Element::from(text("...").size(12).style(|t: &Theme| text::Style {
@@ -77,9 +100,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             icon_button(Icon::RefreshCw, 16.0, Message::LoadRules)
         },
         Space::new().width(theme::SP_SM),
-        save_rules_action,
     ]
     .align_y(Alignment::Center);
+
+    let preview = editor_preview(&state.editor.rule_list, &state.shell.lang).join("\n");
+    let controls = row![
+        save_rules_action,
+        discard,
+        button(text(lang.tr("dns_query_settings").to_string())).on_press_maybe(
+            state
+                .editor
+                .rule_list
+                .can_guide()
+                .then_some(Message::RuleList(RuleListAction::Settings))
+        )
+    ]
+    .spacing(8)
+    .wrap();
+    let draft_panel = container(
+        column![
+            container(text(editor_status(&state.editor.rule_list, &state.shell.lang)).size(12))
+                .id(InteractionRegion::RuleListStatus.id()),
+            container(text(preview).size(12)).id(InteractionRegion::RuleListPreview.id()),
+            controls
+        ]
+        .spacing(8),
+    )
+    .id(InteractionRegion::RuleListEditor.id());
 
     // DUAL-11-14: the partition list, its order and its i18n keys are the
     // shared workspace vocabulary.
@@ -101,13 +148,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             card(
                 None,
                 column![
-                    text("Preparing Rules panels...")
+                    text(lang.tr("page_controls_loading").into_owned())
                         .size(14)
                         .font(FONT_SEMIBOLD)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_primary)
                         }),
-                    text("Heavy widgets mount asynchronously to keep first paint responsive.")
+                    text(lang.tr("page_controls_loading_hint").into_owned())
                         .size(12)
                         .style(|t: &Theme| text::Style {
                             color: Some(tokens(t).text_secondary)
@@ -124,7 +171,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .runtime
         .proxies
         .iter()
-        .filter(|(_, p): &(&String, &infiltrator_domain::proxy::Proxy)| p.is_group())
+        .filter(|(_, p): &(&String, &Proxy)| p.is_group())
         .map(|(name, _)| name.clone())
         .collect();
     available_targets.sort();
@@ -136,20 +183,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     }
 
     let tab_content: Element<'_, Message> = match state.editor.rules_tab {
-        RulesTab::List => rules_list::rules_list_view(state, &lang, available_targets),
+        RulesTab::List => {
+            modern_scrollable(rules_list::rules_list_view(state, &lang, available_targets))
+                .id("rules-page-scroll")
+                .height(Length::Fill)
+                .into()
+        }
         RulesTab::Providers => providers::providers_view(state, &lang),
         RulesTab::JsonEditors => providers::json_editors_view(state, &lang),
-        RulesTab::Tracer => crate::view::rules_tracer::tracer_view(state, &lang),
+        RulesTab::Tracer => modern_scrollable(tracer_view(state, &lang))
+            .id(Id::new(TRACER_SCROLL_ID))
+            .height(Length::Fill)
+            .into(),
     };
 
     column![
         header,
+        if state.editor.rules_tab == RulesTab::List {
+            Element::from(draft_panel)
+        } else {
+            Element::from(Space::new().height(0))
+        },
         Space::new().height(theme::SP_MD),
         tabs,
         Space::new().height(theme::SP_MD),
         tab_content
     ]
-    .spacing(SP_LG)
+    .spacing(theme::SP_SM)
     .into()
 }
 

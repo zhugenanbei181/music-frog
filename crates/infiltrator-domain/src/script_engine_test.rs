@@ -1,4 +1,5 @@
 use super::*;
+use std::thread::sleep;
 use std::time::Duration;
 
 #[test]
@@ -614,7 +615,7 @@ fn test_script_circuit_breaker() {
     assert!(breaker.is_tripped());
 
     // After cooldown elapsed
-    std::thread::sleep(Duration::from_millis(60));
+    sleep(Duration::from_millis(60));
     assert!(!breaker.is_tripped());
 
     // Success resets count

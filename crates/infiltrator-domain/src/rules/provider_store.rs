@@ -15,6 +15,7 @@ use super::{RuleEntry, RuleProviders};
 use crate::mrs::unpack_mrs_to_rule_entries;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::str::from_utf8;
 
 /// Directory mihomo uses for downloaded rule-provider files.
 pub const PROVIDER_CACHE_DIR_NAME: &str = "rules";
@@ -325,7 +326,7 @@ fn payload_lines_from_yaml(bytes: &[u8]) -> Result<Vec<String>, String> {
 }
 
 fn payload_lines_from_text(bytes: &[u8]) -> Result<Vec<String>, String> {
-    let text = std::str::from_utf8(bytes).map_err(|error| format!("provider text: {error}"))?;
+    let text = from_utf8(bytes).map_err(|error| format!("provider text: {error}"))?;
     let lines: Vec<String> = text
         .lines()
         .map(str::trim)
@@ -399,6 +400,12 @@ pub fn deconstruct_provider_payload(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::mrs::Behavior;
+    #[cfg(test)]
+    use crate::mrs::MAGIC_STANDARD_MRS;
+    #[cfg(test)]
+    use crate::mrs::build_mrs_bytes;
     use serde_json::json;
 
     fn declaration(name: &str, value: Value) -> RuleProviderDeclaration {
@@ -550,13 +557,13 @@ mod tests {
         assert_eq!(result.entries.len(), 2);
         assert_eq!(result.entries[0].rule, "DOMAIN-SUFFIX,ads.com,REJECT");
 
-        let bytes = crate::mrs::build_mrs_bytes(
-            crate::mrs::Behavior::Domain,
+        let bytes = build_mrs_bytes(
+            Behavior::Domain,
             1,
             2,
             "test",
             b"ads.com\ntracker.net\n",
-            Some(crate::mrs::MAGIC_STANDARD_MRS),
+            Some(MAGIC_STANDARD_MRS),
         );
         let decl = declaration(
             "ads",

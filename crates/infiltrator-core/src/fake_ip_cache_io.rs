@@ -1,8 +1,10 @@
 //! Host filesystem adapter for the Mihomo Fake-IP cache.
 
+use crate::settings_io::app_config_manager;
 use anyhow::Context;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+use tokio::fs::{remove_file, try_exists};
 
 pub struct FileFakeIpCache;
 
@@ -29,9 +31,7 @@ pub async fn clear_fake_ip_cache() -> anyhow::Result<bool> {
 }
 
 async fn clear_fake_ip_cache_impl() -> anyhow::Result<bool> {
-    let manager = crate::settings_io::app_config_manager()
-        .await
-        .context("init config manager")?;
+    let manager = app_config_manager().await.context("init config manager")?;
     let profile_path = manager
         .get_current_path()
         .await
@@ -40,11 +40,11 @@ async fn clear_fake_ip_cache_impl() -> anyhow::Result<bool> {
         .parent()
         .ok_or_else(|| anyhow::anyhow!("profile path has no parent directory"))?;
     let cache_path = config_dir.join("fake-ip-cache");
-    if tokio::fs::try_exists(&cache_path)
+    if try_exists(&cache_path)
         .await
         .context("check fake-ip cache")?
     {
-        tokio::fs::remove_file(&cache_path)
+        remove_file(&cache_path)
             .await
             .context("remove fake-ip cache")?;
         return Ok(true);

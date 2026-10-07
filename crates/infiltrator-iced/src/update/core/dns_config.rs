@@ -3,6 +3,7 @@
 //! the Fake-IP cache flush.
 
 use super::profile_apply::save_task;
+use crate::configuration::application;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::dns::{AdvancedEditMode, FakeIpFormDraft};
@@ -10,7 +11,19 @@ use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
+use iced::widget::text_editor::Content;
+use infiltrator_application::configuration_application::dns_patch_from_settings;
+use infiltrator_application::dns_latency_application::NO_PROBER_REASON;
+use infiltrator_application::dns_workbench_application::form_from_config;
+use infiltrator_contract::dns::parse_server_list;
+use infiltrator_contract::dns_form::DnsFormIssue;
+use infiltrator_contract::dns_latency::{DnsLatencyProbeRequest, DnsProbeTarget};
+use infiltrator_contract::error::{ErrorCode, Failure, InfiltratorError};
+use infiltrator_domain::dns::{DnsConfig, DnsConfigPatch, apply_dns_patch_to_yaml};
+use infiltrator_domain::fake_ip::{FakeIpConfig, FakeIpConfigPatch, apply_fake_ip_patch_to_yaml};
+use std::time::Instant;
+use tokio::time;
+use tokio::time::sleep;
 
 impl AppState {
     pub(super) fn ensure_dns_editor_loaded(&mut self) {
@@ -19,9 +32,8 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
-        self.editor.dns_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.dns_json_cache);
+        let start = Instant::now();
+        self.editor.dns_json_content = Content::with_text(&self.editor.dns_json_cache);
         self.editor.dns_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
@@ -32,25 +44,17 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
-        self.editor.fake_ip_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.fake_ip_json_cache);
+        let start = Instant::now();
+        self.editor.fake_ip_json_content = Content::with_text(&self.editor.fake_ip_json_cache);
         self.editor.fake_ip_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.dns_with_text_apply_ms = start.elapsed().as_millis();
     }
 
-    pub(super) fn apply_dns_form_from_config(
-        &mut self,
-        config: &infiltrator_domain::dns::DnsConfig,
-    ) {
-        self.editor.dns_form =
-            infiltrator_application::dns_workbench_application::form_from_config(config);
+    pub(super) fn apply_dns_form_from_config(&mut self, config: &DnsConfig) {
+        self.editor.dns_form = form_from_config(config);
     }
 
-    pub(super) fn apply_fake_ip_form_from_config(
-        &mut self,
-        config: &infiltrator_domain::fake_ip::FakeIpConfig,
-    ) {
+    pub(super) fn apply_fake_ip_form_from_config(&mut self, config: &FakeIpConfig) {
         self.editor.fake_ip_form = FakeIpFormDraft {
             fake_ip_range: config.fake_ip_range.clone().unwrap_or_default(),
             fake_ip_filter: Self::join_list_field(&config.fake_ip_filter),
@@ -58,21 +62,15 @@ impl AppState {
         };
     }
 
-    pub(crate) fn dns_patch_from_form(
-        &self,
-    ) -> Result<infiltrator_domain::dns::DnsConfigPatch, InfiltratorError> {
-        Ok(
-            infiltrator_application::configuration_application::dns_patch_from_settings(
-                self.editor.dns_form.patch(),
-            ),
-        )
+    pub(crate) fn dns_patch_from_form(&self) -> Result<DnsConfigPatch, InfiltratorError> {
+        Ok(dns_patch_from_settings(self.editor.dns_form.patch()))
     }
 
-    pub(crate) fn dns_form_issue(&self) -> Option<infiltrator_contract::dns_form::DnsFormIssue> {
+    pub(crate) fn dns_form_issue(&self) -> Option<DnsFormIssue> {
         self.editor.dns_form.validate().into_iter().next()
     }
 
-    fn dns_issue_message(issue: &infiltrator_contract::dns_form::DnsFormIssue) -> String {
+    fn dns_issue_message(issue: &DnsFormIssue) -> String {
         use infiltrator_contract::dns_form::DnsFormIssue;
         match issue {
             DnsFormIssue::UnsupportedScheme { field, entry } => {
@@ -97,11 +95,9 @@ impl AppState {
         }
     }
 
-    fn fake_ip_patch_from_form(
-        &self,
-    ) -> Result<infiltrator_domain::fake_ip::FakeIpConfigPatch, InfiltratorError> {
+    fn fake_ip_patch_from_form(&self) -> Result<FakeIpConfigPatch, InfiltratorError> {
         let fake_ip_range = self.editor.fake_ip_form.fake_ip_range.trim();
-        Ok(infiltrator_domain::fake_ip::FakeIpConfigPatch {
+        Ok(FakeIpConfigPatch {
             fake_ip_range: if fake_ip_range.is_empty() {
                 None
             } else {
@@ -113,19 +109,6 @@ impl AppState {
             store_fake_ip: Some(self.editor.fake_ip_form.store_fake_ip),
             ..Default::default()
         })
-    }
-
-    /// Honest editor message for an invalid shared hosts row.
-    pub(crate) fn hosts_issue_message(issue: &infiltrator_contract::dns::DnsHostsIssue) -> String {
-        use infiltrator_contract::dns::DnsHostsIssue;
-        match issue {
-            DnsHostsIssue::InvalidAddress { address } => {
-                format!("dns.hosts value must be an IP, 'lan' or an alias domain: '{address}'")
-            }
-            DnsHostsIssue::InvalidDomain { domain } => {
-                format!("dns.hosts key is not a valid domain: '{domain}'")
-            }
-        }
     }
 
     fn sync_dns_json_from_form(&mut self) -> Result<(), InfiltratorError> {
@@ -183,50 +166,33 @@ impl AppState {
                     return Task::none();
                 };
                 let Some(port) = runtime.dns_latency_probe_port() else {
-                    return Task::done(Message::DnsLatencyProbed(Err(
-                        infiltrator_contract::error::Failure::unsupported(
-                            infiltrator_application::dns_latency_application::NO_PROBER_REASON,
-                        ),
-                    )));
+                    return Task::done(Message::DnsLatencyProbed(Err(Failure::unsupported(
+                        NO_PROBER_REASON,
+                    ))));
                 };
-                let targets: Vec<infiltrator_contract::dns_latency::DnsProbeTarget> =
-                    infiltrator_contract::dns::parse_server_list(&self.editor.dns_form.nameserver)
+                let targets: Vec<DnsProbeTarget> =
+                    parse_server_list(&self.editor.dns_form.nameserver)
                         .into_iter()
-                        .map(|address| {
-                            infiltrator_contract::dns_latency::DnsProbeTarget::new(&address, false)
-                        })
+                        .map(|address| DnsProbeTarget::new(&address, false))
                         .chain(
-                            infiltrator_contract::dns::parse_server_list(
-                                &self.editor.dns_form.fallback,
-                            )
-                            .into_iter()
-                            .map(|address| {
-                                infiltrator_contract::dns_latency::DnsProbeTarget::new(
-                                    &address, true,
-                                )
-                            }),
+                            parse_server_list(&self.editor.dns_form.fallback)
+                                .into_iter()
+                                .map(|address| DnsProbeTarget::new(&address, true)),
                         )
                         .collect();
                 if targets.is_empty() {
-                    return Task::done(Message::DnsLatencyProbed(Err(
-                        infiltrator_contract::error::Failure::new(
-                            infiltrator_contract::error::ErrorCode::InvalidInput,
-                            "the form configures no DNS nameserver to probe",
-                            false,
-                        ),
-                    )));
+                    return Task::done(Message::DnsLatencyProbed(Err(Failure::new(
+                        ErrorCode::InvalidInput,
+                        "the form configures no DNS nameserver to probe",
+                        false,
+                    ))));
                 }
                 self.editor.is_probing_dns_latency = true;
-                let request =
-                    infiltrator_contract::dns_latency::DnsLatencyProbeRequest::new(targets);
+                let request = DnsLatencyProbeRequest::new(targets);
                 Task::perform(
                     async move {
                         port.probe(request).await.map_err(|error| {
-                            infiltrator_contract::error::Failure::new(
-                                error.error_code(),
-                                error.to_string(),
-                                false,
-                            )
+                            Failure::new(error.error_code(), error.to_string(), false)
                         })
                     },
                     Message::DnsLatencyProbed,
@@ -247,7 +213,7 @@ impl AppState {
             }
             Message::RefreshDnsOnly => Task::perform(
                 async {
-                    let config = crate::configuration::application()
+                    let config = application()
                         .await?
                         .load_dns_config()
                         .await
@@ -259,7 +225,7 @@ impl AppState {
             ),
             Message::RefreshFakeIpOnly => Task::perform(
                 async {
-                    let config = crate::configuration::application()
+                    let config = application()
                         .await?
                         .load_fake_ip_config()
                         .await
@@ -279,50 +245,44 @@ impl AppState {
             }
             Message::DnsConfigJsonLoaded(result) => {
                 match result {
-                    Ok(json) => {
-                        match serde_json::from_str::<infiltrator_domain::dns::DnsConfig>(&json) {
-                            Ok(config) => {
-                                self.editor.advanced_configs_loaded_once = true;
-                                self.editor.dns_json_cache = json;
-                                self.apply_dns_form_from_config(&config);
-                                if self.editor.dns_editor_state == EditorLazyState::Loaded {
-                                    self.ensure_dns_editor_loaded();
-                                }
-                                self.editor.dns_json_dirty = false;
-                                self.editor.dns_form_dirty = false;
-                                self.editor.advanced_validation.dns = None;
+                    Ok(json) => match serde_json::from_str::<DnsConfig>(&json) {
+                        Ok(config) => {
+                            self.editor.advanced_configs_loaded_once = true;
+                            self.editor.dns_json_cache = json;
+                            self.apply_dns_form_from_config(&config);
+                            if self.editor.dns_editor_state == EditorLazyState::Loaded {
+                                self.ensure_dns_editor_loaded();
                             }
-                            Err(e) => {
-                                self.set_error(&e);
-                            }
+                            self.editor.dns_json_dirty = false;
+                            self.editor.dns_form_dirty = false;
+                            self.editor.advanced_validation.dns = None;
                         }
-                    }
+                        Err(e) => {
+                            self.set_error(&e);
+                        }
+                    },
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()
             }
             Message::FakeIpConfigJsonLoaded(result) => {
                 match result {
-                    Ok(json) => {
-                        match serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfig>(
-                            &json,
-                        ) {
-                            Ok(config) => {
-                                self.editor.advanced_configs_loaded_once = true;
-                                self.editor.fake_ip_json_cache = json;
-                                self.apply_fake_ip_form_from_config(&config);
-                                if self.editor.fake_ip_editor_state == EditorLazyState::Loaded {
-                                    self.ensure_fake_ip_editor_loaded();
-                                }
-                                self.editor.fake_ip_json_dirty = false;
-                                self.editor.fake_ip_form_dirty = false;
-                                self.editor.advanced_validation.fake_ip = None;
+                    Ok(json) => match serde_json::from_str::<FakeIpConfig>(&json) {
+                        Ok(config) => {
+                            self.editor.advanced_configs_loaded_once = true;
+                            self.editor.fake_ip_json_cache = json;
+                            self.apply_fake_ip_form_from_config(&config);
+                            if self.editor.fake_ip_editor_state == EditorLazyState::Loaded {
+                                self.ensure_fake_ip_editor_loaded();
                             }
-                            Err(e) => {
-                                self.set_error(&e);
-                            }
+                            self.editor.fake_ip_json_dirty = false;
+                            self.editor.fake_ip_form_dirty = false;
+                            self.editor.advanced_validation.fake_ip = None;
                         }
-                    }
+                        Err(e) => {
+                            self.set_error(&e);
+                        }
+                    },
                     Err(e) => self.set_error(&e),
                 }
                 Task::none()
@@ -436,105 +396,6 @@ impl AppState {
                 self.editor.dns_fake_ip_query = query;
                 Task::none()
             }
-            Message::UpdateDnsHostsAddress(value) => {
-                self.editor.dns_hosts_address = value;
-                Task::none()
-            }
-            Message::UpdateDnsHostsDomain(value) => {
-                self.editor.dns_hosts_domain = value;
-                Task::none()
-            }
-            Message::AddDnsHostRow => {
-                let address = self.editor.dns_hosts_address.trim().to_owned();
-                let domain = self.editor.dns_hosts_domain.trim().to_owned();
-                if !address.is_empty() && !domain.is_empty() {
-                    let row = infiltrator_contract::dns::DnsHostEntry { domain, address };
-                    if !self.editor.dns_hosts.contains(&row) {
-                        self.editor.dns_hosts.push(row);
-                    }
-                    self.editor.dns_hosts_address.clear();
-                    self.editor.dns_hosts_domain.clear();
-                    self.editor.dns_hosts_dirty = true;
-                }
-                Task::none()
-            }
-            Message::RemoveDnsHostRow(index) => {
-                if index < self.editor.dns_hosts.len() {
-                    self.editor.dns_hosts.remove(index);
-                    self.editor.dns_hosts_dirty = true;
-                }
-                Task::none()
-            }
-            Message::SaveDnsHosts => {
-                self.editor.is_saving_dns_hosts = true;
-                self.begin_save_phase("DNS Hosts");
-                let issues = infiltrator_contract::dns::validate_hosts(&self.editor.dns_hosts);
-                if let Some(issue) = issues.first() {
-                    self.editor.is_saving_dns_hosts = false;
-                    let message = Self::hosts_issue_message(issue);
-                    self.editor.advanced_validation.dns_hosts = Some(message.clone());
-                    self.runtime.rebuild_flow = RebuildFlowState::Failed {
-                        label: "DNS Hosts".to_string(),
-                        error: message.clone(),
-                    };
-                    self.set_error(&message);
-                    return Task::batch(vec![
-                        Task::done(Message::ShowToast(message, ToastStatus::Error)),
-                        Task::perform(
-                            async {
-                                tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-                            },
-                            |_| Message::ClearRebuildFlow,
-                        ),
-                    ]);
-                }
-                let entries = self.editor.dns_hosts.clone();
-                // The shared mapping is the single write path: both surfaces
-                // turn the same shared patch into the same domain patch.
-                let patch =
-                    infiltrator_application::configuration_application::dns_patch_from_settings(
-                        infiltrator_contract::dns::DnsSettingsPatch {
-                            hosts: Some(entries),
-                            ..infiltrator_contract::dns::DnsSettingsPatch::default()
-                        },
-                    );
-                save_task(
-                    self.runtime.runtime.clone(),
-                    move |content| infiltrator_domain::dns::apply_dns_patch_to_yaml(content, patch),
-                    Message::DnsHostsSaved,
-                )
-            }
-            Message::DnsHostsSaved(result) => {
-                self.editor.is_saving_dns_hosts = false;
-                match result {
-                    Ok(()) => {
-                        self.editor.dns_hosts_dirty = false;
-                        self.editor.advanced_validation.dns_hosts = None;
-                        Task::batch(vec![
-                            Task::done(Message::RefreshDnsOnly),
-                            self.finish_without_rebuild("DNS Hosts".to_string()),
-                        ])
-                    }
-                    Err(error) => {
-                        let mapped = Self::map_advanced_error_message(&error);
-                        self.editor.advanced_validation.dns_hosts = Some(mapped.clone());
-                        self.runtime.rebuild_flow = RebuildFlowState::Failed {
-                            label: "DNS Hosts".to_string(),
-                            error: mapped.clone(),
-                        };
-                        self.set_error(&mapped);
-                        Task::batch(vec![
-                            Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
-                            Task::perform(
-                                async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-                                },
-                                |_| Message::ClearRebuildFlow,
-                            ),
-                        ])
-                    }
-                }
-            }
             Message::DnsConfigEditorAction(action) => {
                 self.ensure_dns_editor_loaded();
                 self.editor.dns_json_content.perform(action);
@@ -605,7 +466,7 @@ impl AppState {
                     self.ensure_dns_editor_loaded();
                     let text = self.editor.dns_json_content.text();
                     self.editor.dns_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_domain::dns::DnsConfigPatch>(&text)
+                    serde_json::from_str::<DnsConfigPatch>(&text)
                         .map_err(|e| InfiltratorError::Config(format!("Invalid DNS JSON: {}", e)))
                 };
                 let patch = match patch {
@@ -623,7 +484,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -632,7 +493,7 @@ impl AppState {
                 };
                 save_task(
                     self.runtime.runtime.clone(),
-                    move |content| infiltrator_domain::dns::apply_dns_patch_to_yaml(content, patch),
+                    move |content| apply_dns_patch_to_yaml(content, patch),
                     Message::DnsSaved,
                 )
             }
@@ -660,7 +521,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -677,10 +538,9 @@ impl AppState {
                     self.ensure_fake_ip_editor_loaded();
                     let text = self.editor.fake_ip_json_content.text();
                     self.editor.fake_ip_json_cache = text.clone();
-                    serde_json::from_str::<infiltrator_domain::fake_ip::FakeIpConfigPatch>(&text)
-                        .map_err(|e| {
-                            InfiltratorError::Config(format!("Invalid Fake-IP JSON: {}", e))
-                        })
+                    serde_json::from_str::<FakeIpConfigPatch>(&text).map_err(|e| {
+                        InfiltratorError::Config(format!("Invalid Fake-IP JSON: {}", e))
+                    })
                 };
                 let patch = match patch {
                     Ok(value) => value,
@@ -697,7 +557,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -706,9 +566,7 @@ impl AppState {
                 };
                 save_task(
                     self.runtime.runtime.clone(),
-                    move |content| {
-                        infiltrator_domain::fake_ip::apply_fake_ip_patch_to_yaml(content, patch)
-                    },
+                    move |content| apply_fake_ip_patch_to_yaml(content, patch),
                     Message::FakeIpConfigSaved,
                 )
             }
@@ -736,7 +594,7 @@ impl AppState {
                             Task::done(Message::ShowToast(mapped, ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -744,40 +602,7 @@ impl AppState {
                     }
                 }
             }
-            Message::FlushFakeIpCache => {
-                if let Some(rt) = self.runtime.runtime.clone() {
-                    Task::perform(
-                        async move {
-                            let gateway: std::sync::Arc<
-                                dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
-                            > = rt.clone();
-                            let application =
-                                infiltrator_application::dns_cache_application::DnsCacheApplication::new(
-                                    Some(gateway),
-                                    rt.system_dns_cache_port(),
-                                );
-                            application
-                                .flush_all()
-                                .await
-                                .map_err(|failure| failure.message)
-                        },
-                        Message::DnsCacheFlushed,
-                    )
-                } else {
-                    Task::none()
-                }
-            }
-            Message::DnsCacheFlushed(result) => match result {
-                Ok(report) => {
-                    self.diag.dns_cache_flush = report;
-                    Task::none()
-                }
-                Err(message) => {
-                    self.set_error(&message);
-                    Task::done(Message::ShowToast(message, ToastStatus::Error))
-                }
-            },
-            other => self.update_core_dns_leak(other),
+            other => self.update_core_dns_cache(other),
         }
     }
 }

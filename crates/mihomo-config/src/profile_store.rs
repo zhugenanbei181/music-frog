@@ -1,13 +1,22 @@
 //! ProfileStore implementation over the concrete ConfigManager.
 
+use crate::manager::ConfigManager;
+use crate::profile::Profile;
+use crate::profile_option_store;
+use crate::profile_workspace_store::{WorkspaceTarget, config_error};
+use crate::sidecar_store::{read_optional, remove_optional, write_document};
+use infiltrator_contract::aggregator::AggregationTemplate;
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::secure_store::SecureStore;
+use std::fmt::Display;
+use std::path;
 use std::path::PathBuf;
-
-use crate::manager::ConfigManager;
-use crate::profile::Profile;
 
 #[cfg(test)]
 #[path = "profile_store_test.rs"]
@@ -22,6 +31,10 @@ where
         ConfigManager::config_dir(self).to_path_buf()
     }
 
+    fn apply_transaction(&self, profile: &str) -> Option<ApplyTransactionSnapshot> {
+        ConfigManager::apply_transaction(self, profile)
+    }
+
     async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
         ConfigManager::list_profiles(self)
             .await
@@ -30,9 +43,7 @@ where
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
-        ConfigManager::get_current(self)
-            .await
-            .map_err(storage_error)
+        ConfigManager::get_current(self).await.map_err(config_error)
     }
 
     async fn set_current(&self, profile: &str) -> Result<(), PortError> {
@@ -93,54 +104,57 @@ where
     }
 
     async fn delete_options(&self, profile: &str) -> Result<(), PortError> {
-        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
-        tokio::fs::remove_file(path)
+        profile_option_store::delete_options(self.config_dir(), profile).await
+    }
+
+    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+        self.read_workspace(profile).await
+    }
+    async fn load_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
+        self.read_active_workspace().await
+    }
+
+    async fn compare_and_save_workspace(
+        &self,
+        expected: &ProfileSourceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        self.save_workspace(expected, update, WorkspaceTarget::Any)
             .await
-            .or_else(|error| {
-                if error.kind() == std::io::ErrorKind::NotFound {
-                    Ok(())
-                } else {
-                    Err(error)
-                }
-            })
-            .map_err(storage_error)
     }
 
-    async fn load_options(
+    async fn compare_and_save_active_workspace(
         &self,
-        profile: &str,
-    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
-        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
-        let Ok(text) = tokio::fs::read_to_string(&path).await else {
-            return Ok(Default::default());
-        };
-        serde_yaml_ng::from_str(&text).map_err(storage_error)
+        expected: &ProfileSourceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        self.save_workspace(expected, update, WorkspaceTarget::Active)
+            .await
     }
 
-    async fn save_options(
+    async fn compare_and_save_inactive_workspace(
         &self,
-        profile: &str,
-        options: &infiltrator_domain::profile_options::ProfileOptions,
-    ) -> Result<(), PortError> {
-        let path = infiltrator_domain::profile_options::options_path(self.config_dir(), profile);
-        if options.is_empty() {
-            let _ = tokio::fs::remove_file(&path).await;
-            return Ok(());
-        }
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(storage_error)?;
-        }
-        let text = serde_yaml_ng::to_string(options).map_err(storage_error)?;
-        let temp = path.with_file_name(format!(
-            ".{}.options-tmp",
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("profile")
-        ));
-        tokio::fs::write(&temp, text).await.map_err(storage_error)?;
-        tokio::fs::rename(&temp, &path).await.map_err(storage_error)
+        expected: &ProfileSourceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        self.save_workspace(expected, update, WorkspaceTarget::Inactive)
+            .await
+    }
+
+    async fn restore_workspace(
+        &self,
+        expected: &ProfileSourceIdentity,
+        previous: &ProfileWorkspace,
+    ) -> Result<ProfileWorkspace, PortError> {
+        self.recover_workspace(expected, previous).await
+    }
+
+    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
+        profile_option_store::load_options(self.config_dir(), profile).await
+    }
+
+    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError> {
+        profile_option_store::save_options(self.config_dir(), profile, options).await
     }
 
     async fn delete_subscription_credential(&self, profile: &str) -> Result<(), PortError> {
@@ -149,11 +163,9 @@ where
             .map_err(storage_error)
     }
 
-    async fn load_aggregation_templates(
-        &self,
-    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, PortError> {
+    async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
-        let Ok(text) = tokio::fs::read_to_string(&path).await else {
+        let Some(text) = read_optional(&path).await? else {
             return Ok(Vec::new());
         };
         serde_yaml_ng::from_str(&text).map_err(storage_error)
@@ -161,22 +173,14 @@ where
 
     async fn save_aggregation_templates(
         &self,
-        templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+        templates: &[AggregationTemplate],
     ) -> Result<(), PortError> {
         let path = aggregation_templates_path(ConfigManager::config_dir(self));
         if templates.is_empty() {
-            let _ = tokio::fs::remove_file(&path).await;
-            return Ok(());
-        }
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(storage_error)?;
+            return remove_optional(&path).await;
         }
         let text = serde_yaml_ng::to_string(templates).map_err(storage_error)?;
-        let temp = path.with_file_name(".aggregation-templates-tmp");
-        tokio::fs::write(&temp, text).await.map_err(storage_error)?;
-        tokio::fs::rename(&temp, &path).await.map_err(storage_error)
+        write_document(&path, &text).await
     }
 
     async fn clear_backup(&self, profile: &str) -> Result<(), PortError> {
@@ -238,13 +242,13 @@ fn profile_metadata(profile: Profile) -> ProfileMetadata {
     }
 }
 
-fn storage_error<E: std::fmt::Display>(error: E) -> PortError {
+fn storage_error<E: Display>(error: E) -> PortError {
     PortError::Io(error.to_string())
 }
 
 /// DUAL-08-13: aggregation-template library sidecar. The leading dot keeps it
 /// out of the profile-name space (`options/<profile>.yaml`).
-fn aggregation_templates_path(config_dir: &std::path::Path) -> std::path::PathBuf {
+fn aggregation_templates_path(config_dir: &path::Path) -> PathBuf {
     config_dir
         .join("options")
         .join(".aggregation-templates.yaml")

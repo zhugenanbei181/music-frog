@@ -6,15 +6,14 @@
 use crate::icon::IconId;
 use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
-use crate::responsive::MasterDetailMode;
-use crate::responsive::ResponsiveContext;
+use crate::responsive::{MasterDetailMode, ResponsiveContext};
 use crate::text::{Role, TextRole};
 use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
@@ -94,6 +93,27 @@ pub struct MasterItemSelected(pub String);
 /// Event when back button is pressed in detail view on mobile.
 #[derive(Event, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MasterNavBack;
+
+#[derive(QueryFilter)]
+pub struct MasterPaneFilter {
+    with_master_pane: With<MasterPane>,
+    without_detail_pane: Without<DetailPane>,
+    without_master_back_button: Without<MasterBackButton>,
+}
+
+#[derive(QueryFilter)]
+pub struct DetailPaneFilter {
+    with_detail_pane: With<DetailPane>,
+    without_master_pane: Without<MasterPane>,
+    without_master_back_button: Without<MasterBackButton>,
+}
+
+#[derive(QueryFilter)]
+pub struct MasterBackButtonFilter {
+    with_master_back_button: With<MasterBackButton>,
+    without_master_pane: Without<MasterPane>,
+    without_detail_pane: Without<DetailPane>,
+}
 
 /// Declarative constructor for adaptive master-detail layout.
 pub fn master_detail_scene(
@@ -190,34 +210,12 @@ pub fn on_master_back_activated(
 }
 
 /// System to sync master-detail split vs stacked layout based on responsive context.
-#[allow(clippy::type_complexity)]
 pub fn sync_master_detail_layout(
     ctx: Option<Res<ResponsiveContext>>,
     state: Option<Res<MasterDetailState>>,
-    mut masters: Query<
-        &mut Node,
-        (
-            With<MasterPane>,
-            Without<DetailPane>,
-            Without<MasterBackButton>,
-        ),
-    >,
-    mut details: Query<
-        &mut Node,
-        (
-            With<DetailPane>,
-            Without<MasterPane>,
-            Without<MasterBackButton>,
-        ),
-    >,
-    mut back_buttons: Query<
-        &mut Node,
-        (
-            With<MasterBackButton>,
-            Without<MasterPane>,
-            Without<DetailPane>,
-        ),
-    >,
+    mut masters: Query<&mut Node, MasterPaneFilter>,
+    mut details: Query<&mut Node, DetailPaneFilter>,
+    mut back_buttons: Query<&mut Node, MasterBackButtonFilter>,
 ) {
     let mode = ctx
         .map(|c| c.master_detail_mode())

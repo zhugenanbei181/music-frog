@@ -5,6 +5,7 @@ use infiltrator_domain::snapshots::SnapshotMeta;
 use std::io::{Cursor, Write};
 use std::path::PathBuf;
 use tempfile::tempdir;
+use tokio::fs::{create_dir_all, read_to_string, write};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
@@ -324,8 +325,8 @@ async fn test_export_all_configs_bundle_backward_compatible() {
     let temp = tempdir().unwrap();
     let base = temp.path();
     let configs = base.join("configs");
-    tokio::fs::create_dir_all(&configs).await.unwrap();
-    tokio::fs::write(configs.join("test.yaml"), "port: 7890\n")
+    create_dir_all(&configs).await.unwrap();
+    write(configs.join("test.yaml"), "port: 7890\n")
         .await
         .unwrap();
 
@@ -341,19 +342,19 @@ async fn test_filesystem_export_and_restore_roundtrip() {
 
     let configs_dir = src_path.join("configs");
     let options_dir = src_path.join("options");
-    tokio::fs::create_dir_all(&configs_dir).await.unwrap();
-    tokio::fs::create_dir_all(&options_dir).await.unwrap();
+    create_dir_all(&configs_dir).await.unwrap();
+    create_dir_all(&options_dir).await.unwrap();
 
-    tokio::fs::write(src_path.join("settings.toml"), "port = 9090\n")
+    write(src_path.join("settings.toml"), "port = 9090\n")
         .await
         .unwrap();
-    tokio::fs::write(src_path.join("mixin.yaml"), "mode: rule\n")
+    write(src_path.join("mixin.yaml"), "mode: rule\n")
         .await
         .unwrap();
-    tokio::fs::write(configs_dir.join("alpha.yaml"), "proxies: [a, b]\n")
+    write(configs_dir.join("alpha.yaml"), "proxies: [a, b]\n")
         .await
         .unwrap();
-    tokio::fs::write(options_dir.join("alpha.yaml"), "filter: test\n")
+    write(options_dir.join("alpha.yaml"), "filter: test\n")
         .await
         .unwrap();
 
@@ -374,17 +375,17 @@ async fn test_filesystem_export_and_restore_roundtrip() {
         .await
         .expect("restore bundle");
 
-    let restored_settings = tokio::fs::read_to_string(dst_path.join("settings.toml"))
+    let restored_settings = read_to_string(dst_path.join("settings.toml"))
         .await
         .unwrap();
     assert_eq!(restored_settings, "port = 9090\n");
 
-    let restored_profile = tokio::fs::read_to_string(dst_path.join("configs/alpha.yaml"))
+    let restored_profile = read_to_string(dst_path.join("configs/alpha.yaml"))
         .await
         .unwrap();
     assert_eq!(restored_profile, "proxies: [a, b]\n");
 
-    let restored_options = tokio::fs::read_to_string(dst_path.join("options/alpha.yaml"))
+    let restored_options = read_to_string(dst_path.join("options/alpha.yaml"))
         .await
         .unwrap();
     assert_eq!(restored_options, "filter: test\n");
@@ -462,16 +463,14 @@ async fn test_restore_bundle_no_overwrite() {
     let temp = tempdir().unwrap();
     let base = temp.path();
 
-    tokio::fs::write(base.join("settings.toml"), "port = 1111\n")
+    write(base.join("settings.toml"), "port = 1111\n")
         .await
         .unwrap();
 
     let bundle = sample_bundle();
     restore_bundle_to_dir(&bundle, base, false).await.unwrap();
 
-    let settings = tokio::fs::read_to_string(base.join("settings.toml"))
-        .await
-        .unwrap();
+    let settings = read_to_string(base.join("settings.toml")).await.unwrap();
     assert_eq!(
         settings, "port = 1111\n",
         "Should preserve existing when overwrite = false"

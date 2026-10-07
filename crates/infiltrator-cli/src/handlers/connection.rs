@@ -1,11 +1,12 @@
+use crate::commands::ConnectionAction;
+use crate::context::Runtime;
+use crate::output;
+use crate::output::{print_info, print_success, print_table};
 use futures_util::StreamExt;
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_domain::runtime::Connection;
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
-
-use crate::commands::ConnectionAction;
-use crate::context::Runtime;
-use crate::output::{self, print_info, print_success, print_table};
+use tokio::signal::ctrl_c;
 
 /// Filters accepted by `connection list`; all are substrings matched
 /// case-sensitively against the connection metadata, mirroring the
@@ -154,7 +155,7 @@ async fn stream(application: &ConnectionApplication) -> anyhow::Result<()> {
                 Some(RuntimeStreamEvent::Connecting | RuntimeStreamEvent::Connected) => {}
                 None => break,
             },
-            _ = tokio::signal::ctrl_c() => break,
+            _ = ctrl_c() => break,
         }
     }
     Ok(())

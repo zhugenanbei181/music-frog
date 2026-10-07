@@ -1,5 +1,7 @@
 //! Shared subscription quota dashboard read model.
 
+use crate::error::{ErrorCode, Failure};
+use crate::session::SessionToken;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,6 +20,22 @@ pub enum SubscriptionQuotaStatus {
     Failed,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscriptionQuotaSource {
+    pub provider_hash: Option<String>,
+    pub profile: String,
+    pub path: String,
+    pub generation: u64,
+    pub session_token: Option<SessionToken>,
+}
+
+/// Independently read active identity; a provider token never crosses this contract.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuotaProfileIdentity {
+    pub profile: String,
+    pub provider_hash: Option<String>,
+}
+
 /// Shared active-profile quota facts. Missing provider metadata stays
 /// optional; consumers must not replace it with a believable fake quota.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -25,7 +43,11 @@ pub struct SubscriptionQuotaSnapshot {
     pub generation: u64,
     pub revision: u64,
     pub status: SubscriptionQuotaStatus,
-    pub failure: Option<String>,
+    pub failure: Option<Failure>,
+    #[serde(default)]
+    pub source: Option<SubscriptionQuotaSource>,
+    #[serde(default)]
+    pub retained: bool,
     pub profile_name: Option<String>,
     pub used_bytes: Option<u64>,
     pub total_bytes: Option<u64>,
@@ -51,6 +73,8 @@ impl SubscriptionQuotaSnapshot {
             revision: 1,
             status: SubscriptionQuotaStatus::Ready,
             failure: None,
+            source: None,
+            retained: false,
             profile_name: Some("主力高速订阅".to_owned()),
             used_bytes: Some(46_430_000_000),
             total_bytes: Some(186_260_000_000),
@@ -72,7 +96,7 @@ impl SubscriptionQuotaSnapshot {
             generation,
             revision,
             status: SubscriptionQuotaStatus::Unsupported,
-            failure: Some(reason.into()),
+            failure: Some(Failure::unsupported(reason.into())),
             ..Self::default()
         }
     }
@@ -82,7 +106,7 @@ impl SubscriptionQuotaSnapshot {
             generation,
             revision,
             status: SubscriptionQuotaStatus::Failed,
-            failure: Some(reason.into()),
+            failure: Some(Failure::new(ErrorCode::InvalidInput, reason.into(), false)),
             ..Self::default()
         }
     }
@@ -123,6 +147,10 @@ mod tests {
     fn unsupported_quota_is_not_drawable() {
         let snapshot = SubscriptionQuotaSnapshot::unsupported(2, 3, "profile reader missing");
         assert!(!snapshot.is_drawable());
-        assert_eq!(snapshot.failure.as_deref(), Some("profile reader missing"));
+        assert_eq!(
+            snapshot.failure.as_ref().unwrap().code,
+            ErrorCode::Unsupported
+        );
+        assert_eq!(snapshot.failure.unwrap().message, "profile reader missing");
     }
 }

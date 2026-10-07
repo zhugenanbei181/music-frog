@@ -16,9 +16,11 @@
 //! re-projects scrim and panel chrome compare-and-set, so a theme switch
 //! repaints in place.
 
+use crate::palette::UiPalette;
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
@@ -26,9 +28,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, PositionType, UiRect, Val,
     percent, px,
 };
-
-use crate::palette::UiPalette;
-use crate::theme::space;
 
 /// Gap (px) between the anchor edge and the panel — one spacing rung.
 pub const ANCHOR_GAP_PX: f32 = space::S8;
@@ -80,6 +79,18 @@ pub struct AnchorHint {
     pub side: Side,
     /// The panel's `(width, height)` in px.
     pub panel: (f32, f32),
+}
+
+#[derive(QueryFilter)]
+pub struct PopoverScrimFilter {
+    with_popover_scrim: With<PopoverScrim>,
+    without_popover_panel: Without<PopoverPanel>,
+}
+
+#[derive(QueryFilter)]
+pub struct PopoverPanelFilter {
+    with_popover_panel: With<PopoverPanel>,
+    without_popover_scrim: Without<PopoverScrim>,
 }
 
 /// Place the panel for one [`AnchorHint`]. Pure, total, flip-honest:
@@ -183,14 +194,10 @@ pub fn popover_scene(
 /// Repaint every popover from the live palette: scrim, panel fill and
 /// hairline edge — compare-and-set, unchanged frames cost nothing. The two
 /// fill queries are disjoint by marker.
-#[allow(clippy::type_complexity)]
 pub fn sync_popover_visuals(
     palette: Res<UiPalette>,
-    mut scrims: Query<&mut BackgroundColor, (With<PopoverScrim>, Without<PopoverPanel>)>,
-    mut panels: Query<
-        (&mut BackgroundColor, &mut BorderColor),
-        (With<PopoverPanel>, Without<PopoverScrim>),
-    >,
+    mut scrims: Query<&mut BackgroundColor, PopoverScrimFilter>,
+    mut panels: Query<(&mut BackgroundColor, &mut BorderColor), PopoverPanelFilter>,
 ) {
     let scrim = palette.scrim;
     for mut fill in &mut scrims {

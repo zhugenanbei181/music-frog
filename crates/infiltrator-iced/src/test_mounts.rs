@@ -13,6 +13,12 @@
 #[path = "../tests/gui/app_state_tests.rs"]
 mod app_state_tests;
 
+#[path = "../tests/gui/proxy_mode_race_tests.rs"]
+mod proxy_mode_race_tests;
+
+#[path = "../tests/gui/proxy_mode_native_tests.rs"]
+mod proxy_mode_native_tests;
+
 #[path = "../tests/gui/proxy_logic_tests.rs"]
 mod proxy_logic_tests;
 
@@ -22,6 +28,8 @@ mod rules_dns_tests;
 #[path = "../tests/gui/admin_settings_tests.rs"]
 mod admin_settings_tests;
 
+#[path = "../tests/gui/filter_editor_race_tests.rs"]
+mod filter_editor_race_tests;
 #[path = "../tests/gui/options_flow_tests.rs"]
 mod options_flow_tests;
 
@@ -66,3 +74,43 @@ mod ime_tests;
 
 #[path = "../tests/gui/gesture_tests.rs"]
 mod gesture_tests;
+
+#[path = "../tests/common/command_harness.rs"]
+pub(crate) mod command_harness;
+
+#[path = "../tests/gui/filter_native_tests.rs"]
+mod filter_native_tests;
+
+#[path = "../tests/gui/connection_grouping_native_tests.rs"]
+mod connection_grouping_native_tests;
+#[path = "../tests/common/native_widgets.rs"]
+pub(crate) mod native_widgets;
+
+#[path = "../tests/gui/connection_search_native_tests.rs"]
+mod connection_search_native_tests;
+
+#[path = "../tests/gui/log_owner_tests.rs"]
+mod log_owner_tests;
+
+#[path = "../tests/gui/log_search_native_tests.rs"]
+mod log_search_native_tests;
+
+#[path = "../tests/gui/proxy_scope_tests.rs"]
+mod proxy_scope_tests;
+
+#[path = "../tests/gui/traffic_observation_tests.rs"]
+mod traffic_observation_tests;
+
+#[path = "../tests/gui/script_workbench_tests.rs"]
+pub(crate) mod script_workbench_tests;
+
+#[path = "../tests/gui/snapshot_restore_tests.rs"]
+pub(crate) mod snapshot_restore_tests;
+
+#[path = "../tests/gui/profile_edit_fixture.rs"]
+pub mod profile_edit_fixture;
+
+#[path = "../tests/gui/editor_observation_tests.rs"]
+mod editor_observation_tests;
+#[path = "../tests/gui/runtime_copy_tests.rs"]
+mod runtime_copy_tests;

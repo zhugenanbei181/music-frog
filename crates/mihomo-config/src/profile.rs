@@ -2,6 +2,7 @@ use crate::yaml;
 use chrono::{DateTime, Utc};
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
+use tokio::fs::{copy, read_to_string};
 
 #[derive(Debug, Clone, Default)]
 pub struct Profile {
@@ -64,7 +65,7 @@ impl Profile {
             )));
         }
 
-        let content = tokio::fs::read_to_string(&self.path).await?;
+        let content = read_to_string(&self.path).await?;
         yaml::validate(&content)?;
 
         Ok(())
@@ -72,7 +73,7 @@ impl Profile {
 
     pub async fn backup(&self) -> Result<PathBuf> {
         let backup_path = self.path.with_extension("yaml.bak");
-        tokio::fs::copy(&self.path, &backup_path).await?;
+        copy(&self.path, &backup_path).await?;
         Ok(backup_path)
     }
 }
@@ -80,6 +81,8 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::fs::remove_file;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -153,7 +156,7 @@ mod tests {
         assert!(backup_path.to_str().unwrap().ends_with(".yaml.bak"));
 
         // Clean up backup
-        std::fs::remove_file(backup_path).unwrap();
+        remove_file(backup_path).unwrap();
     }
 
     #[test]

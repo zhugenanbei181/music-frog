@@ -8,15 +8,16 @@ use crate::types::message::Message;
 use crate::view::component_forms::{
     form_input_style, row_card_surface, style_accent, style_ghost, text_btn,
 };
-use crate::view::components::{
-    chip, empty_state, icon_button, latency_badge, section_header, segmented_control,
-};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::components::{chip, empty_state, icon_button, section_header, segmented_control};
+use crate::view::proxy_latency::latency_badge;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_MD, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Element, Length, Theme, border};
 use infiltrator_shared::country_flags::node_flag_emoji;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::cmp::Ordering;
 
 /// Node delay representation: (name, proxy_type, delay_ms).
 pub type DelayNodeItem = (String, String, Option<u32>);
@@ -26,15 +27,15 @@ pub fn sort_delay_nodes(nodes: &mut [DelayNodeItem], sort_key: &str) {
     nodes.sort_by(|(left_name, _, left_delay), (right_name, _, right_delay)| {
         let compare_delay = |desc: bool| match (left_delay, right_delay) {
             (None, None) => left_name.cmp(right_name),
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
             (Some(left), Some(right)) => {
                 let base = if desc {
                     right.cmp(left)
                 } else {
                     left.cmp(right)
                 };
-                if base == std::cmp::Ordering::Equal {
+                if base == Ordering::Equal {
                     left_name.cmp(right_name)
                 } else {
                     base
@@ -154,7 +155,7 @@ pub(super) fn delay_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Element<
                 row![
                     delay_status_dot(delay),
                     latency_bar(delay),
-                    latency_badge(delay),
+                    latency_badge(delay, &lang),
                 ]
                 .spacing(theme::SP_SM)
                 .align_y(Alignment::Center),

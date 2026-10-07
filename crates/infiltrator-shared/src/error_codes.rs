@@ -1,3 +1,5 @@
+use crate::i18n_interpolator::localize;
+use crate::locales::resolve_language_code;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -65,245 +67,106 @@ pub struct StructuredError {
 }
 
 pub fn get_localized_error(code: &InfiltratorErrorCode, lang: &str) -> StructuredError {
-    let is_zh = lang.starts_with("zh");
-
-    let (message, suggestion) = match code {
-        InfiltratorErrorCode::PortInUse(port) => {
-            if is_zh {
-                (
-                    format!("端口 {} 已被占用", port),
-                    format!(
-                        "端口 {} 已被占用，请检查是否已运行其他代理客户端或在设置中更换端口",
-                        port
-                    ),
-                )
-            } else {
-                (
-                    format!("Port {} is already in use", port),
-                    format!(
-                        "Port {} is already in use. Please check if another proxy client is running or change the port in settings.",
-                        port
-                    ),
-                )
-            }
-        }
-        InfiltratorErrorCode::KernelCrash => {
-            if is_zh {
-                (
-                    "内核已崩溃".to_string(),
-                    "请尝试重启应用或检查日志获取更多信息。".to_string(),
-                )
-            } else {
-                (
-                    "Kernel crashed".to_string(),
-                    "Please try restarting the application or check logs for more details."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::KernelNotFound => {
-            if is_zh {
-                (
-                    "未找到内核文件".to_string(),
-                    "请重新安装应用或手动下载内核。".to_string(),
-                )
-            } else {
-                (
-                    "Kernel executable not found".to_string(),
-                    "Please reinstall the application or manually download the kernel.".to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::ConfigInvalid(err) => {
-            if is_zh {
-                (
-                    format!("配置文件无效: {}", err),
-                    "请检查您的配置文件语法是否有误，或重置为默认配置。".to_string(),
-                )
-            } else {
-                (
-                    format!("Invalid configuration: {}", err),
-                    "Please check your configuration file for syntax errors or reset to default."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::ReadinessTimeout => {
-            if is_zh {
-                (
-                    "内核启动超时".to_string(),
-                    "内核启动时间过长，可能是系统资源不足或配置有误。".to_string(),
-                )
-            } else {
-                (
-                    "Kernel readiness timeout".to_string(),
-                    "Kernel took too long to start. Check system resources or configuration."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::SecretMismatch => {
-            if is_zh {
-                (
-                    "API 密钥不匹配".to_string(),
-                    "请确保客户端与内核使用的 API 密钥一致。".to_string(),
-                )
-            } else {
-                (
-                    "API secret mismatch".to_string(),
-                    "Ensure the client and kernel are using the same API secret.".to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::SubscriptionFetchFailed(err) => {
-            if is_zh {
-                (
-                    format!("订阅获取失败: {}", err),
-                    "请检查网络连接或订阅链接是否仍然有效。".to_string(),
-                )
-            } else {
-                (format!("Subscription fetch failed: {}", err), "Please check your network connection or verify if the subscription link is still valid.".to_string())
-            }
-        }
-        InfiltratorErrorCode::SubscriptionEmpty => {
-            if is_zh {
-                (
-                    "订阅内容为空".to_string(),
-                    "获取到的订阅未包含任何节点，请联系订阅提供商。".to_string(),
-                )
-            } else {
-                (
-                    "Subscription is empty".to_string(),
-                    "The fetched subscription contains no nodes. Please contact your provider."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::InvalidSubscriptionUrl(err) => {
-            if is_zh {
-                (
-                    format!("无效的订阅链接: {}", err),
-                    "请确保填写的订阅链接格式正确（例如以 http:// 或 https:// 开头）。".to_string(),
-                )
-            } else {
-                (format!("Invalid subscription URL: {}", err), "Ensure the subscription URL is properly formatted (e.g., starts with http:// or https://).".to_string())
-            }
-        }
-        InfiltratorErrorCode::SubscriptionDecodeError(err) => {
-            if is_zh {
-                (
-                    format!("订阅解析失败: {}", err),
-                    "无法识别订阅格式，可能是该订阅已被加密或格式不受支持。".to_string(),
-                )
-            } else {
-                (format!("Subscription decode error: {}", err), "Failed to parse the subscription. The format might be unsupported or encrypted.".to_string())
-            }
-        }
-        InfiltratorErrorCode::WebDavAuthFailed => {
-            if is_zh {
-                (
-                    "WebDAV 认证失败".to_string(),
-                    "请检查您的 WebDAV 账号和密码是否正确。".to_string(),
-                )
-            } else {
-                (
-                    "WebDAV authentication failed".to_string(),
-                    "Please verify your WebDAV username and password.".to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::WebDavNetworkError(err) => {
-            if is_zh {
-                (
-                    format!("WebDAV 网络错误: {}", err),
-                    "无法连接到 WebDAV 服务器，请检查网络或服务器状态。".to_string(),
-                )
-            } else {
-                (
-                    format!("WebDAV network error: {}", err),
-                    "Unable to connect to the WebDAV server. Check your network or server status."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::WebDavConflict => {
-            if is_zh {
-                (
-                    "WebDAV 冲突".to_string(),
-                    "远程数据与本地数据发生冲突，请手动解决冲突后重试。".to_string(),
-                )
-            } else {
-                (
-                    "WebDAV conflict".to_string(),
-                    "Remote and local data conflict. Please resolve it manually and try again."
-                        .to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::TunPrivilegeMissing => {
-            if is_zh {
-                (
-                    "缺少 TUN 模式权限".to_string(),
-                    "启用 TUN 模式需要管理员权限，请以管理员身份运行本程序。".to_string(),
-                )
-            } else {
-                ("Missing TUN privileges".to_string(), "TUN mode requires administrator privileges. Please run the program as administrator.".to_string())
-            }
-        }
-        InfiltratorErrorCode::SystemProxyFailed(err) => {
-            if is_zh {
-                (
-                    format!("系统代理设置失败: {}", err),
-                    "无法自动配置系统代理，请尝试手动设置或检查系统权限。".to_string(),
-                )
-            } else {
-                (format!("Failed to set system proxy: {}", err), "Cannot configure system proxy automatically. Try manual setup or check system permissions.".to_string())
-            }
-        }
-        InfiltratorErrorCode::KeyringError(err) => {
-            if is_zh {
-                (format!("密钥环错误: {}", err), "无法访问系统安全存储。在 Linux 上请确保安装并启动了 gnome-keyring 或 kwallet。".to_string())
-            } else {
-                (format!("Keyring error: {}", err), "Cannot access system secure storage. On Linux, ensure gnome-keyring or kwallet is installed and running.".to_string())
-            }
-        }
-        InfiltratorErrorCode::AutostartFailed(err) => {
-            if is_zh {
-                (
-                    format!("开机自启设置失败: {}", err),
-                    "无法配置开机自启动，可能是权限不足或系统不支持。".to_string(),
-                )
-            } else {
-                (format!("Autostart configuration failed: {}", err), "Cannot configure autostart. This might be due to insufficient permissions or an unsupported system.".to_string())
-            }
-        }
-        InfiltratorErrorCode::Internal(err) => {
-            if is_zh {
-                (
-                    format!("内部错误: {}", err),
-                    "发生了未知错误，请报告此问题以便我们修复。".to_string(),
-                )
-            } else {
-                (
-                    format!("Internal error: {}", err),
-                    "An unknown error occurred. Please report this issue.".to_string(),
-                )
-            }
-        }
-        InfiltratorErrorCode::NetworkTimeout => {
-            if is_zh {
-                (
-                    "网络请求超时".to_string(),
-                    "请检查您的网络连接并重试。".to_string(),
-                )
-            } else {
-                (
-                    "Network request timeout".to_string(),
-                    "Please check your internet connection and try again.".to_string(),
-                )
-            }
-        }
+    let (message_key, suggestion_key, values) = match code {
+        InfiltratorErrorCode::PortInUse(port) => (
+            "error_port_in_use_message",
+            "error_port_in_use_suggestion",
+            vec![("port", port.to_string())],
+        ),
+        InfiltratorErrorCode::KernelCrash => (
+            "error_kernel_crash_message",
+            "error_kernel_crash_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::KernelNotFound => (
+            "error_kernel_not_found_message",
+            "error_kernel_not_found_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::ConfigInvalid(err) => (
+            "error_config_invalid_message",
+            "error_config_invalid_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::ReadinessTimeout => (
+            "error_readiness_timeout_message",
+            "error_readiness_timeout_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::SecretMismatch => (
+            "error_secret_mismatch_message",
+            "error_secret_mismatch_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::SubscriptionFetchFailed(err) => (
+            "error_subscription_fetch_failed_message",
+            "error_subscription_fetch_failed_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::SubscriptionEmpty => (
+            "error_subscription_empty_message",
+            "error_subscription_empty_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::InvalidSubscriptionUrl(err) => (
+            "error_invalid_subscription_url_message",
+            "error_invalid_subscription_url_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::SubscriptionDecodeError(err) => (
+            "error_subscription_decode_error_message",
+            "error_subscription_decode_error_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::WebDavAuthFailed => (
+            "error_web_dav_auth_failed_message",
+            "error_web_dav_auth_failed_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::WebDavNetworkError(err) => (
+            "error_web_dav_network_error_message",
+            "error_web_dav_network_error_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::WebDavConflict => (
+            "error_web_dav_conflict_message",
+            "error_web_dav_conflict_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::TunPrivilegeMissing => (
+            "error_tun_privilege_missing_message",
+            "error_tun_privilege_missing_suggestion",
+            vec![],
+        ),
+        InfiltratorErrorCode::SystemProxyFailed(err) => (
+            "error_system_proxy_failed_message",
+            "error_system_proxy_failed_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::KeyringError(err) => (
+            "error_keyring_error_message",
+            "error_keyring_error_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::AutostartFailed(err) => (
+            "error_autostart_failed_message",
+            "error_autostart_failed_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::Internal(err) => (
+            "error_internal_message",
+            "error_internal_suggestion",
+            vec![("reason", err.clone())],
+        ),
+        InfiltratorErrorCode::NetworkTimeout => (
+            "error_network_timeout_message",
+            "error_network_timeout_suggestion",
+            vec![],
+        ),
     };
+    let locale = resolve_language_code(lang);
+    let message = localize(&locale, message_key, &values);
+    let suggestion = localize(&locale, suggestion_key, &values);
 
     StructuredError {
         code: code.clone(),
@@ -317,6 +180,7 @@ pub fn get_localized_error(code: &InfiltratorErrorCode, lang: &str) -> Structure
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::locales::{Lang, Localizer};
 
     #[test]
     fn test_error_code_serialization() {
@@ -368,6 +232,29 @@ mod tests {
             error_en.message,
             "Invalid configuration: missing field `port`"
         );
+    }
+
+    #[test]
+    fn error_copy_uses_the_same_locale_resources_and_interprets_user_parameters_once() {
+        let reason = "user {port} / {reason} / 日本";
+        let code = InfiltratorErrorCode::ConfigInvalid(reason.into());
+        let chinese = get_localized_error(&code, "ZH_cn");
+        let english = get_localized_error(&code, "EN_us");
+        assert_eq!(chinese.message, format!("配置文件无效: {reason}"));
+        assert_eq!(english.message, format!("Invalid configuration: {reason}"));
+        assert_eq!(chinese.code, code);
+        assert_eq!(english.code, code);
+        assert_eq!(chinese.domain, "Core");
+        assert_eq!(english.domain, "Core");
+        assert_eq!(
+            chinese.suggestion,
+            localize("zh-CN", "error_config_invalid_suggestion", &[])
+        );
+        assert_eq!(
+            english.suggestion,
+            localize("en-US", "error_config_invalid_suggestion", &[])
+        );
+        assert_eq!(Lang("en-US").tr("unknown_error_key"), "unknown_error_key");
     }
 
     #[test]

@@ -40,6 +40,10 @@ mod popover_tests;
 mod radio_tests;
 #[path = "headless/range_slider_tests.rs"]
 mod range_slider_tests;
+#[path = "headless/render_cache_tests.rs"]
+mod render_cache_tests;
+#[path = "headless/render_lifecycle_tests.rs"]
+mod render_lifecycle_tests;
 #[path = "headless/responsive_tests.rs"]
 mod responsive_tests;
 #[path = "headless/scene_tests.rs"]

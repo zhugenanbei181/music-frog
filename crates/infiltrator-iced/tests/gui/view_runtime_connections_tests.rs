@@ -1,5 +1,10 @@
 use super::*;
-use infiltrator_domain::connection_rate::{ConnectionRate, ConnectionRates};
+use infiltrator_domain::connection_rate::{
+    ConnectionRate, ConnectionRates, HIGH_THROUGHPUT_THRESHOLD_BPS, PULSE_MAX_INTENSITY,
+    PULSE_MIN_INTENSITY,
+};
+use infiltrator_domain::connection_view::matches_search;
+use infiltrator_domain::connection_view::{aggregate_connections, route_chain};
 use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 
 fn make_test_conn(id: &str, host: &str, process: &str, up: u64, down: u64) -> Connection {
@@ -61,11 +66,11 @@ fn test_outbound_target_info() {
 #[test]
 fn test_filter_connection() {
     let conn = make_test_conn("c1", "api.openai.com", "/usr/bin/chromium", 100, 200);
-    assert!(filter_connection(&conn, ""));
-    assert!(filter_connection(&conn, "openai"));
-    assert!(filter_connection(&conn, "chromium"));
-    assert!(filter_connection(&conn, "DMIT"));
-    assert!(!filter_connection(&conn, "nonexistent"));
+    assert!(matches_search(&conn, ""));
+    assert!(matches_search(&conn, "openai"));
+    assert!(matches_search(&conn, "chromium"));
+    assert!(matches_search(&conn, "DMIT"));
+    assert!(!matches_search(&conn, "nonexistent"));
 }
 
 #[test]
@@ -106,6 +111,7 @@ fn test_sort_connections() {
         (
             "1".to_string(),
             ConnectionRate {
+                observed: true,
                 upload_bps: 0.0,
                 download_bps: 9_000.0,
             },
@@ -113,6 +119,7 @@ fn test_sort_connections() {
         (
             "2".to_string(),
             ConnectionRate {
+                observed: true,
                 upload_bps: 5_000.0,
                 download_bps: 0.0,
             },
@@ -120,6 +127,7 @@ fn test_sort_connections() {
         (
             "3".to_string(),
             ConnectionRate {
+                observed: true,
                 upload_bps: 1_000.0,
                 download_bps: 1_000.0,
             },
@@ -150,11 +158,12 @@ fn test_sort_connections() {
 fn test_high_throughput_pulse_uses_the_shared_threshold() {
     let slow = make_test_conn("slow", "slow.example.com", "/usr/bin/curl", 0, 0);
     let fast = make_test_conn("fast", "fast.example.com", "/usr/bin/curl", 0, 0);
-    let threshold = infiltrator_domain::connection_rate::HIGH_THROUGHPUT_THRESHOLD_BPS;
+    let threshold = HIGH_THROUGHPUT_THRESHOLD_BPS;
     let rates = ConnectionRates::from_pairs([
         (
             "slow".to_string(),
             ConnectionRate {
+                observed: true,
                 upload_bps: threshold - 1.0,
                 download_bps: 1_000.0,
             },
@@ -162,6 +171,7 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
         (
             "fast".to_string(),
             ConnectionRate {
+                observed: true,
                 upload_bps: threshold,
                 download_bps: 0.0,
             },
@@ -174,12 +184,9 @@ fn test_high_throughput_pulse_uses_the_shared_threshold() {
     // for a given phase and strongest at the mid-breath.
     let low = connection_pulse_intensity(&fast, &rates, 0.0);
     let peak = connection_pulse_intensity(&fast, &rates, 0.5);
-    assert_eq!(
-        low,
-        infiltrator_domain::connection_rate::PULSE_MIN_INTENSITY
-    );
+    assert_eq!(low, PULSE_MIN_INTENSITY);
     assert!(peak > low);
-    assert!((peak - infiltrator_domain::connection_rate::PULSE_MAX_INTENSITY).abs() < 1e-5);
+    assert!((peak - PULSE_MAX_INTENSITY).abs() < 1e-5);
     // A connection with no observation window shows no glow.
     let unknown = make_test_conn("unknown", "x.example.com", "/bin/x", 0, 0);
     assert_eq!(connection_pulse_intensity(&unknown, &rates, 0.5), 0.0);
@@ -204,16 +211,13 @@ fn test_shared_connection_view_reductions_are_delegated() {
     ];
 
     // Search (DUAL-13-13) and sort resolve through the shared domain.
-    assert!(filter_connection(&conns[0], "git"));
-    assert!(!filter_connection(&conns[0], "curl"));
+    assert!(matches_search(&conns[0], "git"));
+    assert!(!matches_search(&conns[0], "curl"));
     let rows = sort_rated_connections(&conns, &ConnectionRates::default(), "upload_desc");
     assert_eq!(rows[0].row.id, "2");
 
     // Aggregation (DUAL-13-02) is the shared bucket reduction.
-    let buckets = infiltrator_domain::connection_view::aggregate_connections(
-        &conns,
-        ConnectionGroupingMode::ByProcess,
-    );
+    let buckets = aggregate_connections(&conns, ConnectionGroupingMode::ByProcess);
     assert_eq!(buckets.len(), 2);
     assert_eq!(buckets[0].key, "curl");
     assert_eq!(buckets[0].upload_total, 900);
@@ -253,7 +257,7 @@ fn test_stream_state_maps_to_shared_phase() {
 #[test]
 fn test_route_chain_hops_parse_through_shared_model() {
     let conn = make_test_conn("1", "google.com", "/usr/bin/chrome", 0, 0);
-    let chain = infiltrator_domain::connection_view::route_chain(&conn);
+    let chain = route_chain(&conn);
     assert_eq!(chain.hops(), ["DMIT", "PROXY"]);
     assert_eq!(chain.first(), Some("DMIT"));
     assert_eq!(chain.display(" → "), "DMIT → PROXY");

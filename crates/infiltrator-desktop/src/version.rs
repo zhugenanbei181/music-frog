@@ -1,6 +1,8 @@
+use crate::bundled_kernel::{copy_bundled_binary, packaged_candidates};
 use anyhow::anyhow;
 use mihomo_version::channel::Channel;
 use mihomo_version::manager::VersionManager;
+use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 pub async fn resolve_binary(
@@ -9,16 +11,18 @@ pub async fn resolve_binary(
     bundled_candidates: &[PathBuf],
     data_dir: &Path,
 ) -> anyhow::Result<PathBuf> {
+    let mut candidates = bundled_candidates.to_vec();
+    candidates.extend(packaged_candidates()?);
     let installed = vm.list_installed().await.unwrap_or_default();
     if installed.is_empty() {
-        if let Some(path) = copy_bundled_binary(bundled_candidates, data_dir).await? {
+        if let Some(path) = copy_bundled_binary(&candidates, data_dir).await? {
             return Ok(path);
         }
         return Err(anyhow!("未找到捆绑内核，且没有已下载版本，请检查安装包"));
     }
 
     if use_bundled {
-        if let Some(path) = copy_bundled_binary(bundled_candidates, data_dir).await? {
+        if let Some(path) = copy_bundled_binary(&candidates, data_dir).await? {
             return Ok(path);
         }
         log::warn!("bundled core not found, fallback to installed versions");
@@ -54,47 +58,17 @@ pub async fn download_latest(vm: &VersionManager) -> anyhow::Result<String> {
     Ok(version)
 }
 
-pub async fn copy_bundled_binary(
-    bundled_candidates: &[PathBuf],
-    data_dir: &Path,
-) -> anyhow::Result<Option<PathBuf>> {
-    #[cfg(not(windows))]
-    {
-        let _ = (bundled_candidates, data_dir);
-        Ok(None)
-    }
-
-    #[cfg(windows)]
-    {
-        let Some(source_path) = bundled_candidates.iter().find(|p| p.exists()).cloned() else {
-            log::warn!("bundled core not found in resources or project directory");
-            return Ok(None);
-        };
-        log::info!("using bundled mihomo core: {}", source_path.display());
-
-        let runtime_dir = data_dir.join("mihomo");
-        tokio::fs::create_dir_all(&runtime_dir).await?;
-        let target = runtime_dir.join("mihomo.exe");
-
-        if !target.exists() {
-            tokio::fs::copy(&source_path, &target).await?;
-        }
-
-        Ok(Some(target))
-    }
-}
-
 pub fn sort_versions_desc(list: &mut [String]) {
     list.sort_by(|a, b| compare_versions_desc(a, b));
 }
 
-fn compare_versions_desc(a: &str, b: &str) -> std::cmp::Ordering {
+fn compare_versions_desc(a: &str, b: &str) -> Ordering {
     let va = parse_version(a);
     let vb = parse_version(b);
     match (va, vb) {
         (Some(va), Some(vb)) => vb.cmp(&va),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
         (None, None) => b.cmp(a),
     }
 }
@@ -142,42 +116,27 @@ mod tests {
 
     #[test]
     fn test_compare_versions_desc() {
-        assert_eq!(
-            compare_versions_desc("v1.20.0", "v1.19.0"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(compare_versions_desc("v1.20.0", "v1.19.0"), Ordering::Less);
         assert_eq!(
             compare_versions_desc("v1.19.0", "v1.20.0"),
-            std::cmp::Ordering::Greater
+            Ordering::Greater
         );
-        assert_eq!(
-            compare_versions_desc("v1.19.0", "v1.19.0"),
-            std::cmp::Ordering::Equal
-        );
+        assert_eq!(compare_versions_desc("v1.19.0", "v1.19.0"), Ordering::Equal);
     }
 
     #[test]
     fn test_compare_versions_desc_partial() {
-        assert_eq!(
-            compare_versions_desc("1.20", "1.19"),
-            std::cmp::Ordering::Less
-        );
-        assert_eq!(
-            compare_versions_desc("1.19", "1.20"),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(compare_versions_desc("1.20", "1.19"), Ordering::Less);
+        assert_eq!(compare_versions_desc("1.19", "1.20"), Ordering::Greater);
     }
 
     #[test]
     fn test_compare_versions_desc_invalid() {
         assert_eq!(
             compare_versions_desc("invalid", "1.19.0"),
-            std::cmp::Ordering::Greater
+            Ordering::Greater
         );
-        assert_eq!(
-            compare_versions_desc("1.19.0", "invalid"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(compare_versions_desc("1.19.0", "invalid"), Ordering::Less);
     }
 
     #[test]

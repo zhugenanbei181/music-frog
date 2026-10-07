@@ -1,8 +1,7 @@
 //! Host port for serving a generated PAC script on a local endpoint.
 
-use async_trait::async_trait;
-
 use crate::error::PortError;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait PacServicePort: Send + Sync {

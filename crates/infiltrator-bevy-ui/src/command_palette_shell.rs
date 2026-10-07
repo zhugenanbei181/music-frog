@@ -6,6 +6,22 @@
 //! into the same handlers the global chords use. Dispatch mirrors the Iced
 //! `ExecuteCommand` arm one-to-one.
 
+use crate::app::SidebarToggleProjection;
+use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::command_palette::{
+    CloseCommandPalette, CommandPaletteDismissButton, CommandPaletteOverlayRoot, CommandPaletteRow,
+    CommandPaletteState, ExecutePaletteEntry, ExecuteSelectedPaletteAction, OpenCommandPalette,
+    ToggleCommandPalette, command_palette_modal_scene,
+};
+use crate::mini_hud::ToggleMiniHud;
+use crate::pages::connections_confirm::RequestCloseAllConfirmation;
+use crate::pages::dns_cache::RequestCacheConfirmation;
+use crate::pages::profiles::LastProfilesProjection;
+use crate::pages::profiles_script_workbench::ScriptWorkbenchState;
+use crate::route::{Route, RouteChanged};
+use crate::shell_modes::RequestModeChange;
+use crate::shortcuts::{ShortcutBindings, modifiers_from_keyboard};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::entity::Entity;
@@ -15,40 +31,28 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::ButtonState;
-use bevy::input::keyboard::KeyCode;
-use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::CommandsSceneExt;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
-use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget};
+use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandTarget, ProfileChoice};
 use infiltrator_contract::shortcuts::ShortcutRegistry;
 use infiltrator_contract::system_toggle::SystemToggle;
-
-use crate::app::SidebarToggleProjection;
-use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::command_palette::{
-    CommandPaletteOverlayRoot, CommandPaletteRow, CommandPaletteState, ExecutePaletteEntry,
-    ExecuteSelectedPaletteAction, command_palette_modal_scene,
-};
-use crate::mini_hud::ToggleMiniHud;
-use crate::pages::profiles::LastProfilesProjection;
-use crate::route::{ActiveRoute, Route, RouteChanged};
-use crate::shortcuts::ShortcutBindings;
 
 /// The last mounted overlay signature: a remount happens only when the open
 /// flag, query, cursor or result set actually changed.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct PaletteOverlaySignature {
+    pub language: String,
     pub is_open: bool,
     pub query: String,
     pub selected_index: usize,
     pub filtered_indices: Vec<usize>,
-    pub catalogue_len: usize,
+    pub catalogue: CommandCatalogue,
 }
 
 /// Rebuild the palette catalogue whenever the stored profile projection
@@ -63,19 +67,14 @@ pub fn sync_palette_catalogue(
     if !profiles.is_changed() {
         return;
     }
-    let choices: Vec<infiltrator_contract::command_catalogue::ProfileChoice> = profiles
+    let choices: Vec<ProfileChoice> = profiles
         .0
         .as_ref()
         .map(|projection| {
             projection
                 .profiles
                 .iter()
-                .map(|profile| {
-                    infiltrator_contract::command_catalogue::ProfileChoice::new(
-                        profile.id.clone(),
-                        profile.name.clone(),
-                    )
-                })
+                .map(|profile| ProfileChoice::new(profile.id.clone(), profile.name.clone()))
                 .collect()
         })
         .unwrap_or_default();
@@ -87,18 +86,23 @@ pub fn sync_palette_catalogue(
 /// query. Modified chords still fall through to the global shortcut registry
 /// (Ctrl+K toggles the palette closed, Ctrl+Alt+M toggles the HUD, …).
 pub fn palette_keyboard_input(
+    script: Option<Res<ScriptWorkbenchState>>,
     mut keys: MessageReader<KeyboardInput>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<CommandPaletteState>,
     mut commands: Commands,
 ) {
-    if !state.is_open {
+    if !state.is_open
+        || script
+            .as_deref()
+            .is_some_and(|script| script.model.export_visible)
+    {
         keys.clear();
         return;
     }
     let modifiers = keyboard
         .as_deref()
-        .map(crate::shortcuts::modifiers_from_keyboard)
+        .map(modifiers_from_keyboard)
         .unwrap_or_default();
     for key in keys.read() {
         if key.state != ButtonState::Pressed {
@@ -108,7 +112,7 @@ pub fn palette_keyboard_input(
             continue;
         }
         match &key.logical_key {
-            Key::Escape => commands.trigger(crate::command_palette::CloseCommandPalette),
+            Key::Escape => commands.trigger(CloseCommandPalette),
             Key::Enter => commands.trigger(ExecuteSelectedPaletteAction),
             Key::ArrowDown => state.select_next(),
             Key::ArrowUp => state.select_prev(),
@@ -137,7 +141,6 @@ pub fn palette_keyboard_input(
 }
 
 /// Mount / unmount the modal scene whenever the palette signature changes.
-#[allow(clippy::too_many_arguments)]
 pub fn sync_palette_overlay(
     mut commands: Commands,
     palette: Res<UiPalette>,
@@ -147,11 +150,12 @@ pub fn sync_palette_overlay(
     mounted: Query<Entity, With<CommandPaletteOverlayRoot>>,
 ) {
     let next = PaletteOverlaySignature {
+        language: state.language.clone(),
         is_open: state.is_open,
         query: state.query.clone(),
         selected_index: state.selected_index,
         filtered_indices: state.filtered_indices.clone(),
-        catalogue_len: state.catalogue.len(),
+        catalogue: state.catalogue.clone(),
     };
     if next == *signature {
         return;
@@ -171,8 +175,14 @@ pub fn sync_palette_overlay(
 pub fn on_palette_row_activated(
     activate: On<Activate>,
     rows: Query<&CommandPaletteRow>,
+    dismiss: Query<(), With<CommandPaletteDismissButton>>,
     mut commands: Commands,
 ) {
+    if dismiss.contains(activate.entity) {
+        commands.trigger(CloseCommandPalette);
+        return;
+    }
+
     let Ok(row) = rows.get(activate.entity) else {
         return;
     };
@@ -186,39 +196,37 @@ pub fn on_execute_palette_entry(
     mut commands: Commands,
 ) {
     let display_index = trigger.event().0;
-    if display_index < state.filtered_indices.len() {
-        state.selected_index = display_index;
+    if !state.is_open || display_index >= state.filtered_indices.len() {
+        return;
     }
+    state.selected_index = display_index;
     commands.trigger(ExecuteSelectedPaletteAction);
 }
 
 /// Observer executing the currently selected catalogue entry.
-#[allow(clippy::too_many_arguments)]
 pub fn on_execute_selected_palette_action(
     _trigger: On<ExecuteSelectedPaletteAction>,
     mut state: ResMut<CommandPaletteState>,
-    mut active_route: ResMut<ActiveRoute>,
     sink: Option<Res<CommandSinkHandle>>,
     theme_mode: Option<ResMut<ThemeMode>>,
     appearance: Option<Res<SystemAppearance>>,
     toggles: Option<Res<SidebarToggleProjection>>,
     mut commands: Commands,
 ) {
+    if !state.is_open {
+        return;
+    }
     let Some(entry) = state.current_selected_action().cloned() else {
-        state.close();
         return;
     };
     let target = entry.target.clone();
     match target {
         CommandTarget::Navigate(page) => {
             let route = Route::from_shell_page(page);
-            active_route.0 = Some(route);
             commands.trigger(RouteChanged(route));
         }
         CommandTarget::SetProxyMode(mode) => {
-            if let Some(sink) = sink.as_deref() {
-                sink.submit(UiCommand::SetProxyMode(mode));
-            }
+            commands.trigger(RequestModeChange(mode));
         }
         CommandTarget::SwitchProfile { id, .. } => {
             if let Some(sink) = sink.as_deref() {
@@ -255,9 +263,7 @@ pub fn on_execute_selected_palette_action(
             )));
         }
         CommandTarget::FlushDnsCache => {
-            if let Some(sink) = sink.as_deref() {
-                sink.submit(UiCommand::ClearDnsCache);
-            }
+            commands.trigger(RequestCacheConfirmation);
         }
         CommandTarget::TestAllProxyGroups => {
             if let Some(sink) = sink.as_deref() {
@@ -270,9 +276,7 @@ pub fn on_execute_selected_palette_action(
             }
         }
         CommandTarget::CloseAllConnections => {
-            if let Some(sink) = sink.as_deref() {
-                sink.submit(UiCommand::CloseAllConnections);
-            }
+            commands.trigger(RequestCloseAllConfirmation);
         }
         CommandTarget::RestartKernel => {
             if let Some(sink) = sink.as_deref() {
@@ -295,23 +299,27 @@ fn desired_toggle(toggles: Option<&SidebarToggleProjection>, toggle: SystemToggl
 
 /// Observer to open/close/toggle the palette (registered by the plugin).
 pub fn on_open_command_palette(
-    _trigger: On<crate::command_palette::OpenCommandPalette>,
+    _trigger: On<OpenCommandPalette>,
+    locale: Res<UiLocale>,
     mut state: ResMut<CommandPaletteState>,
 ) {
+    state.set_language(locale.code());
     state.open();
 }
 
 pub fn on_close_command_palette(
-    _trigger: On<crate::command_palette::CloseCommandPalette>,
+    _trigger: On<CloseCommandPalette>,
     mut state: ResMut<CommandPaletteState>,
 ) {
     state.close();
 }
 
 pub fn on_toggle_command_palette(
-    _trigger: On<crate::command_palette::ToggleCommandPalette>,
+    _trigger: On<ToggleCommandPalette>,
+    locale: Res<UiLocale>,
     mut state: ResMut<CommandPaletteState>,
 ) {
+    state.set_language(locale.code());
     state.toggle();
 }
 
@@ -320,6 +328,7 @@ pub struct CommandPalettePlugin;
 
 impl Plugin for CommandPalettePlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<UiLocale>();
         app.init_resource::<CommandPaletteState>();
         app.init_resource::<PaletteOverlaySignature>();
         // The accelerators render from the shared registry; a host that mounts

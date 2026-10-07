@@ -13,6 +13,7 @@ pub enum FfiErrorCode {
     Auth = 7,
     Sync = 8,
     Config = 9,
+    Canceled = 10,
     Unknown = 255,
 }
 

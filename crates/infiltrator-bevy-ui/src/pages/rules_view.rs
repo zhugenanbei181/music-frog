@@ -12,6 +12,12 @@
 //! height, so a 50,000-rule projection mounts the same bounded row set as a
 //! five-rule one; scrolling shifts the window instead of moving every row.
 
+#[path = "rules_view_query_access.rs"]
+pub mod query_access;
+use self::query_access::RuleWindowTargets;
+
+use crate::pages::overview_topology::TopologyDrilldownFilter;
+use crate::pages::rules::{LastRulesProjection, RuleItem, RulesProjection, rule_row_scene};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -21,16 +27,14 @@ use bevy::ecs::query::{Changed, QueryFilter, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
-use bevy::ui::prelude::{ComputedNode, Node, ScrollPosition, percent, px};
-use bevy::ui::widget::Text;
+use bevy::ui::prelude::{Node, ScrollPosition, percent, px};
 use bevy::ui_widgets::Activate;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_domain::rules::view::{self, RuleView};
-
-use crate::pages::overview_topology::TopologyDrilldownFilter;
-use crate::pages::rules::{LastRulesProjection, RuleItem, RulesProjection, rule_row_scene};
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
+use infiltrator_domain::rules::view;
+use infiltrator_domain::rules::view::RuleView;
 
 /// Marker on a rule row root; the payload is the row index into the last
 /// projection. Rows outside the shared window are not spawned at all.
@@ -119,11 +123,7 @@ impl Default for RulesViewState {
 /// recombined expression.
 impl RuleView for RuleItem {
     fn view_rule_search(&self) -> String {
-        if self.payload.is_empty() {
-            format!("{},{}", self.rule_type, self.proxy)
-        } else {
-            format!("{},{},{}", self.rule_type, self.payload, self.proxy)
-        }
+        self.raw.clone()
     }
 }
 
@@ -224,21 +224,22 @@ pub(crate) fn sync_rules_view(
 
 /// DUAL-11-08: mount exactly the shared window of the filtered rule list into
 /// the rows container, and report the page the viewport is on.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn sync_rules_window(
     view: Option<ResMut<RulesViewState>>,
     last: Option<Res<LastRulesProjection>>,
-    search_fields: Query<&Children, With<RuleSearchField>>,
-    text_fields: Query<&TextField>,
-    mut scroll_areas: Query<
-        (&mut ScrollPosition, Option<&ComputedNode>),
-        With<RulesListScrollArea>,
-    >,
-    containers: Query<Entity, With<RulesWindowRows>>,
     palette: Res<UiPalette>,
-    mut indicator: Query<&mut Text, With<RulesPageIndicator>>,
+    locale: Res<UiLocale>,
     mut commands: Commands,
+    targets: RuleWindowTargets,
 ) {
+    let RuleWindowTargets {
+        search_fields,
+        text_fields,
+        mut scroll_areas,
+        containers,
+        mut indicator,
+    } = targets;
+
     let Some(mut view) = view else {
         return;
     };
@@ -311,19 +312,25 @@ pub(crate) fn sync_rules_window(
             view.page_size,
         )
     };
-    let want = if total == 0 {
-        "第 1/1 页 · 共 0 条".to_owned()
+    let value = if total == 0 {
+        LocalizedText::plain("rules_empty_pagination")
     } else {
-        format!(
-            "第 {}/{} 页 · 显示 {}–{} · 共 {} 条",
-            page + 1,
-            view::page_count(total, view.page_size),
-            window.start + 1,
-            window.end,
-            total
+        LocalizedText::new(
+            "rules_pagination_live",
+            vec![
+                ("page", (page + 1).to_string()),
+                ("pages", view::page_count(total, view.page_size).to_string()),
+                ("start", (window.start + 1).to_string()),
+                ("end", window.end.to_string()),
+                ("total", total.to_string()),
+            ],
         )
     };
-    for mut text in &mut indicator {
+    let want = value.render(&locale);
+    for (mut text, mut copy) in &mut indicator {
+        if *copy != value {
+            *copy = value.clone();
+        }
         if text.0 != want {
             text.0 = want.clone();
         }
@@ -412,11 +419,20 @@ mod tests {
 
     fn item(rule_type: &str, payload: &str, proxy: &str) -> RuleItem {
         RuleItem {
+            edit_id: None,
+            raw: if payload.is_empty() {
+                format!("{rule_type},{proxy}")
+            } else {
+                format!("{rule_type},{payload},{proxy}")
+            },
+            source_ip: false,
+            no_resolve: false,
+            failure: None,
             id: 1,
             rule_type: rule_type.to_owned(),
             payload: payload.to_owned(),
             proxy: proxy.to_owned(),
-            hit_count: 0,
+            hit_count: Some(0),
             is_enabled: true,
             last_hit_secs: None,
             is_shadowed: false,

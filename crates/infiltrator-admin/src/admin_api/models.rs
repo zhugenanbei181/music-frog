@@ -1,18 +1,16 @@
-use axum::{
-    Json,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use log::warn;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-
+use crate::scheduler::subscription::SubscriptionUpdateSummary;
+use axum::Json;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use infiltrator_contract::doctor::{DoctorFixAction, DoctorReport};
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_domain::script_engine::{
     ExtensionPackage, HookStage, PluginManifest, ScriptPreset,
 };
 use infiltrator_domain::settings::WebDavConfig;
+use log::warn;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Serialize, Deserialize)]
 pub struct SwitchProfilePayload {
@@ -221,8 +219,8 @@ pub struct ProfilesUpdateAllResponse {
     pub skipped: usize,
 }
 
-impl From<crate::scheduler::subscription::SubscriptionUpdateSummary> for ProfilesUpdateAllResponse {
-    fn from(s: crate::scheduler::subscription::SubscriptionUpdateSummary) -> Self {
+impl From<SubscriptionUpdateSummary> for ProfilesUpdateAllResponse {
+    fn from(s: SubscriptionUpdateSummary) -> Self {
         Self {
             total: s.total,
             updated: s.updated,

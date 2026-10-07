@@ -1,5 +1,8 @@
 //! Desktop system HTTP/SOCKS proxy port.
 
+use crate::proxy::{
+    SystemProxyState, apply_system_proxy, apply_system_proxy_with_bypass, read_system_proxy_state,
+};
 use async_trait::async_trait;
 use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
@@ -7,12 +10,21 @@ use infiltrator_contract::system_proxy::{
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_proxy::SystemProxyPort;
+use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
+use std::fs;
+#[cfg(not(windows))]
+use std::io;
+use std::io::Write;
+#[cfg(windows)]
+use std::iter::once;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::process::id;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{fs, io::Write};
 use sysinfo::{Pid, ProcessesToUpdate, System};
+use tokio::task::spawn_blocking;
 
 static SHARED_SYSTEM_PROXY_TARGET: OnceLock<Arc<Mutex<Option<SystemProxyDesiredState>>>> =
     OnceLock::new();
@@ -62,7 +74,7 @@ impl SystemProxyPort for DesktopSystemProxy {
         previous: SystemProxyObservation,
         desired: SystemProxyDesiredState,
     ) -> Result<(), PortError> {
-        tokio::task::spawn_blocking(move || arm_recovery_sync(previous, desired))
+        spawn_blocking(move || arm_recovery_sync(previous, desired))
             .await
             .map_err(|error| {
                 PortError::Io(format!("system proxy journal worker failed: {error}"))
@@ -70,7 +82,7 @@ impl SystemProxyPort for DesktopSystemProxy {
     }
 
     async fn recover_orphaned(&self) -> Result<SystemProxyRecoveryReport, PortError> {
-        tokio::task::spawn_blocking(recover_orphaned_sync)
+        spawn_blocking(recover_orphaned_sync)
             .await
             .map_err(|error| {
                 PortError::Io(format!("system proxy recovery worker failed: {error}"))
@@ -78,15 +90,13 @@ impl SystemProxyPort for DesktopSystemProxy {
     }
 
     async fn clear_recovery(&self) -> Result<(), PortError> {
-        tokio::task::spawn_blocking(clear_recovery_sync)
-            .await
-            .map_err(|error| {
-                PortError::Io(format!("system proxy journal worker failed: {error}"))
-            })?
+        spawn_blocking(clear_recovery_sync).await.map_err(|error| {
+            PortError::Io(format!("system proxy journal worker failed: {error}"))
+        })?
     }
 
     async fn snapshot(&self) -> Result<SystemProxyObservation, PortError> {
-        tokio::task::spawn_blocking(crate::proxy::read_system_proxy_state)
+        spawn_blocking(read_system_proxy_state)
             .await
             .map_err(|error| PortError::Io(format!("system proxy probe worker failed: {error}")))?
             .map(to_observation)
@@ -98,11 +108,11 @@ impl SystemProxyPort for DesktopSystemProxy {
         endpoint: Option<String>,
         bypass: Option<String>,
     ) -> Result<(), PortError> {
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             if bypass.is_some() {
-                crate::proxy::apply_system_proxy_with_bypass(endpoint.as_deref(), bypass.as_deref())
+                apply_system_proxy_with_bypass(endpoint.as_deref(), bypass.as_deref())
             } else {
-                crate::proxy::apply_system_proxy(endpoint.as_deref())
+                apply_system_proxy(endpoint.as_deref())
             }
         })
         .await
@@ -119,10 +129,10 @@ impl DesktopSystemProxy {
         let Some(journal) = read_journal()? else {
             return Ok(());
         };
-        if journal.owner_pid != std::process::id() && owner_process_is_live(&journal) {
+        if journal.owner_pid != id() && owner_process_is_live(&journal) {
             return Ok(());
         }
-        let current = to_observation(crate::proxy::read_system_proxy_state()?);
+        let current = to_observation(read_system_proxy_state()?);
         if desired_matches(&journal.desired, &current) {
             apply_observation(&journal.previous)?;
         }
@@ -135,35 +145,29 @@ fn journal_path(home: &Path) -> PathBuf {
 }
 
 fn read_journal() -> anyhow::Result<Option<RecoveryJournal>> {
-    let home = mihomo_platform::paths::get_home_dir()?;
+    let home = get_home_dir()?;
     let path = journal_path(&home);
     if !path.exists() {
         return Ok(None);
     }
-    Ok(Some(serde_json::from_str(&std::fs::read_to_string(path)?)?))
+    Ok(Some(serde_json::from_str(&fs::read_to_string(path)?)?))
 }
 
 fn write_journal(journal: &RecoveryJournal) -> anyhow::Result<()> {
-    let home = mihomo_platform::paths::get_home_dir()?;
+    let home = get_home_dir()?;
     fs::create_dir_all(&home)?;
     let path = journal_path(&home);
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let temporary = home.join(format!(
-        "{RECOVERY_JOURNAL_FILE}.tmp-{}-{stamp}",
-        std::process::id()
-    ));
+    let temporary = home.join(format!("{RECOVERY_JOURNAL_FILE}.tmp-{}-{stamp}", id()));
     let mut file = fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(&temporary)?;
     #[cfg(unix)]
-    fs::set_permissions(
-        &temporary,
-        std::os::unix::fs::PermissionsExt::from_mode(0o600),
-    )?;
+    fs::set_permissions(&temporary, PermissionsExt::from_mode(0o600))?;
     file.write_all(&serde_json::to_vec_pretty(journal)?)?;
     file.sync_all()?;
     drop(file);
@@ -177,7 +181,7 @@ fn write_journal(journal: &RecoveryJournal) -> anyhow::Result<()> {
 }
 
 fn remove_journal() -> anyhow::Result<()> {
-    let home = mihomo_platform::paths::get_home_dir()?;
+    let home = get_home_dir()?;
     let path = journal_path(&home);
     if path.exists() {
         fs::remove_file(path)?;
@@ -186,39 +190,35 @@ fn remove_journal() -> anyhow::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn atomic_replace(temporary: &Path, destination: &Path) -> std::io::Result<()> {
+fn atomic_replace(temporary: &Path, destination: &Path) -> io::Result<()> {
     fs::rename(temporary, destination)
 }
 
 #[cfg(windows)]
-fn atomic_replace(temporary: &Path, destination: &Path) -> std::io::Result<()> {
+fn atomic_replace(temporary: &Path, destination: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
-    let temporary: Vec<u16> = temporary
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
+    let temporary: Vec<u16> = temporary.as_os_str().encode_wide().chain(once(0)).collect();
     let destination: Vec<u16> = destination
         .as_os_str()
         .encode_wide()
-        .chain(std::iter::once(0))
+        .chain(once(0))
         .collect();
     let flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
     // SAFETY: both paths are NUL-terminated UTF-16 buffers owned for the
     // duration of this call, and the Windows API does not retain them.
     let replaced = unsafe { MoveFileExW(temporary.as_ptr(), destination.as_ptr(), flags) };
     if replaced == 0 {
-        Err(std::io::Error::last_os_error())
+        Err(io::Error::last_os_error())
     } else {
         Ok(())
     }
 }
 
-fn recovery_journal_lock() -> std::sync::MutexGuard<'static, ()> {
+fn recovery_journal_lock() -> MutexGuard<'static, ()> {
     SYSTEM_PROXY_RECOVERY_JOURNAL_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
@@ -257,7 +257,7 @@ fn arm_recovery_sync(
     let _lock = recovery_journal_lock();
     let existing = read_journal().map_err(|error| PortError::Io(error.to_string()))?;
     let previous = if let Some(journal) = existing {
-        if journal.owner_pid != std::process::id() && owner_process_is_live(&journal) {
+        if journal.owner_pid != id() && owner_process_is_live(&journal) {
             return Err(PortError::Failed(
                 "another live process owns the system proxy recovery journal".to_owned(),
             ));
@@ -267,8 +267,8 @@ fn arm_recovery_sync(
         previous
     };
     write_journal(&RecoveryJournal {
-        owner_pid: std::process::id(),
-        owner_start_time: process_start_time(std::process::id()).unwrap_or_default(),
+        owner_pid: id(),
+        owner_start_time: process_start_time(id()).unwrap_or_default(),
         previous,
         desired,
     })
@@ -280,14 +280,13 @@ fn recover_orphaned_sync() -> Result<SystemProxyRecoveryReport, PortError> {
     let Some(journal) = read_journal().map_err(|error| PortError::Io(error.to_string()))? else {
         return Ok(SystemProxyRecoveryReport::NotNeeded);
     };
-    if journal.owner_pid != std::process::id() && owner_process_is_live(&journal) {
+    if journal.owner_pid != id() && owner_process_is_live(&journal) {
         return Ok(SystemProxyRecoveryReport::SkippedLiveOwner {
             owner_pid: journal.owner_pid,
         });
     }
     let observed = to_observation(
-        crate::proxy::read_system_proxy_state()
-            .map_err(|error| PortError::Io(error.to_string()))?,
+        read_system_proxy_state().map_err(|error| PortError::Io(error.to_string()))?,
     );
     if !desired_matches(&journal.desired, &observed) {
         remove_journal().map_err(|error| PortError::Io(error.to_string()))?;
@@ -298,8 +297,7 @@ fn recover_orphaned_sync() -> Result<SystemProxyRecoveryReport, PortError> {
     }
     apply_observation(&journal.previous).map_err(|error| PortError::Io(error.to_string()))?;
     let restored = to_observation(
-        crate::proxy::read_system_proxy_state()
-            .map_err(|error| PortError::Io(error.to_string()))?,
+        read_system_proxy_state().map_err(|error| PortError::Io(error.to_string()))?,
     );
     if !observation_matches(&journal.previous, &restored) {
         return Err(PortError::Failed(
@@ -316,7 +314,7 @@ fn recover_orphaned_sync() -> Result<SystemProxyRecoveryReport, PortError> {
 fn clear_recovery_sync() -> Result<(), PortError> {
     let _lock = recovery_journal_lock();
     if let Some(journal) = read_journal().map_err(|error| PortError::Io(error.to_string()))?
-        && journal.owner_pid != std::process::id()
+        && journal.owner_pid != id()
         && owner_process_is_live(&journal)
     {
         return Err(PortError::Failed(
@@ -332,9 +330,9 @@ fn apply_observation(observation: &SystemProxyObservation) -> anyhow::Result<()>
             .endpoint
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("enabled proxy state has no endpoint"))?;
-        crate::proxy::apply_system_proxy_with_bypass(Some(endpoint), observation.bypass.as_deref())
+        apply_system_proxy_with_bypass(Some(endpoint), observation.bypass.as_deref())
     } else {
-        crate::proxy::apply_system_proxy(None)
+        apply_system_proxy(None)
     }
 }
 
@@ -364,7 +362,7 @@ fn observation_matches(
     )
 }
 
-fn to_observation(state: crate::proxy::SystemProxyState) -> SystemProxyObservation {
+fn to_observation(state: SystemProxyState) -> SystemProxyObservation {
     SystemProxyObservation {
         enabled: state.enabled,
         endpoint: state.endpoint,
@@ -375,10 +373,14 @@ fn to_observation(state: crate::proxy::SystemProxyState) -> SystemProxyObservati
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use mihomo_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use mihomo_platform::paths::set_home_dir_override;
 
     #[test]
     fn desktop_proxy_adapter_preserves_os_observation_shape() {
-        let observation = to_observation(crate::proxy::SystemProxyState {
+        let observation = to_observation(SystemProxyState {
             enabled: true,
             endpoint: Some("127.0.0.1:7890".to_owned()),
             bypass: Some("localhost".to_owned()),
@@ -417,9 +419,7 @@ mod tests {
     async fn recovery_journal_round_trips_and_keeps_original_state() {
         let _guard = mihomo_platform::TEST_LOCK.lock().await;
         let home = tempfile::tempdir().expect("temporary home");
-        assert!(mihomo_platform::paths::set_home_dir_override(
-            home.path().to_path_buf()
-        ));
+        assert!(set_home_dir_override(home.path().to_path_buf()));
         let previous = SystemProxyObservation {
             enabled: false,
             endpoint: None,
@@ -437,6 +437,6 @@ mod tests {
         assert_eq!(journal.previous, previous);
         assert_eq!(journal.desired, desired);
         remove_journal().expect("remove journal");
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 }

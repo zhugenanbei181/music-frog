@@ -1,5 +1,10 @@
 //! Bevy Settings controls for Mihomo's top-level IPv6 routing policy.
 
+use super::SettingsProjectionUpdated;
+use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
+use super::settings_runtime::{RuntimeField, RuntimePolicy};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -11,22 +16,20 @@ use bevy::ui::Checked;
 use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, Node, UiRect, Val, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Checkbox, ValueChange};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_application::settings_status_projection::format_ipv6;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
-use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Parent marker for the top-level Mihomo IPv6 policy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ipv6RoutingToggle;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let status = format_status(&projection.ipv6_routing);
+    let status = format_ipv6(projection.ipv6_routing.as_ref(), UiLocale::default().code());
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -43,7 +46,8 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         }
                         Ipv6RoutingToggle
                         Children [
-                            @{ checkbox_scene("允许 IPv6 内核流量 (Mihomo IPv6)".to_owned(), projection.ipv6_routing.enabled, palette) }
+                            @{ localized_checkbox_scene(LocalizedText::plain("settings_allow_ipv6_traffic"), projection.ipv6_routing.is_some_and(|snapshot| snapshot.enabled), palette) }
+                ButtonDisabled({ projection.ipv6_routing.is_none() })
                             --
                             Text(status) SettingsLine(SettingsLineKind::Ipv6Routing) TextRole(Role::Mono)
                         ]
@@ -58,7 +62,11 @@ pub(super) fn on_changed(
     parents: Query<&ChildOf>,
     toggles: Query<(), With<Ipv6RoutingToggle>>,
     handle: Option<Res<CommandSinkHandle>>,
+    policy: RuntimePolicy,
 ) {
+    if !policy.available(RuntimeField::Ipv6) {
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
@@ -79,8 +87,8 @@ pub(super) fn apply_projection(
     mut lines: Query<(&mut Text, &SettingsLine)>,
     mut commands: Commands,
 ) {
-    let wanted = update.0.ipv6_routing.enabled;
-    let status = format_status(&update.0.ipv6_routing);
+    let wanted = update.0.ipv6_routing.is_some_and(|value| value.enabled);
+    let status = format_ipv6(update.0.ipv6_routing.as_ref(), UiLocale::default().code());
     for (mut text, line) in &mut lines {
         if line.0 == SettingsLineKind::Ipv6Routing {
             text.0 = status.clone();
@@ -99,18 +107,4 @@ pub(super) fn apply_projection(
             }
         }
     }
-}
-
-pub(super) fn format_status(snapshot: &infiltrator_contract::ipv6::Ipv6RoutingSnapshot) -> String {
-    let policy = if snapshot.enabled {
-        "已允许 IPv6"
-    } else {
-        "已禁用 IPv6（防止旁路泄漏）"
-    };
-    let tun = if snapshot.tun_enabled {
-        "TUN 已启用"
-    } else {
-        "TUN 未启用"
-    };
-    format!("{policy} · {tun}")
 }

@@ -5,8 +5,7 @@
 //! JSON/YAML sub-shape conversions, the projection module owns the field-level
 //! draft⇄node mapping and the family dynamic owned-key list.
 
-use std::collections::BTreeMap;
-
+use crate::protocol_node_projection::smux_to_json;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_params::{
     EchParams, Hysteria2Params, ProtocolParams, TuicParams,
@@ -16,11 +15,11 @@ use infiltrator_contract::protocol_params_ext::{
     Sip003Plugin, SshParams, TransportParams, TrojanSsParams, WireGuardParams, WsOptsParams,
     XhttpOptsParams,
 };
-use infiltrator_domain::profile_converter::ProxyNodeItem;
+use infiltrator_contract::protocol_trust::TlsTrustParams;
+use infiltrator_domain::profile_converter::{ProxyNodeItem, ReservedField};
 use serde_json;
 use serde_yaml_ng::{Mapping, Value};
-
-use crate::protocol_node_projection::smux_to_json;
+use std::collections::BTreeMap;
 
 fn extra_u64(item: &ProxyNodeItem, key: &str) -> u64 {
     item.extra.get(key).and_then(Value::as_u64).unwrap_or(0)
@@ -500,7 +499,7 @@ pub fn params_from_node(item: &ProxyNodeItem, family: ProtocolFamily) -> Protoco
     // DUAL-05-13: certificate trust. `fingerprint` is a real v1.19.18 node key;
     // `ca`/`ca-str` are read back so a forward-compatible profile node keeps
     // them losslessly even though the pinned node schema has neither.
-    params.tls_trust = infiltrator_contract::protocol_trust::TlsTrustParams {
+    params.tls_trust = TlsTrustParams {
         ca_path: item
             .extra
             .get("ca")
@@ -624,11 +623,9 @@ fn write_params(item: &mut ProxyNodeItem, params: &ProtocolParams, family: Proto
         item.preshared_key = non_empty(&wg.pre_shared_key);
         if !wg.reserved.trim().is_empty() {
             item.reserved = Some(if wg.reserved_is_base64 {
-                infiltrator_domain::profile_converter::ReservedField::Base64(
-                    wg.reserved.trim().to_string(),
-                )
+                ReservedField::Base64(wg.reserved.trim().to_string())
             } else {
-                infiltrator_domain::profile_converter::ReservedField::Array(
+                ReservedField::Array(
                     wg.reserved
                         .split(',')
                         .filter_map(|part| part.trim().parse::<u8>().ok())

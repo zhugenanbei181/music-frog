@@ -1,44 +1,45 @@
 //! Contract-level proof that one shared surface snapshot fans out to every
 //! Bevy page projection without a production demo fallback.
 
+use crate::support::{headless_plugins, page_root, subtree_has_text};
 use bevy::app::App;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::pages::settings::SettingsProjectionUpdated;
+use infiltrator_bevy_ui::projection::{OverviewProjection, OverviewSource, SourceKind};
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_ui::surface::{
     DemoSurfaceSource, LatestCoreLifecycle, LatestSurfaceSnapshot, SurfaceSnapshotUpdated,
-    SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, overview_projection,
-    settings_projection,
+    SurfaceSource, SurfaceStatusBanner, core_lifecycle_projection, doctor_projection,
+    overview_projection, settings_projection,
 };
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
-use infiltrator_contract::surface_snapshot::SurfaceOrigin;
-
-use crate::support::{headless_plugins, page_root, subtree_has_text};
+use infiltrator_contract::surface_snapshot::{PageData, PageId, SurfaceOrigin, SurfaceSnapshot};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 
 struct StaticSurface {
-    snapshot: infiltrator_contract::surface_snapshot::SurfaceSnapshot,
+    snapshot: SurfaceSnapshot,
 }
 
-fn has_status_banner(app: &mut App, page: infiltrator_contract::surface_snapshot::PageId) -> bool {
+fn has_status_banner(app: &mut App, page: PageId) -> bool {
     let mut query = app.world_mut().query::<&SurfaceStatusBanner>();
     query.iter(app.world()).any(|banner| banner.page == page)
 }
 
-impl infiltrator_bevy_ui::projection::OverviewSource for StaticSurface {
-    fn current(&self) -> infiltrator_bevy_ui::projection::OverviewProjection {
+impl OverviewSource for StaticSurface {
+    fn current(&self) -> OverviewProjection {
         overview_projection(&self.snapshot)
     }
 
-    fn kind(&self) -> infiltrator_bevy_ui::projection::SourceKind {
-        infiltrator_bevy_ui::projection::SourceKind::LiveCore
+    fn kind(&self) -> SourceKind {
+        SourceKind::LiveCore
     }
 }
 
 impl SurfaceSource for StaticSurface {
-    fn surface_snapshot(&self) -> infiltrator_contract::surface_snapshot::SurfaceSnapshot {
+    fn surface_snapshot(&self) -> SurfaceSnapshot {
         self.snapshot.clone()
     }
 }
@@ -62,19 +63,25 @@ fn app_with_shared_source() -> App {
         .unwrap()
         .connections[0]
         .host = "live-host".to_owned();
+    snapshot
+        .pages
+        .connections
+        .data
+        .as_mut()
+        .unwrap()
+        .connections[0]
+        .destination_host = "live-host".to_owned();
     snapshot.pages.logs.data.as_mut().unwrap().entries[0].message = "live-log".to_owned();
     snapshot.pages.dns.data.as_mut().unwrap().fake_ip_range = "live-dns".to_owned();
     snapshot.pages.doctor.data.as_mut().unwrap().last_run = "live-doctor".to_owned();
     snapshot.pages.app_routing.data.as_mut().unwrap().apps[0].name = "live-app".to_owned();
     snapshot.pages.sync.data.as_mut().unwrap().server_url = "live-sync".to_owned();
-    snapshot.pages.settings.data.as_mut().unwrap().tun_stack = "live-settings".to_owned();
+    snapshot.runtime_control.tun_stack = Some("live-settings".to_owned());
 
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
+        ThemePreference::Fixed(ThemeSkin::Dark),
         1180.0,
     ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface { snapshot }));
@@ -85,11 +92,7 @@ fn app_with_shared_source() -> App {
 #[test]
 fn shared_snapshot_reaches_all_eleven_page_lanes() {
     let mut app = app_with_shared_source();
-    let snapshot = app
-        .world()
-        .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
-        .0
-        .clone();
+    let snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
     assert_eq!(snapshot.revision, 42);
     assert_eq!(snapshot.origin, SurfaceOrigin::Live);
 
@@ -211,19 +214,15 @@ fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
 fn live_snapshot_reconciles_an_initial_unavailable_banner() {
     let source = DemoSurfaceSource::running();
     let mut initial = source.surface_snapshot();
-    initial.pages.proxies = infiltrator_contract::surface_snapshot::PageData::unavailable(
-        infiltrator_contract::error::Failure::new(
-            infiltrator_contract::error::ErrorCode::NotReady,
-            "waiting for proxy reader",
-            true,
-        ),
-    );
+    initial.pages.proxies = PageData::unavailable(Failure::new(
+        ErrorCode::NotReady,
+        "waiting for proxy reader",
+        true,
+    ));
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
+        ThemePreference::Fixed(ThemeSkin::Dark),
         1180.0,
     ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
@@ -234,10 +233,7 @@ fn live_snapshot_reconciles_an_initial_unavailable_banner() {
         .commands()
         .trigger(RouteChanged(Route::Proxies));
     app.update();
-    assert!(has_status_banner(
-        &mut app,
-        infiltrator_contract::surface_snapshot::PageId::Proxies
-    ));
+    assert!(has_status_banner(&mut app, PageId::Proxies));
 
     initial.revision = initial.revision.saturating_add(1);
     initial.core.revision = initial.revision;
@@ -247,10 +243,7 @@ fn live_snapshot_reconciles_an_initial_unavailable_banner() {
         .trigger(SurfaceSnapshotUpdated(initial));
     app.update();
     app.update();
-    assert!(!has_status_banner(
-        &mut app,
-        infiltrator_contract::surface_snapshot::PageId::Proxies
-    ));
+    assert!(!has_status_banner(&mut app, PageId::Proxies));
 }
 
 #[test]
@@ -267,9 +260,7 @@ fn stale_session_snapshot_cannot_replace_a_newer_bevy_projection() {
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
+        ThemePreference::Fixed(ThemeSkin::Dark),
         1180.0,
     ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
@@ -287,7 +278,7 @@ fn stale_session_snapshot_cannot_replace_a_newer_bevy_projection() {
     app.update();
     assert_eq!(
         app.world()
-            .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
+            .resource::<LatestSurfaceSnapshot>()
             .0
             .core
             .session_token,
@@ -309,9 +300,7 @@ fn hot_reload_snapshot_keeps_bevy_generation_and_session_identity() {
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
+        ThemePreference::Fixed(ThemeSkin::Dark),
         1180.0,
     ));
     app.add_plugins(PagesPlugin::new_surface(StaticSurface {
@@ -325,10 +314,7 @@ fn hot_reload_snapshot_keeps_bevy_generation_and_session_identity() {
         .commands()
         .trigger(SurfaceSnapshotUpdated(snapshot));
     app.update();
-    let latest = &app
-        .world()
-        .resource::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
-        .0;
+    let latest = &app.world().resource::<LatestSurfaceSnapshot>().0;
     assert_eq!(latest.revision, 11);
     assert_eq!(latest.generation, 4);
     assert_eq!(latest.core.session_token, Some(SessionToken::new(40)));
@@ -346,7 +332,7 @@ fn shared_watchdog_snapshot_reaches_the_bevy_doctor_projection() {
         last_error: None,
     };
 
-    let projection = infiltrator_bevy_ui::surface::doctor_projection(&snapshot);
+    let projection = doctor_projection(&snapshot);
     assert_eq!(
         projection.watchdog.state,
         CoreWatchdogState::Tripped { attempts: 3 }

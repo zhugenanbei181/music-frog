@@ -1,10 +1,9 @@
 //! URI exporting implementations for proxy protocols.
 
+use crate::profile_converter::ProxyNodeItem;
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;
-
-use crate::profile_converter::ProxyNodeItem;
 
 /// Exports a [`ProxyNodeItem`] to a canonical URI string.
 pub fn export_uri(node: &ProxyNodeItem) -> Result<String> {

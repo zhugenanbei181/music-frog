@@ -4,6 +4,7 @@
 //! per-config editing lives in [`super::dns_config`] and
 //! [`super::tun_config`].
 
+use crate::configuration::application;
 use crate::state::AppState;
 use crate::types::dns::{AdvancedConfigsBundle, AdvancedEditMode, DnsTab};
 use crate::types::editor::EditorLazyState;
@@ -110,7 +111,7 @@ impl AppState {
                 }
                 Task::perform(
                     async {
-                        let application = crate::configuration::application().await?;
+                        let application = application().await?;
                         let dns = application
                             .load_dns_config()
                             .await

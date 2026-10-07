@@ -2,24 +2,27 @@
 //! with smooth curves and legends, time range selector pills, and multi-dimension
 //! traffic breakdown & rankings (Domains, Devices, Proxies, Processes).
 
-use std::collections::{HashMap, VecDeque};
+use crate::state::AppState;
+use crate::types::message::Message;
+use crate::view::runtime::traffic_legend::legend_indicator;
+use infiltrator_application::byte_format::format_bytes;
 
+use crate::view::component_card::card;
+use crate::view::component_forms::row_card_surface;
+use crate::view::components::{
+    BadgeKind, badge, empty_state, section_header, segmented_control, stat_card,
+};
+use crate::view::svg_icons::{Icon, icon};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, SP_MD, SP_SM, SP_XS, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
+use canvas::path::Builder;
 use iced::widget::{Space, button, canvas, column, container, row, text};
 use iced::{
     Alignment, Border, Color, Element, Length, Point, Rectangle, Renderer, Theme, border, mouse,
 };
 use infiltrator_shared::locales::{Lang, Localizer};
-
-use crate::state::AppState;
-use crate::types::message::Message;
-use crate::types::runtime::RuntimeStreamState;
-use crate::utils::format_bytes;
-use crate::view::component_forms::row_card_surface;
-use crate::view::components::{
-    BadgeKind, badge, card, empty_state, section_header, segmented_control, stat_card,
-};
-use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, SP_SM, SP_XS, tokens};
+use std::collections::{HashMap, VecDeque};
 
 /// Multi-dimension breakdown category for traffic usage analytics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -78,18 +81,19 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let _is_zh = !lang.0.starts_with("en");
 
     // 1. KPI metrics tiles: Upload speed, Download speed, Memory usage, Public exit IP.
-    let up_rate = state
-        .diag
-        .traffic
-        .as_ref()
-        .map(|t| format!("{}/s", format_bytes(t.up)))
-        .unwrap_or_else(|| "—".to_string());
-    let down_rate = state
-        .diag
-        .traffic
-        .as_ref()
-        .map(|t| format!("{}/s", format_bytes(t.down)))
-        .unwrap_or_else(|| "—".to_string());
+    let rates = state.traffic_readout();
+    let observation_badge = badge(
+        rates.status.clone(),
+        if !rates.failure.is_empty() {
+            BadgeKind::Danger
+        } else if rates.current {
+            BadgeKind::Success
+        } else {
+            BadgeKind::Neutral
+        },
+    );
+    let up_rate = &rates.upload;
+    let down_rate = &rates.download;
     let mem_usage = state
         .diag
         .memory
@@ -100,14 +104,14 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let up_stat = stat_card(
         Icon::ArrowUp,
         lang.tr("runtime_stat_up").as_ref(),
-        &up_rate,
+        up_rate,
         theme_tokens.success,
         false,
     );
     let down_stat = stat_card(
         Icon::ArrowDown,
         lang.tr("runtime_stat_down").as_ref(),
-        &down_rate,
+        down_rate,
         theme_tokens.accent,
         false,
     );
@@ -125,26 +129,22 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         .width(Length::Fill);
 
     // 2. Real-time speeds, peaks, and time range selector pills ("1小时", "24小时", "7天", "30天")
-    let cur_up = state.diag.traffic.as_ref().map(|t| t.up).unwrap_or(0);
-    let cur_down = state.diag.traffic.as_ref().map(|t| t.down).unwrap_or(0);
-    let peak_up = state
-        .diag
-        .traffic_history
-        .iter()
-        .map(|(u, _)| *u)
-        .max()
-        .unwrap_or(0);
-    let peak_down = state
-        .diag
-        .traffic_history
-        .iter()
-        .map(|(_, d)| *d)
-        .max()
-        .unwrap_or(0);
-
-    let realtime_up_badge = badge(format!("↑ {}/s", format_bytes(cur_up)), BadgeKind::Success);
-    let realtime_down_badge = badge(format!("↓ {}/s", format_bytes(cur_down)), BadgeKind::Accent);
-
+    let realtime_up_badge = badge(
+        format!("↑ {}", rates.upload),
+        if rates.current {
+            BadgeKind::Success
+        } else {
+            BadgeKind::Neutral
+        },
+    );
+    let realtime_down_badge = badge(
+        format!("↓ {}", rates.download),
+        if rates.current {
+            BadgeKind::Accent
+        } else {
+            BadgeKind::Neutral
+        },
+    );
     let time_range_labels = vec![
         lang.tr("traffic_1h").to_string(),
         lang.tr("traffic_24h").to_string(),
@@ -153,7 +153,12 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     ];
     let time_range_pills = segmented_control(&time_range_labels, 0, |_| Message::Noop);
 
-    let waiting_note: Element<'a, Message> = if state.diag.traffic.is_none() {
+    let waiting_note: Element<'a, Message> = if !rates.failure.is_empty() {
+        container(text(rates.failure).size(11).width(Length::Fill))
+            .id(InteractionRegion::TrafficFailure.id())
+            .width(Length::Fill)
+            .into()
+    } else if !rates.observed {
         text(lang.tr("waiting_traffic").to_string())
             .size(11)
             .style(|t: &Theme| text::Style {
@@ -164,50 +169,31 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
         Space::new().width(0).into()
     };
 
-    let peak_indicator: Element<'a, Message> = if peak_up > 0 || peak_down > 0 {
-        badge(
-            format!(
-                "{}: ↑ {}/s · ↓ {}/s",
-                lang.tr("traffic_peak").as_ref(),
-                format_bytes(peak_up),
-                format_bytes(peak_down)
-            ),
-            BadgeKind::Neutral,
-        )
-    } else {
-        Space::new().width(0).into()
-    };
-
     let legends_row = row![
         legend_indicator(
             theme_tokens.success,
             lang.tr("runtime_stat_up").as_ref(),
-            &format!("{}/s", format_bytes(cur_up)),
-            (peak_up > 0).then(|| format!(
-                "{}: {}/s",
-                lang.tr("traffic_peak").as_ref(),
-                format_bytes(peak_up)
-            )),
+            &rates.upload,
+            rates
+                .upload_peak
+                .as_ref()
+                .map(|peak| format!("{}: {}", lang.tr("traffic_peak"), peak))
         ),
-        Space::new().width(SP_LG),
         legend_indicator(
             theme_tokens.accent,
             lang.tr("runtime_stat_down").as_ref(),
-            &format!("{}/s", format_bytes(cur_down)),
-            (peak_down > 0).then(|| format!(
-                "{}: {}/s",
-                lang.tr("traffic_peak").as_ref(),
-                format_bytes(peak_down)
-            )),
+            &rates.download,
+            rates.download_peak.as_ref().map(|peak| format!(
+                "{}: {}",
+                lang.tr("traffic_peak"),
+                peak
+            ))
         ),
-        Space::new().width(SP_MD),
-        peak_indicator,
-        Space::new().width(Length::Fill),
-        waiting_note,
     ]
+    .spacing(SP_MD)
     .align_y(Alignment::Center)
-    .width(Length::Fill);
-
+    .width(Length::Fill)
+    .wrap();
     let chart_canvas = canvas::Canvas::new(SmoothTrafficChart {
         history: state.diag.traffic_history.clone(),
     })
@@ -217,29 +203,28 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
     let chart_card = card(
         None,
         column![
-            section_header(
-                lang.tr("traffic_trend_title").as_ref(),
-                Some(
-                    row![
-                        realtime_up_badge,
-                        Space::new().width(theme::SP_XS),
-                        realtime_down_badge,
-                        Space::new().width(theme::SP_MD),
-                        time_range_pills,
-                        Space::new().width(theme::SP_MD),
-                        stream_badge(&state.diag.traffic_stream_state, &lang),
-                    ]
-                    .align_y(Alignment::Center)
-                    .into(),
-                ),
-            ),
+            section_header(lang.tr("traffic_trend_title").as_ref(), None),
+            row![
+                realtime_up_badge,
+                realtime_down_badge,
+                time_range_pills,
+                observation_badge
+            ]
+            .spacing(SP_SM)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .wrap(),
             Space::new().height(theme::SP_SM),
-            legends_row,
+            container(legends_row).id(InteractionRegion::TrafficRates.id()),
+            waiting_note,
             Space::new().height(theme::SP_SM),
             chart_canvas,
         ]
         .spacing(SP_XS),
     );
+    let chart_card = container(chart_card)
+        .id(InteractionRegion::TrafficObservation.id())
+        .width(Length::Fill);
 
     // 3. Multi-Dimension Dimension Selector & Rankings List
     let dim_labels = vec![
@@ -262,23 +247,19 @@ pub(super) fn traffic_section<'a>(state: &'a AppState, lang: Lang<'a>) -> Elemen
 /// Specialized public exit IP tile matching KPI stat card visual styling.
 fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> Element<'a, Message> {
     let _is_zh = !lang.0.starts_with("en");
-    let icon_chip = container(crate::view::svg_icons::icon(
-        Icon::Globe,
-        20.0,
-        Color { a: 0.9, ..accent },
-    ))
-    .width(40)
-    .height(40)
-    .align_x(Alignment::Center)
-    .align_y(Alignment::Center)
-    .style(move |_theme: &Theme| container::Style {
-        background: Some(Color { a: 0.14, ..accent }.into()),
-        border: Border {
-            radius: border::Radius::from(theme::R_CONTROL),
+    let icon_chip = container(icon(Icon::Globe, 20.0, Color { a: 0.9, ..accent }))
+        .width(40)
+        .height(40)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .style(move |_theme: &Theme| container::Style {
+            background: Some(Color { a: 0.14, ..accent }.into()),
+            border: Border {
+                radius: border::Radius::from(theme::R_CONTROL),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let ip_text = state.diag.public_ip.as_deref().unwrap_or("—");
     let probe_btn = button(
@@ -287,7 +268,7 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
             .font(theme::FONT_MEDIUM),
     )
     .padding([2, 6])
-    .style(iced::widget::button::secondary)
+    .style(button::secondary)
     .on_press(Message::FetchIpInfo);
 
     let sub_note = match (
@@ -349,56 +330,6 @@ fn public_ip_tile<'a>(state: &'a AppState, lang: &Lang<'a>, accent: Color) -> El
         }
     })
     .into()
-}
-
-/// Legend item showing colored bullet, label, current speed and optional peak.
-fn legend_indicator<'a>(
-    color: Color,
-    label: &str,
-    current_speed: &str,
-    peak_speed: Option<String>,
-) -> Element<'a, Message> {
-    let bullet =
-        container(Space::new().width(8).height(8)).style(move |_t: &Theme| container::Style {
-            background: Some(color.into()),
-            border: Border {
-                radius: border::Radius::from(theme::R_PILL),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-
-    let mut content = row![
-        bullet,
-        Space::new().width(theme::SP_XS),
-        text(label.to_string())
-            .size(11)
-            .font(theme::FONT_MEDIUM)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
-        Space::new().width(theme::SP_XS),
-        text(current_speed.to_string())
-            .size(11)
-            .font(MONO)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary)
-            }),
-    ]
-    .align_y(Alignment::Center);
-
-    if let Some(peak) = peak_speed {
-        content = content.push(Space::new().width(theme::SP_XS)).push(
-            text(format!("({peak})"))
-                .size(10)
-                .font(MONO)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_tertiary),
-                }),
-        );
-    }
-
-    content.into()
 }
 
 /// Helper to convert aggregated upload/download counts into sorted rankings with share percentages.
@@ -682,17 +613,6 @@ pub fn share_bar<'a, Message: 'a>(percent: f64) -> Element<'a, Message> {
     .into()
 }
 
-fn stream_badge<'a>(state: &RuntimeStreamState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let (key, kind) = match state {
-        RuntimeStreamState::Idle => ("conn_state_disconnected", BadgeKind::Neutral),
-        RuntimeStreamState::Connecting => ("conn_state_connecting", BadgeKind::Neutral),
-        RuntimeStreamState::Connected => ("conn_state_live", BadgeKind::Success),
-        RuntimeStreamState::Reconnecting => ("conn_state_reconnecting", BadgeKind::Warning),
-        RuntimeStreamState::Failed(_) => ("conn_state_unavailable", BadgeKind::Danger),
-    };
-    badge(lang.tr(key).to_string(), kind)
-}
-
 // ---------------------------------------------------------------------------
 // Smooth Curves Traffic Chart Canvas
 // ---------------------------------------------------------------------------
@@ -737,7 +657,10 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
         }
 
         let max_points: usize = 60;
-        let x_step = width / (max_points - 1) as f32;
+        let left_pad = 4.0_f32;
+        let right_pad = 12.0_f32;
+        let usable_w = (width - left_pad - right_pad).max(10.0);
+        let x_step = usable_w / (max_points - 1) as f32;
         let mut max_speed = self
             .history
             .iter()
@@ -780,14 +703,21 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
             .history
             .iter()
             .enumerate()
-            .map(|(i, (_, down))| Point::new((start_offset + i) as f32 * x_step, scale_y(*down)))
+            .map(|(i, (_, down))| {
+                Point::new(
+                    left_pad + (start_offset + i) as f32 * x_step,
+                    scale_y(*down),
+                )
+            })
             .collect();
 
         let up_pts: Vec<Point> = self
             .history
             .iter()
             .enumerate()
-            .map(|(i, (up, _))| Point::new((start_offset + i) as f32 * x_step, scale_y(*up)))
+            .map(|(i, (up, _))| {
+                Point::new(left_pad + (start_offset + i) as f32 * x_step, scale_y(*up))
+            })
             .collect();
 
         // 1. Download area & smooth curve
@@ -833,7 +763,7 @@ impl<Message> canvas::Program<Message> for SmoothTrafficChart {
 }
 
 /// Helper to add Catmull-Rom cubic Bezier spline segments to a path builder.
-fn add_smooth_curves(builder: &mut canvas::path::Builder, points: &[Point]) {
+fn add_smooth_curves(builder: &mut Builder, points: &[Point]) {
     if points.len() < 2 {
         return;
     }

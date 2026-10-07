@@ -1,9 +1,9 @@
 //! Outbound port for fetching a profile's prepared subscription document.
 
-use async_trait::async_trait;
-use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
-
 use crate::error::PortError;
+use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
+use infiltrator_domain::subscription::{CheckedSubscriptionUrl, SubscriptionUserInfo};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SubscriptionDocument {
@@ -65,7 +65,7 @@ pub trait SubscriptionSource: Send + Sync {
     ) -> Result<ConditionalDocumentResult, PortError> {
         if headers.insecure_skip_verify {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "this subscription source cannot skip TLS certificate verification",
             ));
         }
@@ -86,6 +86,8 @@ mod tests {
     use std::future::Future;
     use std::pin::pin;
     use std::task::{Context, Poll, Waker};
+    #[cfg(test)]
+    use std::thread::yield_now;
 
     struct PlainSource;
 
@@ -110,7 +112,7 @@ mod tests {
         loop {
             match future.as_mut().poll(&mut context) {
                 Poll::Ready(value) => return value,
-                Poll::Pending => std::thread::yield_now(),
+                Poll::Pending => yield_now(),
             }
         }
     }

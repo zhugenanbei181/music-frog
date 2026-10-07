@@ -1,33 +1,34 @@
+use crate::android_bridge::{AndroidBridge, get_android_bridge};
 use async_trait::async_trait;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::data_dir::DataDirProvider;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::error::MihomoError;
 use std::path::PathBuf;
+use std::result;
 use std::sync::Arc;
-
-use crate::android_bridge::{AndroidBridge, get_android_bridge};
 
 pub struct AndroidCoreController;
 
 #[async_trait]
 impl CoreProcess for AndroidCoreController {
-    async fn start(&self) -> std::result::Result<(), PortError> {
+    async fn start(&self) -> result::Result<(), PortError> {
         require_bridge("core start")?
             .core_start()
             .await
             .map_err(map_port_error)
     }
 
-    async fn stop(&self) -> std::result::Result<(), PortError> {
+    async fn stop(&self) -> result::Result<(), PortError> {
         require_bridge("core stop")?
             .core_stop()
             .await
             .map_err(map_port_error)
     }
 
-    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         let running = require_bridge("core status")?
             .core_is_running()
             .await
@@ -54,30 +55,21 @@ impl Default for AndroidCredentialStore {
 
 #[async_trait]
 impl SecureStore for AndroidCredentialStore {
-    async fn get(
-        &self,
-        service: &str,
-        key: &str,
-    ) -> std::result::Result<Option<String>, PortError> {
+    async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
         require_bridge("credential get")?
             .credential_get(service, key)
             .await
             .map_err(map_port_error)
     }
 
-    async fn set(
-        &self,
-        service: &str,
-        key: &str,
-        value: &str,
-    ) -> std::result::Result<(), PortError> {
+    async fn set(&self, service: &str, key: &str, value: &str) -> result::Result<(), PortError> {
         require_bridge("credential set")?
             .credential_set(service, key, value)
             .await
             .map_err(map_port_error)
     }
 
-    async fn delete(&self, service: &str, key: &str) -> std::result::Result<(), PortError> {
+    async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
         require_bridge("credential delete")?
             .credential_delete(service, key)
             .await
@@ -103,17 +95,17 @@ impl DataDirProvider for AndroidDataDirProvider {
     }
 }
 
-fn map_port_error(error: mihomo_api::error::MihomoError) -> PortError {
+fn map_port_error(error: MihomoError) -> PortError {
     match error {
-        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
-        mihomo_api::error::MihomoError::Http(error) => PortError::Network(error.to_string()),
-        mihomo_api::error::MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
-        mihomo_api::error::MihomoError::NotFound(message) => PortError::NotFound(message),
+        MihomoError::Io(error) => PortError::Io(error.to_string()),
+        MihomoError::Http(error) => PortError::Network(error.to_string()),
+        MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
+        MihomoError::NotFound(message) => PortError::NotFound(message),
         other => PortError::Failed(other.to_string()),
     }
 }
 
-fn require_bridge(context: &str) -> std::result::Result<Arc<dyn AndroidBridge>, PortError> {
+fn require_bridge(context: &str) -> result::Result<Arc<dyn AndroidBridge>, PortError> {
     get_android_bridge()
         .ok_or_else(|| PortError::Failed(format!("Android bridge is not configured ({context})")))
 }

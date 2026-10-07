@@ -6,8 +6,10 @@
 //! healthy. The texts are restamped in place by `apply_dns_projection`
 //! ([`DnsLineKind::SelfHeal`]), so the card never rebuilds the tree.
 
+use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Query, Res};
+use bevy::prelude::Color;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -15,23 +17,25 @@ use bevy::ui::prelude::{
     percent, px,
 };
 use bevy::ui::widget::Text;
+use infiltrator_application::dns_health_projection::project_dns_health;
+use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
+use infiltrator_application::dns_observation_projection::DnsObservationTone;
+use infiltrator_application::stun_projection::project_stun;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::pages::dns::{DnsLine, DnsLineKind, DnsProjection, LastDnsProjection};
-use crate::pages::dns_fakeip::{self_heal_listing, self_heal_state_label};
 
 /// The DNS self-heal card (overall state + one row per check).
 pub fn dns_self_heal_card_scene(
     projection: &DnsProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let overall = self_heal_state_label(projection.self_heal.overall_state());
-    let overall_label = overall.to_owned();
-    let listing = self_heal_listing(&projection.self_heal);
-    let overall_color = state_color(projection.self_heal.overall_state(), palette);
+    let display = project_dns_health(&projection.self_heal, UiLocale::default().code());
+    let overall_label = display.overall.clone();
+    let listing = display.listing();
+    let overall_color = observation_color(display.tone, palette);
 
     surface_scene(
         vec![
@@ -43,9 +47,9 @@ pub fn dns_self_heal_card_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "DNS 故障自愈检测 (DUAL-14-13)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("dns_self_heal_title") TextRole(Role::BodyStrong)
                                 --
-                                Text(overall_label) TextRole(Role::BodyStrong) TextColor(overall_color)
+                                Text(overall_label) DnsLine(DnsLineKind::SelfHealOverall) TextRole(Role::BodyStrong) TextColor(overall_color)
                             ]
             }),
             Box::new(bsn! {
@@ -70,32 +74,55 @@ pub fn dns_self_heal_card_scene(
     )
 }
 
-fn state_color(
-    state: infiltrator_contract::dns_self_heal::DnsSelfHealState,
-    palette: &UiPalette,
-) -> bevy::prelude::Color {
-    use infiltrator_contract::dns_self_heal::DnsSelfHealState;
-    match state {
-        DnsSelfHealState::Healthy => palette.success,
-        DnsSelfHealState::Warning => palette.warning,
-        DnsSelfHealState::Critical => palette.danger,
-        DnsSelfHealState::Unknown => palette.ink_dim,
+pub(crate) fn observation_color(tone: DnsObservationTone, palette: &UiPalette) -> Color {
+    match tone {
+        DnsObservationTone::Success => palette.success,
+        DnsObservationTone::Warning => palette.warning,
+        DnsObservationTone::Danger => palette.danger,
+        DnsObservationTone::Neutral => palette.ink_dim,
     }
 }
 
-/// Per-frame safety net: restamp the self-heal row after a theme or
-/// projection replay that did not run the observer.
-pub fn sync_dns_self_heal_line(
+/// Replay shared observation labels after locale/theme changes without rebuilding entities.
+pub fn sync_dns_observation_lines(
     last: Option<Res<LastDnsProjection>>,
-    mut lines: Query<(&mut Text, &DnsLine)>,
+    locale: Res<UiLocale>,
+    palette: Res<UiPalette>,
+    mut lines: Query<(&mut Text, &mut TextColor, &DnsLine)>,
 ) {
     let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) else {
         return;
     };
-    let listing = self_heal_listing(&projection.self_heal);
-    for (mut text, line) in &mut lines {
-        if line.0 == DnsLineKind::SelfHeal && text.0 != listing {
-            text.0 = listing.clone();
+    let display = project_dns_health(&projection.self_heal, locale.code());
+    let listing = display.listing();
+    let latency = project_dns_latency(&projection.latency, locale.code());
+    let latency_listing = latency.listing();
+    let stun = project_stun(&projection.stun, locale.code());
+    for (mut text, mut color, line) in &mut lines {
+        let (wanted, tone) = match line.0 {
+            DnsLineKind::StunConclusion => (stun.status.clone(), stun.tone),
+            DnsLineKind::Stun => (stun.listing(), DnsObservationTone::Neutral),
+            DnsLineKind::SelfHeal => (listing.clone(), display.tone),
+            DnsLineKind::SelfHealOverall => (display.overall.clone(), display.tone),
+            DnsLineKind::LatencyPolicy => (latency.summary.clone(), latency.tone),
+            DnsLineKind::LatencyResults => (latency_listing.clone(), DnsObservationTone::Neutral),
+            DnsLineKind::ServerTags(idx) => {
+                let Some(server) = projection.servers.get(idx) else {
+                    continue;
+                };
+                (
+                    server_tags_text(&server.tags, locale.code()),
+                    DnsObservationTone::Neutral,
+                )
+            }
+            _ => continue,
+        };
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+        let wanted_color = observation_color(tone, &palette);
+        if color.0 != wanted_color {
+            color.0 = wanted_color;
         }
     }
 }
@@ -103,24 +130,44 @@ pub fn sync_dns_self_heal_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_bevy_widgets::theme::Theme;
+    #[cfg(test)]
+    use infiltrator_contract::dns::DnsCoreSwitches;
+    #[cfg(test)]
+    use infiltrator_contract::dns::DnsEnhancedMode;
+    #[cfg(test)]
+    use infiltrator_contract::dns::DnsFakeIpFilterMode;
+    #[cfg(test)]
+    use infiltrator_contract::dns::FakeIpMappingPool;
+    #[cfg(test)]
+    use infiltrator_contract::dns_cache::DnsCacheFlushReport;
+    #[cfg(test)]
+    use infiltrator_contract::dns_form::DnsWorkbenchForm;
+    #[cfg(test)]
+    use infiltrator_contract::dns_latency::DnsLatencyReport;
+    #[cfg(test)]
+    use infiltrator_contract::dns_leak::DnsLeakReport;
     use infiltrator_contract::dns_self_heal::{
         DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
     };
+    #[cfg(test)]
+    use infiltrator_contract::stun_probe::StunProbeReport;
 
     fn projection(snapshot: DnsSelfHealSnapshot) -> DnsProjection {
         DnsProjection {
-            mode: infiltrator_contract::dns::DnsEnhancedMode::default(),
+            mode: DnsEnhancedMode::default(),
             cache_entries: 0,
             fake_ip_range: String::new(),
             servers: Vec::new(),
-            switches: infiltrator_contract::dns::DnsCoreSwitches::default(),
-            filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::default(),
-            form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
-            cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
-            fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool::default(),
-            latency: infiltrator_contract::dns_latency::DnsLatencyReport::default(),
-            leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
-            stun: infiltrator_contract::stun_probe::StunProbeReport::default(),
+            switches: DnsCoreSwitches::default(),
+            filter_mode: DnsFakeIpFilterMode::default(),
+            form: DnsWorkbenchForm::default(),
+            cache_flush: DnsCacheFlushReport::default(),
+            fake_ip_pool: FakeIpMappingPool::default(),
+            latency: DnsLatencyReport::default(),
+            leak: DnsLeakReport::default(),
+            stun: StunProbeReport::default(),
             self_heal: snapshot,
             hosts: Vec::new(),
         }
@@ -144,10 +191,10 @@ mod tests {
         ]);
         let projection = projection(snapshot);
         assert_eq!(
-            self_heal_state_label(projection.self_heal.overall_state()),
+            project_dns_health(&projection.self_heal, "zh-CN").overall,
             "故障"
         );
-        let palette = UiPalette::new(&infiltrator_bevy_widgets::theme::Theme::dark());
+        let palette = UiPalette::new(&Theme::dark());
         let _ = dns_self_heal_card_scene(&projection, &palette);
     }
 
@@ -155,10 +202,10 @@ mod tests {
     fn an_unobserved_snapshot_renders_unknown() {
         let projection = projection(DnsSelfHealSnapshot::default());
         assert_eq!(
-            self_heal_state_label(projection.self_heal.overall_state()),
+            project_dns_health(&projection.self_heal, "zh-CN").overall,
             "未观测"
         );
-        let palette = UiPalette::new(&infiltrator_bevy_widgets::theme::Theme::dark());
+        let palette = UiPalette::new(&Theme::dark());
         let _ = dns_self_heal_card_scene(&projection, &palette);
     }
 }

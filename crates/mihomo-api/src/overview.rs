@@ -1,10 +1,14 @@
 //! Mihomo REST adapter for the runtime-neutral OverviewReader port.
 
 use crate::client::MihomoClient;
+use crate::runtime_gateway::network_error;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
+use std::time;
+use tokio::time::timeout;
 
 /// Reads the minimal set of controller endpoints required by the Overview
 /// application service. The secret remains private inside `MihomoClient`.
@@ -26,11 +30,7 @@ impl ControllerOverviewReader {
 #[async_trait::async_trait]
 impl OverviewReader for ControllerOverviewReader {
     async fn sample(&self) -> Result<OverviewSample, PortError> {
-        let connections = self
-            .client
-            .get_connections()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
+        let connections = self.client.get_connections().await.map_err(network_error)?;
         let version = self
             .client
             .get_version()
@@ -43,16 +43,13 @@ impl OverviewReader for ControllerOverviewReader {
             .await
             .ok()
             .and_then(|value| ProxyMode::from_wire(&value.mode));
-        let memory_bytes = tokio::time::timeout(
-            std::time::Duration::from_millis(250),
-            self.client.get_memory(),
-        )
-        .await
-        .ok()
-        .and_then(Result::ok)
-        .map(|value| value.in_use);
-        let sampled_at_epoch_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let memory_bytes = timeout(time::Duration::from_millis(250), self.client.get_memory())
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .map(|value| value.in_use);
+        let sampled_at_epoch_ms = time::SystemTime::now()
+            .duration_since(time::UNIX_EPOCH)
             .ok()
             .and_then(|duration| i64::try_from(duration.as_millis()).ok());
 
@@ -72,19 +69,20 @@ impl OverviewReader for ControllerOverviewReader {
         self.client
             .patch_config(serde_json::json!({"mode": mode.to_wire()}))
             .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
-        let actual = self
-            .client
-            .get_config()
-            .await
-            .map_err(|error| PortError::Network(error.to_string()))?;
+            .map_err(network_error)?;
+        let actual = self.client.get_config().await.map_err(network_error)?;
         let actual = ProxyMode::from_wire(&actual.mode).ok_or_else(|| {
-            PortError::Failed(format!("unknown controller mode: {}", actual.mode))
+            PortError::Rejected(Failure::new(
+                ErrorCode::InvalidState,
+                format!("Unknown controller mode: {}", actual.mode),
+                false,
+            ))
         })?;
         if actual != mode {
-            return Err(PortError::Failed(format!(
-                "内核拒绝模式切换：仍为 {}",
-                actual.to_wire(),
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::InvalidState,
+                format!("Controller retained proxy mode {}", actual.to_wire()),
+                true,
             )));
         }
         Ok(actual)

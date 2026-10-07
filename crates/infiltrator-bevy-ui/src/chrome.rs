@@ -14,6 +14,7 @@
 //!   `infiltrator_contract::window_chrome` shape, and the capability report is
 //!   what this host honestly implements.
 
+use crate::a11y::semantic_node;
 use bevy::app::{App, AppExit, Plugin, Startup};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -201,9 +202,9 @@ fn on_close_activated(
 /// The chrome bar mounted above the shell: a draggable title strip plus the
 /// three window controls.
 pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let minimize_node = crate::a11y::semantic_node(ShellA11yNode::ChromeMinimize);
-    let maximize_node = crate::a11y::semantic_node(ShellA11yNode::ChromeMaximize);
-    let close_node = crate::a11y::semantic_node(ShellA11yNode::ChromeClose);
+    let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
+    let maximize_node = semantic_node(ShellA11yNode::ChromeMaximize);
+    let close_node = semantic_node(ShellA11yNode::ChromeClose);
     bsn! {
             Node {
                 width: percent(100),

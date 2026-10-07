@@ -2,8 +2,6 @@
 //! already-running core, the restart-with-readiness path, and the
 //! apply-current-profile transaction with rollback.
 
-use std::sync::{Arc, Mutex, OnceLock};
-
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::overview::UnavailableOverviewReader;
 use infiltrator_contract::command::{CommandIntent, CommandResult};
@@ -25,6 +23,9 @@ use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
 use mihomo_platform::defaults::DefaultCredentialStore;
+#[cfg(not(target_os = "android"))]
+use std::result;
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(target_os = "android")]
 use mihomo_platform::android::AndroidCoreController;
@@ -84,7 +85,7 @@ struct BridgeCoreController;
 #[cfg(not(target_os = "android"))]
 #[async_trait::async_trait]
 impl CoreProcess for BridgeCoreController {
-    async fn start(&self) -> std::result::Result<(), PortError> {
+    async fn start(&self) -> result::Result<(), PortError> {
         let bridge = get_android_bridge().ok_or_else(|| {
             PortError::Failed("Android bridge is not configured (core start)".into())
         })?;
@@ -94,7 +95,7 @@ impl CoreProcess for BridgeCoreController {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn stop(&self) -> std::result::Result<(), PortError> {
+    async fn stop(&self) -> result::Result<(), PortError> {
         let bridge = get_android_bridge().ok_or_else(|| {
             PortError::Failed("Android bridge is not configured (core stop)".into())
         })?;
@@ -104,7 +105,7 @@ impl CoreProcess for BridgeCoreController {
             .map_err(|error| PortError::Failed(error.to_string()))
     }
 
-    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         let running = get_android_bridge()
             .ok_or_else(|| PortError::Failed("Android bridge is not configured".into()))?
             .core_is_running()
@@ -197,7 +198,7 @@ async fn restart_with_readiness() -> Result<(), FfiStatus> {
         return Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)));
     }
     match core.application.execute(CommandIntent::RestartCore).await {
-        CommandResult::Completed { .. } => Ok(()),
+        CommandResult::Completed { .. } | CommandResult::Produced { .. } => Ok(()),
         CommandResult::Rejected { failure, .. } => {
             Err(FfiStatus::from(InfiltratorError::Mihomo(failure.message)))
         }

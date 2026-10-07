@@ -1,12 +1,12 @@
 //! Default-config bootstrap and proxy-port conflict repair for the active
 //! profile.
 
+use super::ConfigManager;
+use crate::port::{find_available_port, is_port_available, split_listen_addr};
+use crate::yaml;
+use crate::yaml_ast::update_nested_field;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
-
-use super::ConfigManager;
-use crate::port::{find_available_port, is_port_available};
-use crate::yaml;
 
 impl<S: SecureStore> ConfigManager<S> {
     /// Ensure a default config file exists, create one if it doesn't
@@ -87,7 +87,7 @@ external-controller: 127.0.0.1:{}
         let Some(raw) = doc["dns"]["listen"].as_str() else {
             return Ok(());
         };
-        let Some((host, port)) = crate::port::split_listen_addr(raw) else {
+        let Some((host, port)) = split_listen_addr(raw) else {
             return Ok(());
         };
         if port == 0 || is_port_available(port) {
@@ -100,12 +100,9 @@ external-controller: 127.0.0.1:{}
             return Ok(());
         }
         let host = if host.is_empty() { "0.0.0.0" } else { &host };
-        let updated = crate::yaml_ast::update_nested_field(
-            &content,
-            &["dns", "listen"],
-            &format!("{host}:{fallback}"),
-        )
-        .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let updated =
+            update_nested_field(&content, &["dns", "listen"], &format!("{host}:{fallback}"))
+                .map_err(|error| MihomoError::Config(error.to_string()))?;
         if updated != content {
             self.save(&profile, &updated).await?;
             log::warn!("dns.listen {port} is in use, switched to {fallback}");

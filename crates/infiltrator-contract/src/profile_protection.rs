@@ -35,22 +35,4 @@ impl ProfileWriteProtection {
     pub const fn is_protected(self) -> bool {
         matches!(self, Self::RemoteSubscription)
     }
-
-    /// Surface badge label (both surfaces render the identical string).
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::Editable => "本地配置 · 可直接编辑",
-            Self::RemoteSubscription => "远程订阅 · 只读保护",
-        }
-    }
-
-    /// Why direct edits are discouraged, and what to do instead.
-    pub const fn hint_zh(self) -> &'static str {
-        match self {
-            Self::Editable => "本地配置由你完全掌控，可直接保存修改。",
-            Self::RemoteSubscription => {
-                "远程订阅内容会在下次更新时被覆盖；请优先使用 Mixin 覆写，或显式解锁后直接编辑。"
-            }
-        }
-    }
 }

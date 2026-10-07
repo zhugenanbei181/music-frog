@@ -1,9 +1,8 @@
 //! Host port for AppContainer loopback discovery and exemption mutation.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::uwp::UwpPackageSnapshot;
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait UwpLoopbackPort: Send + Sync {

@@ -3,9 +3,9 @@
 //! Enforces memory zeroization upon destruction (`Drop`) using volatile writes
 //! and compiler fences, mitigating memory dumps and cold boot attacks.
 
-use std::fmt;
-use std::ptr;
+use std::str::from_utf8_unchecked;
 use std::sync::atomic::{Ordering, compiler_fence};
+use std::{fmt, ptr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecretType {
@@ -32,7 +32,7 @@ impl ProtectedSecret {
     /// Exposes the inner secret as a string reference.
     pub fn expose_secret(&self) -> &str {
         // Safe because the data is initialized from a valid UTF-8 string and never modified.
-        unsafe { std::str::from_utf8_unchecked(&self.data) }
+        unsafe { from_utf8_unchecked(&self.data) }
     }
 
     /// Returns the type of the secret.

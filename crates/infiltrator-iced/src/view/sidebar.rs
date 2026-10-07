@@ -8,15 +8,26 @@
 //! a hairline divider. Every color comes from [`crate::view::theme::tokens`]
 //! so light, dark, forest, and AMOLED themes are equally first-class.
 
+use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::app::Route;
 use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
+use infiltrator_application::proxy_mode_projection::{mode_copy_key, mode_status_copy};
+use infiltrator_application::shell_readout_projection::{
+    count_copy, profile_kind, profile_name, profile_percent, profile_usage, rate_copy, rate_status,
+};
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::surface_snapshot::PageId;
+
 use crate::view::components::{
-    BadgeKind, badge, card_surface, icon_button, nav_button, segmented_control, toggle_switch,
+    BadgeKind, badge, card_surface, icon_button, nav_button, nav_rail_icon,
+    segmented_control_with_actions, toggle_switch,
 };
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
-use crate::view::waveform::mini_waveform;
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, R_CARD, R_CONTROL};
+use crate::view::waveform::{StripInk, hud_waveform};
 use iced::widget::{Space, button, column, container, progress_bar, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::a11y::ShellA11yNode;
@@ -28,14 +39,9 @@ use infiltrator_shared::locales::{Lang, Localizer};
 pub(crate) const SIDEBAR_WIDTH: f32 = 240.0;
 
 /// Canonical mihomo proxy-mode identifiers, in segmented-control order.
-/// The Script segment only appears when the running core reports a
-/// top-level `script:` block (see `RuntimeState::script_block_present`).
-fn mode_ids(state: &AppState) -> Vec<&'static str> {
-    if state.runtime.script_block_present {
-        vec!["rule", "global", "direct", "script"]
-    } else {
-        vec!["rule", "global", "direct"]
-    }
+/// All choices remain visible; observations determine which can be activated.
+fn mode_ids() -> Vec<&'static str> {
+    ProxyMode::ALL.iter().map(|mode| mode.to_wire()).collect()
 }
 
 /// Full labelled sidebar at the default expanded width. Kept as a stable
@@ -226,10 +232,7 @@ pub fn sidebar_rail(state: &AppState) -> Element<'_, Message> {
     .align_x(Alignment::Center);
 
     for route in routes {
-        items = items.push(crate::view::components::nav_rail_icon(
-            route,
-            &state.shell.current_route,
-        ));
+        items = items.push(nav_rail_icon(route, &state.shell.current_route));
     }
 
     container(items)
@@ -311,10 +314,7 @@ fn header(state: &AppState) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     let status_dot = container(Space::new().width(8).height(8)).style(move |t: &Theme| {
-        let is_running = matches!(
-            state.runtime.status,
-            crate::types::runtime::RuntimeStatus::Running
-        );
+        let is_running = matches!(state.runtime.status, RuntimeStatus::Running);
         let col = if is_running {
             theme::tokens(t).success
         } else {
@@ -335,7 +335,7 @@ fn header(state: &AppState) -> Element<'_, Message> {
         // DUAL-15-10: the status dot is a colour-only control; its shared
         // semantic label is surfaced as a real hover tooltip (Iced has no
         // AccessKit tree to attach it to).
-        crate::accessibility::labelled(
+        labelled(
             ShellA11yNode::GlobalStatusDot,
             &state.shell.lang,
             status_dot.into(),
@@ -364,23 +364,12 @@ fn header(state: &AppState) -> Element<'_, Message> {
 // ---------------------------------------------------------------------------
 
 fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let ids = mode_ids(state);
-    let keys = [
-        "proxy_mode_rule",
-        "proxy_mode_global",
-        "proxy_mode_direct",
-        "proxy_mode_script",
-    ];
+    let ids = mode_ids();
     let labels: Vec<String> = ids
         .iter()
         .map(|id| {
-            let key = match *id {
-                "rule" => keys[0],
-                "global" => keys[1],
-                "direct" => keys[2],
-                _ => keys[3],
-            };
-            lang.tr(key).into_owned()
+            let mode = ProxyMode::from_wire(id).expect("canonical mode control identity");
+            lang.tr(mode_copy_key(mode)).into_owned()
         })
         .collect();
 
@@ -392,15 +381,22 @@ fn mode_control<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
         .unwrap_or(usize::MAX);
 
     let ids_for_callback = ids.clone();
-    let control = segmented_control(&labels, selected, move |index| {
+    let pending = state.runtime.pending_runtime_patch.is_some();
+    let mode_state = state.runtime.proxy_mode_state.clone();
+    let control = segmented_control_with_actions(&labels, selected, move |index| {
         let mode = ids_for_callback
             .get(index)
             .copied()
             .unwrap_or(ids_for_callback[0]);
-        Message::SetProxyMode(mode.to_string())
+        let target = ProxyMode::from_wire(mode)?;
+        (!pending && mode_state.is_mode_selectable(target))
+            .then(|| Message::SetProxyMode(mode.to_string()))
     });
 
-    container(control).width(Length::Fill).into()
+    let caption = mode_status_copy(&state.runtime.proxy_mode_state, lang.0);
+    container(column![control, text(caption).size(10)].spacing(theme::SP_XS))
+        .width(Length::Fill)
+        .into()
 }
 
 // ---------------------------------------------------------------------------
@@ -413,7 +409,7 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     // DUAL-15-10: the two master toggle cards carry the shared semantic labels
     // as real hover tooltips, the visible affordance Iced can offer in place
     // of the AccessKit switch nodes Bevy mounts.
-    let system_proxy = crate::accessibility::labelled(
+    let system_proxy = labelled(
         ShellA11yNode::SystemProxySwitch,
         &state.shell.lang,
         toggle_card(
@@ -423,7 +419,7 @@ fn toggles<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
             Message::SetSystemProxy,
         ),
     );
-    let tun = crate::accessibility::labelled(
+    let tun = labelled(
         ShellA11yNode::TunSwitch,
         &state.shell.lang,
         toggle_card(
@@ -492,31 +488,12 @@ fn short_label(value: &str) -> String {
 /// Active profile name + optional 订阅 badge with traffic usage progress bar
 /// and informative subtitle.
 fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let active = state.profile.profiles.iter().find(|p| p.active);
-    let _is_zh = state.shell.lang.starts_with("zh");
-
-    let (name, is_subscription, subtitle) = match active {
-        Some(profile) => {
-            let is_sub = profile.subscription_url.is_some();
-            let sub = if is_sub {
-                lang.tr("sidebar_sub_profile").to_string()
-            } else {
-                lang.tr("sidebar_local_profile").to_string()
-            };
-            (profile.name.clone(), is_sub, sub)
-        }
-        None => (
-            lang.tr("no_profiles").into_owned(),
-            false,
-            lang.tr("sidebar_import_hint").to_string(),
-        ),
-    };
-
-    let traffic = active.and_then(|profile| {
-        let total = profile.traffic_total?;
-        let used = profile.traffic_upload.unwrap_or(0) + profile.traffic_download.unwrap_or(0);
-        Some((total, used))
-    });
+    let readout = &state.shell.readout;
+    let active = readout.profile.value.as_ref();
+    let name = profile_name(readout, &state.shell.lang);
+    let is_subscription = active.is_some_and(|profile| profile.subscription);
+    let subtitle = profile_kind(readout, &state.shell.lang);
+    let fraction = active.and_then(|profile| profile.usage_fraction);
 
     let header_row = row![
         icon_themed(Icon::FileText, 16.0, |t| theme::tokens(t).accent),
@@ -548,30 +525,18 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
 
     let mut body = column![header_row].spacing(theme::SP_SM);
 
-    // Miniature usage indicator when the provider advertises traffic info.
-    if let Some((total, used)) = traffic {
-        let fraction = if total > 0 {
-            (used as f32 / total as f32).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
+    if let Some(fraction) = fraction {
         body = body.push(
             column![
                 progress_bar(0.0..=1.0, fraction).length(Length::Fill),
                 row![
-                    text(format!("{} / {}", format_gb(used), format_gb(total)))
+                    text(profile_usage(readout, &state.shell.lang))
                         .size(10)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(theme::tokens(t).text_tertiary),
-                        }),
+                        .font(MONO),
                     Space::new().width(Length::Fill),
-                    text(format!("{:.0}%", fraction * 100.0))
+                    text(profile_percent(readout, &state.shell.lang))
                         .size(10)
-                        .font(MONO)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(theme::tokens(t).text_tertiary),
-                        }),
+                        .font(MONO),
                 ]
                 .align_y(Alignment::Center)
                 .width(Length::Fill),
@@ -583,16 +548,6 @@ fn profile_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
     clickable_card(body, Message::Navigate(Route::Profiles))
 }
 
-/// Compact GB display for the sidebar usage line (falls back to MB below 1 GB).
-fn format_gb(value: u64) -> String {
-    let mib = value as f64 / (1024.0 * 1024.0);
-    if mib >= 1024.0 {
-        format!("{:.2} GB", mib / 1024.0)
-    } else {
-        format!("{:.0} MB", mib)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // 2x2 Shortcut Matrix & Stat Badges
 // ---------------------------------------------------------------------------
@@ -600,27 +555,16 @@ fn format_gb(value: u64) -> String {
 /// Proxies, Rules, Runtime (Connections), and DNS shortcut tiles organized
 /// in a neat 2x2 grid with count badges.
 fn shortcut_matrix<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let groups = state
-        .runtime
-        .proxies
-        .values()
-        .filter(|p| p.is_group())
-        .count();
-
-    let connections = state
-        .diag
-        .connections
-        .as_ref()
-        .map(|s| s.connections.len().to_string())
-        .unwrap_or_else(|| "0".to_string());
-
-    let rules_count = state.editor.rules.len().to_string();
-    let dns_count = state.editor.dns_nameservers.len().to_string();
+    let readout = &state.shell.readout;
+    let groups = count_copy(readout, PageId::Proxies, &state.shell.lang);
+    let connections = count_copy(readout, PageId::Connections, &state.shell.lang);
+    let rules_count = count_copy(readout, PageId::Rules, &state.shell.lang);
+    let dns_count = count_copy(readout, PageId::Dns, &state.shell.lang);
 
     let proxies_tile = shortcut_tile(
         Icon::Globe,
         &lang.tr("nav_proxies"),
-        &groups.to_string(),
+        &groups,
         Route::Proxies,
         state.shell.current_route == Route::Proxies,
     );
@@ -737,17 +681,8 @@ fn shortcut_tile<'a>(
 /// Live up/down rates from the traffic state in mono numerals, accompanied by
 /// the mini sparkline waveform for visual traffic dynamics.
 fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> {
-    let samples: Vec<u64> = state
-        .diag
-        .traffic_history
-        .iter()
-        .map(|(up, down)| (*up).max(*down))
-        .collect();
-
-    let (up_speed, down_speed) = match &state.diag.traffic {
-        Some(t) => (t.up, t.down),
-        None => (0, 0),
-    };
+    let up_speed = rate_copy(&state.shell.readout.upload_bps, &state.shell.lang);
+    let down_speed = rate_copy(&state.shell.readout.download_bps, &state.shell.lang);
 
     let speeds_col = column![
         speed_leg(Icon::ArrowUp, up_speed, |t| theme::tokens(t).success),
@@ -755,15 +690,21 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
     ]
     .spacing(2);
 
-    let waveform = mini_waveform(&samples);
+    let waveform = hud_waveform(&state.shell.readout.waveform.down, StripInk::Accent);
 
     let content = row![speeds_col, Space::new().width(Length::Fill), waveform,]
         .align_y(Alignment::Center)
         .width(Length::Fill);
+    let failure = rate_status(&state.shell.readout, &state.shell.lang);
+    let content: Element<Message> = if failure.is_empty() {
+        content.into()
+    } else {
+        column![content, text(failure).size(10)].spacing(2).into()
+    };
 
     // DUAL-15-10: the live rate readout carries the shared semantic label as a
     // tooltip, since Iced cannot publish an AccessKit status node.
-    crate::accessibility::labelled(
+    labelled(
         ShellA11yNode::TrafficReadout,
         &state.shell.lang,
         container(content)
@@ -776,21 +717,18 @@ fn speed_footer<'a>(state: &AppState, _lang: &Lang<'a>) -> Element<'a, Message> 
 
 fn speed_leg<'a>(
     glyph: Icon,
-    bytes_per_second: u64,
+    formatted_rate: String,
     color: impl Fn(&Theme) -> Color + Copy + 'a,
 ) -> Element<'a, Message> {
     row![
         icon_themed(glyph, 12.0, color),
         Space::new().width(theme::SP_XS),
-        text(format!(
-            "{}/s",
-            crate::utils::format_bytes(bytes_per_second)
-        ))
-        .size(11)
-        .font(MONO)
-        .style(move |t: &Theme| text::Style {
-            color: Some(color(t))
-        }),
+        text(formatted_rate)
+            .size(11)
+            .font(MONO)
+            .style(move |t: &Theme| text::Style {
+                color: Some(color(t))
+            }),
     ]
     .align_y(Alignment::Center)
     .into()

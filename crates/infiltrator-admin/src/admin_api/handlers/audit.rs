@@ -1,15 +1,16 @@
 //! Privacy leak detection and active connections traffic audit endpoints (`/admin/api/audit`).
 
-use axum::Json;
-use chrono::Utc;
-use infiltrator_domain::dns_tester::DnsTester;
-use infiltrator_domain::runtime::{Connection, ConnectionsResponse};
-use std::collections::HashMap;
-
 use crate::admin_api::models::{
     ApiError, AuditProcessTraffic, AuditResponse, AuditTrafficSummary, PrivacyLeakIssue,
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::{Json, extract};
+use chrono::Utc;
+use infiltrator_domain::dns_tester::DnsTester;
+use infiltrator_domain::runtime::{Connection, ConnectionsResponse};
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::path;
 
 struct ProcessStatAccumulator {
     process_name: String,
@@ -20,7 +21,7 @@ struct ProcessStatAccumulator {
 }
 
 pub async fn get_audit_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<AuditResponse>, ApiError> {
     let now = Utc::now().to_rfc3339();
 
@@ -204,7 +205,7 @@ pub(crate) fn analyze_connections_for_audit(
         })
         .collect();
 
-    top_processes.sort_by_key(|p| std::cmp::Reverse(p.total_bytes));
+    top_processes.sort_by_key(|p| Reverse(p.total_bytes));
     top_processes.truncate(20);
 
     let total_classified = proxied_bytes + direct_bytes;
@@ -234,7 +235,7 @@ pub(crate) fn analyze_connections_for_audit(
 fn extract_process_name(process_path: &str, host: &str) -> String {
     let trimmed_path = process_path.trim();
     if !trimmed_path.is_empty() {
-        if let Some(name) = std::path::Path::new(trimmed_path)
+        if let Some(name) = path::Path::new(trimmed_path)
             .file_name()
             .and_then(|n| n.to_str())
         {

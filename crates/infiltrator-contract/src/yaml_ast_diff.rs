@@ -133,7 +133,7 @@ impl FidelityGrade {
 }
 
 /// Read model snapshot representing visual AST diff between two configurations.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct YamlAstDiffSnapshot {
     /// Identifier or timestamp label of the source (older/base) configuration.
     pub source_id: String,

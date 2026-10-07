@@ -6,6 +6,7 @@
 //! the polled surface snapshot. They express the phase with the same enum so a
 //! stream badge on either surface means the same thing.
 
+use crate::capability::Availability;
 use crate::surface_snapshot::PageStatus;
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +75,13 @@ impl ConnectionStreamPhase {
             PageStatus::Ready | PageStatus::Empty => Self::Live,
             PageStatus::Unavailable { .. } | PageStatus::Failed { .. } => Self::Unavailable,
         }
+    }
+}
+
+/// The controller payload carries counters and identity, but no staged timings.
+pub fn timing_availability() -> Availability {
+    Availability::Unsupported {
+        reason: "The kernel does not report per-connection DNS/TCP/TLS/TTFB timings".into(),
     }
 }
 

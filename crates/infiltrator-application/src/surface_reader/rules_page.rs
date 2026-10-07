@@ -5,24 +5,35 @@
 
 use super::projections::missing;
 use super::*;
+use crate::rule_list_application::document_snapshot;
+use crate::rule_list_projection::rule_snapshot;
+use crate::rule_provider_application::RuleProviderApplication;
+use crate::rule_tracer_application::RuleTracerApplication;
+use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot;
+use infiltrator_domain::proxy_providers::ProxyProviders;
+use infiltrator_domain::rules::RuleProviders;
+use infiltrator_domain::rules::analyzer::{ShadowedRuleWarning, find_shadowed_rules};
+use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
+use infiltrator_domain::rules::view::{RULE_PUBLISH_LIMIT, published_rule_count};
+use infiltrator_domain::runtime::RuleProvider;
 
 /// Inputs the live rule tracer replays against: the shared engine plus the
 /// runtime facts that resolve the outbound stage of the decision chain.
 pub(super) struct RulesTracerReplay<'a> {
-    pub(super) application: &'a crate::rule_tracer_application::RuleTracerApplication,
-    pub(super) core: &'a infiltrator_contract::snapshot::CoreSnapshot,
-    pub(super) active_exit: Option<&'a infiltrator_contract::active_exit::ActiveExitSnapshot>,
-    pub(super) proxies: Option<&'a HashMap<String, Proxy>>,
+    pub(super) application: &'a RuleTracerApplication,
 }
 
 /// DUAL-11-14: serialise the rules-workspace documents the shared reader
 /// publishes. Pure over the loaded sections, so a section the host cannot read
 /// (`None`) is omitted rather than published as an empty document.
 pub(super) fn rules_json_documents(
-    rule_providers: Option<infiltrator_domain::rules::RuleProviders>,
-    proxy_providers: Option<infiltrator_domain::proxy_providers::ProxyProviders>,
+    rule_providers: Option<RuleProviders>,
+    proxy_providers: Option<ProxyProviders>,
     sniffer: Option<serde_json::Value>,
-) -> Vec<infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot> {
+) -> Vec<RulesJsonDocumentSnapshot> {
     use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
 
     let mut documents = Vec::new();
@@ -55,19 +66,21 @@ pub(super) fn rules_json_documents(
 
 pub(super) async fn build_rules_page(
     configuration: Option<&ConfigurationApplication>,
-    rule_provider: &crate::rule_provider_application::RuleProviderApplication,
-    runtime_providers: Option<Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError>>,
+    rule_provider: &RuleProviderApplication,
+    runtime_providers: Option<Result<Vec<RuleProvider>, PortError>>,
     tracer_replay: RulesTracerReplay<'_>,
-    mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
-    provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    mrs_acceleration: MrsAccelerationSnapshot,
+    provider_cache: RuleProviderCacheSnapshot,
 ) -> surface_snapshot::PageData<surface_snapshot::RulesPageSnapshot> {
     let Some(configuration) = configuration else {
         return surface_snapshot::PageData::unavailable(missing("configuration application"));
     };
-    let rules = match configuration.load_rules().await {
-        Ok(rules) => rules,
+    let workspace = match configuration.load_rule_workspace().await {
+        Ok(workspace) => workspace,
         Err(error) => return surface_snapshot::PageData::failed(error),
     };
+    let document = document_snapshot(&workspace);
+    let rules = workspace.rules;
     // DUAL-11-04: the runtime controller reports a provider's behavior and
     // update time but not its source address. Merge the active profile's
     // `rule-providers` declarations so config-backed providers publish their
@@ -82,12 +95,7 @@ pub(super) async fn build_rules_page(
     let etag_support = configuration.load_etag_support().await.unwrap_or_default();
     // The tracer replays the exact rule list rendered below; the query comes
     // from the shared engine so both surfaces observe the same simulation.
-    let tracer = tracer_replay.application.project(
-        tracer_replay.core,
-        &rules,
-        tracer_replay.active_exit,
-        tracer_replay.proxies,
-    );
+    let tracer = tracer_replay.application.replay(&workspace.source);
     let providers = match runtime_providers {
         Some(Ok(providers)) => {
             let mut snapshots = Vec::with_capacity(providers.len());
@@ -109,12 +117,12 @@ pub(super) async fn build_rules_page(
                 // an HTTP validator result, which the kernel never exposes.
                 let cache_fingerprint = match declaration {
                     Some(value) => {
-                        let resolved = infiltrator_domain::rules::provider_store::RuleProviderDeclaration::from_value(&provider.name, value);
+                        let resolved = RuleProviderDeclaration::from_value(&provider.name, value);
                         rule_provider.observe_fingerprint(&resolved).await
                     }
                     None => None,
                 };
-                snapshots.push(surface_snapshot::RuleProviderSnapshot {
+                snapshots.push(RuleProviderSnapshot {
                     name: provider.name,
                     rule_count: provider.rule_count as usize,
                     behavior: provider.behavior,
@@ -146,21 +154,26 @@ pub(super) async fn build_rules_page(
         configuration.load_sniffer_config().await.ok(),
     );
 
-    let shadow_warnings = infiltrator_domain::rules::analyzer::find_shadowed_rules(&rules);
-    let shadow_map: HashMap<usize, &infiltrator_domain::rules::analyzer::ShadowedRuleWarning> =
+    let shadow_warnings = find_shadowed_rules(&rules);
+    let shadow_map: HashMap<usize, &ShadowedRuleWarning> =
         shadow_warnings.iter().map(|w| (w.index, w)).collect();
 
+    let statistics = tracer_replay
+        .application
+        .statistics_for(&workspace.source, &rules);
     let mut entries = rules
         .into_iter()
         .enumerate()
         .map(|(id, rule)| {
-            let hit = tracer_replay.application.hit_count_for(&rule.rule);
-            let last_hit = tracer_replay.application.last_hit_for(&rule.rule);
-            rule_snapshot(id + 1, rule, hit, last_hit, shadow_map.get(&id).copied())
+            let hit = statistics.as_ref().map(|readout| readout.row_count(id));
+            let last_hit = statistics
+                .as_ref()
+                .and_then(|readout| readout.row_timestamp(id));
+            rule_snapshot(id + 1, &rule, hit, last_hit, shadow_map.get(&id).copied())
         })
         .collect::<Vec<_>>();
 
-    let total_hits = tracer.hit_audit.total_hits;
+    let hit_audit = statistics.map(|readout| readout.audit);
 
     let default_action = entries
         .last()
@@ -169,18 +182,17 @@ pub(super) async fn build_rules_page(
     // DUAL-11-08: publish both the profile's rule count and the honest cap on
     // the rendered list, so a truncated view is never reported as complete.
     let total_rules = entries.len();
-    entries.truncate(infiltrator_domain::rules::view::published_rule_count(
-        total_rules,
-    ));
+    entries.truncate(published_rule_count(total_rules));
     let data = surface_snapshot::RulesPageSnapshot {
+        document: Some(document),
         total_rules,
         default_action,
         providers,
         rules: entries,
         tracer,
         mrs_acceleration,
-        total_hits,
-        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        hit_audit,
+        rule_publish_limit: RULE_PUBLISH_LIMIT,
         provider_cache,
         etag_support,
         json_documents,
@@ -189,38 +201,5 @@ pub(super) async fn build_rules_page(
         surface_snapshot::PageData::empty(data)
     } else {
         surface_snapshot::PageData::ready(data)
-    }
-}
-
-fn rule_snapshot(
-    id: usize,
-    rule: RuleEntry,
-    hit_count: u64,
-    last_hit_secs: Option<u64>,
-    shadow_warning: Option<&infiltrator_domain::rules::analyzer::ShadowedRuleWarning>,
-) -> surface_snapshot::RuleSnapshot {
-    let (rule_type, payload, proxy, no_resolve) = if let Ok(parsed) = parse_rule_str(&rule.rule) {
-        let name = parsed.rule_type.name().to_string();
-        let payload = parsed.rule_type.payload().unwrap_or("").to_string();
-        (name, payload, parsed.target, parsed.no_resolve)
-    } else {
-        let mut parts = rule.rule.splitn(3, ',');
-        let r_type = parts.next().unwrap_or_default().to_owned();
-        let r_payload = parts.next().unwrap_or_default().to_owned();
-        let r_proxy = parts.next().unwrap_or_default().to_owned();
-        (r_type, r_payload, r_proxy, false)
-    };
-
-    surface_snapshot::RuleSnapshot {
-        id,
-        rule_type,
-        payload,
-        proxy,
-        hit_count,
-        is_enabled: rule.enabled,
-        no_resolve,
-        last_hit_secs,
-        is_shadowed: shadow_warning.is_some(),
-        shadow_reason: shadow_warning.map(|w| w.reason.to_string()),
     }
 }

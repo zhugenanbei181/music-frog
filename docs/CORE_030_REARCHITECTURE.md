@@ -56,7 +56,7 @@
 - [x] `DUAL-03-12`：卡片模块顺序进入 `OverviewLayoutSnapshot`/`OverviewLayoutApplication`；支持 8 类概览卡片纵向拖拽与上移下移重排，两端共享 `ReorderOverviewCards` 与 `ResetOverviewCardOrder` 意图，不依赖前端组件私有顺序。
 - [x] `DUAL-03-13`：断线与重载优雅降级进入 `ReconnectMaskSnapshot`/`ReconnectMaskApplication`；核心热重载与看门狗重启期间完整保留最后一帧有效快照，覆以平滑半透明蒙版，两端遵循同一 `preserves_last_frame` 保护策略。
 - [x] `DUAL-03-14`：双端全视口响应式进入 `ResponsiveViewportSnapshot`/`ResponsiveViewportApplication` (`ViewportTier`)；统一 `Compact`/`Medium`/`Expanded`/`Ultra` 四阶视口断点与概览网格列数算法，Iced 与 Bevy 遵循同一响应式规范。
-- [x] `DUAL-03-15`：概览全景回归矩阵进入 `OverviewRegressionMatrixReport`/`OverviewMatrixApplication`；双端具备覆盖组 03 全 14 场景的单体无头验证与端到端 `run_deterministic_matrix` 断言。
+- [ ] `DUAL-03-15`：旧 Overview 硬编码全通过汇总已退役；概览交互按 `FeatureId::ALL` 与真实 L1/L2/L3 验收，全量尚未完成。
 - [x] `DUAL-04-01`：策略组 5 大分类全覆盖进入 `ProxyGroupClassification`/`ProxyApplication`；强类型规范 `Selector`、`UrlTest`、`Fallback`、`LoadBalance`、`Relay`，单选组与自动组交互边界在契约层严格隔离。
 - [x] `DUAL-04-02`：策略组展开折叠状态持久化进入 `ProxyUiPreferences`/`ProxyPreferencesApplication`；`toggle_group_expand`、`is_group_collapsed` 由应用偏好驱动，两端共享 `ToggleProxyGroupExpand` 意图。
 - [x] `DUAL-04-03`：节点选择状态即时回写进入 `SelectProxyNode`/`ProxyApplication::switch`；强制非 Selector 组拒绝手动切换、非成员节点校验拦截，`PUT /proxies/{group}` 成功后两端卡片在席高亮。
@@ -71,7 +71,7 @@
 - [x] `DUAL-04-12`：策略组自定义拖拽调序进入 `custom_group_order`/`ReorderProxyGroups`/`ResetProxyGroupOrder`；支持调整顺序与一键恢复。
 - [x] `DUAL-04-13`：节点卡片网格与紧凑列表无缝切换进入 `compact_view`/`SetProxyCompactView`/`ToggleViewModeButton`；双列与单列高密度即时切换。
 - [x] `DUAL-04-14`：测速动态脉冲骨架屏占位进入 `LatencySkeletonPulse`；测速期间数值呈现骨架占位，测速完毕平滑淡入。
-- [x] `DUAL-04-15`：双端代理操作无头行为测试闭环进入 `ProxyRegressionMatrixReport`/`ProxyMatrixApplication`；15 场景全覆盖断言。
+- [ ] `DUAL-04-15`：旧 `ProxyRegressionMatrixReport`/`ProxyMatrixApplication` 硬编码全通过报告已退役。代理能力只按 `scripts/parity/` 真实 L1/L2/L3 证据验收；当前全量闭环仍未完成。
 - [x] 纯算法 `vector_clock`、`sub_rules`、DNS/Fake-IP/TUN schema 与校验、DNS topology、diagnostics 计算器、脚本引擎、MRS、PCAP、流量审计、故障转移、Geo 缓存、hosts、idle-connection、日志脱敏、per-app routing、规则/PAC、节点 URI、filter、mixin、YAML AST、profile-options 组合、backoff、MTU、丢包和规则命中统计已从 `infiltrator-core` 物理移入 `infiltrator-domain`。
 - [x] `infiltrator-contract`：落下跨端命令、快照、事件、能力、失败和 intent 模型。
 - [x] `infiltrator-ports`：落下 Core process、Overview、secure store、data store 和 capability provider 端口。

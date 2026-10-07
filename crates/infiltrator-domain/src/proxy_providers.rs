@@ -1,8 +1,7 @@
-use std::collections::BTreeMap;
-
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
+use std::collections::BTreeMap;
 
 pub type ProxyProviders = BTreeMap<String, serde_json::Value>;
 

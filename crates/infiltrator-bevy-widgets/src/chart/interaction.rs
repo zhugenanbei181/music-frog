@@ -2,6 +2,7 @@
 //! and O(N) LOD downsampling (LTTB & MinMax).
 
 use super::bezier::PlotPoint;
+use crate::chart::to_rgba8;
 use crate::palette::UiPalette;
 
 /// State of an active chart crosshair inspection.
@@ -269,9 +270,9 @@ pub fn draw_crosshair_overlay(
         return;
     }
 
-    let cross_ink = crate::chart::to_rgba8(palette.ink_dim);
-    let accent_ink = crate::chart::to_rgba8(palette.accent);
-    let success_ink = crate::chart::to_rgba8(palette.success);
+    let cross_ink = to_rgba8(palette.ink_dim);
+    let accent_ink = to_rgba8(palette.accent);
+    let success_ink = to_rgba8(palette.success);
 
     let x_target = state.sample_x.unwrap_or(state.cursor_x).round() as i32;
     let y_target = state.cursor_y.round() as i32;
@@ -331,8 +332,8 @@ pub fn draw_crosshair_overlay(
     let hy_start = hy.round() as i32;
     let hx_end = (hx + hud_w).round() as i32;
     let hy_end = (hy + hud_h).round() as i32;
-    let bg_ink = crate::chart::to_rgba8(palette.surface_elevated);
-    let border_ink = crate::chart::to_rgba8(palette.border);
+    let bg_ink = to_rgba8(palette.surface_elevated);
+    let border_ink = to_rgba8(palette.border);
 
     for y in hy_start..hy_end {
         for x in hx_start..hx_end {

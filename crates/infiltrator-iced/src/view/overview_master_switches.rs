@@ -4,10 +4,12 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use crate::view::components::card_surface;
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
+use infiltrator_application::system_toggle_projection::{action_label, status_label};
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot, SystemToggleState};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The same two primary controls as the sidebar, rendered as Overview cards
@@ -17,7 +19,7 @@ pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Ele
         switch_card(
             SystemToggle::SystemProxy,
             lang.tr("system_proxy").to_string(),
-            "Take over the local HTTP/SOCKS endpoint",
+            lang.tr("overview_system_proxy_description").into_owned(),
             Icon::Wifi,
             &state.runtime.system_toggles,
             lang,
@@ -25,7 +27,7 @@ pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Ele
         switch_card(
             SystemToggle::Tun,
             lang.tr("tun_mode").to_string(),
-            "Route traffic through the virtual interface",
+            lang.tr("overview_tun_description").into_owned(),
             Icon::Zap,
             &state.runtime.system_toggles,
             lang,
@@ -39,15 +41,15 @@ pub fn overview_master_switches<'a>(state: &'a AppState, lang: &Lang<'a>) -> Ele
 fn switch_card<'a>(
     toggle: SystemToggle,
     title: String,
-    description: &'static str,
+    description: String,
     icon: Icon,
-    snapshot: &'a infiltrator_contract::system_toggle::SystemToggleSnapshot,
+    snapshot: &'a SystemToggleSnapshot,
     lang: &Lang<'a>,
 ) -> Element<'a, Message> {
     let state = snapshot.state(toggle);
     let enabled = state.is_enabled();
-    let status = status_label(state, lang);
-    let action = action_label(state, lang);
+    let status = status_label(state, lang.0);
+    let action = action_label(state, lang.0);
     let action_message = if state.can_toggle() {
         Some(match toggle {
             SystemToggle::SystemProxy => Message::SetSystemProxy(!enabled),
@@ -117,29 +119,6 @@ fn switch_card<'a>(
     .padding(theme::SP_LG)
     .style(card_surface)
     .into()
-}
-
-fn status_label(state: &SystemToggleState, lang: &Lang<'_>) -> String {
-    match state {
-        SystemToggleState::Enabled => lang.tr("overview_toggle_enabled").to_string(),
-        SystemToggleState::Disabled => lang.tr("overview_toggle_disabled").to_string(),
-        SystemToggleState::Pending { .. } => lang.tr("overview_toggle_pending").to_string(),
-        SystemToggleState::Unknown => lang.tr("overview_toggle_unknown").to_string(),
-        SystemToggleState::Unsupported { .. } | SystemToggleState::Failed { .. } => {
-            lang.tr("overview_toggle_unavailable").to_string()
-        }
-    }
-}
-
-fn action_label(state: &SystemToggleState, lang: &Lang<'_>) -> String {
-    match state {
-        SystemToggleState::Enabled => lang.tr("overview_toggle_disable").to_string(),
-        SystemToggleState::Disabled => lang.tr("overview_toggle_enable").to_string(),
-        SystemToggleState::Pending { .. } => lang.tr("overview_toggle_pending").to_string(),
-        SystemToggleState::Unknown
-        | SystemToggleState::Unsupported { .. }
-        | SystemToggleState::Failed { .. } => lang.tr("overview_toggle_unavailable").to_string(),
-    }
 }
 
 #[cfg(test)]

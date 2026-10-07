@@ -14,6 +14,13 @@
 //! - [`data_grid_row_scene`]: Multi-column virtualized data row with column cell alignment;
 //! - [`data_grid_scene`]: Complete composite table with pinned header and virtual scrolling body.
 
+use crate::filter::FilterEngine;
+use crate::list::VirtualListState;
+use crate::list::scroll_core::VirtualWindow;
+use crate::palette::UiPalette;
+use crate::selection::SelectionState;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
@@ -23,14 +30,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::filter::FilterEngine;
-use crate::list::VirtualListState;
-use crate::list::scroll_core::VirtualWindow;
-use crate::palette::UiPalette;
-use crate::selection::SelectionState;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Sizing strategy for a table column.
 #[derive(Clone, Copy, Debug, PartialEq)]

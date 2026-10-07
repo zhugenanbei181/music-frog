@@ -1,11 +1,5 @@
-use std::{
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Instant,
-};
-
+use super::events::AdminEventBus;
+use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
@@ -14,13 +8,13 @@ use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::profile_reset_application::ProfileResetApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
-
-use super::events::AdminEventBus;
-use super::models::{RebuildStatusResponse, RuntimeTrafficSnapshotResponse};
-
-use infiltrator_domain::settings::AppSettings;
+use std::env::var;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 #[async_trait::async_trait]
 pub trait AdminApiContext: Clone + Send + Sync + 'static {
@@ -197,8 +191,8 @@ pub struct AdminApiState<C> {
 
 impl<C: AdminApiContext> AdminApiState<C> {
     pub fn new(ctx: C, events: AdminEventBus) -> Self {
-        let auth_token = std::env::var("INFILTRATOR_ADMIN_TOKEN")
-            .or_else(|_| std::env::var("INFILTRATOR_AUTH_TOKEN"))
+        let auth_token = var("INFILTRATOR_ADMIN_TOKEN")
+            .or_else(|_| var("INFILTRATOR_AUTH_TOKEN"))
             .ok()
             .map(|t| t.trim().to_string())
             .filter(|t| !t.is_empty());
@@ -242,9 +236,10 @@ impl<C: AdminApiContext> AdminApiState<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::{RebuildStatus, RuntimeTrafficState};
+    #[cfg(test)]
+    use std::thread::sleep;
+    use std::time::Duration;
 
     #[test]
     fn rebuild_status_transitions() {
@@ -276,7 +271,7 @@ mod tests {
         assert_eq!(first.up_peak, 0);
         assert_eq!(first.down_peak, 0);
 
-        std::thread::sleep(Duration::from_millis(20));
+        sleep(Duration::from_millis(20));
         let second = state.snapshot(1_600, 2_800, 4);
         assert!(second.up_rate > 0);
         assert!(second.down_rate > 0);

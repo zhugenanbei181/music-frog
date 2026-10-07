@@ -15,6 +15,8 @@
 //! environment variables.
 
 #[cfg(target_os = "windows")]
+use std::env::current_exe;
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 use std::process::Command;
@@ -49,7 +51,7 @@ pub fn is_autostart_enabled(name: &str) -> bool {
 #[cfg(target_os = "windows")]
 pub fn set_autostart_enabled(name: &str, enabled: bool) -> anyhow::Result<()> {
     if enabled {
-        let exe = std::env::current_exe()?;
+        let exe = current_exe()?;
         let task_cmd = format!("\"{}\" --autostart", exe.to_string_lossy());
         let status = new_hidden_command("reg")
             .args([
@@ -82,9 +84,9 @@ pub fn set_autostart_enabled(name: &str, enabled: bool) -> anyhow::Result<()> {
 #[cfg(target_os = "linux")]
 mod xdg {
     use anyhow::anyhow;
-    use std::env;
-    use std::fs;
+    use std::env::current_exe;
     use std::path::{Path, PathBuf};
+    use std::{env, fs};
 
     /// Resolves the XDG config dir: explicit `base_dir` (test injection)
     /// first, then a non-empty `XDG_CONFIG_HOME`, then `$HOME/.config`.
@@ -126,7 +128,7 @@ mod xdg {
         let dir = autostart_dir(base_dir)?;
         let path = dir.join(format!("{name}.desktop"));
         if enabled {
-            let exe = std::env::current_exe()?;
+            let exe = current_exe()?;
             let exec = format!("\"{}\" --autostart", exe.to_string_lossy());
             let content = format!(
                 "[Desktop Entry]\nType=Application\nName={name}\nExec={exec}\nTerminal=false\n"
@@ -145,9 +147,9 @@ mod xdg {
 #[cfg(target_os = "macos")]
 mod launchd {
     use anyhow::anyhow;
-    use std::env;
-    use std::fs;
+    use std::env::current_exe;
     use std::path::{Path, PathBuf};
+    use std::{env, fs};
 
     fn agents_dir(base_dir: Option<&Path>) -> anyhow::Result<PathBuf> {
         if let Some(dir) = base_dir {
@@ -167,7 +169,7 @@ mod launchd {
         let dir = agents_dir(base_dir)?;
         let path = dir.join(format!("{name}.plist"));
         if enabled {
-            let exe = std::env::current_exe()?;
+            let exe = current_exe()?;
             let mut program_arguments = String::new();
             program_arguments.push_str(&format!(
                 "        <string>{}</string>\n",
@@ -246,16 +248,17 @@ pub fn set_autostart_enabled(name: &str, enabled: bool) -> anyhow::Result<()> {
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests {
     use super::*;
+    #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+    use std::env::temp_dir;
     use std::fs;
     use std::path::{Path, PathBuf};
+    #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+    use std::process::id;
 
     /// `tempfile` is not a dev-dependency of this crate, so allocate a
     /// process-unique directory under the system temp dir instead.
     fn temp_base_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "infiltrator-shared-autostart-{}-{tag}",
-            std::process::id()
-        ));
+        let dir = temp_dir().join(format!("infiltrator-shared-autostart-{}-{tag}", id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

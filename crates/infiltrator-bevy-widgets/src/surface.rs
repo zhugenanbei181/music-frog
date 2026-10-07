@@ -4,6 +4,10 @@
 //! never creates children through commands or a builder API (charter law:
 //! static structure composes declaratively with `bsn!`).
 
+use crate::palette::UiPalette;
+use crate::shader_fx::ModernSurfaceMaterial;
+use crate::theme::space;
+use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
@@ -12,9 +16,7 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent, px,
 };
-
-use crate::palette::UiPalette;
-use crate::theme::space;
+use bevy::ui_render::ui_material::MaterialNode;
 
 /// Marker on the surface card root: the fill [`sync_surface_visuals`]
 /// re-projects from the live palette (compare-and-set — a theme switch
@@ -46,11 +48,22 @@ pub fn surface_scene(children: Vec<Box<dyn Scene>>, palette: &UiPalette) -> impl
 /// unchanged frames cost nothing.
 pub fn sync_surface_visuals(
     palette: Res<UiPalette>,
-    mut cards: Query<&mut BackgroundColor, With<SurfacePanel>>,
+    mut cards: Query<
+        (
+            &mut BackgroundColor,
+            Option<&MaterialNode<ModernSurfaceMaterial>>,
+        ),
+        With<SurfacePanel>,
+    >,
 ) {
-    for mut fill in &mut cards {
-        if fill.0 != palette.surface {
-            fill.0 = palette.surface;
+    for (mut fill, material) in &mut cards {
+        let color = if material.is_some() {
+            Color::NONE
+        } else {
+            palette.surface
+        };
+        if fill.0 != color {
+            fill.0 = color;
         }
     }
 }

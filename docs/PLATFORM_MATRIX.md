@@ -6,14 +6,15 @@
 
 | 平台/形态 | UI/宿主 | mihomo 交付 | 当前依据 | 需要补的证据 |
 | --- | --- | --- | --- | --- |
-| Linux desktop | Iced（唯一桌面端，0.20 起） | 运行时外部 core/本地安装路径，脚本未覆盖 Linux 资产 | `mihomo-platform` Linux keyring、Iced Wayland/X11 features | core 交付策略、桌面启动/托盘/TUN 真机 smoke |
-| Windows desktop | Iced（唯一桌面端，0.20 起） | `vendor/mihomo.exe`，打包前由脚本获取 Windows amd64 | MSI workflow、Windows process/no-window 适配 | x64/ARM64 包、升级回滚、系统代理和 tray 真机验证 |
-| macOS desktop | Rust platform path 已有 keyring 条件分支 | 当前 fetch 脚本未声明 macOS 资产 | `mihomo-platform` macOS dependency | core 资产/签名/打包/权限与真实运行验证 |
+| Linux desktop | Iced 与 Bevy 同权产品 | 锁定 amd64/arm64 资产；AppImage、Deb、tarball 包含原生内核，按内容哈希物化运行副本 | 共享桌面宿主、内核查找与复制行为测试；发布矩阵目前打包 amd64 | 最终源码的安装包 smoke、桌面启动/托盘/TUN 真机验证 |
+| Windows desktop | Iced 与 Bevy 同权产品 | 锁定基线 amd64 与 arm64 资产；两端 NSIS/ZIP 均包含匹配内核、许可与来源清单 | 本地实际 NSIS 编译；原生路径转换已接入发布 workflow，目标 Windows CI 待运行 | x64/ARM64 最终包、升级回滚、系统代理和 tray 真机验证 |
+| macOS desktop | Iced 与 Bevy 同权产品 | 锁定 amd64/arm64 资产；两端 App bundle 的 Resources 包含匹配内核 | 两套 App/DMG/tarball 模板与共享内核查找代码 | 目标 macOS CI、签名/权限、安装后真实运行验证 |
 | Android arm64-v8a | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-arm64-v8`，构建时复制为 `libmihomo.so` | `scripts/android-build.sh`、Gradle ABI 配置 | 真实设备 VPN、后台、升级和异常退出矩阵 |
 | Android x86_64 | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-amd64`，用于 emulator/ABI | Gradle 与 fetch 脚本 | emulator/CI ABI smoke、性能与网络隔离验证 |
+| Android Bevy | NativeActivity 界面入口；原生产品宿主尚未组合 | 已有 APK 入口；当前受限 ECS 的 Bevy UI arm64 库使用真实 NDK 交叉编译与严格 Clippy 通过，尚不能证明完整控制产品交付 | 默认入口显式显示未组合状态；桌面结果不外推 | 按 [Android 产品规范](BEVY_ANDROID_PRODUCT.md) 补 UI/VPN 进程与 IPC、原生命令/全页 reader、文本/Insets/剪贴板、列表/节能；最终默认特性包和真机 VPN/恢复/功耗验收前不得作为完整产品发布 |
 | iOS arm64 | `infiltrator-ios` host seam；Native UI/NetworkExtension 未接入 | 由签名 app/extension bundle 交付（策略已定，资产未接入） | `infiltrator-ios` 的 `IosBridge`、保守 capability 测试 | Swift/Objective-C bridge、NetworkExtension entitlement、真机 VPN 与后台验证 |
-| Admin Web | 浏览器内 Vue 管理面 | 不拥有 core；由桌面 Admin server 提供 | `infiltrator-admin` + `config-manager-ui` | API contract、浏览器断线/重连和旧客户端兼容 |
-| External mihomo dashboard | 已随 WebUI 于 0.20 退役 | 管理能力由 Iced 本体承担 | `TAURI_WEBUI_RETIREMENT_LEDGER.md` | — |
+| Admin API | 桌面管理与诊断 HTTP API；旧浏览器 UI 已退役 | 不拥有独立 core；由产品宿主提供服务 | `infiltrator-admin`；退役事实见 `TAURI_WEBUI_RETIREMENT_LEDGER.md` | API contract 与调用方断线/重连兼容 |
+| External mihomo dashboard | 已随 WebUI 于 0.20 退役 | 管理能力由原生 Iced / Bevy 同权产品承担 | `TAURI_WEBUI_RETIREMENT_LEDGER.md` | — |
 
 ## 2. 平台边界
 
@@ -21,6 +22,7 @@
 - 平台 adapter 只处理进程、目录、凭据、VPN、系统代理、托盘、权限和 native lifecycle。
 - platform unavailable、permission denied、missing binary、unsupported 和 controller error 必须是不同结果。
 - Android 的 `MihomoHost.kt` 可以拥有 Process/VPN 的系统实现，但 profile/config 的 canonical 写入必须回到 Rust。
+- Android Bevy 的保留扩展、目标服务进程所有权和完整验收范围由 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md) 规定；上表描述当前状态，不将目标架构登记为现有实现。
 - Windows/Linux/macOS 的 core 资产与发布方式必须分别列出，不能把 Windows exe 当作“桌面支持”的证明。
 
 ## 3. 每个平台的最小验证层级

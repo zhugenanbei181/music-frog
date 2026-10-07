@@ -2,13 +2,19 @@
 //! machine used by every config save path (rules, providers, sniffer,
 //! DNS, Fake-IP, TUN).
 
+use crate::configs_dir::config_manager;
+use crate::host::boot::bootstrap_host_runtime_from_current_home;
+use crate::notify::NotifyUrgency;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::error::{InfiltratorError, from_mihomo};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_shared::i18n_interpolator::localize;
+use tokio::time;
+use tokio::time::sleep;
 
 impl AppState {
     fn active_rebuild_label(&self) -> String {
@@ -39,7 +45,7 @@ impl AppState {
         };
         let clear_backup = Task::perform(
             async {
-                if let Ok(manager) = crate::configs_dir::config_manager().await
+                if let Ok(manager) = config_manager().await
                     && let Ok(profile) = manager.get_current().await
                 {
                     let _ = manager.clear_backup(&profile).await;
@@ -55,7 +61,7 @@ impl AppState {
             )),
             Task::perform(
                 async {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                    sleep(time::Duration::from_secs(4)).await;
                 },
                 |_| Message::ClearRebuildFlow,
             ),
@@ -63,6 +69,7 @@ impl AppState {
     }
 
     pub(crate) fn trigger_runtime_rebuild(&mut self) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         let label = self.active_rebuild_label();
         let Some(runtime) = self.take_app_runtime() else {
             return self.finish_without_rebuild(label);
@@ -76,31 +83,25 @@ impl AppState {
         Task::perform(
             async move {
                 let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-                let manager = crate::configs_dir::config_manager().await?;
-                let profile = manager
-                    .get_current()
-                    .await
-                    .map_err(infiltrator_contract::error::from_mihomo)?;
+                let manager = config_manager().await?;
+                let profile = manager.get_current().await.map_err(from_mihomo)?;
                 let candidates = vec![];
-                match crate::host::boot::bootstrap_host_runtime_from_current_home(true, &candidates)
-                    .await
-                {
+                match bootstrap_host_runtime_from_current_home(true, &candidates).await {
                     Ok((runtime, _rotated)) => {
-                        manager
-                            .clear_backup(&profile)
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        manager.clear_backup(&profile).await.map_err(from_mihomo)?;
                         Ok(runtime)
                     }
                     Err(cause) => {
                         let restored = manager
                             .restore_backup(&profile)
                             .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                            .map_err(from_mihomo)?;
                         let _ = manager.clear_backup(&profile).await;
                         if restored {
-                            Err(InfiltratorError::Mihomo(format!(
-                                "重建失败，已恢复上一份配置: {cause}"
+                            Err(InfiltratorError::Mihomo(localize(
+                                &copy_locale,
+                                "core_rebuild_restored",
+                                &[("reason", cause.to_string())],
                             )))
                         } else {
                             Err(InfiltratorError::Mihomo(cause.to_string()))
@@ -139,7 +140,7 @@ impl AppState {
                             )),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -162,11 +163,11 @@ impl AppState {
                             self.system_notify(
                                 "notify_rebuild_failed",
                                 &e.to_string(),
-                                crate::notify::NotifyUrgency::Critical,
+                                NotifyUrgency::Critical,
                             ),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),

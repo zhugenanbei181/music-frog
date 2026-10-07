@@ -1,6 +1,9 @@
 # Node / pnpm artifacts
 node_modules/
 
+# Persistent local acceptance artifacts (kept outside cargo clean)
+.evidence/
+
 # Rust build artifacts
 target/
 crates/mihomo-dav-sync/target/
@@ -35,7 +38,6 @@ vendor/
 *.db-wal
 
 # Documentation
-AGENTS.md
 ANDROID.md
 GEMINI.md
 TODO.md

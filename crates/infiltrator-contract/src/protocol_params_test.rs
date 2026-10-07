@@ -1,15 +1,15 @@
 //! DUAL-05 typed parameter-block tests (05-03…05-08, 05-12).
 
-use crate::protocol_fidelity::ProtocolDraft;
+use crate::protocol_fidelity::{ProtocolDraft, ProtocolIssue};
 use crate::protocol_params::{
     EchParams, Hysteria2Params, ProtocolParams, ProtocolParamsReport, TuicParams,
 };
 use crate::protocol_params_ext::{
-    AnyTlsParams, PluginOptValue, Sip003Plugin, SshParams, TransportParams, TrojanSsParams,
-    WireGuardParams, WsOptsParams,
+    AmneziaWgParams, AnyTlsParams, GrpcOptsParams, PluginOptValue, Sip003Plugin, SshParams,
+    TransportParams, TrojanSsParams, WireGuardParams, WsOptsParams, XhttpOptsParams,
 };
 
-fn issue_fields(issues: &[crate::protocol_fidelity::ProtocolIssue]) -> Vec<&str> {
+fn issue_fields(issues: &[ProtocolIssue]) -> Vec<&str> {
     issues.iter().map(|issue| issue.field.as_str()).collect()
 }
 
@@ -222,7 +222,7 @@ fn wireguard_keys_reserved_and_amnezia_are_typed() {
         persistent_keepalive: 25,
         allowed_ips: vec!["0.0.0.0/0".into()],
         remote_dns_resolve: true,
-        amnezia: crate::protocol_params_ext::AmneziaWgParams {
+        amnezia: AmneziaWgParams {
             jc: Some(4),
             jmin: Some(40),
             jmax: Some(70),
@@ -246,12 +246,12 @@ fn wireguard_keys_reserved_and_amnezia_are_typed() {
     let bad = WireGuardParams {
         private_key: "short-key".into(),
         reserved: "1,2".into(),
-        amnezia: crate::protocol_params_ext::AmneziaWgParams {
+        amnezia: AmneziaWgParams {
             jmin: Some(90),
             jmax: Some(10),
             h1: Some(7),
             h2: Some(7),
-            ..crate::protocol_params_ext::AmneziaWgParams::default()
+            ..AmneziaWgParams::default()
         },
         ..WireGuardParams::default()
     };
@@ -302,7 +302,7 @@ fn transports_cover_ws_early_data_grpc_xhttp_and_quic_with_notes() {
             early_data_header_name: "Sec-WebSocket-Protocol".into(),
             ..WsOptsParams::default()
         },
-        grpc: crate::protocol_params_ext::GrpcOptsParams {
+        grpc: GrpcOptsParams {
             service_name: "svc".into(),
         },
         ..TransportParams::default()
@@ -330,7 +330,7 @@ fn transports_cover_ws_early_data_grpc_xhttp_and_quic_with_notes() {
 
     let xhttp = TransportParams {
         network: "xhttp".into(),
-        xhttp: crate::protocol_params_ext::XhttpOptsParams {
+        xhttp: XhttpOptsParams {
             mode: "stream-up".into(),
             path: "/x".into(),
             host: String::new(),
@@ -363,9 +363,9 @@ fn transports_cover_ws_early_data_grpc_xhttp_and_quic_with_notes() {
 
     let bad_xhttp = TransportParams {
         network: "xhttp".into(),
-        xhttp: crate::protocol_params_ext::XhttpOptsParams {
+        xhttp: XhttpOptsParams {
             mode: "turbo".into(),
-            ..crate::protocol_params_ext::XhttpOptsParams::default()
+            ..XhttpOptsParams::default()
         },
         ..TransportParams::default()
     };

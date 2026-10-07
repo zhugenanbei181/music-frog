@@ -1,8 +1,7 @@
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 use infiltrator_domain::redact::redact_line;
 use infiltrator_shared::error_codes::{InfiltratorErrorCode, StructuredError, get_localized_error};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BridgeRequest {

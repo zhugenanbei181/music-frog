@@ -2,8 +2,8 @@
 //! string/list normalization helpers, error mapping into [`FfiStatus`], and
 //! the mihomo controller client used by every live-query passthrough.
 
-use std::sync::OnceLock;
-
+use crate::ffi::{FfiErrorCode, FfiStatus};
+use crate::host_session::shared_core;
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::connection_application::ConnectionApplication;
@@ -14,6 +14,15 @@ use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_core::app_routing_io::FileAppRoutingStore;
+use infiltrator_core::doctor_port::MihomoDoctor;
+use infiltrator_core::fake_ip_cache_io::FileFakeIpCache;
+use infiltrator_core::public_ip_io::HttpPublicIpProbe;
+use infiltrator_core::settings_io;
+use infiltrator_core::settings_store::for_current_home;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
+use infiltrator_core::sync_port::FileWebDavSync;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
@@ -22,11 +31,8 @@ use mihomo_config::manager::ConfigManager;
 use mihomo_platform::android_bridge::get_android_bridge;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
+use std::sync::{Arc, OnceLock};
 use tokio::runtime::Runtime;
-
-use crate::ffi::{FfiErrorCode, FfiStatus};
-use crate::host_session::shared_core;
-use infiltrator_contract::error::{ErrorCode, Failure};
 pub(super) fn get_runtime() -> &'static Runtime {
     static RUNTIME: OnceLock<Runtime> = OnceLock::new();
     RUNTIME.get_or_init(|| Runtime::new().expect("failed to create tokio runtime"))
@@ -79,47 +85,44 @@ pub(super) async fn configs_dir_override() -> Option<String> {
 }
 
 pub(super) async fn build_settings_application() -> Result<SettingsApplication, FfiStatus> {
-    let store = infiltrator_core::settings_store::for_current_home().map_err(map_anyhow_error)?;
-    Ok(SettingsApplication::new(std::sync::Arc::new(store)))
+    let store = for_current_home().map_err(map_anyhow_error)?;
+    Ok(SettingsApplication::new(Arc::new(store)))
 }
 
 pub(super) async fn build_configuration_application() -> Result<ConfigurationApplication, FfiStatus>
 {
     let manager = build_config_manager().await?;
-    Ok(ConfigurationApplication::new(std::sync::Arc::new(manager)))
+    Ok(ConfigurationApplication::new(Arc::new(manager)))
 }
 
 pub(super) fn subscription_source() -> impl SubscriptionSource {
-    infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
+    HttpSubscriptionSource::with_default_clients()
 }
 
 pub(crate) async fn save_webdav_password(password: &str) -> Result<(), FfiStatus> {
     let store = DefaultCredentialStore::default();
-    infiltrator_core::settings_io::save_webdav_password(&store, password)
+    settings_io::save_webdav_password(&store, password)
         .await
         .map_err(map_anyhow_error)
 }
 
 pub(crate) async fn clear_webdav_password() {
     let store = DefaultCredentialStore::default();
-    infiltrator_core::settings_io::clear_webdav_password(&store).await;
+    settings_io::clear_webdav_password(&store).await;
 }
 
 pub(super) fn doctor_application() -> Result<DoctorApplication, FfiStatus> {
-    let doctor = infiltrator_core::doctor_port::MihomoDoctor::detect().map_err(map_anyhow_error)?;
-    Ok(DoctorApplication::new(std::sync::Arc::new(doctor)))
+    let doctor = MihomoDoctor::detect().map_err(map_anyhow_error)?;
+    Ok(DoctorApplication::new(Arc::new(doctor)))
 }
 
 pub(super) fn cache_application() -> CacheApplication {
-    CacheApplication::new(std::sync::Arc::new(
-        infiltrator_core::fake_ip_cache_io::FileFakeIpCache::current(),
-    ))
+    CacheApplication::new(Arc::new(FileFakeIpCache::current()))
 }
 
 pub(super) fn build_routing_application() -> Result<RoutingApplication, FfiStatus> {
-    let store = infiltrator_core::app_routing_io::FileAppRoutingStore::current()
-        .map_err(map_anyhow_error)?;
-    Ok(RoutingApplication::new(std::sync::Arc::new(store)))
+    let store = FileAppRoutingStore::current().map_err(map_anyhow_error)?;
+    Ok(RoutingApplication::new(Arc::new(store)))
 }
 
 /// ConfigManager wired for the configs-dir redirect. The `INFILTRATOR_CONFIGS_DIR`
@@ -173,9 +176,8 @@ pub(super) async fn build_controller_client() -> Result<MihomoClient, FfiStatus>
 /// Build the controller port at the Android composition boundary. FFI
 /// modules consume application facades rather than retaining a concrete
 /// `MihomoClient` or its Tokio receiver types.
-pub(super) async fn build_runtime_gateway() -> Result<std::sync::Arc<dyn RuntimeGateway>, FfiStatus>
-{
-    Ok(std::sync::Arc::new(build_controller_client().await?))
+pub(super) async fn build_runtime_gateway() -> Result<Arc<dyn RuntimeGateway>, FfiStatus> {
+    Ok(Arc::new(build_controller_client().await?))
 }
 
 pub(super) async fn build_proxy_application() -> Result<ProxyApplication, FfiStatus> {
@@ -192,16 +194,13 @@ pub(super) async fn build_runtime_query_application() -> Result<RuntimeQueryAppl
 }
 
 pub(super) fn network_application() -> NetworkApplication {
-    NetworkApplication::new(std::sync::Arc::new(
-        infiltrator_core::public_ip_io::HttpPublicIpProbe::with_geolocation_client(),
-    ))
+    NetworkApplication::new(Arc::new(HttpPublicIpProbe::with_geolocation_client()))
 }
 
 pub(super) async fn build_sync_application() -> Result<SyncApplication, FfiStatus> {
     let home = get_home_dir().map_err(map_mihomo_error)?;
-    let sync =
-        infiltrator_core::sync_port::FileWebDavSync::new(home, DefaultCredentialStore::default());
-    Ok(SyncApplication::new(std::sync::Arc::new(sync)))
+    let sync = FileWebDavSync::new(home, DefaultCredentialStore::default());
+    Ok(SyncApplication::new(Arc::new(sync)))
 }
 
 pub(super) fn map_anyhow_error(err: anyhow::Error) -> FfiStatus {
@@ -222,7 +221,8 @@ pub(super) fn map_application_failure(failure: Failure) -> FfiStatus {
         ErrorCode::Configuration => FfiErrorCode::Config,
         ErrorCode::Storage => FfiErrorCode::Io,
         ErrorCode::Permission => FfiErrorCode::InvalidState,
-        ErrorCode::Canceled | ErrorCode::Internal => FfiErrorCode::Unknown,
+        ErrorCode::Canceled => FfiErrorCode::Canceled,
+        ErrorCode::Internal => FfiErrorCode::Unknown,
     };
     FfiStatus::err(code, failure.message)
 }
@@ -246,6 +246,7 @@ fn map_mihomo_error_ref(err: &MihomoError) -> FfiStatus {
         MihomoError::Proxy(_) | MihomoError::NotFound(_) => {
             FfiStatus::err(FfiErrorCode::NotReady, err.to_string())
         }
+        MihomoError::Canceled => FfiStatus::err(FfiErrorCode::Canceled, err.to_string()),
     }
 }
 
@@ -256,13 +257,25 @@ mod tests {
     use infiltrator_domain::settings::AppSettings;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use std::env::var;
     use std::fs;
+    #[cfg(test)]
+    use std::path;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+    #[cfg(test)]
+    use tokio::sync::MutexGuard;
 
     const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
 
-    async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    async fn test_lock() -> MutexGuard<'static, ()> {
         TEST_LOCK.lock().await
     }
 
@@ -271,30 +284,29 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("infiltrator-android-cc-{tag}-{unique}"));
+        let path = temp_dir().join(format!("infiltrator-android-cc-{tag}-{unique}"));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).expect("create test home dir");
         path
     }
 
-    async fn write_settings_with_configs_dir(home: &std::path::Path, configs_dir: &str) {
+    async fn write_settings_with_configs_dir(home: &path::Path, configs_dir: &str) {
         let settings = AppSettings {
             configs_dir: Some(configs_dir.to_string()),
             ..AppSettings::default()
         };
-        let path =
-            infiltrator_core::settings_io::settings_path(home).expect("settings path resolves");
+        let path = settings_io::settings_path(home).expect("settings path resolves");
         save_settings(&path, &settings)
             .await
             .expect("save settings");
     }
 
     fn set_env(value: &str) {
-        unsafe { std::env::set_var(CONFIGS_DIR_ENV, value) };
+        unsafe { set_var(CONFIGS_DIR_ENV, value) };
     }
 
     fn clear_env() {
-        unsafe { std::env::remove_var(CONFIGS_DIR_ENV) };
+        unsafe { remove_var(CONFIGS_DIR_ENV) };
     }
 
     fn restore_env(saved: Option<String>) {
@@ -340,7 +352,7 @@ mod tests {
         set_home_dir_override(home.clone());
         write_settings_with_configs_dir(&home, "cloud/profiles").await;
 
-        let saved = std::env::var(CONFIGS_DIR_ENV).ok();
+        let saved = var(CONFIGS_DIR_ENV).ok();
         let env_dir = home.join("env-cloud");
         set_env(env_dir.to_str().unwrap());
 
@@ -358,7 +370,7 @@ mod tests {
         let home = make_test_home("default-dir");
         set_home_dir_override(home.clone());
 
-        let saved = std::env::var(CONFIGS_DIR_ENV).ok();
+        let saved = var(CONFIGS_DIR_ENV).ok();
         clear_env();
 
         let manager = build_config_manager().await.expect("manager builds");

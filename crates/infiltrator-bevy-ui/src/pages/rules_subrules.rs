@@ -7,12 +7,17 @@
 //! application builds and persists the composed rule through
 //! `infiltrator_domain::rules::edit` exactly like the wizard does.
 
+use crate::localized_widgets::localized_field_scene;
+use crate::pages::rules_builder::field_text;
+use crate::pages::rules_draft::{RuleDraftMutationButton, RulesDraftState};
+use crate::pages::rules_statistics::RulesStatisticsState;
 use bevy::ecs::component::Component;
+use bevy::ecs::entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
@@ -20,17 +25,18 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::logical_rule_projection::project_logical_rule;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
+use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::rule_edit::LogicalDraft;
 use infiltrator_domain::rules::{edit, logical};
-
-use crate::command::{CommandSinkHandle, UiCommand};
 
 /// Marker for the sub-rule builder card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -96,6 +102,7 @@ impl Default for RulesSubRuleState {
 /// draft it is built with; the interaction observer restamps and, when the
 /// condition rows change, rebuilds the list body from the same reduction.
 pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> impl Scene + use<> {
+    let display = project_logical_rule(&state.draft, "en-US");
     let chips: Vec<Box<dyn Scene>> = logical::LOGICAL_OPERATOR_CHOICES
         .iter()
         .enumerate()
@@ -135,10 +142,10 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 Children [
                                     @{ icon_tile_scene(IconId::Zap, 24.0, palette) }
                                     --
-                                    Text({ "逻辑子规则构建器 (Sub-Rules)".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_subrule_builder_title") TextRole(Role::BodyStrong)
                                     --
                                     Text({
-                                            format!("已选逻辑: {}", state.draft.operator)
+                                            display.selection.clone()
                                     }) SubRuleOperatorSelection TextRole(Role::Caption)
                                 ]
                                 --
@@ -183,9 +190,7 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 }
                                 SubRuleTargetField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(
-                                            state.draft.target.clone(),
-                                            "出站目标 e.g. PROXY".to_owned(),
+                                    @{ localized_field_scene(state.draft.target.clone(), LocalizedText::plain("field_subrule_target"),
                                             palette,
                                     ) }
                                 ]
@@ -205,9 +210,9 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text(preview_label(&state.draft)) SubRulePreviewLine TextRole(Role::Caption)
+                                    Text({display.preview.clone()}) SubRulePreviewLine TextRole(Role::Caption)
                                     --
-                                    Text(issue_label(&state.draft)) SubRuleIssueLine TextRole(Role::Caption)
+                                    Text({display.issue.clone()}) SubRuleIssueLine TextRole(Role::Caption)
                                 ]
                                 --
                                 Node {
@@ -219,28 +224,15 @@ pub fn rules_subrules_scene(palette: &UiPalette, state: &RulesSubRuleState) -> i
                                 }
                                 BackgroundColor({ palette.accent })
                                 Button
-                                SubRuleInsertButton
+                                SubRuleInsertButton RuleDraftMutationButton ButtonDisabled(true)
                                 Children [
-                                    Text({ "插入到分流规则".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("rules_insert_routing_action") TextRole(Role::BodyStrong)
                                 ]
                             ]
             }),
         ],
         palette,
     )
-}
-
-/// DUAL-11-02: the canonical expression preview the shared builder encodes.
-pub fn preview_label(draft: &LogicalDraft) -> String {
-    format!("预览: {}", logical::draft_expression(draft))
-}
-
-/// DUAL-11-02: the honest validation status of the current draft.
-pub fn issue_label(draft: &LogicalDraft) -> String {
-    match logical::draft_issue(draft) {
-        Some(issue) => format!("校验未通过: {issue}"),
-        None => "校验通过 · 可插入".to_owned(),
-    }
 }
 
 fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene + use<> {
@@ -251,7 +243,7 @@ fn condition_rows_scene(draft: &LogicalDraft, palette: &UiPalette) -> impl Scene
                         padding: UiRect::all(Val::Px(space::S6)),
                     }
                     Children [
-                        Text({ "尚未添加子条件".to_owned() }) TextRole(Role::Caption)
+                        LocalizedText::plain("subrules_no_conditions") TextRole(Role::Caption)
                     ]
         }) as Box<dyn Scene>]
     } else {
@@ -303,7 +295,7 @@ fn condition_row(index: usize, condition: String, palette: &UiPalette) -> impl S
                 Button
                 SubRuleRemoveConditionButton(index)
                 Children [
-                    Text({ "移除".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("aggregator_custom_remove") TextRole(Role::Caption)
                 ]
             ]
     }
@@ -360,7 +352,7 @@ fn preset_button(index: usize, preset: String, palette: &UiPalette) -> impl Scen
 /// Rebuild the condition list body from the shared draft.
 fn rebuild_condition_rows(
     commands: &mut Commands<'_, '_>,
-    list: bevy::ecs::entity::Entity,
+    list: entity::Entity,
     draft: &LogicalDraft,
     palette: &UiPalette,
 ) {
@@ -370,180 +362,62 @@ fn rebuild_condition_rows(
         .insert(ChildOf(list));
 }
 
-/// DUAL-11-02: apply a chip/preset/remove/insert action to the shared draft.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
+/// All access belongs to this single logical draft and its bounded condition list.
+#[derive(SystemParam)]
+pub struct SubRuleInteraction<'w, 's> {
+    chips: Query<'w, 's, &'static SubRuleOperatorChip>,
+    presets: Query<'w, 's, &'static SubRulePresetButton>,
+    removers: Query<'w, 's, &'static SubRuleRemoveConditionButton>,
+    insert_buttons: Query<'w, 's, (), With<SubRuleInsertButton>>,
+    target_wrappers: Query<'w, 's, &'static Children, With<SubRuleTargetField>>,
+    text_fields: Query<'w, 's, &'static TextField>,
+    lists: Query<'w, 's, entity::Entity, With<SubRuleConditionList>>,
+    state: ResMut<'w, RulesSubRuleState>,
+    palette: Res<'w, UiPalette>,
+    editor: ResMut<'w, RulesDraftState>,
+    statistics: Option<Res<'w, RulesStatisticsState>>,
+}
 pub(crate) fn on_rules_subrules_activated(
     activate: On<Activate>,
-    chips: Query<&SubRuleOperatorChip>,
-    presets: Query<&SubRulePresetButton>,
-    removers: Query<&SubRuleRemoveConditionButton>,
-    insert_buttons: Query<(), With<SubRuleInsertButton>>,
-    target_wrappers: Query<&Children, With<SubRuleTargetField>>,
-    text_fields: Query<&TextField>,
-    lists: Query<bevy::ecs::entity::Entity, With<SubRuleConditionList>>,
-    mut state: Option<ResMut<RulesSubRuleState>>,
-    palette: Res<UiPalette>,
+    mut interaction: SubRuleInteraction,
     mut commands: Commands,
-    mut previews: Query<
-        &mut Text,
-        (
-            With<SubRulePreviewLine>,
-            Without<SubRuleIssueLine>,
-            Without<SubRuleOperatorSelection>,
-        ),
-    >,
-    mut issues: Query<
-        &mut Text,
-        (
-            With<SubRuleIssueLine>,
-            Without<SubRulePreviewLine>,
-            Without<SubRuleOperatorSelection>,
-        ),
-    >,
-    mut selections: Query<
-        &mut Text,
-        (
-            With<SubRuleOperatorSelection>,
-            Without<SubRulePreviewLine>,
-            Without<SubRuleIssueLine>,
-        ),
-    >,
-    mut chip_fills: Query<(&mut BackgroundColor, &SubRuleOperatorChip)>,
-    handle: Option<Res<CommandSinkHandle>>,
 ) {
-    let Some(state) = state.as_deref_mut() else {
+    if interaction
+        .statistics
+        .as_ref()
+        .is_some_and(|state| state.model.confirmation.is_some())
+    {
         return;
+    }
+    let state = &mut interaction.state;
+    if let Ok(chip) = interaction.chips.get(activate.entity) {
+        if let Some(operator) = logical::LOGICAL_OPERATOR_CHOICES.get(chip.0) {
+            logical::select_operator(&mut state.draft, operator);
+        }
+        return;
+    }
+    let changed = if let Ok(preset) = interaction.presets.get(activate.entity) {
+        logical::SUB_RULE_CONDITION_PRESETS
+            .get(preset.0)
+            .is_some_and(|preset| logical::add_condition(&mut state.draft, preset))
+    } else if let Ok(remover) = interaction.removers.get(activate.entity) {
+        logical::remove_condition(&mut state.draft, remover.0)
+    } else {
+        false
     };
-
-    if let Ok(chip) = chips.get(activate.entity) {
-        let Some(operator) = logical::LOGICAL_OPERATOR_CHOICES.get(chip.0) else {
-            return;
-        };
-        if logical::select_operator(&mut state.draft, operator) {
-            restamp_subrules(
-                state,
-                &palette,
-                &mut previews,
-                &mut issues,
-                &mut selections,
-                &mut chip_fills,
-            );
+    if changed {
+        for list in &interaction.lists {
+            rebuild_condition_rows(&mut commands, list, &state.draft, &interaction.palette);
         }
         return;
     }
-
-    let mut conditions_changed = false;
-    if let Ok(preset) = presets.get(activate.entity) {
-        if let Some(condition) = logical::SUB_RULE_CONDITION_PRESETS.get(preset.0) {
-            conditions_changed = logical::add_condition(&mut state.draft, condition);
-        }
-    } else if let Ok(remover) = removers.get(activate.entity) {
-        conditions_changed = logical::remove_condition(&mut state.draft, remover.0);
-    }
-    if conditions_changed {
-        for list in lists.iter() {
-            rebuild_condition_rows(&mut commands, list, &state.draft, &palette);
-        }
-        restamp_subrules(
-            state,
-            &palette,
-            &mut previews,
-            &mut issues,
-            &mut selections,
-            &mut chip_fills,
-        );
+    if !interaction.insert_buttons.contains(activate.entity) {
         return;
     }
-
-    if !insert_buttons.contains(activate.entity) {
-        return;
-    }
-    // The target field is the live source of the outbound target.
-    if let Some(target) = crate::pages::rules_builder::field_text(&target_wrappers, &text_fields) {
+    if let Some(target) = field_text(&interaction.target_wrappers, &interaction.text_fields) {
         logical::set_target(&mut state.draft, &target);
     }
-    restamp_subrules(
-        state,
-        &palette,
-        &mut previews,
-        &mut issues,
-        &mut selections,
-        &mut chip_fills,
-    );
-    let Some(handle) = handle else {
-        return;
-    };
-    // The shared builder gates the submit: an invalid draft is never forwarded,
-    // and its issue stays visible on the status line.
-    if logical::build_logical_rule(&state.draft).is_err() {
-        return;
-    }
-    handle.submit(UiCommand::AddCustomRule {
-        rule_type: logical::draft_operator(&state.draft),
-        payload: logical::draft_payload(&state.draft.conditions),
-        target: state.draft.target.trim().to_owned(),
-    });
-}
-
-/// Restamp every text/fill the card owns from the shared draft.
-#[allow(clippy::type_complexity)]
-fn restamp_subrules(
-    state: &RulesSubRuleState,
-    palette: &UiPalette,
-    previews: &mut Query<
-        &mut Text,
-        (
-            With<SubRulePreviewLine>,
-            Without<SubRuleIssueLine>,
-            Without<SubRuleOperatorSelection>,
-        ),
-    >,
-    issues: &mut Query<
-        &mut Text,
-        (
-            With<SubRuleIssueLine>,
-            Without<SubRulePreviewLine>,
-            Without<SubRuleOperatorSelection>,
-        ),
-    >,
-    selections: &mut Query<
-        &mut Text,
-        (
-            With<SubRuleOperatorSelection>,
-            Without<SubRulePreviewLine>,
-            Without<SubRuleIssueLine>,
-        ),
-    >,
-    chip_fills: &mut Query<(&mut BackgroundColor, &SubRuleOperatorChip)>,
-) {
-    let want_preview = preview_label(&state.draft);
-    for mut text in previews.iter_mut() {
-        if text.0 != want_preview {
-            text.0 = want_preview.clone();
-        }
-    }
-    let want_issue = issue_label(&state.draft);
-    for mut text in issues.iter_mut() {
-        if text.0 != want_issue {
-            text.0 = want_issue.clone();
-        }
-    }
-    let want_selection = format!("已选逻辑: {}", state.draft.operator);
-    for mut text in selections.iter_mut() {
-        if text.0 != want_selection {
-            text.0 = want_selection.clone();
-        }
-    }
-    for (mut fill, chip) in chip_fills.iter_mut() {
-        let selected = logical::LOGICAL_OPERATOR_CHOICES
-            .get(chip.0)
-            .is_some_and(|candidate| *candidate == state.draft.operator);
-        let want = if selected {
-            palette.accent_container
-        } else {
-            palette.surface_elevated
-        };
-        fill.0 = want;
+    if let Ok(entry) = logical::build_logical_rule(&state.draft) {
+        interaction.editor.repaint |= interaction.editor.model.prepend([entry]);
     }
 }

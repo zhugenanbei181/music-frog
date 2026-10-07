@@ -22,11 +22,14 @@
 //! unmount of the overlay (what open / dismiss means) belongs to the host;
 //! a confirmed or canceled outcome does not unmount anything here.
 
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
@@ -35,10 +38,6 @@ use bevy::ui::prelude::{
     percent, px,
 };
 use bevy::ui::widget::Text;
-
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Panel width (px) — a context menu is a word-scale surface, not a card.
 pub const MENU_WIDTH: f32 = 220.0;
@@ -215,6 +214,26 @@ pub struct MenuRowIndex(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MenuSeparator;
 
+#[derive(QueryFilter)]
+pub struct MenuScrimFilter {
+    with_menu_scrim: With<MenuScrim>,
+    without_menu_panel: Without<MenuPanel>,
+}
+
+#[derive(QueryFilter)]
+pub struct MenuPanelFilter {
+    with_menu_panel: With<MenuPanel>,
+    without_menu_scrim: Without<MenuScrim>,
+}
+
+#[derive(QueryFilter)]
+pub struct MenuRowIndexFilter {
+    with_menu_row_index: With<MenuRowIndex>,
+    without_menu_panel: Without<MenuPanel>,
+    without_menu_scrim: Without<MenuScrim>,
+    without_menu_separator: Without<MenuSeparator>,
+}
+
 /// The row fill: the highlighted row paints the hover token (the hover
 /// color, used deliberately as the keyboard-highlight semantic so mouse and
 /// keyboard agree on one vocabulary); every other row paints the panel
@@ -341,21 +360,12 @@ pub fn advance_menus(
 /// unchanged frames cost nothing and a theme switch repaints the overlay
 /// with no switch-specific hook. The fill queries are provably disjoint by
 /// marker (scrim / panel / rows).
-#[allow(clippy::type_complexity)]
 pub fn sync_menu_visuals(
     palette: Res<UiPalette>,
-    mut scrims: Query<&mut BackgroundColor, (With<MenuScrim>, Without<MenuPanel>)>,
-    mut panels: Query<&mut BackgroundColor, (With<MenuPanel>, Without<MenuScrim>)>,
+    mut scrims: Query<&mut BackgroundColor, MenuScrimFilter>,
+    mut panels: Query<&mut BackgroundColor, MenuPanelFilter>,
     mut borders: Query<&mut BorderColor, With<MenuPanel>>,
-    mut rows: Query<
-        (&MenuRowIndex, &mut BackgroundColor),
-        (
-            With<MenuRowIndex>,
-            Without<MenuPanel>,
-            Without<MenuScrim>,
-            Without<MenuSeparator>,
-        ),
-    >,
+    mut rows: Query<(&MenuRowIndex, &mut BackgroundColor), MenuRowIndexFilter>,
     menus: Query<(&Menu, &Children)>,
 ) {
     let scrim = palette.scrim;

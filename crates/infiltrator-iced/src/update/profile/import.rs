@@ -1,17 +1,27 @@
 //! Profile import handlers: subscription-URL import and local YAML file
 //! import (file picker, metadata fields, activation).
 
+use crate::configs_dir::config_manager;
+use crate::host::storage::{subscription_import_port, subscription_source};
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::error::{InfiltratorError, from_mihomo};
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::profile_converter::ProfileConverter;
+use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_shared::locales::{Lang, Localizer};
+use std::path;
+use tokio::task::spawn_blocking;
 
 impl AppState {
     pub(super) fn update_import(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::UpdateImportUrl(url) => {
                 self.profile.import_url = url;
@@ -40,31 +50,25 @@ impl AppState {
                 self.profile.is_importing = true;
                 Task::perform(
                     async move {
-                        let profile_name =
-                            infiltrator_domain::profiles::sanitize_profile_name(&name)
-                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
-                        let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm
-                            .get_current()
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        let profile_name = sanitize_profile_name(&name)
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let cm = config_manager().await?;
+                        let current = cm.get_current().await.map_err(from_mihomo)?;
                         if runtime.is_some() && current == profile_name {
                             return Err(InfiltratorError::Config(
-                                "内核运行时不能直接覆盖当前配置，请先停止内核后再导入".to_string(),
+                                Lang(&copy_locale)
+                                    .tr("profile_import_requires_stopped_core")
+                                    .into_owned(),
                             ));
                         }
-                        let source = crate::host::storage::subscription_source();
+                        let source = subscription_source();
                         ProfileApplication::new(cm)
                             .import_subscription(&source, &profile_name, &url)
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
 
                         let reloaded = if activate {
-                            crate::update::core::profile_apply::activate_profile(
-                                runtime,
-                                &profile_name,
-                            )
-                            .await?
+                            activate_profile(runtime, &profile_name).await?
                         } else {
                             false
                         };
@@ -104,7 +108,7 @@ impl AppState {
             }
             Message::BrowseLocalImportFile => Task::perform(
                 async {
-                    tokio::task::spawn_blocking(|| {
+                    spawn_blocking(|| {
                         rfd::FileDialog::new()
                             .add_filter("Configs & Subscriptions", &["yaml", "yml", "json", "txt"])
                             .pick_file()
@@ -129,7 +133,7 @@ impl AppState {
             Message::UpdateLocalImportPath(path) => {
                 self.profile.local_import_path = path;
                 if self.profile.local_import_name.trim().is_empty()
-                    && let Some(stem) = std::path::Path::new(&self.profile.local_import_path)
+                    && let Some(stem) = path::Path::new(&self.profile.local_import_path)
                         .file_stem()
                         .and_then(|s| s.to_str())
                 {
@@ -160,26 +164,22 @@ impl AppState {
                 self.profile.is_importing_local = true;
                 Task::perform(
                     async move {
-                        let profile_name =
-                            infiltrator_domain::profiles::sanitize_profile_name(&name)
-                                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                        let profile_name = sanitize_profile_name(&name)
+                            .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         // DUAL-07-01: the local-file channel goes through the
                         // host import port so Iced no longer owns a second
                         // filesystem read path.
-                        let content = crate::host::storage::subscription_import_port()
+                        let content = subscription_import_port()
                             .read_local_file(&path)
                             .await
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        let content = infiltrator_domain::profile_converter::ProfileConverter::detect_and_convert(&content)
-                            .unwrap_or(content);
-                        infiltrator_domain::config::validate_yaml(&content)
+                        let content =
+                            ProfileConverter::detect_and_convert(&content).unwrap_or(content);
+                        validate_yaml(&content)
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
 
-                        let cm = crate::configs_dir::config_manager().await?;
-                        let current = cm
-                            .get_current()
-                            .await
-                            .map_err(infiltrator_contract::error::from_mihomo)?;
+                        let cm = config_manager().await?;
+                        let current = cm.get_current().await.map_err(from_mihomo)?;
                         let reloaded = match (runtime, current == profile_name) {
                             (Some(runtime), true) => {
                                 ManagedRuntime::apply_profile_content(
@@ -194,13 +194,9 @@ impl AppState {
                             (runtime, false) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(infiltrator_contract::error::from_mihomo)?;
+                                    .map_err(from_mihomo)?;
                                 if activate {
-                                    crate::update::core::profile_apply::activate_profile(
-                                        runtime,
-                                        &profile_name,
-                                    )
-                                    .await?
+                                    activate_profile(runtime, &profile_name).await?
                                 } else {
                                     false
                                 }
@@ -208,7 +204,7 @@ impl AppState {
                             (None, true) => {
                                 cm.save(&profile_name, &content)
                                     .await
-                                    .map_err(infiltrator_contract::error::from_mihomo)?;
+                                    .map_err(from_mihomo)?;
                                 false
                             }
                         };

@@ -3,48 +3,51 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`LogsLine`],
 //! [`LogMessageText`], [`LogTimestampText`], [`LogLevelText`], [`LogTagText`]).
-//! The page self-registers [`apply_logs_projection`] and action observers once
-//! per world via [`LogsPageRoot`]. When [`LogsProjectionUpdated`] fires, texts,
+//! [`LogsPagePlugin`] registers [`apply_logs_projection`] and action observers once
+//! at product assembly. When [`LogsProjectionUpdated`] fires, texts,
 //! level colors, and filter buttons restamp in place without tree rebuilds.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::logs_export::{LogsExportPlugin, LogsExportState};
+use crate::pages::logs_follow::{LogFollowLabel, LogsFollowPlugin};
+use crate::pages::logs_rows::{LogRowIdentity, LogRowsContainer, LogsRowsPlugin};
+use crate::pages::logs_search::{LogsSearchPlugin, logs_search_scene};
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::button::ControlVisual;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsInk};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{PageRoot, Route};
+use infiltrator_composition::demo_identities::{HK_PRIMARY, PROXIES, US};
+use infiltrator_contract::logs::LogLevel;
+use infiltrator_contract::session::SessionToken;
+use infiltrator_contract::surface_snapshot::PageStatus;
 
 /// Root marker on the Logs page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_logs_page)]
 pub struct LogsPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct LogsPageBound;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -60,18 +63,22 @@ pub enum LogsLineKind {
 
 /// Marker for log entry message text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(TextRuns)]
 pub struct LogMessageText(pub usize);
 
 /// Marker for log entry timestamp text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(TextRuns)]
 pub struct LogTimestampText(pub usize);
 
 /// Marker for log entry level tag text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(TextRuns)]
 pub struct LogLevelText(pub usize);
 
 /// Marker for log entry category tag text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(TextRuns)]
 pub struct LogTagText(pub usize);
 
 /// Marker for the "Clear Logs" button.
@@ -80,6 +87,7 @@ pub struct ClearLogsButton;
 
 /// Marker for the "Pause Logs / Scroll Lock" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(ControlVisual)]
 pub struct PauseLogsButton;
 
 /// Marker for the "Export Logs" button.
@@ -92,31 +100,10 @@ pub struct LogLevelFilterButton {
     pub level: Option<LogLevel>,
 }
 
-/// Severity log levels.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LogLevel {
-    Debug,
-    #[default]
-    Info,
-    Warn,
-    Error,
-}
-
-impl LogLevel {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Debug => "DEBUG",
-            Self::Info => "INFO",
-            Self::Warn => "WARN",
-            Self::Error => "ERROR",
-        }
-    }
-}
-
 /// Color for log level tag.
 pub fn log_level_color(level: LogLevel, palette: &UiPalette) -> Color {
     match level {
-        LogLevel::Debug => palette.ink_dim,
+        LogLevel::Debug | LogLevel::Unknown => palette.ink_dim,
         LogLevel::Info => palette.accent,
         LogLevel::Warn => palette.warning,
         LogLevel::Error => palette.danger,
@@ -126,6 +113,7 @@ pub fn log_level_color(level: LogLevel, palette: &UiPalette) -> Color {
 /// A single log entry item.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LogEntry {
+    pub id: u64,
     pub timestamp: String,
     pub level: LogLevel,
     pub tag: String,
@@ -135,6 +123,9 @@ pub struct LogEntry {
 /// Snapshot of the Logs domain.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LogsProjection {
+    pub status: PageStatus,
+    pub generation: u64,
+    pub session_token: Option<SessionToken>,
     pub total_entries: usize,
     pub active_level: Option<LogLevel>,
     pub entries: Vec<LogEntry>,
@@ -144,38 +135,46 @@ impl LogsProjection {
     /// Believable demo fixture for the Logs page.
     pub fn demo() -> Self {
         Self {
+            status: PageStatus::Ready,
+            generation: 0,
+            session_token: None,
             total_entries: 5,
             active_level: None,
             entries: vec![
                 LogEntry {
+                    id: 1,
                     timestamp: "10:14:02.124".to_owned(),
                     level: LogLevel::Info,
                     tag: "TCP".to_owned(),
-                    message: "[TCP] 127.0.0.1:54120 --> api.github.com:443 match DomainSuffix(github.com) using 节点选择[🇭🇰 香港 01]".to_owned(),
+                    message: format!("[TCP] 127.0.0.1:54120 --> api.github.com:443 match DomainSuffix(github.com) using {PROXIES}[{HK_PRIMARY}]"),
                 },
                 LogEntry {
+                    id: 2,
                     timestamp: "10:14:03.018".to_owned(),
                     level: LogLevel::Info,
                     tag: "DNS".to_owned(),
                     message: "[DNS] resolve manifest.googlevideo.com via https://1.1.1.1/dns-query -> 172.217.160.78 (32ms)".to_owned(),
                 },
                 LogEntry {
+                    id: 3,
                     timestamp: "10:14:04.550".to_owned(),
                     level: LogLevel::Warn,
                     tag: "TUN".to_owned(),
                     message: "[TUN] high socket buffer pressure (85% capacity reached on utun9)".to_owned(),
                 },
                 LogEntry {
+                    id: 4,
                     timestamp: "10:14:05.102".to_owned(),
                     level: LogLevel::Debug,
                     tag: "ROUTING".to_owned(),
                     message: "[ROUTING] process matched: Discord (pid: 11024) -> rule: DOMAIN-SUFFIX discord.gg".to_owned(),
                 },
                 LogEntry {
+                    id: 5,
                     timestamp: "10:14:08.882".to_owned(),
                     level: LogLevel::Error,
                     tag: "PROXY".to_owned(),
-                    message: "[PROXY] dial timeout on backup node 🇺🇸 美国硅谷 01 (after 5000ms)".to_owned(),
+                    message: format!("[PROXY] dial timeout on backup node {US} (after 5000ms)"),
                 },
             ],
         }
@@ -193,11 +192,6 @@ pub struct LastLogsProjection(pub Option<LogsProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!(
-        "运行日志 · 环形缓冲区共 {} 行日志",
-        projection.total_entries
-    );
-
     let log_scenes: Vec<Box<dyn Scene>> = projection
         .entries
         .iter()
@@ -218,17 +212,19 @@ pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene
             }
             PageRoot(Route::Logs)
             LogsPageRoot
+            ScrollArea
             Children [
-                @{ header_card_scene(summary, palette) }
+                @{ header_card_scene(projection.total_entries, palette) }
+                --
+                @{ logs_search_scene(palette) }
                 --
                 @{ logs_container_scene(log_scenes, projection.active_level, palette) }
             ]
     }
 }
 
-pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("运行日志控制栏");
+pub fn header_card_scene(total_entries: usize, palette: &UiPalette) -> impl Scene + use<> {
+    let header_a11y = accesskit::Node::new(accesskit::Role::Header);
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -237,8 +233,10 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                         align_items: AlignItems::Center,
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: Val::Px(space::S16),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(space::S8),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) LocalizedLabel::plain("logs_toolbar_label")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -247,7 +245,7 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                         Children [
                             @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
                             --
-                            Text(summary) LogsLine(LogsLineKind::Summary) TextRole(Role::Heading)
+                            LocalizedText::new("logs_buffer_summary", vec![("count", total_entries.to_string())]) LogsLine(LogsLineKind::Summary) TextRole(Role::Heading)
                         ]
                         --
                         Node {
@@ -266,7 +264,7 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             PauseLogsButton
                             Button
                             Children [
-                                Text({ "滚屏锁定".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("logs_scroll_lock") LogFollowLabel TextRole(Role::Body)
                             ]
                             --
                             Node {
@@ -280,7 +278,7 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             ExportLogsButton
                             Button
                             Children [
-                                Text({ "导出日志".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("logs_export_action") TextRole(Role::Body)
                             ]
                             --
                             Node {
@@ -294,21 +292,13 @@ pub fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + u
                             ClearLogsButton
                             Button
                             Children [
-                                Text({ "清空".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("common_clear") TextRole(Role::Body)
                             ]
                         ]
                     ]
         })],
         palette,
     )
-}
-
-pub fn toolbar_card_scene(
-    summary: String,
-    _active_level: Option<LogLevel>,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    header_card_scene(summary, palette)
 }
 
 fn level_filter_pill(
@@ -323,7 +313,13 @@ fn level_filter_pill(
         palette.surface_elevated
     };
     let label_str = label.to_owned();
+    let label_scene: Box<dyn Scene> = if level.is_none() {
+        Box::new(bsn! { LocalizedText::plain("logs_level_all") TextRole(Role::Caption) })
+    } else {
+        Box::new(bsn! { Text(label_str) TextRole(Role::Caption) })
+    };
 
+    let label_scenes = vec![label_scene];
     bsn! {
             Node {
                 height: px(palette.control_height_px * 0.8),
@@ -337,7 +333,7 @@ fn level_filter_pill(
             LogLevelFilterButton { level: { level } }
             Button
             Children [
-                Text(label_str) TextRole(Role::Caption)
+                { label_scenes }
             ]
     }
 }
@@ -353,18 +349,22 @@ fn logs_container_scene(
                             Node {
                                 width: percent(100),
                                 align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(space::S8),
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "实时日志输出 (Logs Stream)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("logs_stream_title") TextRole(Role::BodyStrong)
                                 --
                                 Node {
+                                    width: percent(100),
                                     align_items: AlignItems::Center,
                                     column_gap: Val::Px(space::S6),
+                                    flex_wrap: FlexWrap::Wrap,
+                                    row_gap: Val::Px(space::S4),
                                 }
                                 Children [
-                                    @{ level_filter_pill("全部", None, active_level.is_none(), palette) }
+                                    @{ level_filter_pill("", None, active_level.is_none(), palette) }
                                     --
                                     @{ level_filter_pill("DEBUG", Some(LogLevel::Debug), active_level == Some(LogLevel::Debug), palette) }
                                     --
@@ -373,6 +373,8 @@ fn logs_container_scene(
                                     @{ level_filter_pill("WARN", Some(LogLevel::Warn), active_level == Some(LogLevel::Warn), palette) }
                                     --
                                     @{ level_filter_pill("ERROR", Some(LogLevel::Error), active_level == Some(LogLevel::Error), palette) }
+                                    --
+                                    @{ level_filter_pill("UNKNOWN", Some(LogLevel::Unknown), active_level == Some(LogLevel::Unknown), palette) }
                                 ]
                             ]
             }),
@@ -382,6 +384,7 @@ fn logs_container_scene(
                                 flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(space::S4),
                             }
+                            LogRowsContainer
                             Children [
                                 { log_scenes }
                             ]
@@ -391,7 +394,12 @@ fn logs_container_scene(
     )
 }
 
-fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl Scene + use<> {
+pub(super) fn log_row_scene(
+    idx: usize,
+    entry: &LogEntry,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    let id = entry.id;
     let time = entry.timestamp.clone();
     let level_str = format!("[{}]", entry.level.label());
     let level_color = log_level_color(entry.level, palette);
@@ -408,10 +416,11 @@ fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl Scen
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
             }
             BackgroundColor({ palette.surface_elevated })
+            LogRowIdentity(id)
             Children [
                 Text(time) LogTimestampText(idx) TextRole(Role::Caption)
                 --
-                Text(level_str) LogLevelText(idx) TextRole(Role::BodyStrong) TextColor(level_color)
+                Text(level_str) LogLevelText(idx) TextRole(Role::BodyStrong) TextColor(level_color) TextRunsInk(level_color)
                 --
                 Text(tag_str) LogTagText(idx) TextRole(Role::Caption)
                 --
@@ -420,24 +429,36 @@ fn log_row_scene(idx: usize, entry: &LogEntry, palette: &UiPalette) -> impl Scen
     }
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_logs_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<LogsPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct LogsPagePlugin;
+
+impl Plugin for LogsPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LastLogsProjection>()
+            .add_plugins((
+                LogsRowsPlugin,
+                LogsSearchPlugin,
+                LogsFollowPlugin,
+                LogsExportPlugin,
+            ))
+            .add_observer(apply_logs_projection);
+        app.add_observer(on_logs_action_activated);
     }
-    let mut commands = world.commands();
-    commands.insert_resource(LogsPageBound);
-    commands.add_observer(apply_logs_projection);
-    commands.add_observer(on_logs_action_activated);
 }
 
-pub(crate) fn on_logs_action_activated(
+fn on_logs_action_activated(
     activate: On<Activate>,
     clear_buttons: Query<(), With<ClearLogsButton>>,
     filter_buttons: Query<&LogLevelFilterButton>,
     handle: Option<Res<CommandSinkHandle>>,
+    export: Res<LogsExportState>,
 ) {
+    if export.model.open {
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
@@ -450,62 +471,23 @@ pub(crate) fn on_logs_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_logs_projection(
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct LogCopy {
+    text: &'static mut Text,
+    color: Option<&'static mut TextColor>,
+    summary: Option<&'static LogsLine>,
+    localized: Option<&'static mut LocalizedText>,
+    message: Option<&'static LogMessageText>,
+    timestamp: Option<&'static LogTimestampText>,
+    level: Option<&'static LogLevelText>,
+    tag: Option<&'static LogTagText>,
+}
+fn apply_logs_projection(
     update: On<LogsProjectionUpdated>,
     palette: Res<UiPalette>,
-    mut last: Option<ResMut<LastLogsProjection>>,
-    mut lines: Query<
-        (&mut Text, &LogsLine),
-        (
-            With<LogsLine>,
-            Without<LogMessageText>,
-            Without<LogTimestampText>,
-            Without<LogLevelText>,
-            Without<LogTagText>,
-        ),
-    >,
-    mut messages: Query<
-        (&mut Text, &LogMessageText),
-        (
-            With<LogMessageText>,
-            Without<LogsLine>,
-            Without<LogTimestampText>,
-            Without<LogLevelText>,
-            Without<LogTagText>,
-        ),
-    >,
-    mut timestamps: Query<
-        (&mut Text, &LogTimestampText),
-        (
-            With<LogTimestampText>,
-            Without<LogsLine>,
-            Without<LogMessageText>,
-            Without<LogLevelText>,
-            Without<LogTagText>,
-        ),
-    >,
-    mut levels: Query<
-        (&mut Text, &mut TextColor, &LogLevelText),
-        (
-            With<LogLevelText>,
-            Without<LogsLine>,
-            Without<LogMessageText>,
-            Without<LogTimestampText>,
-            Without<LogTagText>,
-        ),
-    >,
-    mut tags: Query<
-        (&mut Text, &LogTagText),
-        (
-            With<LogTagText>,
-            Without<LogsLine>,
-            Without<LogMessageText>,
-            Without<LogTimestampText>,
-            Without<LogLevelText>,
-        ),
-    >,
+    mut last: ResMut<LastLogsProjection>,
+    mut copies: Query<LogCopy>,
     mut filter_buttons: Query<(
         &mut BackgroundColor,
         &mut ControlVisual,
@@ -513,18 +495,35 @@ pub(crate) fn apply_logs_projection(
     )>,
 ) {
     let projection = &update.0;
-
-    for (mut text, line) in &mut lines {
-        match line.0 {
-            LogsLineKind::Summary => {
-                text.0 = format!(
-                    "运行日志 · 环形缓冲区共 {} 行日志",
-                    projection.total_entries
+    for mut copy in &mut copies {
+        if copy.summary.is_some() {
+            if let Some(ref mut localized) = copy.localized {
+                **localized = LocalizedText::new(
+                    "logs_buffer_summary",
+                    vec![("count", projection.total_entries.to_string())],
                 );
             }
+        } else if let Some(marker) = copy.message {
+            if let Some(entry) = projection.entries.get(marker.0) {
+                copy.text.0 = entry.message.clone();
+            }
+        } else if let Some(marker) = copy.timestamp {
+            if let Some(entry) = projection.entries.get(marker.0) {
+                copy.text.0 = entry.timestamp.clone();
+            }
+        } else if let Some(marker) = copy.level {
+            if let Some(entry) = projection.entries.get(marker.0) {
+                copy.text.0 = format!("[{}]", entry.level.label());
+                if let Some(ref mut color) = copy.color {
+                    color.0 = log_level_color(entry.level, &palette);
+                }
+            }
+        } else if let Some(marker) = copy.tag
+            && let Some(entry) = projection.entries.get(marker.0)
+        {
+            copy.text.0 = format!("[{}]", entry.tag);
         }
     }
-
     for (mut bg, mut visual, btn) in &mut filter_buttons {
         let active = btn.level == projection.active_level;
         visual.0 = active;
@@ -534,35 +533,7 @@ pub(crate) fn apply_logs_projection(
             palette.surface_elevated
         };
     }
-
-    for (mut text, marker) in &mut messages {
-        if let Some(entry) = projection.entries.get(marker.0) {
-            text.0 = entry.message.clone();
-        }
-    }
-
-    for (mut text, marker) in &mut timestamps {
-        if let Some(entry) = projection.entries.get(marker.0) {
-            text.0 = entry.timestamp.clone();
-        }
-    }
-
-    for (mut text, mut color, marker) in &mut levels {
-        if let Some(entry) = projection.entries.get(marker.0) {
-            text.0 = format!("[{}]", entry.level.label());
-            color.0 = log_level_color(entry.level, &palette);
-        }
-    }
-
-    for (mut text, marker) in &mut tags {
-        if let Some(entry) = projection.entries.get(marker.0) {
-            text.0 = format!("[{}]", entry.tag);
-        }
-    }
-
-    if let Some(ref mut last_proj) = last {
-        last_proj.0 = Some(projection.clone());
-    }
+    last.0 = Some(projection.clone());
 }
 
 #[cfg(test)]
@@ -579,7 +550,7 @@ mod tests {
         assert_eq!(proj.entries[0].tag, "TCP");
         assert_eq!(
             proj.entries[0].message,
-            "[TCP] 127.0.0.1:54120 --> api.github.com:443 match DomainSuffix(github.com) using 节点选择[🇭🇰 香港 01]"
+            "[TCP] 127.0.0.1:54120 --> api.github.com:443 match DomainSuffix(github.com) using PROXIES[HK-01]"
         );
         assert_eq!(proj.entries[2].level, LogLevel::Warn);
         assert_eq!(proj.entries[2].tag, "TUN");

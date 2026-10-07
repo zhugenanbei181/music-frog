@@ -1,8 +1,9 @@
 /// Headless integration tests for the 4-tier responsive breakpoint and multi-end adaptive layout engine.
 use bevy::MinimalPlugins;
-use bevy::app::{App, Startup};
+use bevy::app::{App, Startup, Update};
 use bevy::asset::AssetPlugin;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, Scene, ScenePlugin, bsn};
 use bevy::ui::prelude::{Display, FlexDirection, JustifyContent, Node, Val, percent, px};
@@ -283,7 +284,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
     // 1. Expanded (1000px): basis 31%
     {
         let world = app.world_mut();
-        let mut items = world.query_filtered::<&Node, bevy::ecs::query::With<FluidGridItem>>();
+        let mut items = world.query_filtered::<&Node, With<FluidGridItem>>();
         for node in items.iter(world) {
             assert_eq!(node.flex_basis, percent(31));
         }
@@ -297,7 +298,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
 
     {
         let world = app.world_mut();
-        let mut items = world.query_filtered::<&Node, bevy::ecs::query::With<FluidGridItem>>();
+        let mut items = world.query_filtered::<&Node, With<FluidGridItem>>();
         for node in items.iter(world) {
             assert_eq!(node.flex_basis, percent(100));
         }
@@ -311,7 +312,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
 
     {
         let world = app.world_mut();
-        let mut items = world.query_filtered::<&Node, bevy::ecs::query::With<FluidGridItem>>();
+        let mut items = world.query_filtered::<&Node, With<FluidGridItem>>();
         for node in items.iter(world) {
             assert_eq!(node.flex_basis, percent(48));
         }
@@ -325,7 +326,7 @@ fn fluid_card_grid_responsive_basis_and_gaps() {
 
     {
         let world = app.world_mut();
-        let mut items = world.query_filtered::<&Node, bevy::ecs::query::With<FluidGridItem>>();
+        let mut items = world.query_filtered::<&Node, With<FluidGridItem>>();
         for node in items.iter(world) {
             assert_eq!(node.flex_basis, percent(23));
         }
@@ -371,8 +372,8 @@ fn master_detail_split_and_stacked_navigation() {
     // 1. On Expanded (1000px): both Master and Detail panes are visible simultaneously
     {
         let world = app.world_mut();
-        let mut master = world.query_filtered::<&Node, bevy::ecs::query::With<MasterPane>>();
-        let mut detail = world.query_filtered::<&Node, bevy::ecs::query::With<DetailPane>>();
+        let mut master = world.query_filtered::<&Node, With<MasterPane>>();
+        let mut detail = world.query_filtered::<&Node, With<DetailPane>>();
 
         assert_eq!(master.iter(world).next().unwrap().display, Display::Flex);
         assert_eq!(detail.iter(world).next().unwrap().display, Display::Flex);
@@ -386,8 +387,8 @@ fn master_detail_split_and_stacked_navigation() {
 
     {
         let world = app.world_mut();
-        let mut master = world.query_filtered::<&Node, bevy::ecs::query::With<MasterPane>>();
-        let mut detail = world.query_filtered::<&Node, bevy::ecs::query::With<DetailPane>>();
+        let mut master = world.query_filtered::<&Node, With<MasterPane>>();
+        let mut detail = world.query_filtered::<&Node, With<DetailPane>>();
 
         assert_eq!(master.iter(world).next().unwrap().display, Display::Flex);
         assert_eq!(detail.iter(world).next().unwrap().display, Display::None);
@@ -406,8 +407,8 @@ fn master_detail_split_and_stacked_navigation() {
         assert_eq!(state.active_view, MasterDetailView::Detail);
 
         let world_mut = app.world_mut();
-        let mut master = world_mut.query_filtered::<&Node, bevy::ecs::query::With<MasterPane>>();
-        let mut detail = world_mut.query_filtered::<&Node, bevy::ecs::query::With<DetailPane>>();
+        let mut master = world_mut.query_filtered::<&Node, With<MasterPane>>();
+        let mut detail = world_mut.query_filtered::<&Node, With<DetailPane>>();
 
         assert_eq!(
             master.iter(world_mut).next().unwrap().display,
@@ -429,8 +430,8 @@ fn master_detail_split_and_stacked_navigation() {
         assert_eq!(state.active_view, MasterDetailView::Master);
 
         let world_mut = app.world_mut();
-        let mut master = world_mut.query_filtered::<&Node, bevy::ecs::query::With<MasterPane>>();
-        let mut detail = world_mut.query_filtered::<&Node, bevy::ecs::query::With<DetailPane>>();
+        let mut master = world_mut.query_filtered::<&Node, With<MasterPane>>();
+        let mut detail = world_mut.query_filtered::<&Node, With<DetailPane>>();
 
         assert_eq!(
             master.iter(world_mut).next().unwrap().display,
@@ -460,6 +461,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
             }) as Box<dyn Scene>];
             commands.spawn_scene(adaptive_modal_scene(
                 "Test Modal".to_owned(),
+                "Close".to_owned(),
                 body,
                 actions,
                 &palette,
@@ -472,7 +474,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
     // 1. Initially closed: Display::None
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         assert_eq!(roots.iter(world).next().unwrap().display, Display::None);
     }
 
@@ -482,8 +484,8 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
-        let mut cards = world.query_filtered::<&Node, bevy::ecs::query::With<ModalCard>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
+        let mut cards = world.query_filtered::<&Node, With<ModalCard>>();
 
         let root = roots.iter(world).next().unwrap();
         assert_eq!(root.display, Display::Flex);
@@ -503,8 +505,8 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
-        let mut cards = world.query_filtered::<&Node, bevy::ecs::query::With<ModalCard>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
+        let mut cards = world.query_filtered::<&Node, With<ModalCard>>();
 
         let root = roots.iter(world).next().unwrap();
         assert_eq!(root.display, Display::Flex);
@@ -525,7 +527,7 @@ fn adaptive_modal_morphology_actionsheet_and_dialog() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         assert_eq!(roots.iter(world).next().unwrap().display, Display::None);
     }
 }
@@ -581,7 +583,7 @@ fn test_sync_fluid_grid_layout_measured_vs_fallback() {
     let item = app.world_mut().spawn((FluidGridItem, Node::default())).id();
     app.world_mut().entity_mut(grid).add_child(item);
 
-    app.add_systems(bevy::app::Update, sync_fluid_grid_layout);
+    app.add_systems(Update, sync_fluid_grid_layout);
     app.update();
 
     // Without ComputedNode, item gets fallback percent basis
@@ -669,7 +671,10 @@ fn touch_hitbox_auto_insert_on_buttons() {
         ))
         .id();
 
-    assert!(app.world().get::<TouchHitbox>(entity).is_none());
+    assert!(
+        app.world().get::<TouchHitbox>(entity).is_some(),
+        "required hitbox exists at creation, before any deferred frame"
+    );
 
     app.update();
 

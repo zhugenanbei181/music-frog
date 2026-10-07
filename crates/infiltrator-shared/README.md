@@ -1,18 +1,7 @@
 # infiltrator-shared
 
-## 1. Role (单一职责与定位)
-三端（Iced / Web / Android）共享的基础模型与契约层，提供全端统一的强类型错误码、多语言国际化文案与多端用户意图注册表。
+MusicFrog 各产品复用的基础类型与国际化资源。它提供统一错误码、基础展示工具，以及简体中文和英语文案；Iced、Bevy UI 和移动宿主使用同一套翻译与单次参数插值。用户提供的配置名、节点名和日志正文保持原样。
 
-## 2. Boundary (依赖边界与禁止耦合)
-- 依赖上游: 标准通用工具库 (`serde`, `anyhow`, `thiserror`)。
-- 禁止反向依赖: 禁止依赖项目内具体业务/平台 crate (`infiltrator-core`, `infiltrator-desktop` 等)。
-- 零转发导入原则: 禁止一切 re-export（`pub use` / `pub(crate) use` 转发层，含 glob），禁止 `use ... as 别名`（`as _` 匿名 trait 导入除外）；一切导入走定义模块的规范路径。由 `scripts/quality/import-guard.py` 在 CI 强制。
+业务投影由 application 生成，此 crate 不依赖具体业务宿主或 UI 框架。静态文案、动态文案模板和错误说明在这里维护，原生控件负责回放及无障碍标签更新。
 
-## 3. Contract (核心公开类型与对外契约)
-- `InfiltratorErrorCode` & `StructuredError`: 全端强类型错误码与结构化排错建议。
-- `get_localized_error`: 多语言文案解析与参数动态插值。
-- `IntentRegistry` & `UserIntent`: 多端用户意图与能力支持矩阵。
-
-## 4. Verification (验证与测试指引)
-- 运行测试（工作区全量统一入口）: `bash scripts/test.sh`
-- 质量门禁: 遵守 `line-guard.py`（单文件 ≤ 800 行）与 `doc-link-guard.py`
+验证入口是根目录的 `bash scripts/test.sh`，国际化结构检查使用 `python3 scripts/quality/i18n-guard.py --mode enforce`。

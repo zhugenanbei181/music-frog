@@ -5,9 +5,13 @@
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs;
+use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::id;
+use std::str::FromStr;
+use std::{fmt, fs};
 
 /// Target release channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,8 +24,8 @@ pub enum UpdateChannel {
     Nightly,
 }
 
-impl std::fmt::Display for UpdateChannel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for UpdateChannel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Stable => write!(f, "stable"),
             Self::Beta => write!(f, "beta"),
@@ -30,7 +34,7 @@ impl std::fmt::Display for UpdateChannel {
     }
 }
 
-impl std::str::FromStr for UpdateChannel {
+impl FromStr for UpdateChannel {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -100,8 +104,8 @@ impl SemVer {
     }
 }
 
-impl std::fmt::Display for SemVer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SemVer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
         if let Some(ref pre) = self.pre_release {
             write!(f, "-{}", pre)?;
@@ -114,31 +118,31 @@ impl std::fmt::Display for SemVer {
 }
 
 impl PartialOrd for SemVer {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for SemVer {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         // Major, minor, patch comparison
         match (self.major, self.minor, self.patch).cmp(&(other.major, other.minor, other.patch)) {
-            std::cmp::Ordering::Equal => {}
+            Ordering::Equal => {}
             ord => return ord,
         }
 
         // SemVer 2.0.0 rule: normal version is greater than pre-release version
         match (&self.pre_release, &other.pre_release) {
-            (None, None) => std::cmp::Ordering::Equal,
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => Ordering::Equal,
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
             (Some(a), Some(b)) => compare_prerelease(a, b),
         }
     }
 }
 
 /// Helper to compare pre-release identifiers per SemVer 2.0.0 rules.
-fn compare_prerelease(a: &str, b: &str) -> std::cmp::Ordering {
+fn compare_prerelease(a: &str, b: &str) -> Ordering {
     let parts_a: Vec<&str> = a.split('.').collect();
     let parts_b: Vec<&str> = b.split('.').collect();
 
@@ -148,13 +152,13 @@ fn compare_prerelease(a: &str, b: &str) -> std::cmp::Ordering {
 
         match (na, nb) {
             (Some(num_a), Some(num_b)) => match num_a.cmp(&num_b) {
-                std::cmp::Ordering::Equal => continue,
+                Ordering::Equal => continue,
                 ord => return ord,
             },
-            (Some(_), None) => return std::cmp::Ordering::Less,
-            (None, Some(_)) => return std::cmp::Ordering::Greater,
+            (Some(_), None) => return Ordering::Less,
+            (None, Some(_)) => return Ordering::Greater,
             (None, None) => match pa.cmp(pb) {
-                std::cmp::Ordering::Equal => continue,
+                Ordering::Equal => continue,
                 ord => return ord,
             },
         }
@@ -558,7 +562,7 @@ impl ClientUpdater {
 
         let backup_path = parent.join(format!("{}.bak", file_stem));
         let old_path = parent.join(format!("{}.old", file_stem));
-        let temp_staged = parent.join(format!("{}.tmp.{}", file_stem, std::process::id()));
+        let temp_staged = parent.join(format!("{}.tmp.{}", file_stem, id()));
 
         // Clean up any stale .old or .bak files in target directory
         let _ = fs::remove_file(&old_path);
@@ -677,7 +681,7 @@ impl ClientUpdater {
 
         #[cfg(not(windows))]
         {
-            let temp_restore = parent.join(format!("{}.restore.{}", file_stem, std::process::id()));
+            let temp_restore = parent.join(format!("{}.restore.{}", file_stem, id()));
             fs::copy(backup_path, &temp_restore)?;
             use std::os::unix::fs::PermissionsExt;
             let _ = fs::set_permissions(&temp_restore, fs::Permissions::from_mode(0o755));

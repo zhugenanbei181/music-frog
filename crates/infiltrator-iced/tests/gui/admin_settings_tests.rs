@@ -3,6 +3,7 @@
 //! Mounted via `src/test_mounts.rs` (crate root).
 //! test-intent: behavior
 
+use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::state::AppState;
 use crate::types::message::Message;
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings, RuntimePanelConfig};
@@ -12,10 +13,7 @@ fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
     let (mut state, _) = AppState::new();
     // Startup defaults: the embedded admin server starts enabled (API-only).
     assert!(state.shell.admin_enabled);
-    assert_eq!(
-        state.shell.admin_port,
-        crate::admin_server::ADMIN_DEFAULT_PORT
-    );
+    assert_eq!(state.shell.admin_port, ADMIN_DEFAULT_PORT);
 
     // First lifecycle pass at the defaults records a Start.
     let _ = state.update(Message::SetAdminEnabled(true));
@@ -23,7 +21,7 @@ fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
         state.shell.admin_server.started_config(),
         Some(AdminServerConfig {
             enabled: true,
-            port: crate::admin_server::ADMIN_DEFAULT_PORT,
+            port: ADMIN_DEFAULT_PORT,
         }),
         "settings toggle should produce a start intent"
     );
@@ -49,7 +47,7 @@ fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
         state.shell.admin_server.started_config(),
         Some(AdminServerConfig {
             enabled: true,
-            port: crate::admin_server::ADMIN_DEFAULT_PORT,
+            port: ADMIN_DEFAULT_PORT,
         })
     );
 
@@ -59,7 +57,7 @@ fn test_admin_settings_toggle_drives_lifecycle_bookkeeping() {
         state.shell.admin_server.started_config(),
         Some(AdminServerConfig {
             enabled: true,
-            port: crate::admin_server::ADMIN_DEFAULT_PORT,
+            port: ADMIN_DEFAULT_PORT,
         })
     );
 }

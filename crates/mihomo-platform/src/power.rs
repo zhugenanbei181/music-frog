@@ -1,15 +1,17 @@
+use broadcast::error::{RecvError, SendError};
+use std::time::{SystemTime, UNIX_EPOCH};
 #[path = "self_healing_pipeline.rs"]
 mod self_healing_pipeline;
 
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, broadcast, watch};
-use tokio::time::{self, Instant};
+use tokio::time;
+use tokio::time::Instant;
 
 /// Power event representing system power changes, sleep, wake, battery state,
 /// screen state, hibernation, and AC power transitions.
@@ -127,10 +129,7 @@ impl PowerEventWatcher {
     }
 
     /// Emits a power event manually into the broadcast channel.
-    pub fn emit(
-        &self,
-        event: PowerEvent,
-    ) -> Result<usize, broadcast::error::SendError<PowerEvent>> {
+    pub fn emit(&self, event: PowerEvent) -> Result<usize, SendError<PowerEvent>> {
         self.sender.send(event)
     }
 
@@ -176,8 +175,8 @@ pub struct SelfHealingTrigger {
 
 impl SelfHealingTrigger {
     pub fn new(reason: impl Into<String>) -> Self {
-        let timestamp_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let timestamp_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         Self {
@@ -188,8 +187,8 @@ impl SelfHealingTrigger {
     }
 
     pub fn with_attempts(reason: impl Into<String>, attempts: u32) -> Self {
-        let timestamp_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let timestamp_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         Self {
@@ -514,8 +513,8 @@ impl SelfHealingController {
             {
                 let mut stats_guard = self.stats.lock().await;
                 stats_guard.recoveries_executed += 1;
-                stats_guard.last_healing_timestamp_secs = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
+                stats_guard.last_healing_timestamp_secs = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
                 if failures >= 3 {
@@ -576,8 +575,8 @@ impl SelfHealingController {
                         }
                         Ok(PowerEvent::Suspend | PowerEvent::Sleep | PowerEvent::Hibernate | PowerEvent::BatteryLow | PowerEvent::AcPowerChanged | PowerEvent::ScreenLocked | PowerEvent::ScreenUnlocked) => {}
                         Ok(_) => {}
-                        Err(broadcast::error::RecvError::Lagged(_)) => {}
-                        Err(broadcast::error::RecvError::Closed) => {
+                        Err(RecvError::Lagged(_)) => {}
+                        Err(RecvError::Closed) => {
                             break;
                         }
                     }

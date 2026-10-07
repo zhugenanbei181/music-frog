@@ -14,6 +14,7 @@ use infiltrator_bevy_ui::appearance::{
 };
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use infiltrator_contract::theme;
 use infiltrator_contract::theme::ThemePreference;
 
 fn mounted_shell(preference: ThemePreference) -> App {
@@ -27,7 +28,7 @@ fn mounted_shell(preference: ThemePreference) -> App {
 
 #[test]
 fn widget_skin_mirror_matches_the_shared_contract() {
-    for skin in infiltrator_contract::theme::ThemeSkin::ALL {
+    for skin in theme::ThemeSkin::ALL {
         let mirrored = skin_from_contract(skin);
         assert_eq!(
             mirrored.as_setting(),
@@ -41,10 +42,7 @@ fn widget_skin_mirror_matches_the_shared_contract() {
             skin.as_setting()
         );
     }
-    assert_eq!(
-        ThemeSkin::ALL.len(),
-        infiltrator_contract::theme::ThemeSkin::ALL.len()
-    );
+    assert_eq!(ThemeSkin::ALL.len(), theme::ThemeSkin::ALL.len());
 }
 
 #[test]
@@ -65,7 +63,7 @@ fn system_preference_resolves_against_the_os_appearance() {
     // A pinned skin ignores the OS.
     assert_eq!(
         resolved_skin(
-            ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Forest),
+            ThemePreference::Fixed(theme::ThemeSkin::Forest),
             Some(false)
         ),
         ThemeSkin::Forest
@@ -106,9 +104,7 @@ fn the_shell_follows_the_os_appearance_while_preference_is_system() {
 
 #[test]
 fn a_pinned_skin_ignores_os_appearance_changes() {
-    let mut app = mounted_shell(ThemePreference::Fixed(
-        infiltrator_contract::theme::ThemeSkin::Amoled,
-    ));
+    let mut app = mounted_shell(ThemePreference::Fixed(theme::ThemeSkin::Amoled));
     assert_eq!(
         app.world().resource::<UiPalette>(),
         &UiPalette::new(&Theme::amoled())
@@ -122,7 +118,7 @@ fn a_pinned_skin_ignores_os_appearance_changes() {
     assert_eq!(app.world().resource::<SystemAppearance>().0, Some(false));
     assert_eq!(
         app.world().resource::<ThemeMode>().0,
-        ThemePreference::Fixed(infiltrator_contract::theme::ThemeSkin::Amoled)
+        ThemePreference::Fixed(theme::ThemeSkin::Amoled)
     );
     assert_eq!(
         app.world().resource::<UiPalette>(),

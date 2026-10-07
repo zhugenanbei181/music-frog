@@ -1,5 +1,6 @@
 pub mod app_routing_io;
 pub mod apply;
+pub mod apply_workspace;
 pub mod backup_io;
 pub mod bench_harness;
 pub mod bootstrap;

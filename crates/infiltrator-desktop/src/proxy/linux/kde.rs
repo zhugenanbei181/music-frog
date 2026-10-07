@@ -1,6 +1,8 @@
 use super::{SystemProxyState, parse_endpoint, parse_url_to_endpoint};
 use anyhow::anyhow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::env::var;
+use std::fs::{create_dir_all, read_to_string, write};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -35,12 +37,12 @@ pub fn find_kreadconfig() -> Option<&'static str> {
 
 /// 定位 KDE kioslaverc 配置文件路径。
 pub fn kioslaverc_path() -> Option<PathBuf> {
-    if let Ok(config_home) = std::env::var("XDG_CONFIG_HOME")
+    if let Ok(config_home) = var("XDG_CONFIG_HOME")
         && !config_home.trim().is_empty()
     {
         return Some(PathBuf::from(config_home).join("kioslaverc"));
     }
-    if let Ok(home) = std::env::var("HOME")
+    if let Ok(home) = var("HOME")
         && !home.trim().is_empty()
     {
         return Some(PathBuf::from(home).join(".config").join("kioslaverc"));
@@ -225,7 +227,7 @@ pub fn update_kioslaverc_content(
         keys_to_write.insert("ProxyType".to_string(), "0".to_string());
     }
 
-    let mut written_keys = std::collections::HashSet::new();
+    let mut written_keys = HashSet::new();
     let mut new_lines = Vec::new();
 
     for line in lines {
@@ -385,11 +387,11 @@ pub fn apply(endpoint: Option<&str>, bypass: Option<&str>) -> anyhow::Result<()>
     // 回退：直接写入 kioslaverc 文件
     if let Some(path) = kioslaverc_path() {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            create_dir_all(parent)?;
         }
-        let existing = std::fs::read_to_string(&path).unwrap_or_default();
+        let existing = read_to_string(&path).unwrap_or_default();
         let new_content = update_kioslaverc_content(&existing, endpoint, bypass);
-        std::fs::write(&path, new_content)?;
+        write(&path, new_content)?;
         notify_kio();
         return Ok(());
     }
@@ -442,7 +444,7 @@ pub fn read_state() -> anyhow::Result<SystemProxyState> {
     if let Some(path) = kioslaverc_path()
         && path.exists()
     {
-        let content = std::fs::read_to_string(&path)?;
+        let content = read_to_string(&path)?;
         return Ok(parse_kioslaverc_content(&content));
     }
 

@@ -5,6 +5,10 @@
 //! `infiltrator_domain::mixin_studio`; this module only renders the verdicts
 //! and routes toggle activations back into the shared overlay buffer.
 
+use crate::pages::profiles_editor_panes::{MixinEditorBody, ProfileEditorOptionsState};
+use crate::pages::profiles_editor_state::ProfileEditorState;
+use crate::pages::profiles_editor_transactions::EditorMutationControl;
+use crate::pages::profiles_mixin_copy::MixinCopyRole;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -12,20 +16,21 @@ use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
+use bevy::text::TextColor;
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, FlexWrap, Node, UiRect,
-    Val, percent, px,
+    AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, FlexWrap, Node,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::editor::CodeEditorState;
+use infiltrator_application::mixin_studio_projection;
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_domain::mixin_studio;
-
-use crate::pages::profiles_editor_panes::{MixinEditorBody, ProfileEditorOptionsState};
-use crate::pages::profiles_editor_state::ProfileEditorState;
+use infiltrator_domain::mixin_studio::MixinColumnRole;
 
 /// One common-overlay toggle chip (index into the shared catalogue).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -40,6 +45,17 @@ pub struct MixinStudioBody;
 /// Restamped shared preflight verdict text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MixinPreflightText;
+
+#[derive(Component, Clone, Default)]
+pub struct MixinPreflightDetail;
+
+#[derive(Component, Clone)]
+pub struct MixinColumnCaption(pub MixinColumnRole);
+impl Default for MixinColumnCaption {
+    fn default() -> Self {
+        Self(MixinColumnRole::Base)
+    }
+}
 
 /// Restamped cascade pipeline strip text.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -62,28 +78,29 @@ pub fn mixin_studio_scene(
     let mixin_text = options.mixin.buffer.full_text();
     let report = mixin_studio::preflight_mixin(base_content, &mixin_text);
 
-    let preflight_pill = if report.is_blocking() {
-        ("预检阻断", palette.danger)
-    } else {
-        ("预检通过", palette.success)
-    };
-    let preflight_detail = if report.is_blocking() {
-        report.error.clone().unwrap_or_default()
-    } else {
-        "语法、合并与最终配置校验均已通过".to_owned()
-    };
-
+    let locale = UiLocale::default();
+    let preflight_pill = (
+        LocalizedText::plain(mixin_studio_projection::preflight_key(&report)),
+        if report.is_blocking() {
+            palette.danger
+        } else {
+            palette.success
+        },
+    );
+    let preflight_detail = mixin_studio_projection::preflight_detail(&report, locale.code());
+    let preflight_label = preflight_pill.0.render(&locale);
     let toggle_buttons: Vec<Box<dyn Scene>> = mixin_studio::MIXIN_PRESET_TOGGLES
         .iter()
         .enumerate()
         .map(|(index, toggle)| {
-            let enabled = mixin_studio::toggle_enabled(&mixin_text, toggle.id).unwrap_or(false);
+            let enabled =
+                mixin_studio::toggle_enabled(&mixin_text, toggle.id.as_str()).unwrap_or(false);
             let background = if enabled {
                 palette.accent
             } else {
                 palette.surface_elevated
             };
-            let label = toggle.label_zh.to_owned();
+            let label = LocalizedText::plain(mixin_studio_projection::preset_key(toggle.id));
             Box::new(bsn! {
                             Node {
                                 min_height: px(22.0),
@@ -92,15 +109,22 @@ pub fn mixin_studio_scene(
                             }
                             BackgroundColor({ background })
                             Button
+                            EditorMutationControl
                             MixinToggleButton { index }
                             Children [
-                                Text({ label }) TextRole(Role::Caption)
+                                label TextRole(Role::Caption)
                             ]
             }) as Box<dyn Scene>
         })
         .collect();
 
-    let cascade_text = cascade_line(&mixin_text, base_content);
+    let cascade_text = mixin_studio_projection::cascade_caption(
+        &mixin_studio::preview_cascade_from_yaml(base_content, &mixin_text),
+        locale.code(),
+    );
+    let verdict_role = MixinCopyRole::Verdict;
+    let detail_role = MixinCopyRole::Detail;
+    let cascade_role = MixinCopyRole::Cascade;
     let columns = three_column_scene(&mixin_text, base_content, palette);
 
     Box::new(bsn! {
@@ -124,10 +148,10 @@ pub fn mixin_studio_scene(
                     }
                     BackgroundColor({ preflight_pill.1 })
                     Children [
-                        Text({ preflight_pill.0.to_owned() }) MixinPreflightText TextRole(Role::Caption)
+                        Text(preflight_label) MixinPreflightText verdict_role TextRole(Role::Caption)
                     ]
                     --
-                    Text(preflight_detail) TextRole(Role::Mono)
+                    Text(preflight_detail) MixinPreflightDetail detail_role TextRole(Role::Mono)
                 ]
                 --
                 Node {
@@ -138,12 +162,12 @@ pub fn mixin_studio_scene(
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    Text({ "常用覆写开关".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("mixin_studio_toggles_title") TextRole(Role::Caption)
                     --
                     { toggle_buttons }
                 ]
                 --
-                Text(cascade_text) MixinCascadeText TextRole(Role::Mono)
+                Text(cascade_text) MixinCascadeText cascade_role TextRole(Role::Mono)
                 --
                 { vec![columns] }
             ]
@@ -157,20 +181,27 @@ pub fn mixin_studio_scene(
 /// reason. Nothing here is a mock.
 fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette) -> Box<dyn Scene> {
     let columns = mixin_studio::mixin_editor_columns(base_content, mixin_text);
-    let base_caption = column_caption_zh(columns.base.label_zh, &columns.base, false);
-    let overlay_caption = column_caption_zh(columns.overlay.label_zh, &columns.overlay, true);
-    let composed_caption = column_caption_zh(columns.composed.label_zh, &columns.composed, false);
+    let base_caption =
+        mixin_studio_projection::column_caption(&columns.base, UiLocale::default().code());
+    let overlay_caption =
+        mixin_studio_projection::column_caption(&columns.overlay, UiLocale::default().code());
+    let composed_caption =
+        mixin_studio_projection::column_caption(&columns.composed, UiLocale::default().code());
     let base_text = columns.base.content.clone();
     let composed_text = columns.composed.content.clone();
-    let composed_note = match columns.error.clone() {
-        Some(error) => format!("合成被阻断：{error}"),
-        None => String::new(),
-    };
+    let composed_note = mixin_studio_projection::composed_error(
+        columns.error.as_deref(),
+        UiLocale::default().code(),
+    );
     let composed_color = if columns.is_blocked() {
         palette.danger
     } else {
         palette.ink
     };
+    let base_role = MixinCopyRole::Column(MixinColumnRole::Base);
+    let overlay_role = MixinCopyRole::Column(MixinColumnRole::Overlay);
+    let composed_role = MixinCopyRole::Column(MixinColumnRole::Composed);
+    let error_role = MixinCopyRole::Error;
     let box_background = palette.window_clear;
     let border = palette.border;
     Box::new(bsn! {
@@ -188,7 +219,7 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    Text({ base_caption }) TextRole(Role::Caption)
+                    Text({ base_caption }) MixinColumnCaption(MixinColumnRole::Base) base_role TextRole(Role::Caption)
                     --
                     Node {
                         width: percent(100),
@@ -196,7 +227,7 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                         padding: UiRect::all(Val::Px(space::S8)),
                         border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                        overflow: Overflow::scroll_y(),
                     }
                     BackgroundColor({ box_background })
                     BorderColor { top: border, right: border, bottom: border, left: border }
@@ -212,14 +243,14 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    Text({ overlay_caption }) TextRole(Role::Caption)
+                    Text({ overlay_caption }) MixinColumnCaption(MixinColumnRole::Overlay) overlay_role TextRole(Role::Caption)
                     --
                     Node {
                         width: percent(100),
                         max_height: px(220.0),
                         padding: UiRect::all(Val::Px(space::S8)),
                         border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                        overflow: Overflow::scroll_y(),
                     }
                     BackgroundColor({ box_background })
                     Children [
@@ -238,7 +269,7 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    Text({ composed_caption }) TextRole(Role::Caption)
+                    Text({ composed_caption }) MixinColumnCaption(MixinColumnRole::Composed) composed_role TextRole(Role::Caption)
                     --
                     Node {
                         width: percent(100),
@@ -246,7 +277,7 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                         padding: UiRect::all(Val::Px(space::S8)),
                         border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
                         border: UiRect::all(Val::Px(palette.hairline_px)),
-                        overflow: bevy::ui::prelude::Overflow::scroll_y(),
+                        overflow: Overflow::scroll_y(),
                     }
                     BackgroundColor({ box_background })
                     BorderColor { top: border, right: border, bottom: border, left: border }
@@ -259,50 +290,12 @@ fn three_column_scene(mixin_text: &str, base_content: &str, palette: &UiPalette)
                         Children [
                             Text(composed_text) TextRole(Role::Mono) MixinComposedText
                             --
-                            Text(composed_note) TextRole(Role::Mono) MixinComposedErrorText bevy::text::TextColor({ composed_color })
+                            Text(composed_note) TextRole(Role::Mono) MixinComposedErrorText error_role TextColor({ composed_color })
                         ]
                     ]
                 ]
             ]
     })
-}
-
-/// `标题 · N 行 · 只读/可编辑` caption for one column.
-pub fn column_caption_zh(
-    label: &str,
-    column: &mixin_studio::MixinColumn,
-    editable: bool,
-) -> String {
-    format!(
-        "{} · {} 行 · {}",
-        label,
-        column.line_count,
-        if editable { "可编辑" } else { "只读" }
-    )
-}
-
-/// The cascade pipeline line, computed by the real shared pipeline preview.
-pub fn cascade_line(mixin_text: &str, base_content: &str) -> String {
-    let report = mixin_studio::preview_cascade_from_yaml(base_content, mixin_text);
-    if report.blocked {
-        return format!("覆写流水线：阻断 · {}", report.error.unwrap_or_default());
-    }
-    let stages: Vec<String> = report
-        .stages
-        .iter()
-        .map(|stage| {
-            if stage.applied {
-                format!("{} {} 行", stage.label_zh, stage.line_count)
-            } else {
-                format!("{} (未声明)", stage.label_zh)
-            }
-        })
-        .collect();
-    format!(
-        "覆写流水线：{} · 合成输出 {} 行",
-        stages.join(" → "),
-        report.merged_line_count()
-    )
 }
 
 /// DUAL-10-11: flip one shared toggle in the overlay buffer.
@@ -317,9 +310,12 @@ pub fn on_mixin_toggle_activated(
     let Some(toggle) = mixin_studio::MIXIN_PRESET_TOGGLES.get(button.index) else {
         return;
     };
+    if !options.mixin.session.can_edit() {
+        return;
+    }
     let text = options.mixin.buffer.full_text();
-    let enabled = mixin_studio::toggle_enabled(&text, toggle.id).unwrap_or(false);
-    match mixin_studio::set_toggle(&text, toggle.id, !enabled) {
+    let enabled = mixin_studio::toggle_enabled(&text, toggle.id.as_str()).unwrap_or(false);
+    match mixin_studio::set_toggle(&text, toggle.id.as_str(), !enabled) {
         Ok(updated) => {
             options.mixin.buffer = CodeEditorState::new(&updated);
             options.mixin.dirty = true;

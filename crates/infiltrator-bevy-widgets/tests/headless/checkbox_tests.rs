@@ -11,9 +11,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::Has;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
-use bevy::ui::BackgroundColor;
-use bevy::ui::BorderColor;
-use bevy::ui::Checked;
+use bevy::ui::{BackgroundColor, BorderColor, Checked};
 use bevy::ui_widgets::Checkbox;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::checkbox::{

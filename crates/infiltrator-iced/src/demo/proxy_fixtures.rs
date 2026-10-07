@@ -1,26 +1,30 @@
 //! Demo proxy-table fixtures: provider groups, exit nodes with mixed latency
 //! tiers and the deterministic `filtered_groups` ordering.
 
+use infiltrator_composition::demo_identities::{
+    AI, AUTO, CAMPUS, DIRECT_GROUP, GAMING, HK_PRIMARY, HK_SECONDARY, JP, PROXIES, SG, US,
+};
 use infiltrator_domain::proxy::{
-    Hysteria2, Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks, Trojan, Vmess,
+    Direct, Hysteria2, Proxy, ProxyBase, ProxyGroup, ProxyHistory, Reject, Shadowsocks, Trojan,
+    Vmess,
 };
 use std::collections::HashMap;
 
 /// Proxy group name constants shared between the table builder and the
 /// runtime-selection fixture.
-const G_MAIN: &str = "节点选择";
-const G_DIRECT: &str = "全球直连";
-const G_CAMPUS: &str = "校园网";
-const G_AI: &str = "AI 服务";
-const G_GAME: &str = "游戏平台";
-const G_AUTO: &str = "自动选择";
+const G_MAIN: &str = PROXIES;
+const G_DIRECT: &str = DIRECT_GROUP;
+const G_CAMPUS: &str = CAMPUS;
+const G_AI: &str = AI;
+const G_GAME: &str = GAMING;
+const G_AUTO: &str = AUTO;
 const G_GLOBAL: &str = "GLOBAL";
 
-const N_HK1: &str = "香港 IEPL-01";
-const N_HK2: &str = "香港 IEPL-02";
-const N_JP: &str = "日本 NTT";
-const N_SG: &str = "新加坡 BGP";
-const N_US: &str = "美国 CN2";
+const N_HK1: &str = HK_PRIMARY;
+const N_HK2: &str = HK_SECONDARY;
+const N_JP: &str = JP;
+const N_SG: &str = SG;
+const N_US: &str = US;
 const N_DMIT: &str = "DMIT";
 const N_ZGO: &str = "ZGO";
 
@@ -232,14 +236,14 @@ fn hysteria2_node(name: &str, server: &str, port: u16) -> Proxy {
     })
 }
 
-fn direct_base(name: &str) -> infiltrator_domain::proxy::Direct {
-    infiltrator_domain::proxy::Direct {
+fn direct_base(name: &str) -> Direct {
+    Direct {
         base: untested_base(name),
     }
 }
 
-fn reject_base(name: &str) -> infiltrator_domain::proxy::Reject {
-    infiltrator_domain::proxy::Reject {
+fn reject_base(name: &str) -> Reject {
+    Reject {
         base: untested_base(name),
     }
 }

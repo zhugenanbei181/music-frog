@@ -2,6 +2,7 @@
 
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_domain::active_exit::derive;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::error::PortError;
 use std::collections::HashMap;
@@ -43,7 +44,7 @@ impl ActiveExitApplication {
                 );
             }
         };
-        infiltrator_domain::active_exit::derive(core.generation, revision, proxies)
+        derive(core.generation, revision, proxies)
     }
 }
 

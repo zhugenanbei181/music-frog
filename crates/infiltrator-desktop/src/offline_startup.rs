@@ -3,11 +3,14 @@
 use async_trait::async_trait;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::offline_startup::{
-    LocalAssetStatus, OfflineStartupSnapshot, StartupNetworkPolicy,
+    LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState, StartupNetworkPolicy,
+    StartupRemoteDependency,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
+use mihomo_config::yaml::validate;
 use std::path::{Path, PathBuf};
+use tokio::fs::{metadata, read_to_string};
 
 const GEOIP_MIN_SIZE: u64 = 1024 * 1024;
 
@@ -28,7 +31,7 @@ impl DesktopOfflineStartup {
     }
 
     async fn binary_available(&self) -> bool {
-        tokio::fs::metadata(&self.binary_path)
+        metadata(&self.binary_path)
             .await
             .is_ok_and(|metadata| metadata.is_file())
     }
@@ -50,7 +53,7 @@ impl DesktopOfflineStartup {
         }
 
         for candidate in candidates {
-            if tokio::fs::metadata(candidate)
+            if metadata(candidate)
                 .await
                 .is_ok_and(|metadata| metadata.len() >= GEOIP_MIN_SIZE)
             {
@@ -61,14 +64,12 @@ impl DesktopOfflineStartup {
     }
 
     async fn read_config(&self) -> Result<String, PortError> {
-        tokio::fs::read_to_string(&self.config_path)
-            .await
-            .map_err(|error| {
-                PortError::Io(format!(
-                    "read local Mihomo profile {}: {error}",
-                    self.config_path.display()
-                ))
-            })
+        read_to_string(&self.config_path).await.map_err(|error| {
+            PortError::Io(format!(
+                "read local Mihomo profile {}: {error}",
+                self.config_path.display()
+            ))
+        })
     }
 }
 
@@ -77,15 +78,14 @@ impl OfflineStartupPort for DesktopOfflineStartup {
     async fn validate_offline_startup(&self) -> Result<OfflineStartupSnapshot, PortError> {
         let binary_available = self.binary_available().await;
         let config = self.read_config().await?;
-        if let Err(error) = mihomo_config::yaml::validate(&config) {
+        if let Err(error) = validate(&config) {
             return Ok(OfflineStartupSnapshot {
                 policy: StartupNetworkPolicy::OfflineFirst,
-                state: infiltrator_contract::offline_startup::OfflineStartupState::Blocked,
+                state: OfflineStartupState::Blocked,
                 config_valid: false,
                 binary_available,
                 geoip: LocalAssetStatus::NotRequired,
-                remote_dependency:
-                    infiltrator_contract::offline_startup::StartupRemoteDependency::Optional,
+                remote_dependency: StartupRemoteDependency::Optional,
                 failure: Some(Failure::new(
                     ErrorCode::Configuration,
                     format!("local Mihomo profile is invalid: {error}"),
@@ -97,12 +97,11 @@ impl OfflineStartupPort for DesktopOfflineStartup {
         if !binary_available {
             return Ok(OfflineStartupSnapshot {
                 policy: StartupNetworkPolicy::OfflineFirst,
-                state: infiltrator_contract::offline_startup::OfflineStartupState::Blocked,
+                state: OfflineStartupState::Blocked,
                 config_valid: true,
                 binary_available: false,
                 geoip: LocalAssetStatus::NotRequired,
-                remote_dependency:
-                    infiltrator_contract::offline_startup::StartupRemoteDependency::Optional,
+                remote_dependency: StartupRemoteDependency::Optional,
                 failure: Some(Failure::new(
                     ErrorCode::Storage,
                     format!(
@@ -136,18 +135,16 @@ mod tests {
     use super::*;
     use infiltrator_contract::offline_startup::{OfflineStartupState, StartupRemoteDependency};
     use tempfile::TempDir;
+    #[cfg(test)]
+    use tokio::fs::write;
 
     async fn fixture(binary: bool, config: &str) -> (TempDir, DesktopOfflineStartup) {
         let dir = TempDir::new().expect("temp dir");
         let config_path = dir.path().join("default.yaml");
-        tokio::fs::write(&config_path, config)
-            .await
-            .expect("config");
+        write(&config_path, config).await.expect("config");
         let binary_path = dir.path().join(if binary { "mihomo" } else { "missing" });
         if binary {
-            tokio::fs::write(&binary_path, b"local core")
-                .await
-                .expect("binary");
+            write(&binary_path, b"local core").await.expect("binary");
         }
         (dir, DesktopOfflineStartup::new(config_path, binary_path))
     }

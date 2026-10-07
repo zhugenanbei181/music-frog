@@ -1,11 +1,10 @@
 //! Host port for privileged network injection and rollback tests.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::privileged_network::{
     PrivilegedNetworkRequest, PrivilegedNetworkSnapshot,
 };
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait PrivilegedNetworkPort: Send + Sync {

@@ -1,33 +1,44 @@
 //! Adapter from the concrete mihomo-version manager to the version port.
 
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
     CoreRollbackSnapshot, InstalledCoreVersion, VersionDownloadProgress,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::version::{VersionPort, VersionProgressSink};
+use mihomo_api::error::MihomoError;
 use mihomo_version::channel::{Channel, fetch_latest, fetch_releases};
 use mihomo_version::download::DownloadProgress;
 use mihomo_version::manager::VersionManager;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 pub struct MihomoVersionPort {
     manager: VersionManager,
     verification: Arc<Mutex<CoreArtifactVerification>>,
 }
 
-static LAST_VERIFICATION: OnceLock<Arc<Mutex<CoreArtifactVerification>>> = OnceLock::new();
-
 impl MihomoVersionPort {
     pub fn new(manager: VersionManager) -> Self {
         Self {
             manager,
-            verification: LAST_VERIFICATION
-                .get_or_init(|| Arc::new(Mutex::new(CoreArtifactVerification::Unknown)))
-                .clone(),
+            verification: Arc::new(Mutex::new(CoreArtifactVerification::Unknown)),
         }
+    }
+
+    pub fn with_shared_verification(
+        manager: VersionManager,
+        verification: Arc<Mutex<CoreArtifactVerification>>,
+    ) -> Self {
+        Self {
+            manager,
+            verification,
+        }
+    }
+
+    pub fn verification_handle(&self) -> Arc<Mutex<CoreArtifactVerification>> {
+        Arc::clone(&self.verification)
     }
 
     pub fn current() -> anyhow::Result<Self> {
@@ -105,11 +116,7 @@ impl VersionPort for MihomoVersionPort {
             },
             Err(error) => CoreArtifactVerification::Rejected {
                 version,
-                failure: infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::Internal,
-                    error.to_string(),
-                    true,
-                ),
+                failure: Failure::from(error.clone()),
             },
         };
         *self.verification.lock().expect("version verification lock") = verification;
@@ -166,10 +173,20 @@ fn to_channel(channel: CoreReleaseChannel) -> Channel {
     }
 }
 
-fn version_error(error: mihomo_api::error::MihomoError) -> PortError {
+fn version_error(error: MihomoError) -> PortError {
+    if matches!(error, MihomoError::Canceled) {
+        return PortError::Rejected(
+            Failure::new(ErrorCode::Canceled, error.to_string(), false)
+                .with_reason(FailureReason::DownloadCanceled),
+        );
+    }
     match error {
-        mihomo_api::error::MihomoError::Http(error) => PortError::Network(error.to_string()),
-        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
+        MihomoError::Http(error) => PortError::Network(error.to_string()),
+        MihomoError::Io(error) => PortError::Io(error.to_string()),
         other => PortError::Failed(other.to_string()),
     }
 }
+
+#[cfg(test)]
+#[path = "version_port_tests.rs"]
+mod tests;

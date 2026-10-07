@@ -1,9 +1,13 @@
 //! Profile catalog handlers: listing, filtering, reset-to-default,
 //! activation and deletion.
 
+use crate::configs_dir::config_manager;
+use crate::host::storage::reset_profiles_to_default;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
+use crate::update::core::profile_apply::activate_profile;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_contract::error::InfiltratorError;
@@ -16,7 +20,7 @@ impl AppState {
                 self.profile.is_loading_profiles = true;
                 Task::perform(
                     async {
-                        let store = crate::configs_dir::config_manager().await?;
+                        let store = config_manager().await?;
                         ProfileApplication::new(store)
                             .list_profiles()
                             .await
@@ -31,6 +35,7 @@ impl AppState {
                 match result {
                     Ok(profiles) => {
                         self.profile.profiles = profiles;
+                        self.rebuild_command_catalogue();
                         self.sync_subscription_editor();
                         Task::none()
                     }
@@ -48,7 +53,7 @@ impl AppState {
                 self.shell.error_msg = None;
                 let runtime = self.take_app_runtime();
                 self.profile.restart_after_profile_reset = runtime.is_some();
-                self.runtime.status = crate::types::runtime::RuntimeStatus::Stopped;
+                self.runtime.status = RuntimeStatus::Stopped;
                 self.profile.is_loading_profiles = true;
                 Task::perform(
                     async move {
@@ -57,7 +62,7 @@ impl AppState {
                                 .await
                                 .map_err(|error| InfiltratorError::Mihomo(error.to_string()))?;
                         }
-                        crate::host::storage::reset_profiles_to_default()
+                        reset_profiles_to_default()
                             .await
                             .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         Ok(())
@@ -97,9 +102,7 @@ impl AppState {
                 self.invalidate_rules_dns_views();
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
-                    async move {
-                        crate::update::core::profile_apply::activate_profile(runtime, &name).await
-                    },
+                    async move { activate_profile(runtime, &name).await },
                     |result: Result<bool, InfiltratorError>| match result {
                         Ok(was_running) => Message::ProfileActivationFinished(Ok(was_running)),
                         Err(e) => Message::ProfileActivationFinished(Err(e)),
@@ -131,7 +134,7 @@ impl AppState {
             },
             Message::DeleteProfile(name) => Task::perform(
                 async move {
-                    let store = crate::configs_dir::config_manager().await?;
+                    let store = config_manager().await?;
                     ProfileApplication::new(store)
                         .delete_profile(&name)
                         .await

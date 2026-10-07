@@ -23,9 +23,8 @@ pub(crate) fn render_step(step: &BootstrapStep) -> String {
 
 #[cfg(test)]
 mod tests {
-    use infiltrator_contract::doctor::BootstrapStep;
-
     use super::render_step;
+    use infiltrator_contract::doctor::BootstrapStep;
 
     #[test]
     fn executed_steps_are_labeled_as_executed() {

@@ -7,6 +7,11 @@
 //! **Scene Adapters**: [`toast_item_scene`] and [`toast_stack_scene`] build declarative
 //! toast cards with semantic accent borders, icon plates, and dismiss actions.
 
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -23,12 +28,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Semantic type of a toast alert.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

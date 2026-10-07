@@ -3,6 +3,7 @@
 
 use crate::ffi::FfiStatus;
 use crate::host_support::{build_routing_application, map_application_failure};
+use infiltrator_domain::app_routing;
 
 // --- App Routing API ---
 
@@ -13,30 +14,22 @@ pub enum AppRoutingMode {
     BypassSelected,
 }
 
-impl From<infiltrator_domain::app_routing::AppRoutingMode> for AppRoutingMode {
-    fn from(mode: infiltrator_domain::app_routing::AppRoutingMode) -> Self {
+impl From<app_routing::AppRoutingMode> for AppRoutingMode {
+    fn from(mode: app_routing::AppRoutingMode) -> Self {
         match mode {
-            infiltrator_domain::app_routing::AppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
-            infiltrator_domain::app_routing::AppRoutingMode::ProxySelected => {
-                AppRoutingMode::ProxySelected
-            }
-            infiltrator_domain::app_routing::AppRoutingMode::BypassSelected => {
-                AppRoutingMode::BypassSelected
-            }
+            app_routing::AppRoutingMode::ProxyAll => AppRoutingMode::ProxyAll,
+            app_routing::AppRoutingMode::ProxySelected => AppRoutingMode::ProxySelected,
+            app_routing::AppRoutingMode::BypassSelected => AppRoutingMode::BypassSelected,
         }
     }
 }
 
-impl From<AppRoutingMode> for infiltrator_domain::app_routing::AppRoutingMode {
+impl From<AppRoutingMode> for app_routing::AppRoutingMode {
     fn from(mode: AppRoutingMode) -> Self {
         match mode {
-            AppRoutingMode::ProxyAll => infiltrator_domain::app_routing::AppRoutingMode::ProxyAll,
-            AppRoutingMode::ProxySelected => {
-                infiltrator_domain::app_routing::AppRoutingMode::ProxySelected
-            }
-            AppRoutingMode::BypassSelected => {
-                infiltrator_domain::app_routing::AppRoutingMode::BypassSelected
-            }
+            AppRoutingMode::ProxyAll => app_routing::AppRoutingMode::ProxyAll,
+            AppRoutingMode::ProxySelected => app_routing::AppRoutingMode::ProxySelected,
+            AppRoutingMode::BypassSelected => app_routing::AppRoutingMode::BypassSelected,
         }
     }
 }
@@ -81,10 +74,10 @@ pub fn app_routing_load() -> AppRoutingResult {
 
 #[uniffi::export]
 pub fn app_routing_save(mode: AppRoutingMode, packages: Vec<String>) -> FfiStatus {
-    let config = infiltrator_domain::app_routing::AppRoutingConfig {
+    let config = app_routing::AppRoutingConfig {
         mode: mode.into(),
         packages: packages.into_iter().collect(),
-        ..infiltrator_domain::app_routing::AppRoutingConfig::default()
+        ..app_routing::AppRoutingConfig::default()
     };
     match build_routing_application()
         .and_then(|application| application.save(&config).map_err(map_application_failure))
@@ -293,7 +286,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
     let mut self_package_excluded = false;
 
     match config.mode {
-        infiltrator_domain::app_routing::AppRoutingMode::ProxyAll => {
+        app_routing::AppRoutingMode::ProxyAll => {
             // In ProxyAll mode, we explicitly disallow our own package so the VPN daemon
             // traffic goes straight to upstream sockets without looping.
             if !clean_self.is_empty() {
@@ -301,7 +294,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
                 self_package_excluded = true;
             }
         }
-        infiltrator_domain::app_routing::AppRoutingMode::ProxySelected => {
+        app_routing::AppRoutingMode::ProxySelected => {
             for pkg in &config.packages {
                 let p = pkg.trim();
                 if !p.is_empty() {
@@ -318,7 +311,7 @@ pub fn app_routing_build_vpn_plan(self_package: String) -> AndroidVpnPerAppPlan 
                 self_package_excluded = true;
             }
         }
-        infiltrator_domain::app_routing::AppRoutingMode::BypassSelected => {
+        app_routing::AppRoutingMode::BypassSelected => {
             for pkg in &config.packages {
                 let p = pkg.trim();
                 if !p.is_empty() {

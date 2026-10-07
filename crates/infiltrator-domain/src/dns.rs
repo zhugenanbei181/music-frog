@@ -40,9 +40,6 @@ pub struct DnsConfig {
     pub search_domains: Option<Vec<String>>,
     pub ecs_override_policy: Option<String>,
     pub bogus_nxdomain: Option<Vec<String>>,
-    /// `dns.hosts`: static domain → address (or address list / alias domain)
-    /// mappings. DUAL-14-11: typed here so a DNS save never drops the key.
-    pub hosts: Option<BTreeMap<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,8 +64,6 @@ pub struct FallbackFilterPatch {
     pub geoip_code: Option<String>,
     pub ipcidr: Option<Vec<String>>,
 }
-
-pub type DnsFallbackFilter = FallbackFilter;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -114,15 +109,7 @@ pub struct DnsConfigPatch {
     pub search_domains: Option<Vec<String>>,
     pub ecs_override_policy: Option<String>,
     pub bogus_nxdomain: Option<Vec<String>>,
-    /// `dns.hosts` full-map write from the shared hosts editor.
-    pub hosts: Option<BTreeMap<String, serde_json::Value>>,
-    /// Clear the `dns.hosts` key (the editor was emptied). Mirrors
-    /// `clear_enhanced_mode`: a merge patch cannot delete with `None` alone.
-    #[serde(default)]
-    pub clear_hosts: bool,
 }
-
-pub type DnsConfigPayload = DnsConfigPatch;
 
 impl From<DnsConfig> for DnsConfigPatch {
     fn from(c: DnsConfig) -> Self {
@@ -157,8 +144,6 @@ impl From<DnsConfig> for DnsConfigPatch {
             search_domains: c.search_domains,
             ecs_override_policy: c.ecs_override_policy,
             bogus_nxdomain: c.bogus_nxdomain,
-            hosts: c.hosts,
-            clear_hosts: false,
         }
     }
 }
@@ -193,7 +178,6 @@ impl From<DnsConfigPatch> for DnsConfig {
             search_domains: p.search_domains,
             ecs_override_policy: p.ecs_override_policy,
             bogus_nxdomain: p.bogus_nxdomain,
-            hosts: p.hosts,
         }
     }
 }
@@ -301,12 +285,6 @@ impl DnsConfig {
         if let Some(v) = patch.bogus_nxdomain {
             self.bogus_nxdomain = Some(v);
         }
-        if let Some(v) = patch.hosts {
-            self.hosts = Some(v);
-        }
-        if patch.clear_hosts {
-            self.hosts = None;
-        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -337,7 +315,6 @@ impl DnsConfig {
             && self.search_domains.is_none()
             && self.ecs_override_policy.is_none()
             && self.bogus_nxdomain.is_none()
-            && self.hosts.is_none()
     }
 
     /// Retrieve nameservers belonging to a specific topology tier.
@@ -627,12 +604,36 @@ fn apply_dns_config(doc: &mut Value, config: &DnsConfig) -> Result<()> {
     let map = doc
         .as_mapping_mut()
         .ok_or_else(|| anyhow!("profile config is not a mapping"))?;
-    if config.is_empty() {
-        map.remove(Value::String("dns".to_string()));
-        return Ok(());
+    let key = Value::String("dns".to_string());
+    let mut preserved = match map.get(&key) {
+        Some(Value::Mapping(existing)) => existing.clone(),
+        None | Some(Value::Null) => Mapping::new(),
+        _ => return Err(anyhow!("dns config is not a mapping")),
+    };
+    // Own only declared DNS fields. Unknown options and historical dns.hosts remain
+    // intact until their specific owner performs an explicit migration.
+    let declared = serde_yaml_ng::to_value(DnsConfig::default()).context("encode DNS keys")?;
+    for declared_key in declared
+        .as_mapping()
+        .expect("DNS structure serializes as a mapping")
+        .keys()
+    {
+        preserved.remove(declared_key);
     }
-    let dns_value = serde_yaml_ng::to_value(config).context("encode dns config")?;
-    map.insert(Value::String("dns".to_string()), dns_value);
+    if !config.is_empty() {
+        let encoded = serde_yaml_ng::to_value(config).context("encode dns config")?;
+        preserved.extend(
+            encoded
+                .as_mapping()
+                .expect("DNS structure serializes as a mapping")
+                .clone(),
+        );
+    }
+    if preserved.is_empty() {
+        map.remove(&key);
+    } else {
+        map.insert(key, Value::Mapping(preserved));
+    }
     Ok(())
 }
 

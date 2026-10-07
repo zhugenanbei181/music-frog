@@ -9,6 +9,11 @@
 //! [`StatChipValue`] marker so a page's refresh observer can restamp the
 //! number in place — the chip never owns its data.
 
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::{space, type_scale};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
@@ -19,12 +24,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, px,
 };
 use bevy::ui::widget::Text;
-
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::{space, type_scale};
 
 /// Minimum chip height (px) — one card row of the metrics band.
 pub const CHIP_MIN_HEIGHT: f32 = 64.0;
@@ -39,6 +38,9 @@ pub struct StatChip;
 /// text in place (the checkbox-box routing idiom).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatChipValue;
+
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StatChipLabel;
 
 /// The chip fill: the ordinary surface card token. Pure function —
 /// headless-testable without any app.
@@ -77,7 +79,7 @@ pub fn stat_chip_scene(
                     row_gap: Val::Px(space::S4),
                 }
                 Children [
-                    Text(label) TextRole(Role::Caption)
+                    Text(label) TextRole(Role::Caption) StatChipLabel
                     --
                     Text(value) TextRole(Role::Mono) StatChipValue
                 ]

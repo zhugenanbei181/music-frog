@@ -53,3 +53,9 @@ intent → Rust command/result → Iced decision → Android decision（0.30 起
 ## 5. 通过条件
 
 一个 TODO 只有在其声明的最低层级全部通过后才能标记 `DONE`。如果 L0-L2 已通过但 L3/L4 缺失，状态应为“代码和 mock 已完成，平台/core 待验证”，而不是完成。
+
+## 6. Bevy Android 联合验收
+
+具体场景、数据规模、恢复循环与资源采样遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md) 的分层验收。共享语义/原生组件先做隔离行为回归；服务进程/IPC、最终 APK、真实 Mihomo/VPN、原生输入与后台功耗分别取得适用证据，不能用桌面、合成事件或无默认特性库检查抵扣。
+
+UI 平权审计的 L1/L2/L3 与本文件的 package/core/device 层级是两个证据维度，报告必须写明所属体系。真实网络、系统权限、设备进程终止与长时功耗采样仅在显式平台 stage 执行，不混入普通 mock/headless 测试。

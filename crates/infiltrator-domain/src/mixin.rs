@@ -1,5 +1,9 @@
+use crate::yaml_edit::SourceDoc;
+use crate::yaml_edit::mixin_fidelity::{apply_mixin_with_reference, can_apply_mixin_via_fidelity};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
+use std::collections::HashSet;
+use std::mem::take;
 
 /// DUAL-09-01 / LEFT-05 L1: merge a mixin through the byte-faithful text
 /// splice when the mixin only overrides top-level scalars and appends/deletes
@@ -11,13 +15,14 @@ pub fn merge_profile_with_config_fidelity(
     base_yaml: &str,
     config: &MixinConfig,
 ) -> anyhow::Result<String> {
-    if crate::yaml_edit::mixin_fidelity::can_apply_mixin_via_fidelity(config)
-        && let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(base_yaml)
-        && crate::yaml_edit::mixin_fidelity::apply_mixin_to_doc(&mut doc, config).is_ok()
+    let reference = merge_profile_with_config(base_yaml, config)?;
+    if can_apply_mixin_via_fidelity(config)
+        && let Ok(mut doc) = SourceDoc::parse(base_yaml)
+        && apply_mixin_with_reference(&mut doc, config, &reference).is_ok()
     {
         return Ok(doc.render());
     }
-    merge_profile_with_config(base_yaml, config)
+    Ok(reference)
 }
 
 /// Mixin configuration schema for overriding or extending profile settings.
@@ -366,7 +371,7 @@ fn merge_rules(base: &mut Value, rule_mixin: &RuleMixin, dedup: bool) {
     let base_rules = match base.as_mapping_mut() {
         Some(m) => {
             if let Some(Value::Sequence(seq)) = m.get_mut(Value::String("rules".into())) {
-                std::mem::take(seq)
+                take(seq)
             } else {
                 Vec::new()
             }
@@ -415,7 +420,7 @@ fn merge_rules(base: &mut Value, rule_mixin: &RuleMixin, dedup: bool) {
 
     // Deduplication
     if dedup {
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = HashSet::new();
         result_strings.retain(|r| seen.insert(r.clone()));
     }
 

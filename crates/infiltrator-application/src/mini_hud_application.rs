@@ -12,6 +12,7 @@ use infiltrator_contract::mini_hud::{
     MiniHudDisplay, MiniHudHostOutcome, MiniHudPlacement, MiniHudSnapPlacement,
 };
 use infiltrator_ports::mini_hud_window::MiniHudWindowPort;
+use infiltrator_ports::settings_store::SettingsStore;
 use std::sync::Arc;
 
 /// Edge-snap threshold in logical pixels: an 8px approach to a screen edge
@@ -53,7 +54,7 @@ impl MiniHudApplication {
         }
     }
 
-    pub fn from_store(store: Arc<dyn infiltrator_ports::settings_store::SettingsStore>) -> Self {
+    pub fn from_store(store: Arc<dyn SettingsStore>) -> Self {
         Self::new(SettingsApplication::new(store))
     }
 
@@ -184,6 +185,10 @@ mod tests {
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::settings_store::SettingsStore;
     use std::sync::Mutex;
+    #[cfg(test)]
+    use tokio::runtime::Builder;
+    #[cfg(test)]
+    use tokio::runtime::Runtime;
 
     #[derive(Default)]
     struct MemorySettingsStore {
@@ -228,10 +233,8 @@ mod tests {
         }
     }
 
-    fn runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime")
+    fn runtime() -> Runtime {
+        Builder::new_current_thread().build().expect("runtime")
     }
 
     fn display() -> MiniHudDisplay {

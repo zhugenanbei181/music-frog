@@ -8,63 +8,82 @@
 //! without either answers a typed `Unsupported` outcome — the projection still
 //! carries the composed content so nothing is fabricated and nothing is lost.
 //!
-//! The last projection is cached process-wide and republished through
-//! `SurfaceSnapshot.script_export`, so the Bevy console renders exactly what
-//! the Iced console exported.
+//! Each product session injects a service shared by its command facade and
+//! reader. Preparing a review freezes bytes without saving; only confirmation
+//! may call the host. Results cannot be read from another product's memory.
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_export::{
     ScriptExportOutcome, ScriptExportRequest, ScriptExportSnapshot,
 };
-use infiltrator_domain::script_engine::ExtensionPackage;
+use infiltrator_domain::script_engine::{ExtensionPackage, ScriptEngine};
+mod review;
+use infiltrator_contract::script_export_review::{ScriptExportReview, ScriptExportSaved};
+use infiltrator_domain::script_export::{
+    ExportArtifact, compose_directive_dsl_export, compose_extension_package_export,
+    compose_mixin_overlay_export,
+};
+use infiltrator_domain::script_export_review::draft_package;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::script_export::ScriptExportPort;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
-/// Process-wide cache of the last export projection (one shared fact).
-fn export_cache() -> &'static Mutex<Option<ScriptExportSnapshot>> {
-    static EXPORT: OnceLock<Mutex<Option<ScriptExportSnapshot>>> = OnceLock::new();
-    EXPORT.get_or_init(|| Mutex::new(None))
-}
-
-/// The last export projection computed in this process, if any.
-pub fn last_script_export() -> Option<ScriptExportSnapshot> {
-    export_cache().lock().ok().and_then(|cache| cache.clone())
-}
-
-/// Replace the process-wide export projection.
-pub fn publish_script_export(snapshot: ScriptExportSnapshot) {
-    if let Ok(mut cache) = export_cache().lock() {
-        *cache = Some(snapshot);
-    }
-}
-
-/// Drop the cached projection.
-pub fn clear_script_export() {
-    if let Ok(mut cache) = export_cache().lock() {
-        *cache = None;
-    }
+#[derive(Default)]
+struct ExportState {
+    sequence: u64,
+    latest: Option<ScriptExportSnapshot>,
+    review: Option<ScriptExportReview>,
+    saved: Option<ScriptExportSaved>,
+    saving: bool,
 }
 
 /// The shared export service.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ScriptExportApplication {
     port: Option<Arc<dyn ScriptExportPort>>,
+    state: Arc<Mutex<ExportState>>,
+    owner: u64,
+}
+
+impl Default for ScriptExportApplication {
+    fn default() -> Self {
+        Self::new(None)
+    }
 }
 
 impl ScriptExportApplication {
     pub fn new(port: Option<Arc<dyn ScriptExportPort>>) -> Self {
-        Self { port }
+        static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
+        let owner = NEXT_OWNER.fetch_add(1, Ordering::Relaxed);
+        assert!(owner != 0, "Script export owner identity exhausted");
+        Self {
+            port,
+            state: Arc::default(),
+            owner,
+        }
     }
 
     /// A host with no save-file adapter: every export reports a typed
     /// unsupported outcome while still carrying the real artifact bytes.
     pub fn without_host_port() -> Self {
-        Self { port: None }
+        Self::new(None)
     }
 
     pub fn has_host_port(&self) -> bool {
         self.port.is_some()
+    }
+
+    pub fn snapshot(&self) -> Option<ScriptExportSnapshot> {
+        self.state
+            .lock()
+            .expect("script export state")
+            .latest
+            .clone()
+    }
+
+    pub fn clear_history(&self) {
+        self.state.lock().expect("script export state").latest = None;
     }
 
     /// Export the edited Mixin overlay as a real YAML document.
@@ -74,10 +93,8 @@ impl ScriptExportApplication {
         base_yaml: &str,
         mixin_yaml: &str,
     ) -> Result<ScriptExportSnapshot, Failure> {
-        let artifact = infiltrator_domain::script_export::compose_mixin_overlay_export(
-            profile, base_yaml, mixin_yaml,
-        )
-        .map_err(|error| export_failure(ErrorCode::Configuration, error))?;
+        let artifact = compose_mixin_overlay_export(profile, base_yaml, mixin_yaml)
+            .map_err(|error| export_failure(ErrorCode::Configuration, error))?;
         Ok(self.save(artifact, Some(profile.to_string())))
     }
 
@@ -88,24 +105,19 @@ impl ScriptExportApplication {
         script_code: &str,
         preset: Option<&str>,
     ) -> Result<ScriptExportSnapshot, Failure> {
-        let artifact = infiltrator_domain::script_export::compose_directive_dsl_export(
-            requested_stem,
-            script_code,
-            preset,
-        )
-        .map_err(|error| export_failure(ErrorCode::Configuration, error))?;
+        let artifact = compose_directive_dsl_export(requested_stem, script_code, preset)
+            .map_err(|error| export_failure(ErrorCode::Configuration, error))?;
         Ok(self.save(artifact, None))
     }
 
     /// Export a built-in preset by id through the shared catalogue.
     pub fn export_preset(&self, preset_id: &str) -> Result<ScriptExportSnapshot, Failure> {
-        let preset = infiltrator_domain::script_engine::ScriptEngine::find_preset(preset_id)
-            .ok_or_else(|| {
-                export_failure(
-                    ErrorCode::InvalidInput,
-                    format!("未知的脚本预设: {preset_id}"),
-                )
-            })?;
+        let preset = ScriptEngine::find_preset(preset_id).ok_or_else(|| {
+            export_failure(
+                ErrorCode::InvalidInput,
+                format!("未知的脚本预设: {preset_id}"),
+            )
+        })?;
         self.export_directive_dsl(Some(preset.id), preset.script_code, Some(preset.id))
     }
 
@@ -114,7 +126,7 @@ impl ScriptExportApplication {
         &self,
         package: &ExtensionPackage,
     ) -> Result<ScriptExportSnapshot, Failure> {
-        let artifact = infiltrator_domain::script_export::compose_extension_package_export(package)
+        let artifact = compose_extension_package_export(package)
             .map_err(|error| export_failure(ErrorCode::Internal, error))?;
         Ok(self.save(artifact, None))
     }
@@ -130,33 +142,11 @@ impl ScriptExportApplication {
         mixin_yaml: Option<&str>,
         preset: Option<&str>,
     ) -> Result<ScriptExportSnapshot, Failure> {
-        let stage = preset
-            .and_then(infiltrator_domain::script_engine::ScriptEngine::find_preset)
-            .map(|preset| preset.stage)
-            .unwrap_or_default();
-        let package = ExtensionPackage {
-            name: name.to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            author: "Music Frog 指令 DSL 工作台".to_string(),
-            description: match profile {
-                Some(profile) => format!("从配置 {profile} 导出的指令 DSL 覆写包"),
-                None => "从脚本沙箱控制台导出的指令 DSL 覆写包".to_string(),
-            },
-            stage,
-            script_code: script_code.to_string(),
-            mixin_yaml: mixin_yaml
-                .filter(|text| !text.trim().is_empty())
-                .map(str::to_string),
-            tags: vec!["music-frog".to_string(), "directive-dsl".to_string()],
-        };
+        let package = draft_package(name, profile, script_code, mixin_yaml, preset);
         self.export_extension_package(&package)
     }
 
-    fn save(
-        &self,
-        artifact: infiltrator_domain::script_export::ExportArtifact,
-        profile: Option<String>,
-    ) -> ScriptExportSnapshot {
+    fn save(&self, artifact: ExportArtifact, profile: Option<String>) -> ScriptExportSnapshot {
         let outcome = self.persist(&artifact);
         let snapshot = ScriptExportSnapshot {
             kind: artifact.kind,
@@ -168,14 +158,11 @@ impl ScriptExportApplication {
             honest_note: artifact.honest_note,
             outcome,
         };
-        publish_script_export(snapshot.clone());
+        self.state.lock().expect("script export state").latest = Some(snapshot.clone());
         snapshot
     }
 
-    fn persist(
-        &self,
-        artifact: &infiltrator_domain::script_export::ExportArtifact,
-    ) -> ScriptExportOutcome {
+    fn persist(&self, artifact: &ExportArtifact) -> ScriptExportOutcome {
         let Some(port) = self.port.as_ref() else {
             return ScriptExportOutcome::Unsupported {
                 reason: "当前宿主没有文件保存对话框或导出目录，导出内容未写入磁盘".to_string(),

@@ -1,10 +1,9 @@
 //! Runtime-neutral configuration snapshot persistence port.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use std::path::Path;
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait SnapshotStore: Send + Sync {

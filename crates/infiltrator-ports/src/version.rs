@@ -1,13 +1,12 @@
 //! Runtime-neutral core-version delivery port.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreRelease, CoreReleaseChannel, CoreReleaseSummary,
     CoreRollbackSnapshot, InstalledCoreVersion, VersionDownloadProgress,
 };
 use std::sync::Arc;
-
-use crate::error::PortError;
 
 pub trait VersionProgressSink: Send + Sync {
     fn progress(&self, progress: VersionDownloadProgress);

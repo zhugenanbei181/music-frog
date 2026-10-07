@@ -6,12 +6,14 @@
 //! submission. Both surfaces submit the same patch through
 //! `UiCommand::ApplyDnsSettings`.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::dns::{DnsProjection, DnsProjectionUpdated};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::BorderColor;
@@ -21,17 +23,19 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::dns_status_projection::{field_label_key, form_status};
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::dns::append_server;
+use infiltrator_contract::dns::{append_server, parse_server_list};
 use infiltrator_contract::dns_form::{DnsFormField, DnsFormIssue, DnsWorkbenchForm};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::dns::{DnsProjection, DnsProjectionUpdated};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Shared workbench draft plus the honest local validation state.
 #[derive(Resource, Clone, Debug, Default)]
@@ -40,6 +44,7 @@ pub struct DnsFormState {
     pub dirty: bool,
     pub issues: Vec<DnsFormIssue>,
     pub submitted: bool,
+    pub host_missing: bool,
 }
 
 /// Parent marker on the text-field node of one raw workbench field.
@@ -84,8 +89,11 @@ pub struct DnsEditGeoipToggle(pub bool);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DnsEditGeoipStatus;
 
+#[derive(Component, Clone, Copy, Default)]
+pub struct DnsEditTriggerCount;
+
 /// Rows of the editable card: field key, placeholder, quick-append templates.
-const EDIT_ROWS: [(DnsFormField, &str, &[&str]); 8] = [
+const EDIT_ROWS: [(DnsFormField, &str, &[&str]); 9] = [
     (
         DnsFormField::BootstrapNameserver,
         "223.5.5.5, 119.29.29.29",
@@ -101,6 +109,7 @@ const EDIT_ROWS: [(DnsFormField, &str, &[&str]); 8] = [
         "https://1.0.0.1/dns-query",
         &["8.8.8.8", "tls://1.0.0.1:853"],
     ),
+    (DnsFormField::FallbackGeoipCode, "CN", &[]),
     (
         DnsFormField::FallbackTriggerIp,
         "240.0.0.0/4, 192.168.0.0/16",
@@ -136,7 +145,10 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
         .policy()
         .trigger_ipcidr
         .len();
-    let geoip_details = format!("fallback_filter.ipcidr 触发网段 {trigger_count} 条");
+    let geoip_details = LocalizedText::new(
+        "dns_trigger_count",
+        vec![("count", trigger_count.to_string())],
+    );
     let rows: Vec<Box<dyn Scene>> = EDIT_ROWS
         .iter()
         .map(|(field, placeholder, templates)| {
@@ -160,7 +172,7 @@ pub fn dns_edit_card_scene(projection: &DnsProjection, palette: &UiPalette) -> i
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "上游加密 DNS 配置与回退策略 (DUAL-14-04/05)".to_owned() })
+                                LocalizedText::plain("dns_upstream_form_title")
                                 TextRole(Role::BodyStrong)
                                 --
                                 Text({ "DoH / DoT / DoQ · fallback-filter".to_owned() }) TextRole(Role::Caption)
@@ -193,7 +205,7 @@ fn edit_field_row(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let value = projection.form.raw(field).unwrap_or_default().to_owned();
-    let label = field_label(field);
+    let label = LocalizedText::plain(field_label_key(field));
     let chips: Vec<Box<dyn Scene>> = templates
         .iter()
         .map(|server| Box::new(template_chip(field, server, &value, palette)) as Box<dyn Scene>)
@@ -206,12 +218,12 @@ fn edit_field_row(
                 row_gap: Val::Px(space::S4),
             }
             Children [
-                Text(label) TextRole(Role::Caption)
+                label TextRole(Role::Caption)
                 --
                 Node { width: percent(100) }
                 DnsEditField(field)
                 Children [
-                    @{ text_field_with_placeholder_scene(value, placeholder.to_owned(), palette) }
+                    @{ (text_field_with_placeholder_scene(value, placeholder.to_owned(), palette), bsn! { NativeTextField({100 + field as i32}) }) }
                 ]
                 --
                 Node {
@@ -231,7 +243,7 @@ fn template_chip(
     current: &str,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let added = infiltrator_contract::dns::parse_server_list(current)
+    let added = parse_server_list(current)
         .iter()
         .any(|entry| entry.eq_ignore_ascii_case(server));
     let bg = if added {
@@ -263,7 +275,7 @@ fn template_chip(
 
 fn geoip_toggle_row(
     projection: &DnsProjection,
-    details: String,
+    details: LocalizedText,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let enabled = projection.form.fallback_policy.geoip;
@@ -283,7 +295,7 @@ fn geoip_toggle_row(
         palette.ink_dim
     };
     let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
-    let status = geoip_status_label(enabled);
+    let status = geoip_status_label(enabled, UiLocale::default().code());
     let status_color = if enabled {
         palette.success
     } else {
@@ -305,9 +317,9 @@ fn geoip_toggle_row(
                     row_gap: Val::Px(space::S2),
                 }
                 Children [
-                    Text({ "GEOIP 触发回退 (fallback_filter.geoip)".to_owned() }) TextRole(Role::Body)
+                    LocalizedText::plain("dns_geoip_fallback_label") TextRole(Role::Body)
                     --
-                    Text(details) TextRole(Role::Caption)
+                    details DnsEditTriggerCount TextRole(Role::Caption)
                 ]
                 --
                 Node {
@@ -358,7 +370,7 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 padding: UiRect::top(Val::Px(space::S8)),
             }
             Children [
-                Text({ "本地校验通过后提交共享 ApplyDnsSettings 补丁".to_owned() })
+                Text({form_status(&[],false,false,false,UiLocale::default().code())})
                 DnsEditStatusLine
                 TextRole(Role::Caption)
                 TextColor({ palette.ink_dim })
@@ -374,65 +386,30 @@ fn edit_apply_row(palette: &UiPalette) -> impl Scene + use<> {
                 DnsEditApplyButton
                 Button
                 Children [
-                    Text({ "应用 DNS 表单 (Apply)".to_owned() }) TextRole(Role::BodyStrong)
+                    LocalizedText::plain("dns_apply_form_action") TextRole(Role::BodyStrong)
                 ]
             ]
     }
 }
 
-/// Field row labels (bare Chinese follows the Bevy page convention).
-fn field_label(field: DnsFormField) -> String {
-    match field {
-        DnsFormField::BootstrapNameserver => "default_nameserver (bootstrap, 仅纯 IP)".to_owned(),
-        DnsFormField::Nameserver => "nameserver (DoH / DoT / DoQ / UDP)".to_owned(),
-        DnsFormField::Fallback => "fallback (回退解析服务器)".to_owned(),
-        DnsFormField::FallbackTriggerIp => "fallback_filter.ipcidr (GEOIP 触发网段)".to_owned(),
-        DnsFormField::FakeIpRange => "fake_ip_range".to_owned(),
-        DnsFormField::FakeIpFilter => "fake_ip_filter".to_owned(),
-        DnsFormField::ProxyServerNameserver => "proxy_server_nameserver".to_owned(),
-        DnsFormField::DirectNameserver => "direct_nameserver".to_owned(),
-        other => other.key().to_owned(),
-    }
+/// Replay only the shared fold; queued is not an applied acknowledgement.
+pub fn dns_edit_status_label(state: &DnsFormState, code: &str) -> String {
+    form_status(
+        &state.issues,
+        state.dirty,
+        state.submitted,
+        state.host_missing,
+        code,
+    )
 }
-
-/// Honest local issue text for the Bevy status line.
-pub fn issue_label(issue: &DnsFormIssue) -> String {
-    match issue {
-        DnsFormIssue::UnsupportedScheme { field, entry } => {
-            format!("{} 上游协议不受支持: {}", field.key(), entry)
-        }
-        DnsFormIssue::BootstrapNotIp { entry } => {
-            format!("bootstrap 解析器必须是纯 IP: {entry}")
-        }
-        DnsFormIssue::InvalidTriggerCidr { entry } => {
-            format!("GEOIP 触发网段不是合法 CIDR: {entry}")
-        }
-        DnsFormIssue::InvalidGeoipCode { value } => {
-            format!("geoip-code 必须是两位国家代码: {value}")
-        }
-    }
-}
-
-/// The status line text for the current draft state.
-pub fn dns_edit_status_label(state: &DnsFormState) -> String {
-    if let Some(issue) = state.issues.first() {
-        return format!("本地校验未通过: {}", issue_label(issue));
-    }
-    if state.dirty {
-        return "有未应用的修改，点击应用提交共享补丁".to_owned();
-    }
-    if state.submitted {
-        return "已提交共享 DNS 工作台补丁".to_owned();
-    }
-    "表单与当前配置一致".to_owned()
-}
-
-fn geoip_status_label(enabled: bool) -> String {
-    if enabled {
-        "已开启".to_owned()
-    } else {
-        "已关闭".to_owned()
-    }
+fn geoip_status_label(enabled: bool, code: &str) -> String {
+    Lang(code)
+        .tr(if enabled {
+            "dns_switch_enabled"
+        } else {
+            "dns_switch_disabled"
+        })
+        .into_owned()
 }
 
 fn read_fields(
@@ -469,12 +446,41 @@ fn restamp_fields(
 }
 
 /// Per-frame honest dirty flag: any field text that differs from the draft.
-pub fn sync_dns_edit_dirty(
-    fields: Query<(&Children, &DnsEditField)>,
-    text_fields: Query<&TextField>,
-    mut status_lines: Query<&mut Text, StatusLineFilter>,
-    mut state: ResMut<DnsFormState>,
-) {
+#[derive(SystemParam)]
+pub struct DnsEditView<'w, 's> {
+    fields: Query<'w, 's, (&'static Children, &'static DnsEditField)>,
+    text_fields: Query<'w, 's, &'static TextField>,
+    status_lines: Query<'w, 's, &'static mut Text, StatusLineFilter>,
+    state: ResMut<'w, DnsFormState>,
+    locale: Res<'w, UiLocale>,
+    geoip_status: Query<'w, 's, &'static mut Text, GeoipStatusFilter>,
+    details: Query<'w, 's, &'static mut LocalizedText, With<DnsEditTriggerCount>>,
+    apply: Query<'w, 's, &'static mut ButtonDisabled, With<DnsEditApplyButton>>,
+}
+pub fn sync_dns_edit_dirty(surface: DnsEditView) {
+    let DnsEditView {
+        fields,
+        text_fields,
+        mut status_lines,
+        mut state,
+        locale,
+        mut geoip_status,
+        mut details,
+        mut apply,
+    } = surface;
+    let composing = fields
+        .iter()
+        .flat_map(|(children, _)| children.iter())
+        .any(|child| {
+            text_fields
+                .get(*child)
+                .is_ok_and(|field| field.0.is_in_ime_transaction())
+        });
+    for mut disabled in &mut apply {
+        if disabled.0 != composing {
+            disabled.0 = composing;
+        }
+    }
     let mut dirty = false;
     for (children, marker) in fields.iter() {
         let Some(raw) = state.form.raw(marker.0) else {
@@ -489,7 +495,26 @@ pub fn sync_dns_edit_dirty(
         }
     }
     state.dirty = dirty;
-    let label = dns_edit_status_label(&state);
+    let value = geoip_status_label(state.form.fallback_policy.geoip, locale.code());
+    for mut text in &mut geoip_status {
+        if text.0 != value {
+            text.0 = value.clone();
+        }
+    }
+    let count = state
+        .form
+        .fallback_policy
+        .policy()
+        .trigger_ipcidr
+        .len()
+        .to_string();
+    for mut copy in &mut details {
+        if copy.params != [("count", count.clone())] {
+            copy.params = vec![("count", count.clone())];
+        }
+    }
+
+    let label = dns_edit_status_label(&state, locale.code());
     for mut text in status_lines.iter_mut() {
         if text.0 != label {
             text.0 = label.clone();
@@ -497,29 +522,46 @@ pub fn sync_dns_edit_dirty(
     }
 }
 
-type StatusLineFilter = (
-    With<DnsEditStatusLine>,
-    Without<DnsEditGeoipStatus>,
-    Without<DnsEditField>,
-);
+#[derive(QueryFilter)]
+pub struct StatusLineFilter {
+    status: With<DnsEditStatusLine>,
+    no_geoip: Without<DnsEditGeoipStatus>,
+    no_field: Without<DnsEditField>,
+}
+#[derive(QueryFilter)]
+pub struct GeoipStatusFilter {
+    geoip: With<DnsEditGeoipStatus>,
+    no_status: Without<DnsEditStatusLine>,
+}
 
 /// Activation seam: quick-append chips, the GEOIP toggle and apply.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-pub(crate) fn on_dns_edit_activated(
-    activate: On<Activate>,
-    templates: Query<&DnsEditTemplate>,
-    geoip_toggles: Query<&DnsEditGeoipToggle>,
-    apply_buttons: Query<(), With<DnsEditApplyButton>>,
-    fields: Query<(&Children, &DnsEditField)>,
-    mut text_fields: Query<&mut TextField>,
-    mut geoip_status: Query<&mut Text, (With<DnsEditGeoipStatus>, Without<DnsEditStatusLine>)>,
-    mut status_lines: Query<&mut Text, StatusLineFilter>,
-    mut state: Option<ResMut<DnsFormState>>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
-    let Some(state) = state.as_deref_mut() else {
-        return;
-    };
+#[derive(SystemParam)]
+pub struct DnsEditInteraction<'w, 's> {
+    templates: Query<'w, 's, &'static DnsEditTemplate>,
+    geoip_toggles: Query<'w, 's, &'static DnsEditGeoipToggle>,
+    apply_buttons: Query<'w, 's, (), With<DnsEditApplyButton>>,
+    fields: Query<'w, 's, (&'static Children, &'static DnsEditField)>,
+    text_fields: Query<'w, 's, &'static mut TextField>,
+    geoip_status: Query<'w, 's, &'static mut Text, GeoipStatusFilter>,
+    status_lines: Query<'w, 's, &'static mut Text, StatusLineFilter>,
+    state: ResMut<'w, DnsFormState>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    locale: Res<'w, UiLocale>,
+}
+pub(crate) fn on_dns_edit_activated(activate: On<Activate>, surface: DnsEditInteraction) {
+    let DnsEditInteraction {
+        templates,
+        geoip_toggles,
+        apply_buttons,
+        fields,
+        mut text_fields,
+        mut geoip_status,
+        mut status_lines,
+        mut state,
+        handle,
+        locale,
+    } = surface;
+    let state = &mut *state;
     if let Ok(template) = templates.get(activate.entity) {
         let current = state
             .form
@@ -530,7 +572,7 @@ pub(crate) fn on_dns_edit_activated(
         state.form.set_raw(template.field, next);
         state.submitted = false;
         restamp_fields(&fields, &mut text_fields, &state.form);
-        restamp_status(state, &mut status_lines);
+        restamp_status(state, &mut status_lines, locale.code());
         return;
     }
     if let Ok(toggle) = geoip_toggles.get(activate.entity) {
@@ -538,48 +580,73 @@ pub(crate) fn on_dns_edit_activated(
         state.form.fallback_policy.geoip = enabled;
         state.submitted = false;
         for mut text in &mut geoip_status {
-            text.0 = geoip_status_label(enabled);
+            text.0 = geoip_status_label(enabled, locale.code());
         }
-        restamp_status(state, &mut status_lines);
+        restamp_status(state, &mut status_lines, locale.code());
         return;
     }
     if apply_buttons.get(activate.entity).is_err() {
         return;
     }
+    if fields
+        .iter()
+        .flat_map(|(children, _)| children.iter())
+        .any(|child| {
+            text_fields
+                .get(*child)
+                .is_ok_and(|field| field.0.is_in_ime_transaction())
+        })
+    {
+        return;
+    }
     read_fields(&fields, &mut text_fields, &mut state.form);
     state.issues = state.form.validate();
     if state.issues.is_empty() {
-        if let Some(handle) = handle {
+        if let Some(handle) = handle.as_ref() {
             handle.submit(UiCommand::ApplyDnsSettings {
                 patch: state.form.patch(),
             });
         }
-        state.submitted = true;
+        state.host_missing = handle.is_none();
+        state.submitted = handle.is_some();
     } else {
         state.submitted = false;
     }
-    restamp_status(state, &mut status_lines);
+    restamp_status(state, &mut status_lines, locale.code());
 }
 
 /// Projection seam: re-seed the draft while the user has no pending edits.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-pub(crate) fn apply_dns_edit_projection(
-    update: On<DnsProjectionUpdated>,
-    fields: Query<(&Children, &DnsEditField)>,
-    mut text_fields: Query<&mut TextField>,
-    mut geoip_toggles: Query<(
-        &mut BackgroundColor,
-        &mut BorderColor,
-        &mut DnsEditGeoipToggle,
-    )>,
-    mut geoip_status: Query<&mut Text, (With<DnsEditGeoipStatus>, Without<DnsEditStatusLine>)>,
-    mut status_lines: Query<&mut Text, StatusLineFilter>,
-    palette: Res<UiPalette>,
-    mut state: Option<ResMut<DnsFormState>>,
-) {
-    let Some(state) = state.as_deref_mut() else {
-        return;
-    };
+#[derive(SystemParam)]
+pub struct DnsEditReplay<'w, 's> {
+    fields: Query<'w, 's, (&'static Children, &'static DnsEditField)>,
+    text_fields: Query<'w, 's, &'static mut TextField>,
+    geoip_toggles: Query<
+        'w,
+        's,
+        (
+            &'static mut BackgroundColor,
+            &'static mut BorderColor,
+            &'static mut DnsEditGeoipToggle,
+        ),
+    >,
+    geoip_status: Query<'w, 's, &'static mut Text, GeoipStatusFilter>,
+    status_lines: Query<'w, 's, &'static mut Text, StatusLineFilter>,
+    palette: Res<'w, UiPalette>,
+    state: ResMut<'w, DnsFormState>,
+    locale: Res<'w, UiLocale>,
+}
+pub(crate) fn apply_dns_edit_projection(update: On<DnsProjectionUpdated>, surface: DnsEditReplay) {
+    let DnsEditReplay {
+        fields,
+        mut text_fields,
+        mut geoip_toggles,
+        mut geoip_status,
+        mut status_lines,
+        palette,
+        mut state,
+        locale,
+    } = surface;
+    let state = &mut *state;
     if !state.dirty {
         state.form = update.0.form.clone();
         state.issues.clear();
@@ -605,16 +672,17 @@ pub(crate) fn apply_dns_edit_projection(
         border.left = edge;
     }
     for mut text in &mut geoip_status {
-        text.0 = geoip_status_label(enabled);
+        text.0 = geoip_status_label(enabled, locale.code());
     }
-    restamp_status(state, &mut status_lines);
+    restamp_status(state, &mut status_lines, locale.code());
 }
 
-fn restamp_status<F: bevy::ecs::query::QueryFilter>(
+fn restamp_status<F: QueryFilter>(
     state: &DnsFormState,
     lines: &mut Query<&mut Text, F>,
+    code: &str,
 ) {
-    let label = dns_edit_status_label(state);
+    let label = dns_edit_status_label(state, code);
     for mut text in lines.iter_mut() {
         text.0 = label.clone();
     }
@@ -627,16 +695,16 @@ mod tests {
     #[test]
     fn status_line_reports_issues_dirty_and_submitted() {
         let mut state = DnsFormState::default();
-        assert_eq!(dns_edit_status_label(&state), "表单与当前配置一致");
+        assert_eq!(dns_edit_status_label(&state, "zh-CN"), "表单与当前配置一致");
         state.dirty = true;
-        assert!(dns_edit_status_label(&state).contains("未应用"));
+        assert!(dns_edit_status_label(&state, "zh-CN").contains("未应用"));
         state.dirty = false;
         state.submitted = true;
-        assert!(dns_edit_status_label(&state).contains("已提交"));
+        assert!(dns_edit_status_label(&state, "zh-CN").contains("已提交"));
         state.submitted = false;
         state.form.nameserver = "ftp://dns.example".to_owned();
         state.issues = state.form.validate();
-        assert!(dns_edit_status_label(&state).contains("本地校验未通过"));
+        assert!(dns_edit_status_label(&state, "zh-CN").contains("本地校验未通过"));
     }
 
     #[test]
@@ -647,19 +715,15 @@ mod tests {
     }
 
     #[test]
-    fn edit_rows_cover_the_ten_editable_fields() {
+    fn edit_rows_cover_every_shared_raw_field() {
         let covered: Vec<DnsFormField> = EDIT_ROWS.iter().map(|(field, ..)| *field).collect();
-        assert_eq!(covered.len(), 8);
-        for field in [
-            DnsFormField::BootstrapNameserver,
-            DnsFormField::Nameserver,
-            DnsFormField::Fallback,
-            DnsFormField::FallbackTriggerIp,
-            DnsFormField::FakeIpRange,
-            DnsFormField::FakeIpFilter,
-            DnsFormField::ProxyServerNameserver,
-            DnsFormField::DirectNameserver,
-        ] {
+        let form = DnsWorkbenchForm::default();
+        let expected: Vec<_> = DnsFormField::ALL
+            .into_iter()
+            .filter(|field| form.raw(*field).is_some())
+            .collect();
+        assert_eq!(covered.len(), expected.len());
+        for field in expected {
             assert!(covered.contains(&field), "{field:?} row missing");
         }
     }

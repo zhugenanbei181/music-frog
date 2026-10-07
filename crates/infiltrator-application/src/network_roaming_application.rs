@@ -6,6 +6,8 @@ use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkObservation, NetworkRoamingEvent, NetworkRoamingRepairRequest,
     NetworkRoamingSnapshot, NetworkRoamingStatus,
 };
+use infiltrator_domain::mtu_optimizer::MtuOptimizer;
+use infiltrator_domain::network_roaming::{decide, select_active_interface};
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::sync::Arc;
@@ -121,19 +123,17 @@ impl NetworkRoamingApplication {
             .iter()
             .find(|interface| interface.is_up && interface.kind == NetworkInterfaceKind::Tun)
             .map(|interface| interface.name.clone());
-        let decision = infiltrator_domain::network_roaming::decide(
+        let decision = decide(
             state.last_observation.as_ref(),
             &observation,
             tun.as_ref(),
             tun_interface.as_deref(),
         );
-        let selected =
-            infiltrator_domain::network_roaming::select_active_interface(&observation.interfaces);
+        let selected = select_active_interface(&observation.interfaces);
         let (physical_mtu, recommended_tun_mtu, tcp_mss) = selected
             .and_then(|interface| interface.mtu)
             .map(|mtu| {
-                let (tun_mtu, tcp_mss) =
-                    infiltrator_domain::mtu_optimizer::MtuOptimizer::negotiate_tun_mtu(mtu);
+                let (tun_mtu, tcp_mss) = MtuOptimizer::negotiate_tun_mtu(mtu);
                 (Some(mtu), Some(tun_mtu), Some(tcp_mss))
             })
             .unwrap_or_default();
@@ -212,17 +212,38 @@ impl NetworkRoamingApplication {
                 ))
             } else if let Some(failure) = controller_failure.clone() {
                 Some(failure)
-            } else if tun.as_ref().is_none_or(|tun| !tun.enable) {
+            } else if tun.as_ref().and_then(|tun| tun.enable).is_none() {
+                Some(Failure::new(
+                    ErrorCode::NotReady,
+                    "TUN enable state was not reported",
+                    true,
+                ))
+            } else if tun.as_ref().is_some_and(|tun| tun.enable == Some(false)) {
                 Some(Failure::new(
                     ErrorCode::NotReady,
                     "TUN is not enabled; no route table needs repair",
                     false,
                 ))
-            } else if tun.as_ref().is_none_or(|tun| !tun.auto_route) {
+            } else if tun.as_ref().and_then(|tun| tun.auto_route).is_none() {
+                Some(Failure::new(
+                    ErrorCode::NotReady,
+                    "TUN auto-route state was not reported",
+                    true,
+                ))
+            } else if tun
+                .as_ref()
+                .is_some_and(|tun| tun.auto_route == Some(false))
+            {
                 Some(Failure::new(
                     ErrorCode::InvalidState,
                     "TUN auto-route is disabled; refusing to mutate host routes",
                     false,
+                ))
+            } else if tun.as_ref().and_then(|tun| tun.strict_route).is_none() {
+                Some(Failure::new(
+                    ErrorCode::NotReady,
+                    "TUN strict-route state was not reported",
+                    true,
                 ))
             } else if tun_interface.is_none() {
                 Some(Failure::new(
@@ -250,7 +271,13 @@ impl NetworkRoamingApplication {
                 physical_interface: selected.name.clone(),
                 gateway_ip: selected.gateway_ip.clone(),
                 tun_interface: tun_interface.clone().expect("TUN checked above"),
-                strict_route: tun.strict_route,
+                strict_route: tun.strict_route.ok_or_else(|| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        "TUN strict-route has not been observed",
+                        true,
+                    )
+                })?,
             };
             snapshot.status = NetworkRoamingStatus::Recovering;
             match self.port.repair(request.clone()).await {
@@ -287,7 +314,9 @@ impl NetworkRoamingApplication {
                 snapshot.status = NetworkRoamingStatus::Degraded {
                     reason: failure.message,
                 };
-            } else if tun.as_ref().is_some_and(|tun| tun.enable && tun.auto_route)
+            } else if tun
+                .as_ref()
+                .is_some_and(|tun| tun.enable == Some(true) && tun.auto_route == Some(true))
                 && tun_interface.is_none()
             {
                 snapshot.status = NetworkRoamingStatus::Degraded {
@@ -307,21 +336,29 @@ impl NetworkRoamingApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use futures_util::stream::empty;
+    #[cfg(test)]
+    use infiltrator_contract::command::ProxyMode;
     use infiltrator_contract::network_roaming::{
         NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
         NetworkRoamingRepairResult,
     };
     use infiltrator_domain::proxy::Proxy;
+    #[cfg(test)]
+    use infiltrator_domain::runtime::TunSnapshot;
     use infiltrator_domain::runtime::{
         ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
     };
     use infiltrator_ports::error::PortError;
     use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream, RuntimeStreamEvent};
     use std::collections::HashMap;
+    #[cfg(test)]
+    use std::sync;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct FakePort {
-        observations: std::sync::Mutex<Vec<NetworkObservation>>,
+        observations: sync::Mutex<Vec<NetworkObservation>>,
         repairs: AtomicUsize,
     }
 
@@ -356,11 +393,11 @@ mod tests {
     impl RuntimeGateway for FakeGateway {
         async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
             Ok(ConfigSnapshot {
-                tun: Some(infiltrator_domain::runtime::TunSnapshot {
-                    enable: true,
-                    stack: "gvisor".to_owned(),
-                    auto_route: self.auto_route,
-                    strict_route: true,
+                tun: Some(TunSnapshot {
+                    enable: Some(true),
+                    stack: Some("gvisor".to_owned()),
+                    auto_route: Some(self.auto_route),
+                    strict_route: Some(true),
                     mtu: Some(1420),
                 }),
                 ..ConfigSnapshot::default()
@@ -371,10 +408,7 @@ mod tests {
             Ok(())
         }
 
-        async fn set_proxy_mode(
-            &self,
-            _mode: infiltrator_contract::command::ProxyMode,
-        ) -> Result<(), PortError> {
+        async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
             Ok(())
         }
 
@@ -435,21 +469,15 @@ mod tests {
             &self,
             _level: Option<String>,
         ) -> Result<RuntimeStream<String>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<String>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<String>>()))
         }
 
         async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<TrafficData>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<TrafficData>>()))
         }
 
         async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Ok(Box::pin(futures_util::stream::empty::<
-                RuntimeStreamEvent<ConnectionSnapshot>,
-            >()))
+            Ok(Box::pin(empty::<RuntimeStreamEvent<ConnectionSnapshot>>()))
         }
     }
 
@@ -481,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn migration_repairs_routes_and_publishes_a_shared_snapshot() {
         let port = Arc::new(FakePort {
-            observations: std::sync::Mutex::new(vec![
+            observations: sync::Mutex::new(vec![
                 observation("wlan0", "192.168.2.1"),
                 observation("eth0", "192.168.1.1"),
             ]),
@@ -507,7 +535,7 @@ mod tests {
     #[tokio::test]
     async fn migration_is_projected_without_host_mutation_when_auto_route_is_off() {
         let port = Arc::new(FakePort {
-            observations: std::sync::Mutex::new(vec![
+            observations: sync::Mutex::new(vec![
                 observation("wlan0", "192.168.2.1"),
                 observation("eth0", "192.168.1.1"),
             ]),
@@ -531,7 +559,7 @@ mod tests {
     #[tokio::test]
     async fn force_repair_requires_a_composed_live_gateway() {
         let port = Arc::new(FakePort {
-            observations: std::sync::Mutex::new(vec![observation("eth0", "192.168.1.1")]),
+            observations: sync::Mutex::new(vec![observation("eth0", "192.168.1.1")]),
             repairs: AtomicUsize::new(0),
         });
         let application = NetworkRoamingApplication::new(port, None);

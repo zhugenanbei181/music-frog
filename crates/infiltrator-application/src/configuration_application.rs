@@ -1,14 +1,19 @@
 //! Configuration-file use-cases over the profile store port.
 
 use crate::profile_application::ProfileApplication;
+use crate::rule_source_identity::rule_workspace;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_domain::{dns, fake_ip, proxy_providers, rules, sniffer, tun};
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::rule_tracer::RuleWorkspace;
 use serde_yaml_ng::Value;
+use std::fmt::Display;
 use std::sync::Arc;
+
+#[path = "configuration_dns.rs"]
+mod dns_commands;
 
 #[derive(Clone)]
 pub struct ConfigurationApplication {
@@ -24,6 +29,11 @@ impl ConfigurationApplication {
 
     async fn current(&self) -> Result<(String, String), Failure> {
         self.profiles.current_content().await
+    }
+
+    pub async fn load_rule_workspace(&self) -> Result<RuleWorkspace, Failure> {
+        let (profile, content) = self.current().await?;
+        rule_workspace(profile, &content)
     }
 
     pub async fn load_dns_config(&self) -> Result<dns::DnsConfig, Failure> {
@@ -42,32 +52,6 @@ impl ConfigurationApplication {
             dns::extract_dns_config_from_doc(&parse_yaml(&updated)?).map_err(config_failure)?;
         self.profiles.save_profile(&profile, &updated).await?;
         Ok(config)
-    }
-
-    /// Apply the shared DNS workbench patch (six switches, mapping mode and
-    /// Fake-IP filter mode) through the validated profile write path.
-    pub async fn apply_dns_settings(
-        &self,
-        patch: DnsSettingsPatch,
-    ) -> Result<dns::DnsConfig, Failure> {
-        self.apply_dns_settings_with_runtime::<dyn ManagedRuntime>(None, patch)
-            .await
-    }
-
-    /// Apply the shared workbench patch and, when a managed runtime is
-    /// supplied, commit it through the running core's apply transaction.
-    pub async fn apply_dns_settings_with_runtime<R: ManagedRuntime + ?Sized>(
-        &self,
-        runtime: Option<Arc<R>>,
-        patch: DnsSettingsPatch,
-    ) -> Result<dns::DnsConfig, Failure> {
-        let domain_patch = dns_patch_from_settings(patch);
-        self.profiles
-            .save_current_profile_content(runtime, ApplyStrategy::PreferReload, move |content| {
-                dns::apply_dns_patch_to_yaml(content, domain_patch)
-            })
-            .await?;
-        self.load_dns_config().await
     }
 
     pub async fn load_fake_ip_config(&self) -> Result<fake_ip::FakeIpConfig, Failure> {
@@ -133,16 +117,12 @@ impl ConfigurationApplication {
     /// downloaded resources. The client publishes that declaration; the
     /// per-request `304` outcome is not exposed by the controller, so it is
     /// never inferred here.
-    pub async fn load_etag_support(
-        &self,
-    ) -> Result<infiltrator_contract::provider_cache::KernelEtagSupportSnapshot, Failure> {
+    pub async fn load_etag_support(&self) -> Result<KernelEtagSupportSnapshot, Failure> {
         let (_, content) = self.current().await?;
         let doc = parse_yaml(&content)?;
-        Ok(
-            infiltrator_contract::provider_cache::KernelEtagSupportSnapshot::from_declared(
-                doc.get("etag-support").and_then(Value::as_bool),
-            ),
-        )
+        Ok(KernelEtagSupportSnapshot::from_declared(
+            doc.get("etag-support").and_then(Value::as_bool),
+        ))
     }
 
     pub async fn save_rule_providers(
@@ -261,14 +241,6 @@ pub fn dns_patch_from_settings(patch: DnsSettingsPatch) -> dns::DnsConfigPatch {
     if let Some(servers) = patch.direct_nameserver {
         domain_patch.direct_nameserver = Some(servers);
     }
-    if let Some(hosts) = patch.hosts {
-        domain_patch.hosts = Some(infiltrator_domain::dns_hosts::hosts_map_from_entries(
-            &hosts,
-        ));
-    }
-    if patch.clear_hosts {
-        domain_patch.clear_hosts = true;
-    }
     domain_patch
 }
 
@@ -276,13 +248,15 @@ fn parse_yaml(content: &str) -> Result<Value, Failure> {
     serde_yaml_ng::from_str(content).map_err(config_failure)
 }
 
-fn config_failure(error: impl std::fmt::Display) -> Failure {
+fn config_failure(error: impl Display) -> Failure {
     Failure::new(ErrorCode::Configuration, error.to_string(), false)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::dns::DnsFallbackPolicy;
     use infiltrator_contract::dns::{
         DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsSwitchField,
     };
@@ -331,7 +305,7 @@ mod tests {
         let patch = DnsSettingsPatch {
             nameserver: Some(vec!["https://doh.pub/dns-query".to_owned()]),
             fallback: Some(vec!["tls://1.0.0.1:853".to_owned()]),
-            fallback_policy: Some(infiltrator_contract::dns::DnsFallbackPolicy {
+            fallback_policy: Some(DnsFallbackPolicy {
                 geoip: true,
                 geoip_code: "CN".to_owned(),
                 trigger_ipcidr: vec!["192.168.0.0/16".to_owned()],

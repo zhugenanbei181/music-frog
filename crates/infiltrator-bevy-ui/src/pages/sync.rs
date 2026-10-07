@@ -3,20 +3,37 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`SyncLine`],
 //! [`SnapshotDeviceText`], [`SnapshotSizeText`], [`ConflictSummaryText`]).
-//! The page self-registers [`apply_sync_projection`] and action observers
-//! once per world via [`SyncPageRoot`]. When [`SyncProjectionUpdated`] fires,
+//! [`SyncPagePlugin`] registers [`apply_sync_projection`] and action observers
+//! once at product assembly. When [`SyncProjectionUpdated`] fires,
 //! texts, conflict panels, and snapshots restamp in place without tree rebuilds.
 
+#[path = "sync_query_access.rs"]
+pub mod query_access;
+use self::query_access::SyncProjectionTargets;
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
+use crate::pages::snapshot_restore::OpenSnapshotRestore;
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::sync_projection;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
+use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use infiltrator_contract::surface_snapshot::PageStatus;
+use infiltrator_contract::sync::SyncStatus;
+
+use crate::pages::sync_merge::{
+    SyncMergeRowsCache, replay_availability, replay_fields, sync_three_way_merge_scene,
+};
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, JustifyContent, Node,
@@ -24,7 +41,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -32,18 +48,9 @@ use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::overview::format_byte_count;
-use crate::route::{PageRoot, Route};
-
 /// Root marker on the Sync page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_sync_page)]
 pub struct SyncPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct SyncPageBound;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -59,6 +66,8 @@ pub enum SyncLineKind {
     LastSync,
     /// Server URL info.
     ServerUrl,
+    Username,
+    HistoryStatus,
 }
 
 /// Marker for conflict summary text.
@@ -96,31 +105,9 @@ pub struct TakeRemoteConflictButton;
 /// Marker for restoring a specific snapshot.
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
 pub struct RestoreSnapshotButton {
+    pub profile: String,
     pub snapshot_id: String,
     pub snapshot_idx: usize,
-}
-
-/// Status of the WebDAV sync connection.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SyncStatus {
-    #[default]
-    Connected,
-    Disconnected,
-    Syncing,
-    Conflict,
-    Error,
-}
-
-impl SyncStatus {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Connected => "已连接 · 同步就绪",
-            Self::Disconnected => "未连接",
-            Self::Syncing => "正在同步数据中...",
-            Self::Conflict => "同步冲突 · 需要手动解决",
-            Self::Error => "同步异常",
-        }
-    }
 }
 
 /// Information about a single conflicting configuration key.
@@ -142,10 +129,11 @@ pub struct SyncConflictInfo {
 /// A remote backup snapshot item.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnapshotItem {
+    pub profile: String,
     pub id: String,
     pub timestamp: String,
     pub device: String,
-    pub size_bytes: u64,
+    pub size_bytes: Option<u64>,
 }
 
 /// Snapshot of the Sync domain.
@@ -158,6 +146,7 @@ pub struct SyncProjection {
     pub auto_sync: bool,
     pub conflict: Option<SyncConflictInfo>,
     pub snapshots: Vec<SnapshotItem>,
+    pub history_status: PageStatus,
 }
 
 impl SyncProjection {
@@ -165,6 +154,7 @@ impl SyncProjection {
     pub fn demo() -> Self {
         Self {
             status: SyncStatus::Connected,
+            history_status: PageStatus::Ready,
             server_url: "https://dav.jianguoyun.com/dav/MusicFrog/".to_owned(),
             username: "user@example.com".to_owned(),
             last_sync: Some("2026-09-02 10:15".to_owned()),
@@ -172,22 +162,25 @@ impl SyncProjection {
             conflict: None,
             snapshots: vec![
                 SnapshotItem {
+                    profile: "main".into(),
                     id: "snap-1".to_owned(),
                     timestamp: "2026-09-02 10:15".to_owned(),
                     device: "Linux Desktop (CachyOS)".to_owned(),
-                    size_bytes: 142_800,
+                    size_bytes: Some(142_800),
                 },
                 SnapshotItem {
+                    profile: "main".into(),
                     id: "snap-2".to_owned(),
                     timestamp: "2026-09-01 22:30".to_owned(),
                     device: "Android (Pixel 9 Pro)".to_owned(),
-                    size_bytes: 138_400,
+                    size_bytes: Some(138_400),
                 },
                 SnapshotItem {
+                    profile: "main".into(),
                     id: "snap-3".to_owned(),
                     timestamp: "2026-08-30 09:12".to_owned(),
                     device: "macOS (MacBook Air)".to_owned(),
-                    size_bytes: 125_600,
+                    size_bytes: Some(125_600),
                 },
             ],
         }
@@ -205,12 +198,9 @@ pub struct LastSyncProjection(pub Option<SyncProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!("数据同步 · {}", projection.status.label());
-    let last_sync_str = projection
-        .last_sync
-        .as_deref()
-        .map(|t| format!("最近同步: {t}"))
-        .unwrap_or_else(|| "最近同步: 从未".to_owned());
+    let locale = UiLocale::default();
+    let summary = sync_projection::summary(projection.status, locale.code());
+    let last_sync_str = sync_projection::last_sync(projection.last_sync.as_deref(), locale.code());
 
     let snapshot_scenes: Vec<Box<dyn Scene>> = projection
         .snapshots
@@ -237,13 +227,13 @@ pub fn sync_page(projection: &SyncProjection, palette: &UiPalette) -> impl Scene
             Children [
                 @{ header_card_scene(summary, last_sync_str, palette) }
                 --
-                @{ conflict_scene }
+                @{ conflict_scene } ConflictCardContainer
                 --
-                @{ crate::pages::sync_merge::sync_three_way_merge_scene(palette) }
+                @{ sync_three_way_merge_scene(projection.conflict.as_ref(), palette) }
                 --
                 @{ webdav_config_card(projection, palette) }
                 --
-                @{ snapshots_card_scene(snapshot_scenes, palette) }
+                @{ snapshots_card_scene(snapshot_scenes, &projection.history_status, palette) }
             ]
     }
 }
@@ -254,7 +244,8 @@ fn header_card_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("数据同步概览");
+    let label = LocalizedLabel::plain("sync_observation_header");
+    header_a11y.set_label(label.0.render(&UiLocale::default()));
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -264,7 +255,7 @@ fn header_card_scene(
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: Val::Px(space::S16),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) label
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -300,7 +291,7 @@ fn header_card_scene(
                             SyncNowButton
                             Button
                             Children [
-                                Text({ "立即同步".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_now") TextRole(Role::BodyStrong)
                             ]
                             --
                             Node {
@@ -314,7 +305,7 @@ fn header_card_scene(
                             CreateBackupButton
                             Button
                             Children [
-                                Text({ "创建备份".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("common_create_backup") TextRole(Role::Body)
                             ]
                         ]
                     ]
@@ -327,21 +318,17 @@ fn conflict_panel_scene(
     conflict: Option<&SyncConflictInfo>,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let has_conflict = conflict.is_some();
-    let display_mode = if has_conflict {
-        Display::Flex
-    } else {
-        Display::None
-    };
-    let conflict_text = match conflict {
-        Some(info) => format!(
-            "检测到冲突：远端设备 {} 于 {} 产生变更，共 {} 处不一致",
-            info.remote_device,
-            info.conflict_time,
-            info.conflicting_keys.len()
-        ),
-        None => "无冲突".to_owned(),
-    };
+    let locale = UiLocale::default();
+    let conflict_text = conflict
+        .map(|info| {
+            sync_projection::conflict(
+                &info.remote_device,
+                &info.conflict_time,
+                info.conflicting_keys.len(),
+                locale.code(),
+            )
+        })
+        .unwrap_or_else(|| locale.text("sync_observation_conflict_none"));
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -349,9 +336,7 @@ fn conflict_panel_scene(
                         width: percent(100),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S8),
-                        display: { display_mode },
                     }
-                    ConflictCardContainer
                     Children [
                         Node {
                             width: percent(100),
@@ -359,7 +344,7 @@ fn conflict_panel_scene(
                             justify_content: JustifyContent::SpaceBetween,
                         }
                         Children [
-                            Text({ "⚠️ WebDAV 3-Way 同步冲突待解决".to_owned() }) TextRole(Role::BodyStrong)
+                            LocalizedText::plain("sync_conflict_pending") TextRole(Role::BodyStrong)
                         ]
                         --
                         Text(conflict_text) ConflictSummaryText TextRole(Role::Body)
@@ -380,7 +365,7 @@ fn conflict_panel_scene(
                             KeepLocalConflictButton
                             Button
                             Children [
-                                Text({ "保留本地配置 (Keep Local)".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("sync_keep_local_action") TextRole(Role::Body)
                             ]
                             --
                             Node {
@@ -394,7 +379,7 @@ fn conflict_panel_scene(
                             TakeRemoteConflictButton
                             Button
                             Children [
-                                Text({ "采用远端配置 (Take Remote)".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("sync_take_remote_action") TextRole(Role::Body)
                             ]
                         ]
                     ]
@@ -404,8 +389,8 @@ fn conflict_panel_scene(
 }
 
 fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let server_str = format!("服务端地址: {}", projection.server_url);
-    let user_str = format!("账号: {}", projection.username);
+    let server_str = sync_projection::server(&projection.server_url, UiLocale::default().code());
+    let user_str = sync_projection::username(&projection.username, UiLocale::default().code());
 
     surface_scene(
         vec![
@@ -415,7 +400,7 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "WebDAV 云端漫游配置".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_webdav_settings_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -436,10 +421,10 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
                                 Children [
                                     Text(server_str) SyncLine(SyncLineKind::ServerUrl) TextRole(Role::Body)
                                     --
-                                    Text(user_str) TextRole(Role::Caption)
+                                    Text(user_str) SyncLine(SyncLineKind::Username) TextRole(Role::Caption)
                                 ]
                                 --
-                                @{ checkbox_scene("配置变更时自动同步 (Auto Sync on Change)".to_owned(), projection.auto_sync, palette) }
+                                @{ localized_checkbox_scene(LocalizedText::plain("sync_autostart_sync"), projection.auto_sync, palette) }
                             ]
             }),
         ],
@@ -449,8 +434,10 @@ fn webdav_config_card(projection: &SyncProjection, palette: &UiPalette) -> impl 
 
 fn snapshots_card_scene(
     snapshot_scenes: Vec<Box<dyn Scene>>,
+    history_status: &PageStatus,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let history_copy = sync_projection::history_notice(history_status, UiLocale::default().code());
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -461,9 +448,9 @@ fn snapshots_card_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "云端快照历史 (Cloud Snapshots)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("sync_observation_history_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ "支持 3-Way 差异比对与回滚".to_owned() }) TextRole(Role::Caption)
+                                Text(history_copy) SyncLine(SyncLineKind::HistoryStatus) TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -487,7 +474,10 @@ fn snapshot_row_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let device_time = format!("{} · {}", snapshot.device, snapshot.timestamp);
-    let size_str = format_byte_count(snapshot.size_bytes);
+    let size_str = snapshot
+        .size_bytes
+        .map(format_bytes)
+        .unwrap_or_else(|| "—".into());
 
     bsn! {
             Node {
@@ -518,27 +508,32 @@ fn snapshot_row_scene(
                 }
                 BackgroundColor({ palette.surface })
                 RestoreSnapshotButton {
-                    snapshot_id: { snapshot.id.clone() },
+                    profile: { snapshot.profile.clone() },                    snapshot_id: { snapshot.id.clone() },
                     snapshot_idx: idx,
                 }
                 Button
                 Children [
-                    Text({ "还原此版本".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("sync_restore_version_action") TextRole(Role::Caption)
                 ]
             ]
     }
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_sync_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<SyncPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct SyncPagePlugin;
+
+impl Plugin for SyncPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LastSyncProjection>();
+        app.add_observer(apply_sync_projection);
+        app.init_resource::<SyncMergeRowsCache>();
+        app.add_systems(Update, (replay_sync, replay_fields, replay_availability));
+        app.add_observer(on_sync_action_activated);
+        app.add_observer(on_restore_snapshot);
     }
-    let mut commands = world.commands();
-    commands.insert_resource(SyncPageBound);
-    commands.add_observer(apply_sync_projection);
-    commands.add_observer(on_sync_action_activated);
 }
 
 pub(crate) fn on_sync_action_activated(
@@ -547,7 +542,6 @@ pub(crate) fn on_sync_action_activated(
     create_backup_buttons: Query<(), With<CreateBackupButton>>,
     keep_local_buttons: Query<(), With<KeepLocalConflictButton>>,
     take_remote_buttons: Query<(), With<TakeRemoteConflictButton>>,
-    restore_buttons: Query<&RestoreSnapshotButton>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -561,77 +555,50 @@ pub(crate) fn on_sync_action_activated(
         handle.submit(UiCommand::ResolveConflictKeepLocal);
     } else if take_remote_buttons.contains(activate.entity) {
         handle.submit(UiCommand::ResolveConflictTakeRemote);
-    } else if let Ok(btn) = restore_buttons.get(activate.entity) {
-        handle.submit(UiCommand::RestoreSnapshot {
-            id: btn.snapshot_id.clone(),
-        });
     }
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_sync_projection(
     update: On<SyncProjectionUpdated>,
-    mut last: Option<ResMut<LastSyncProjection>>,
-    mut lines: Query<
-        (&mut Text, &SyncLine),
-        (
-            With<SyncLine>,
-            Without<ConflictSummaryText>,
-            Without<SnapshotDeviceText>,
-            Without<SnapshotSizeText>,
-        ),
-    >,
-    mut conflict_texts: Query<
-        (&mut Text, &ConflictSummaryText),
-        (
-            With<ConflictSummaryText>,
-            Without<SyncLine>,
-            Without<SnapshotDeviceText>,
-            Without<SnapshotSizeText>,
-        ),
-    >,
-    mut conflict_containers: Query<&mut Node, With<ConflictCardContainer>>,
-    mut snapshot_devices: Query<
-        (&mut Text, &SnapshotDeviceText),
-        (
-            With<SnapshotDeviceText>,
-            Without<SyncLine>,
-            Without<ConflictSummaryText>,
-            Without<SnapshotSizeText>,
-        ),
-    >,
-    mut snapshot_sizes: Query<
-        (&mut Text, &SnapshotSizeText),
-        (
-            With<SnapshotSizeText>,
-            Without<SyncLine>,
-            Without<ConflictSummaryText>,
-            Without<SnapshotDeviceText>,
-        ),
-    >,
-    mut restore_buttons: Query<&mut RestoreSnapshotButton>,
+    mut last: ResMut<LastSyncProjection>,
 ) {
-    let projection = &update.0;
+    last.0 = Some(update.0.clone());
+}
 
+pub(crate) fn replay_sync(
+    last: Res<LastSyncProjection>,
+    locale: Res<UiLocale>,
+    targets: SyncProjectionTargets,
+) {
+    let SyncProjectionTargets {
+        mut lines,
+        mut conflict_texts,
+        mut conflict_containers,
+        mut snapshot_devices,
+        mut snapshot_sizes,
+        mut restore_buttons,
+    } = targets;
+
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
     for (mut text, line) in &mut lines {
-        match line.0 {
-            SyncLineKind::Summary => {
-                text.0 = format!("数据同步 · {}", projection.status.label());
-            }
+        text.0 = match line.0 {
+            SyncLineKind::Summary => sync_projection::summary(projection.status, locale.code()),
             SyncLineKind::LastSync => {
-                text.0 = projection
-                    .last_sync
-                    .as_deref()
-                    .map(|t| format!("最近同步: {t}"))
-                    .unwrap_or_else(|| "最近同步: 从未".to_owned());
+                sync_projection::last_sync(projection.last_sync.as_deref(), locale.code())
             }
             SyncLineKind::ServerUrl => {
-                text.0 = format!("服务端地址: {}", projection.server_url);
+                sync_projection::server(&projection.server_url, locale.code())
             }
-        }
+            SyncLineKind::Username => {
+                sync_projection::username(&projection.username, locale.code())
+            }
+            SyncLineKind::HistoryStatus => {
+                sync_projection::history_notice(&projection.history_status, locale.code())
+            }
+        };
     }
-
     let has_conflict = projection.conflict.is_some();
     for mut container in &mut conflict_containers {
         container.display = if has_conflict {
@@ -640,38 +607,52 @@ pub(crate) fn apply_sync_projection(
             Display::None
         };
     }
-
-    if let Some(conflict) = &projection.conflict {
-        for (mut text, _) in &mut conflict_texts {
-            text.0 = format!(
-                "检测到冲突：远端设备 {} 于 {} 产生变更，共 {} 处不一致",
-                conflict.remote_device,
-                conflict.conflict_time,
-                conflict.conflicting_keys.len()
-            );
-        }
+    let message = projection
+        .conflict
+        .as_ref()
+        .map(|conflict| {
+            sync_projection::conflict(
+                &conflict.remote_device,
+                &conflict.conflict_time,
+                conflict.conflicting_keys.len(),
+                locale.code(),
+            )
+        })
+        .unwrap_or_else(|| locale.text("sync_observation_conflict_none"));
+    for (mut text, _) in &mut conflict_texts {
+        text.0 = message.clone();
     }
-
     for (mut text, marker) in &mut snapshot_devices {
         if let Some(snap) = projection.snapshots.get(marker.0) {
             text.0 = format!("{} · {}", snap.device, snap.timestamp);
         }
     }
-
     for (mut text, marker) in &mut snapshot_sizes {
         if let Some(snap) = projection.snapshots.get(marker.0) {
-            text.0 = format_byte_count(snap.size_bytes);
+            text.0 = snap
+                .size_bytes
+                .map(format_bytes)
+                .unwrap_or_else(|| "—".into());
         }
     }
-
     for mut btn in &mut restore_buttons {
         if let Some(snap) = projection.snapshots.get(btn.snapshot_idx) {
             btn.snapshot_id = snap.id.clone();
+            btn.profile = snap.profile.clone();
         }
     }
+}
 
-    if let Some(ref mut last_proj) = last {
-        last_proj.0 = Some(projection.clone());
+fn on_restore_snapshot(
+    event: On<Activate>,
+    buttons: Query<&RestoreSnapshotButton>,
+    mut commands: Commands,
+) {
+    if let Ok(button) = buttons.get(event.entity) {
+        commands.trigger(OpenSnapshotRestore(SnapshotRestoreTarget {
+            profile: button.profile.clone(),
+            snapshot_id: button.snapshot_id.clone(),
+        }));
     }
 }
 
@@ -687,7 +668,7 @@ mod tests {
         assert_eq!(proj.username, "user@example.com");
         assert_eq!(proj.snapshots.len(), 3);
         assert_eq!(proj.snapshots[0].device, "Linux Desktop (CachyOS)");
-        assert_eq!(proj.snapshots[0].size_bytes, 142_800);
+        assert_eq!(proj.snapshots[0].size_bytes, Some(142_800));
         assert!(proj.auto_sync);
         assert_eq!(proj.conflict, None);
     }

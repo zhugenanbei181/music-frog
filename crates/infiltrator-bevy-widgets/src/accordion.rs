@@ -7,6 +7,11 @@
 //! **Scene Adapters**: [`collapse_scene`] and [`accordion_scene`] build declarative
 //! card sections with animated disclosure chevrons and token surface chrome.
 
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -22,12 +27,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 /// Expansion behavior mode for an accordion.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -315,7 +314,6 @@ pub fn advance_accordions(
 }
 
 /// Repaint accordion expansion bodies when [`AccordionStateComp`] changes.
-#[allow(clippy::type_complexity)]
 pub fn sync_accordion_visuals(
     accordions: Query<(Entity, &AccordionStateComp), Changed<AccordionStateComp>>,
     groups: Query<&Children>,

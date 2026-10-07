@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-
 use infiltrator_contract::session::SessionToken;
+use serde::{Deserialize, Serialize};
 
 /// The lifecycle state of the mihomo application domain.
 ///

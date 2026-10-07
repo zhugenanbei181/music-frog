@@ -14,6 +14,7 @@ use infiltrator_bevy_ui::command_palette::ToggleCommandPalette;
 use infiltrator_bevy_ui::mini_hud::ToggleMiniHud;
 use infiltrator_bevy_ui::toast::ShellToast;
 use infiltrator_contract::a11y::{A11yRole, ShellA11yNode};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 
 /// Everything the mounted shell publishes: role, label and (for switches) the
 /// announced state.
@@ -37,11 +38,7 @@ fn mounted_shell() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     app.update();
     app
 }

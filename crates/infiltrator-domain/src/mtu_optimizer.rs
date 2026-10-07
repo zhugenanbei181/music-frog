@@ -1,3 +1,4 @@
+use infiltrator_contract::mtu::{DEFAULT_TUN_OVERHEAD_BYTES, MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -26,11 +27,8 @@ impl MtuOptimizer {
     /// Negotiate a TUN MTU and TCP MSS from the active physical link.
     pub fn negotiate_tun_mtu(physical_mtu: u32) -> (u32, u32) {
         let tun_mtu = physical_mtu
-            .saturating_sub(infiltrator_contract::mtu::DEFAULT_TUN_OVERHEAD_BYTES)
-            .clamp(
-                infiltrator_contract::mtu::MIN_TUN_MTU_BYTES,
-                infiltrator_contract::mtu::MAX_TUN_MTU_BYTES,
-            );
+            .saturating_sub(DEFAULT_TUN_OVERHEAD_BYTES)
+            .clamp(MIN_TUN_MTU_BYTES, MAX_TUN_MTU_BYTES);
         (tun_mtu, tun_mtu.saturating_sub(40))
     }
 

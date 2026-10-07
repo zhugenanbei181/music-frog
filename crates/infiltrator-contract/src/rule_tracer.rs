@@ -1,5 +1,12 @@
 //! Shared read model and decision tree replay contract for the Live Rule Tracer (交互式分流追踪器).
 
+use crate::error::{ErrorCode, Failure};
+use crate::rule_condition::{ConditionOutcome, EvaluationNodeKind, RuleEvaluationNode};
+#[cfg(test)]
+use crate::rule_hit_audit::{RuleDeadReason, RuleHitAuditSnapshot};
+use crate::rule_location::RulePathEntry;
+use crate::rule_source::RuleSourceIdentity;
+use crate::rule_trace_facts::DecisionStageFacts;
 use serde::{Deserialize, Serialize};
 
 /// Status of the Live Rule Tracer engine.
@@ -73,6 +80,8 @@ pub enum DecisionNodeStatus {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionChainNode {
     pub stage: DecisionStageKind,
+    #[serde(default)]
+    pub facts: Option<DecisionStageFacts>,
     pub title: String,
     pub detail: String,
     pub badge: Option<String>,
@@ -85,6 +94,10 @@ pub struct DecisionChainNode {
 pub struct DecisionChainSnapshot {
     pub nodes: Vec<DecisionChainNode>,
     pub hit_rule_index: Option<usize>,
+    #[serde(default)]
+    pub hit_rule_table: Option<String>,
+    #[serde(default)]
+    pub rule_path: Vec<RulePathEntry>,
     pub matched_rule_raw: String,
     pub matched_rule_type: String,
     pub matched_payload: String,
@@ -113,7 +126,7 @@ impl DecisionChainSnapshot {
         if current.is_empty() {
             None
         } else if current.eq_ignore_ascii_case("DIRECT") {
-            Some("PROXY".to_owned())
+            Some("REJECT".to_owned())
         } else {
             Some("DIRECT".to_owned())
         }
@@ -138,6 +151,12 @@ pub struct TrafficContextSnapshot {
     #[serde(default)]
     pub in_port: Option<u16>,
     pub process_name: Option<String>,
+    pub process_path: Option<String>,
+    pub in_name: Option<String>,
+    pub in_user: Option<String>,
+    pub dscp: Option<u8>,
+    pub uid: Option<u32>,
+    pub package_name: Option<String>,
     pub network: Option<String>,
     pub in_type: Option<String>,
     pub client_ip: Option<String>,
@@ -149,7 +168,11 @@ pub struct TrafficContextSnapshot {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TracerRuleOverride {
     pub rule_index: usize,
+    #[serde(default)]
+    pub rule_table: Option<String>,
     pub new_target: String,
+    pub expected_source: RuleSourceIdentity,
+    pub expected_rule: String,
 }
 
 /// Terminal status of a reverse-apply request. `Unsupported` is the honest
@@ -177,6 +200,7 @@ pub struct TracerRuleOverrideResult {
     pub previous_rule_raw: Option<String>,
     pub updated_rule_raw: Option<String>,
     pub failure: Option<String>,
+    pub typed_failure: Option<Failure>,
 }
 
 impl TracerRuleOverrideResult {
@@ -194,6 +218,7 @@ impl TracerRuleOverrideResult {
             previous_rule_raw: Some(previous_rule_raw),
             updated_rule_raw: Some(updated_rule_raw),
             failure: None,
+            typed_failure: None,
         }
     }
 
@@ -211,6 +236,23 @@ impl TracerRuleOverrideResult {
             previous_rule_raw: None,
             updated_rule_raw: None,
             failure: Some(failure.into()),
+            typed_failure: None,
+        }
+    }
+
+    pub fn rejected_failure(
+        status: TracerRuleOverrideStatus,
+        request: &TracerRuleOverride,
+        failure: Failure,
+    ) -> Self {
+        Self {
+            status,
+            rule_index: request.rule_index,
+            new_target: request.new_target.clone(),
+            previous_rule_raw: None,
+            updated_rule_raw: None,
+            failure: Some(failure.message.clone()),
+            typed_failure: Some(failure),
         }
     }
 
@@ -225,21 +267,24 @@ impl TracerRuleOverrideResult {
     /// Map a non-applied result onto the shared failure vocabulary; `None`
     /// means the override committed. The command router uses this so a
     /// rejected override is never reported as accepted.
-    pub fn into_failure(self) -> Option<crate::error::Failure> {
+    pub fn into_failure(self) -> Option<Failure> {
         if self.is_applied() {
             return None;
+        }
+        if self.typed_failure.is_some() {
+            return self.typed_failure;
         }
         let message = self
             .failure
             .unwrap_or_else(|| "rule override was not applied".to_owned());
         let code = match self.status {
-            TracerRuleOverrideStatus::Applied => crate::error::ErrorCode::Internal,
-            TracerRuleOverrideStatus::Unsupported => crate::error::ErrorCode::Unsupported,
-            TracerRuleOverrideStatus::InvalidTarget => crate::error::ErrorCode::InvalidInput,
-            TracerRuleOverrideStatus::StaleRuleIndex => crate::error::ErrorCode::NotReady,
-            TracerRuleOverrideStatus::ApplyFailed => crate::error::ErrorCode::Configuration,
+            TracerRuleOverrideStatus::Applied => ErrorCode::Internal,
+            TracerRuleOverrideStatus::Unsupported => ErrorCode::Unsupported,
+            TracerRuleOverrideStatus::InvalidTarget => ErrorCode::InvalidInput,
+            TracerRuleOverrideStatus::StaleRuleIndex => ErrorCode::NotReady,
+            TracerRuleOverrideStatus::ApplyFailed => ErrorCode::Configuration,
         };
-        Some(crate::error::Failure::new(code, message, false))
+        Some(Failure::new(code, message, false))
     }
 }
 
@@ -251,61 +296,6 @@ pub struct RuleTracerPreset {
     pub query: String,
     pub expected_target: Option<String>,
     pub description: String,
-}
-
-/// Why a rule is considered dead / non-contributing during hit audit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RuleDeadReason {
-    /// The rule was never observed matching any live connection.
-    ZeroHits,
-    /// The rule is unreachable because an earlier rule shadows it.
-    Shadowed,
-}
-
-/// Aggregated live hit statistics for a single rule.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuleHitSummary {
-    pub rule_raw: String,
-    pub hit_count: u64,
-    pub total_payload_bytes: u64,
-    pub last_hit_secs: Option<u64>,
-}
-
-/// A rule flagged as non-contributing, with the honest reason.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuleDeadEntry {
-    pub rule_raw: String,
-    pub hit_count: u64,
-    pub reason: RuleDeadReason,
-    pub shadowed_by: Option<String>,
-    pub detail: Option<String>,
-    pub last_hit_secs: Option<u64>,
-}
-
-/// Shared read model for rule hit counting, dead-rule diagnosis and CIDR
-/// conflict auditing. Computed once in the application and consumed by both
-/// Iced and Bevy so neither surface keeps a private hit fact source.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct RuleHitAuditSnapshot {
-    pub total_hits: u64,
-    pub tracked_rules: usize,
-    pub top_hits: Vec<RuleHitSummary>,
-    /// Zero-hit and shadowed rules, ordered by rule order.
-    pub dead_rules: Vec<RuleDeadEntry>,
-    /// Subset of `dead_rules` whose cause is an overlapping IP-CIDR mask.
-    pub cidr_overlaps: Vec<RuleDeadEntry>,
-    /// Most recently hit rule (used for the hit-flash highlight).
-    pub last_hit_rule: Option<String>,
-    pub last_hit_secs: Option<u64>,
-    /// Whether a counter reset is meaningful right now.
-    pub can_clear: bool,
-    /// Number of simulations recorded for the latency-contribution audit.
-    pub trace_count: u64,
-    /// Mean AST match latency across recorded simulations, in microseconds.
-    pub avg_match_latency_us: Option<f64>,
-    /// AST match latency of the most recent simulation, in microseconds.
-    pub last_match_latency_us: Option<u64>,
 }
 
 /// The comprehensive Rule Tracer sandbox read model.
@@ -324,7 +314,9 @@ pub struct RuleTracerSnapshot {
     pub can_reverse_apply: bool,
     pub suggested_override_target: Option<String>,
     #[serde(default)]
-    pub hit_audit: RuleHitAuditSnapshot,
+    pub source: Option<RuleSourceIdentity>,
+    #[serde(default)]
+    pub targets: Vec<String>,
 }
 
 impl RuleTracerSnapshot {
@@ -335,42 +327,42 @@ impl RuleTracerSnapshot {
                 id: "google".to_owned(),
                 label: "google.com".to_owned(),
                 query: "google.com".to_owned(),
-                expected_target: Some("PROXY".to_owned()),
+                expected_target: None,
                 description: "国外主流搜索引擎 · 域名后缀匹配".to_owned(),
             },
             RuleTracerPreset {
                 id: "github".to_owned(),
                 label: "github.com".to_owned(),
                 query: "github.com".to_owned(),
-                expected_target: Some("PROXY".to_owned()),
+                expected_target: None,
                 description: "开发者代码托管平台 · 域名后缀匹配".to_owned(),
             },
             RuleTracerPreset {
                 id: "bilibili".to_owned(),
                 label: "bilibili.com".to_owned(),
                 query: "bilibili.com".to_owned(),
-                expected_target: Some("DIRECT".to_owned()),
+                expected_target: None,
                 description: "国内多媒体网站 · GeoSite / 直连分流".to_owned(),
             },
             RuleTracerPreset {
                 id: "cloudflare_dns".to_owned(),
                 label: "1.1.1.1:443".to_owned(),
                 query: "1.1.1.1:443".to_owned(),
-                expected_target: Some("DIRECT".to_owned()),
+                expected_target: None,
                 description: "公共安全 DNS · IP-CIDR 掩码判定".to_owned(),
             },
             RuleTracerPreset {
                 id: "steam".to_owned(),
                 label: "steamcommunity.com".to_owned(),
                 query: "steamcommunity.com".to_owned(),
-                expected_target: Some("PROXY".to_owned()),
+                expected_target: None,
                 description: "游戏社区服务 · 域名关键词分流".to_owned(),
             },
             RuleTracerPreset {
                 id: "netflix".to_owned(),
                 label: "netflix.com".to_owned(),
                 query: "netflix.com".to_owned(),
-                expected_target: Some("GLOBAL-MEDIA".to_owned()),
+                expected_target: None,
                 description: "流媒体服务 · GeoIP / 媒体策略组".to_owned(),
             },
         ]
@@ -382,6 +374,14 @@ impl RuleTracerSnapshot {
             nodes: vec![
                 DecisionChainNode {
                     stage: DecisionStageKind::Inbound,
+                    facts: Some(DecisionStageFacts::Inbound(TrafficContextSnapshot {
+                        src_ip: Some("127.0.0.1".into()),
+                        src_port: Some(58421),
+                        in_port: Some(7890),
+                        network: Some("tcp".into()),
+                        in_type: Some("mixed".into()),
+                        ..TrafficContextSnapshot::default()
+                    })),
                     title: "混合端口监听 (Mixed)".to_owned(),
                     detail: "127.0.0.1:7890 (TCP)".to_owned(),
                     badge: Some("IN-PORT 7890".to_owned()),
@@ -393,6 +393,11 @@ impl RuleTracerSnapshot {
                 },
                 DecisionChainNode {
                     stage: DecisionStageKind::Sniffer,
+                    facts: Some(DecisionStageFacts::Sniffer {
+                        domain: Some("github.com".into()),
+                        ip: None,
+                        port: Some(443),
+                    }),
                     title: "TLS SNI 域名嗅探".to_owned(),
                     detail: "嗅探提取目标: github.com (TLS 1.3)".to_owned(),
                     badge: Some("TLS-SNI".to_owned()),
@@ -404,6 +409,19 @@ impl RuleTracerSnapshot {
                 },
                 DecisionChainNode {
                     stage: DecisionStageKind::RuleSet,
+                    facts: Some(DecisionStageFacts::Rule {
+                        index: Some(41),
+                        raw: "DOMAIN-SUFFIX,github.com,PROXY".into(),
+                        target: "PROXY".into(),
+                        no_resolve: Some(false),
+                        path: Vec::new(),
+                        evaluations: vec![RuleEvaluationNode {
+                            depth: 0,
+                            kind: EvaluationNodeKind::Leaf,
+                            expression: Some("DOMAIN-SUFFIX,github.com".into()),
+                            outcome: ConditionOutcome::Matched,
+                        }],
+                    }),
                     title: "命中规则 #42: DOMAIN-SUFFIX, github.com".to_owned(),
                     detail: "所属规则集: geosite-geolocation-!cn · 优先匹配命中".to_owned(),
                     badge: Some("DOMAIN-SUFFIX".to_owned()),
@@ -415,6 +433,10 @@ impl RuleTracerSnapshot {
                 },
                 DecisionChainNode {
                     stage: DecisionStageKind::ProxyGroup,
+                    facts: Some(DecisionStageFacts::Policy {
+                        target: "PROXY".into(),
+                        selected: Some("香港 IPLC 01".into()),
+                    }),
                     title: "策略组决策: [PROXY]".to_owned(),
                     detail: "自动测速最低延迟选择 (url-test, 300s 间隔)".to_owned(),
                     badge: Some("url-test".to_owned()),
@@ -426,6 +448,12 @@ impl RuleTracerSnapshot {
                 },
                 DecisionChainNode {
                     stage: DecisionStageKind::Outbound,
+                    facts: Some(DecisionStageFacts::Outbound {
+                        name: Some("香港 IPLC 01".into()),
+                        protocol: Some("VLESS · Reality".into()),
+                        delay_ms: Some(28),
+                        country: Some("HK".into()),
+                    }),
                     title: "最终出站: 香港 IPLC 01".to_owned(),
                     detail: "VLESS · Reality (延迟 28ms · 存活正常)".to_owned(),
                     badge: Some("HK".to_owned()),
@@ -436,6 +464,8 @@ impl RuleTracerSnapshot {
                     ],
                 },
             ],
+            hit_rule_table: None,
+            rule_path: Vec::new(),
             hit_rule_index: Some(41), // 0-based
             matched_rule_raw: "DOMAIN-SUFFIX,github.com,PROXY".to_owned(),
             matched_rule_type: "DOMAIN-SUFFIX".to_owned(),
@@ -453,6 +483,8 @@ impl RuleTracerSnapshot {
             generation: 1,
             revision: 1,
             status: RuleTracerStatus::Ready,
+            source: None,
+            targets: Vec::new(),
             failure: None,
             active_query: "github.com".to_owned(),
             simulated_context: TrafficContextSnapshot {
@@ -466,6 +498,7 @@ impl RuleTracerSnapshot {
                 network: Some("tcp".to_owned()),
                 in_type: Some("mixed".to_owned()),
                 client_ip: Some("127.0.0.1".to_owned()),
+                ..TrafficContextSnapshot::default()
             },
             presets: Self::default_presets(),
             decision_chain: Some(decision_chain),
@@ -473,60 +506,6 @@ impl RuleTracerSnapshot {
             total_rules_evaluated: 42,
             can_reverse_apply: true,
             suggested_override_target: Some("DIRECT".to_owned()),
-            hit_audit: RuleHitAuditSnapshot {
-                total_hits: 1287,
-                tracked_rules: 42,
-                top_hits: vec![
-                    RuleHitSummary {
-                        rule_raw: "DOMAIN-SUFFIX,github.com,PROXY".to_owned(),
-                        hit_count: 312,
-                        total_payload_bytes: 48_233_984,
-                        last_hit_secs: Some(1_700_000_012),
-                    },
-                    RuleHitSummary {
-                        rule_raw: "DOMAIN-KEYWORD,bilibili,DIRECT".to_owned(),
-                        hit_count: 186,
-                        total_payload_bytes: 22_114_560,
-                        last_hit_secs: Some(1_700_000_004),
-                    },
-                ],
-                dead_rules: vec![
-                    RuleDeadEntry {
-                        rule_raw: "DOMAIN,dead.example.com,REJECT".to_owned(),
-                        hit_count: 0,
-                        reason: RuleDeadReason::ZeroHits,
-                        shadowed_by: None,
-                        detail: None,
-                        last_hit_secs: None,
-                    },
-                    RuleDeadEntry {
-                        rule_raw: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
-                        hit_count: 0,
-                        reason: RuleDeadReason::Shadowed,
-                        shadowed_by: Some("IP-CIDR,10.0.0.0/8,DIRECT".to_owned()),
-                        detail: Some(
-                            "IP CIDR is shadowed by an earlier broader IP-CIDR rule".to_owned(),
-                        ),
-                        last_hit_secs: None,
-                    },
-                ],
-                cidr_overlaps: vec![RuleDeadEntry {
-                    rule_raw: "IP-CIDR,10.1.2.0/24,PROXY".to_owned(),
-                    hit_count: 0,
-                    reason: RuleDeadReason::Shadowed,
-                    shadowed_by: Some("IP-CIDR,10.0.0.0/8,DIRECT".to_owned()),
-                    detail: Some(
-                        "IP CIDR is shadowed by an earlier broader IP-CIDR rule".to_owned(),
-                    ),
-                    last_hit_secs: None,
-                }],
-                last_hit_rule: Some("DOMAIN-SUFFIX,github.com,PROXY".to_owned()),
-                last_hit_secs: Some(1_700_000_012),
-                can_clear: true,
-                trace_count: 128,
-                avg_match_latency_us: Some(18.5),
-                last_match_latency_us: Some(14),
-            },
         }
     }
 
@@ -554,6 +533,8 @@ impl RuleTracerSnapshot {
             generation,
             revision,
             status: RuleTracerStatus::Ready,
+            source: None,
+            targets: Vec::new(),
             failure: None,
             active_query: query,
             simulated_context: context,
@@ -563,7 +544,6 @@ impl RuleTracerSnapshot {
             total_rules_evaluated,
             can_reverse_apply,
             suggested_override_target,
-            hit_audit: RuleHitAuditSnapshot::default(),
         }
     }
 
@@ -572,6 +552,8 @@ impl RuleTracerSnapshot {
             generation,
             revision,
             status: RuleTracerStatus::Empty,
+            source: None,
+            targets: Vec::new(),
             failure: None,
             active_query: String::new(),
             simulated_context: TrafficContextSnapshot::default(),
@@ -581,7 +563,6 @@ impl RuleTracerSnapshot {
             total_rules_evaluated: 0,
             can_reverse_apply: false,
             suggested_override_target: None,
-            hit_audit: RuleHitAuditSnapshot::default(),
         }
     }
 
@@ -651,6 +632,12 @@ mod tests {
         assert!(presets.iter().any(|p| p.query.contains("google.com")));
         assert!(presets.iter().any(|p| p.query.contains("1.1.1.1")));
         assert!(presets.iter().any(|p| p.query.contains("bilibili.com")));
+        assert!(
+            presets
+                .iter()
+                .all(|preset| preset.expected_target.is_none()),
+            "a preset cannot predict routing without the user's profile"
+        );
     }
 
     #[test]
@@ -662,8 +649,7 @@ mod tests {
 
     #[test]
     fn demo_fixture_carries_hit_audit_dead_rules_and_cidr_overlap() {
-        let snapshot = RuleTracerSnapshot::demo_fixture();
-        let audit = &snapshot.hit_audit;
+        let audit = RuleHitAuditSnapshot::demo_fixture();
         assert!(audit.total_hits > 0);
         assert!(!audit.top_hits.is_empty());
         assert!(
@@ -686,7 +672,7 @@ mod tests {
     }
 
     #[test]
-    fn ready_snapshot_defaults_hit_audit_to_empty() {
+    fn ready_snapshot_does_not_embed_an_independent_hit_audit() {
         let snapshot = RuleTracerSnapshot::ready(
             1,
             1,
@@ -695,8 +681,9 @@ mod tests {
             None,
             0,
         );
-        assert_eq!(snapshot.hit_audit, RuleHitAuditSnapshot::default());
-        assert!(!snapshot.hit_audit.can_clear);
+        let serialized = serde_json::to_value(&snapshot).unwrap();
+        assert!(serialized.get("hit_audit").is_none());
+        assert!(serialized.get("decision_chain").unwrap().is_null());
     }
 
     #[test]
@@ -760,7 +747,10 @@ mod tests {
             target_proxy: "DIRECT".to_owned(),
             ..DecisionChainSnapshot::default()
         };
-        assert_eq!(direct.suggested_override_target().as_deref(), Some("PROXY"));
+        assert_eq!(
+            direct.suggested_override_target().as_deref(),
+            Some("REJECT")
+        );
         let proxy = DecisionChainSnapshot {
             target_proxy: "GLOBAL-MEDIA".to_owned(),
             ..DecisionChainSnapshot::default()

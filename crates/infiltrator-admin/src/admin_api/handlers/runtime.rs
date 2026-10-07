@@ -1,33 +1,29 @@
 //! Runtime lifecycle, connections, and streaming telemetry endpoints
 //! (`/admin/api/runtime/*` except proxies/delay).
 
-use std::{convert::Infallible, time::Duration};
-
-use axum::{
-    Json,
-    http::StatusCode,
-    response::sse::{Event, KeepAlive, Sse},
-};
+use super::proxies::normalize_proxy_mode;
+use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
+use crate::admin_api::models::*;
+use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::{Json, extract};
 use futures_util::StreamExt;
 use infiltrator_domain::runtime::{ConnectionsResponse, MemoryData};
 use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
 use log::warn;
-
-use crate::admin_api::events::{AdminEvent, EVENT_RUNTIME_CHANGED};
-use crate::admin_api::models::*;
-use crate::admin_api::state::{AdminApiContext, AdminApiState};
-
-use super::proxies::normalize_proxy_mode;
+use std::convert::Infallible;
+use std::time::Duration;
 
 pub async fn get_runtime_status_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeStatusResponse>, ApiError> {
     let status = runtime_status_snapshot(&state.ctx).await;
     Ok(Json(status))
 }
 
 pub async fn start_runtime_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeStatusResponse>, ApiError> {
     state
         .ctx
@@ -40,7 +36,7 @@ pub async fn start_runtime_http<C: AdminApiContext>(
 }
 
 pub async fn stop_runtime_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeStatusResponse>, ApiError> {
     state
         .ctx
@@ -53,7 +49,7 @@ pub async fn stop_runtime_http<C: AdminApiContext>(
 }
 
 pub async fn list_runtime_connections_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ConnectionsResponse>, ApiError> {
     let client = state
         .ctx
@@ -73,7 +69,7 @@ pub async fn list_runtime_connections_http<C: AdminApiContext>(
 }
 
 pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<StatusCode, ApiError> {
     let client = state
         .ctx
@@ -88,8 +84,8 @@ pub async fn close_all_runtime_connections_http<C: AdminApiContext>(
 }
 
 pub async fn close_runtime_connection_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(id): extract::Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let connection_id = id.trim();
     if connection_id.is_empty() {
@@ -108,8 +104,8 @@ pub async fn close_runtime_connection_http<C: AdminApiContext>(
 }
 
 pub async fn stream_runtime_logs_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Query(query): axum::extract::Query<RuntimeLogsQuery>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Query(query): extract::Query<RuntimeLogsQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
     let level = normalize_log_level(query.level.as_deref())?;
     let client = state
@@ -142,7 +138,7 @@ pub async fn stream_runtime_logs_http<C: AdminApiContext>(
 }
 
 pub async fn get_runtime_traffic_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeTrafficSnapshotResponse>, ApiError> {
     let client = state
         .ctx
@@ -162,7 +158,7 @@ pub async fn get_runtime_traffic_http<C: AdminApiContext>(
 }
 
 pub async fn get_runtime_memory_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<MemoryData>, ApiError> {
     let client = state
         .ctx
@@ -177,7 +173,7 @@ pub async fn get_runtime_memory_http<C: AdminApiContext>(
 }
 
 pub async fn get_runtime_ip_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeIpCheckResponse>, ApiError> {
     let snapshot = state
         .ctx

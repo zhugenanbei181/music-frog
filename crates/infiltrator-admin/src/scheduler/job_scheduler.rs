@@ -26,10 +26,10 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tokio::time::MissedTickBehavior;
+use tokio::time;
+use tokio::time::{MissedTickBehavior, sleep};
 
 /// Lower bound for a dynamic job's recomputed delay so a broken schedule
 /// cannot spin the scheduler.
@@ -127,9 +127,8 @@ impl JobScheduler {
         let loop_state = Arc::clone(&state);
 
         let handle = tokio::spawn(async move {
-            // Fully qualified call: the `interval` parameter shadows the
-            // `tokio::time::interval` constructor inside this function.
-            let mut ticker = tokio::time::interval(interval);
+            // The short module prefix avoids the `interval` parameter collision.
+            let mut ticker = time::interval(interval);
             ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
             loop {
                 tokio::select! {
@@ -201,7 +200,7 @@ impl JobScheduler {
             loop {
                 tokio::select! {
                     _ = shutdown_rx.wait_for(|running| *running) => break,
-                    _ = tokio::time::sleep(delay) => {}
+                    _ = sleep(delay) => {}
                 }
                 loop_state
                     .lock()
@@ -305,12 +304,10 @@ impl Default for JobScheduler {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::Instant;
+    use tokio::time::Instant;
 
-    /// Upper bound for waiting on job progress before a test fails. The
-    /// crate's tokio does not enable `test-util`, so tokio's paused clock
-    /// (`start_paused`) is unavailable; tests run against real time with
-    /// small intervals and poll with a deadline instead of pinning ticks.
+    /// Virtual-time deadline for job progress; every test uses a paused clock.
+    /// Executor load cannot turn a short interval into a wall-clock race.
     const TIMEOUT: Duration = Duration::from_secs(5);
 
     /// Spawn a job that bumps `counter` on every run and always succeeds.
@@ -337,7 +334,7 @@ mod tests {
                 Instant::now() < deadline,
                 "job did not reach {target} runs within {TIMEOUT:?}"
             );
-            tokio::time::sleep(Duration::from_millis(5)).await;
+            sleep(Duration::from_millis(5)).await;
         }
     }
 
@@ -361,11 +358,11 @@ mod tests {
                 Instant::now() < deadline,
                 "job `{name}` did not reach the expected state within {TIMEOUT:?}"
             );
-            tokio::time::sleep(Duration::from_millis(5)).await;
+            sleep(Duration::from_millis(5)).await;
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn dynamic_job_waits_then_recomputes_its_delay() {
         let scheduler = JobScheduler::new();
         let runs = Arc::new(AtomicU64::new(0));
@@ -381,7 +378,7 @@ mod tests {
         assert!(!spawned.replaced);
 
         // Unlike `spawn_job`, the first run waits for the supplied delay.
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        sleep(Duration::from_millis(1)).await;
         assert_eq!(runs.load(Ordering::SeqCst), 0);
 
         wait_until_reaches(&runs, 3).await;
@@ -410,7 +407,7 @@ mod tests {
         scheduler.cancel_all();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn job_runs_immediately_then_once_per_interval() {
         let scheduler = JobScheduler::new();
         let runs = Arc::new(AtomicU64::new(0));
@@ -421,9 +418,9 @@ mod tests {
             Arc::clone(&runs),
         );
 
-        // The first tick completes immediately: the spawned task is polled
-        // before this 1ms sleep can fire.
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        // A paused current-thread executor drains runnable work before
+        // advancing to this timer. The first run must finish without a period.
+        sleep(Duration::from_millis(1)).await;
         assert_eq!(runs.load(Ordering::SeqCst), 1);
 
         // Several more ticks land afterwards, one per interval.
@@ -437,7 +434,7 @@ mod tests {
         assert_eq!(snaps[0].last_error, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn cancel_stops_further_runs() {
         let scheduler = JobScheduler::new();
         let runs = Arc::new(AtomicU64::new(0));
@@ -455,7 +452,7 @@ mod tests {
         assert!(scheduler.snapshot().is_empty());
 
         // Wait several intervals; a live job would have run again by now.
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        sleep(Duration::from_millis(50)).await;
         assert_eq!(
             runs.load(Ordering::SeqCst),
             2,
@@ -463,7 +460,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn failures_are_counted_and_recorded() {
         let scheduler = JobScheduler::new();
         scheduler.spawn_job("bad", Duration::from_millis(10), || async {
@@ -476,7 +473,7 @@ mod tests {
         assert!(snap.active);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn same_name_spawn_replaces_previous_job() {
         let scheduler = JobScheduler::new();
         let runs_a = Arc::new(AtomicU64::new(0));
@@ -489,7 +486,7 @@ mod tests {
         assert!(!spawned_a.replaced);
 
         // Let job A complete its immediate first run.
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        sleep(Duration::from_millis(1)).await;
         assert_eq!(runs_a.load(Ordering::SeqCst), 1);
 
         let runs_b = Arc::new(AtomicU64::new(0));
@@ -504,7 +501,7 @@ mod tests {
 
         // B keeps ticking while A stays frozen at its single run.
         wait_until_reaches(&runs_b, 2).await;
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        sleep(Duration::from_millis(50)).await;
         assert_eq!(
             runs_a.load(Ordering::SeqCst),
             1,
@@ -513,7 +510,7 @@ mod tests {
         assert!(runs_b.load(Ordering::SeqCst) >= 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn cancel_unknown_name_is_reported_and_registry_stays_empty() {
         let scheduler = JobScheduler::new();
         assert!(!scheduler.cancel("ghost"));
@@ -521,7 +518,7 @@ mod tests {
         assert!(scheduler.snapshot().is_empty());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn snapshot_lists_entries_sorted_by_name_with_fields() {
         let scheduler = JobScheduler::new();
         // Long intervals: after the immediate first run the next tick is
@@ -544,7 +541,7 @@ mod tests {
         );
 
         // Every job completes its immediate first run.
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        sleep(Duration::from_millis(20)).await;
         assert!(scheduler.cancel("middle"));
 
         assert_eq!(

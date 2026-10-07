@@ -16,7 +16,7 @@ fn test_extract_dns_default() {
 fn test_apply_patch_and_validate() {
     let doc: Value = serde_yaml_ng::from_str("port: 7890\n").expect("yaml");
     let mut config = extract_dns_config_from_doc(&doc).expect("dns config");
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         nameserver: Some(vec!["https://dns.google/dns-query".to_string()]),
         enhanced_mode: Some("fake-ip".to_string()),
         prefer_h3: Some(true),
@@ -24,7 +24,7 @@ fn test_apply_patch_and_validate() {
         cache_algorithm: Some("arc".to_string()),
         min_ttl: Some(60),
         max_ttl: Some(3600),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
     config.apply_patch(patch);
     validate_dns_config(&config).expect("valid dns config");
@@ -78,7 +78,7 @@ fn test_apply_patch_full() {
         json!("https://dns.cloudflare.com/dns-query"),
     );
 
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         enable: Some(true),
         ipv6: Some(true),
         listen: Some("0.0.0.0:53".to_string()),
@@ -116,11 +116,6 @@ fn test_apply_patch_full() {
         bogus_nxdomain: Some(vec!["243.185.187.39".to_string()]),
         store_fake_ip: Some(true),
         clear_enhanced_mode: false,
-        hosts: Some(BTreeMap::from([(
-            "router.lan".to_string(),
-            json!("192.168.1.1"),
-        )])),
-        clear_hosts: false,
     };
 
     config.apply_patch(patch);
@@ -148,13 +143,6 @@ fn test_apply_patch_full() {
     assert_eq!(
         config.direct_nameserver,
         Some(vec!["https://119.29.29.29/dns-query".to_string()])
-    );
-    assert_eq!(
-        config.hosts,
-        Some(BTreeMap::from([(
-            "router.lan".to_string(),
-            json!("192.168.1.1")
-        )]))
     );
     assert_eq!(config.nameserver_policy, Some(policy));
     assert_eq!(config.cache, Some(true));
@@ -184,10 +172,10 @@ fn test_apply_partial_patch_preserves_existing() {
         ..DnsConfig::default()
     };
 
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         enable: Some(false),
         prefer_h3: Some(false),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
 
     config.apply_patch(patch);
@@ -627,12 +615,12 @@ fn test_validate_dns_config_all_errors() {
 #[test]
 fn test_apply_dns_patch_to_yaml() {
     let yaml = "port: 7890\ndns:\n  enable: true\n  nameserver:\n    - 8.8.8.8\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         prefer_h3: Some(true),
         cache_algorithm: Some("lru".to_string()),
         min_ttl: Some(30),
         max_ttl: Some(300),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
 
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply patch");
@@ -650,11 +638,11 @@ fn test_apply_dns_patch_to_yaml() {
 #[test]
 fn test_apply_dns_config_to_yaml() {
     let yaml = "port: 7890\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         enable: Some(true),
         nameserver: Some(vec!["1.1.1.1".to_string()]),
         direct_nameserver: Some(vec!["223.5.5.5".to_string()]),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
 
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply config");
@@ -670,7 +658,7 @@ fn test_payload_config_conversions() {
         cache_algorithm: Some("arc".to_string()),
         ..DnsConfig::default()
     };
-    let payload: DnsConfigPayload = config.clone().into();
+    let payload: DnsConfigPatch = config.clone().into();
     assert_eq!(payload.enable, Some(true));
     assert_eq!(payload.prefer_h3, Some(true));
     assert_eq!(payload.cache_algorithm, Some("arc".to_string()));
@@ -691,9 +679,9 @@ fn test_filter_mode_accepts_rule_host_value() {
 #[test]
 fn test_clear_enhanced_mode_removes_the_key() {
     let yaml = "dns:\n  enable: true\n  enhanced-mode: fake-ip\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         clear_enhanced_mode: true,
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply clear patch");
     let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
@@ -705,9 +693,9 @@ fn test_clear_enhanced_mode_removes_the_key() {
 #[test]
 fn test_clear_fake_ip_range_removes_the_key() {
     let yaml = "dns:\n  enable: true\n  fake-ip-range: 198.18.0.1/16\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         clear_fake_ip_range: true,
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply clear patch");
     let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
@@ -719,13 +707,13 @@ fn test_clear_fake_ip_range_removes_the_key() {
 #[test]
 fn test_partial_fallback_filter_preserves_unedited_subfields() {
     let yaml = "dns:\n  enable: true\n  fallback-filter:\n    geoip: true\n    geoip-code: CN\n    ipcidr:\n      - 240.0.0.0/4\n    geosite:\n      - cn\n    domain-suffix:\n      - example.com\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         fallback_filter_partial: Some(FallbackFilterPatch {
             geoip: Some(false),
             geoip_code: None,
             ipcidr: Some(vec!["192.168.0.0/16".to_string()]),
         }),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply partial patch");
     let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
@@ -741,13 +729,13 @@ fn test_partial_fallback_filter_preserves_unedited_subfields() {
 #[test]
 fn test_partial_fallback_filter_clears_an_emptied_trigger_list() {
     let yaml = "dns:\n  fallback-filter:\n    ipcidr:\n      - 240.0.0.0/4\n";
-    let patch = DnsConfigPayload {
+    let patch = DnsConfigPatch {
         fallback_filter_partial: Some(FallbackFilterPatch {
             geoip: Some(true),
             geoip_code: Some("CN".to_string()),
             ipcidr: Some(Vec::new()),
         }),
-        ..DnsConfigPayload::default()
+        ..DnsConfigPatch::default()
     };
     let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply partial patch");
     let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
@@ -757,58 +745,27 @@ fn test_partial_fallback_filter_clears_an_emptied_trigger_list() {
 }
 
 #[test]
-fn test_dns_save_preserves_an_untouched_hosts_map() {
-    // DUAL-14-11: before `hosts` was a typed field, any DNS form save
-    // re-serialized the section and silently deleted the mapping.
-    let yaml = "dns:\n  enable: true\n  hosts:\n    router.lan: 192.168.1.1\n    multi.example.com:\n      - 1.1.1.1\n      - 8.8.8.8\n";
-    let patch = DnsConfigPayload {
-        nameserver: Some(vec!["223.5.5.5".to_string()]),
-        ..DnsConfigPayload::default()
-    };
-    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply patch");
-    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
-    let config = extract_dns_config_from_doc(&doc).expect("extract config");
-    let hosts = config.hosts.expect("hosts survive");
-    assert_eq!(
-        hosts.get("router.lan"),
-        Some(&json!("192.168.1.1")),
-        "unrelated DNS save must keep the hosts mapping"
-    );
-    assert_eq!(
-        hosts.get("multi.example.com"),
-        Some(&json!(["1.1.1.1", "8.8.8.8"]))
-    );
-}
-
-#[test]
-fn test_hosts_patch_writes_and_clears_the_key() {
-    let yaml = "dns:\n  enable: true\n  hosts:\n    old.example.com: 1.1.1.1\n";
-    let patch = DnsConfigPayload {
-        hosts: Some(BTreeMap::from([
-            ("router.lan".to_string(), json!("192.168.1.1")),
-            (
-                "multi.example.com".to_string(),
-                json!(["1.1.1.1", "8.8.8.8"]),
-            ),
-        ])),
-        ..DnsConfigPayload::default()
-    };
-    let updated = apply_dns_patch_to_yaml(yaml, patch).expect("apply hosts patch");
-    let doc: Value = serde_yaml_ng::from_str(&updated).expect("parse updated");
-    let config = extract_dns_config_from_doc(&doc).expect("extract config");
-    let hosts = config.hosts.expect("hosts written");
-    assert!(!hosts.contains_key("old.example.com"));
-    assert_eq!(hosts.len(), 2);
-
-    let cleared = apply_dns_patch_to_yaml(
-        &updated,
-        DnsConfigPayload {
-            clear_hosts: true,
-            ..DnsConfigPayload::default()
+fn dns_save_preserves_root_hosts_legacy_hosts_and_unknown_options_without_writing_a_nested_mapping()
+{
+    let yaml = "hosts:\n  live.test: 9.9.9.9\ndns:\n  enable: true\n  hosts:\n    legacy.test: 1.1.1.1\n  future-setting: keep\n";
+    let before: Value = serde_yaml_ng::from_str(yaml).unwrap();
+    let updated = apply_dns_patch_to_yaml(
+        yaml,
+        DnsConfigPatch {
+            nameserver: Some(vec!["223.5.5.5".into()]),
+            ..Default::default()
         },
     )
-    .expect("apply clear");
-    let doc: Value = serde_yaml_ng::from_str(&cleared).expect("parse cleared");
-    let config = extract_dns_config_from_doc(&doc).expect("extract config");
-    assert!(config.hosts.is_none());
+    .unwrap();
+    let after: Value = serde_yaml_ng::from_str(&updated).unwrap();
+    assert_eq!(after["hosts"], before["hosts"]);
+    assert_eq!(after["dns"]["hosts"], before["dns"]["hosts"]);
+    assert_eq!(after["dns"]["future-setting"], "keep");
+    assert_eq!(after["dns"]["nameserver"][0], "223.5.5.5");
+    let cleared = apply_dns_config_to_yaml(&updated, &DnsConfig::default()).unwrap();
+    let cleared: Value = serde_yaml_ng::from_str(&cleared).unwrap();
+    assert_eq!(cleared["hosts"], before["hosts"]);
+    assert_eq!(cleared["dns"]["hosts"], before["dns"]["hosts"]);
+    assert_eq!(cleared["dns"]["future-setting"], "keep");
+    assert!(cleared["dns"].get("nameserver").is_none());
 }

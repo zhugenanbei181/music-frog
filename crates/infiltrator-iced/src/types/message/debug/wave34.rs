@@ -10,6 +10,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
     Some(match m {
         // Wave 2: DNS Leak, Custom Node, Aggregator, Grouping, Snapshot Diff, Hotkeys
         Message::RunDnsLeakProbe => write!(f, "RunDnsLeakProbe"),
+        Message::RuleList(action) => write!(f, "RuleList({action:?})"),
+        Message::RuleStatistics(action) => write!(f, "RuleStatistics({action:?})"),
+        Message::RuleTrace(action) => write!(f, "RuleTrace({action:?})"),
+        Message::DnsQuery(action) => write!(f, "DnsQuery({action:?})"),
         Message::RunDnsLatencyProbe => write!(f, "RunDnsLatencyProbe"),
         Message::DnsLatencyProbed(_) => write!(f, "DnsLatencyProbed"),
         Message::DnsLeakProbed(report) => {
@@ -36,6 +40,7 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::UpdateCustomNodeDraft(draft) => {
             write!(f, "UpdateCustomNodeDraft({})", draft.node_type)
         }
+        Message::UpdateCustomNodeField(field, _) => write!(f, "UpdateCustomNodeField({field:?})"),
         Message::ExportCustomNodeUri => write!(f, "ExportCustomNodeUri"),
         Message::CustomNodeSaved(Ok(_)) => write!(f, "CustomNodeSaved(Ok)"),
         Message::CustomNodeSaved(Err(e)) => write!(f, "CustomNodeSaved(Err({e:?}))"),
@@ -140,8 +145,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::CancelRestoreProfileSnapshot => write!(f, "CancelRestoreProfileSnapshot"),
         Message::SetSnapshotDiffMode(mode) => write!(f, "SetSnapshotDiffMode({mode:?})"),
         Message::RefreshSnapshotDiff => write!(f, "RefreshSnapshotDiff"),
-        Message::ArmSnapshotRollback => write!(f, "ArmSnapshotRollback"),
-        Message::CancelSnapshotRollback => write!(f, "CancelSnapshotRollback"),
         Message::RollbackToSnapshot(id) => write!(f, "RollbackToSnapshot({id})"),
         Message::SetProfileProtectionOverride(allow) => {
             write!(f, "SetProfileProtectionOverride({allow})")
@@ -263,8 +266,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::UpdateLogRegexFilter(q) => write!(f, "UpdateLogRegexFilter({q})"),
         Message::SetLogLevelFilter(lvl) => write!(f, "SetLogLevelFilter({lvl})"),
         Message::ExportRedactedLogs => write!(f, "ExportRedactedLogs"),
-        Message::EvaluateSubscriptionQuota => write!(f, "EvaluateSubscriptionQuota"),
-        Message::UpdateCronScheduleHours(h) => write!(f, "UpdateCronScheduleHours({h})"),
         Message::UpdatePacBypassSubnets(s) => write!(f, "UpdatePacBypassSubnets({s})"),
         Message::CompileAndValidatePac => write!(f, "CompileAndValidatePac"),
         Message::PacApplied(Ok(snapshot)) => write!(
@@ -274,13 +275,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         ),
         Message::PacApplied(Err(error)) => write!(f, "PacApplied(Err({error:?}))"),
         Message::TogglePacMode(on) => write!(f, "TogglePacMode({on})"),
-        Message::AuditStaleRules => write!(f, "AuditStaleRules"),
-        Message::DisableZeroHitRules => write!(f, "DisableZeroHitRules"),
-        Message::ClearRuleHitCounters => write!(f, "ClearRuleHitCounters"),
-        Message::SelectRadarNode(n) => write!(f, "SelectRadarNode({n})"),
-        Message::RecordRadarLatencySample { node, latency_ms } => {
-            write!(f, "RecordRadarLatencySample({node}: {latency_ms}ms)")
-        }
         Message::SelectTunStack(s) => write!(f, "SelectTunStack({s})"),
         Message::ProbeOptimalMtu => write!(f, "ProbeOptimalMtu"),
         Message::MtuProbed(mtu) => write!(f, "MtuProbed({mtu})"),
@@ -310,10 +304,6 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         ),
         Message::RuleProviderCachePurged(Err(error)) => {
             write!(f, "RuleProviderCachePurged(Err({error}))")
-        }
-        Message::TriggerAtomicConfigApply => write!(f, "TriggerAtomicConfigApply"),
-        Message::ApplyTransactionStageChanged(st) => {
-            write!(f, "ApplyTransactionStageChanged({st:?})")
         }
         Message::ToggleLanSharing(on) => write!(f, "ToggleLanSharing({on})"),
         Message::UpdateLanSharingPort(p) => write!(f, "UpdateLanSharingPort({p})"),

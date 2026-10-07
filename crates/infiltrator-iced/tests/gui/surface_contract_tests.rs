@@ -2,20 +2,27 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
-use crate::surface::SurfaceBridge;
-use crate::surface::SurfaceModel;
+use crate::surface::{SurfaceBridge, SurfaceModel};
+use crate::types::message::Message;
 use crate::types::runtime::RuntimeStatus;
 use async_trait::async_trait;
+use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
 use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
+use infiltrator_contract::offline_startup::{
+    LocalAssetStatus, OfflineStartupSnapshot, OfflineStartupState,
+};
+use infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreWatchdogSnapshot, CoreWatchdogState};
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot};
+use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreRollbackSnapshot, CoreVersionSnapshot,
@@ -26,7 +33,10 @@ use infiltrator_ports::application_runtime::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::surface::SurfaceReader;
 use std::sync::Arc;
-use std::time::Duration;
+use std::thread::yield_now;
+use std::time::{Duration, Instant};
+use tokio::runtime::{Builder, Runtime};
+use tokio::time::sleep;
 
 fn snapshot(revision: u64) -> SurfaceSnapshot {
     let mut value = SurfaceSnapshot::unavailable(
@@ -43,7 +53,7 @@ fn session_snapshot(revision: u64, generation: u64, token: u128) -> SurfaceSnaps
     let mut value = snapshot(revision);
     value.generation = generation;
     value.core.generation = generation;
-    value.core.session_token = Some(infiltrator_contract::session::SessionToken::new(token));
+    value.core.session_token = Some(SessionToken::new(token));
     value
 }
 
@@ -94,8 +104,7 @@ fn hot_reload_snapshot_keeps_the_session_identity_and_generation() {
 fn shared_topology_snapshot_reaches_the_iced_runtime_projection() {
     let (mut state, _) = AppState::new();
     let mut value = snapshot(6);
-    value.traffic_topology =
-        infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
+    value.traffic_topology = TrafficTopologySnapshot::demo_fixture();
     value.traffic_topology.revision = 6;
 
     assert!(state.apply_shared_surface_snapshot(value));
@@ -109,8 +118,7 @@ fn shared_topology_snapshot_reaches_the_iced_runtime_projection() {
 fn shared_subscription_quota_reaches_the_iced_runtime_projection() {
     let (mut state, _) = AppState::new();
     let mut value = snapshot(7);
-    value.subscription_quota =
-        infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture();
+    value.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();
     value.subscription_quota.revision = 7;
 
     assert!(state.apply_shared_surface_snapshot(value));
@@ -126,7 +134,7 @@ fn shared_subscription_quota_reaches_the_iced_runtime_projection() {
 fn shared_watchdog_snapshot_updates_the_iced_diagnostics_projection() {
     let (mut state, _) = AppState::new();
     let mut snapshot = snapshot(4);
-    snapshot.core.session_token = Some(infiltrator_contract::session::SessionToken::new(42));
+    snapshot.core.session_token = Some(SessionToken::new(42));
     snapshot.core.watchdog = CoreWatchdogSnapshot {
         state: CoreWatchdogState::Waiting {
             attempt: 2,
@@ -162,7 +170,7 @@ fn offline_startup_snapshot_updates_the_iced_runtime_projection() {
     assert!(state.runtime.offline_startup.is_offline_startable());
     assert_eq!(
         state.runtime.offline_startup.state,
-        infiltrator_contract::offline_startup::OfflineStartupState::Degraded
+        OfflineStartupState::Degraded
     );
 }
 
@@ -266,7 +274,7 @@ fn shared_core_channel_probe_updates_the_iced_kernel_projection() {
     assert_eq!(state.runtime.core_resources.cpu_percent, Some(12.5));
 }
 
-struct TokioRuntime(tokio::runtime::Runtime);
+struct TokioRuntime(Runtime);
 
 impl ApplicationRuntime for TokioRuntime {
     fn block_on(&self, future: ApplicationFuture) {
@@ -274,7 +282,7 @@ impl ApplicationRuntime for TokioRuntime {
     }
 
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
-        Box::pin(tokio::time::sleep(duration))
+        Box::pin(sleep(duration))
     }
 }
 
@@ -290,25 +298,20 @@ impl SurfaceReader for StaticReader {
 #[test]
 fn surface_bridge_translates_the_application_snapshot_to_an_iced_message() {
     let runtime = Arc::new(TokioRuntime(
-        tokio::runtime::Builder::new_current_thread()
+        Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime"),
     ));
     let initial = snapshot(1);
-    let pump = infiltrator_application::surface_application::SurfacePump::spawn(
-        Arc::new(StaticReader),
-        Duration::ZERO,
-        runtime,
-        initial,
-    );
+    let pump = SurfacePump::spawn(Arc::new(StaticReader), Duration::ZERO, runtime, initial);
     let bridge = SurfaceBridge::from_pump(pump);
-    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         let messages = bridge.drain_messages();
         if let Some(message) = messages.into_iter().next() {
             match message {
-                crate::types::message::Message::SurfaceSnapshotUpdated(snapshot) => {
+                Message::SurfaceSnapshotUpdated(snapshot) => {
                     assert_eq!(snapshot.revision, 7);
                     assert_eq!(snapshot.surface, SurfaceKind::IcedDesktop);
                 }
@@ -316,11 +319,8 @@ fn surface_bridge_translates_the_application_snapshot_to_an_iced_message() {
             }
             break;
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "bridge did not deliver"
-        );
-        std::thread::yield_now();
+        assert!(Instant::now() < deadline, "bridge did not deliver");
+        yield_now();
     }
 }
 
@@ -331,11 +331,7 @@ fn shared_reconnect_mask_reaches_the_iced_runtime_projection() {
 
     let mut value = snapshot(8);
     value.reconnect_mask =
-        infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::reconnecting(
-            2,
-            4_000,
-            "看门狗重连中，保留上一帧快照",
-        );
+        ReconnectMaskSnapshot::reconnecting(2, 4_000, "看门狗重连中，保留上一帧快照");
     assert!(state.apply_shared_surface_snapshot(value));
     assert!(state.runtime.reconnect_mask.is_active());
     assert_eq!(
@@ -347,7 +343,7 @@ fn shared_reconnect_mask_reaches_the_iced_runtime_projection() {
 
     // A newer normal snapshot clears the degradation state.
     let mut cleared = snapshot(9);
-    cleared.reconnect_mask = infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::normal();
+    cleared.reconnect_mask = ReconnectMaskSnapshot::normal();
     assert!(state.apply_shared_surface_snapshot(cleared));
     assert!(!state.runtime.reconnect_mask.is_active());
 }

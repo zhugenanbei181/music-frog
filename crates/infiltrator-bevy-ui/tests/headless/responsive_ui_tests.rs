@@ -7,15 +7,14 @@
 //! 3. Master-Detail split vs stacked pane coordination, smart text truncation,
 //!    modal-to-actionsheet morphology, and compact/comfortable density switching.
 
-use std::sync::Arc;
-
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::With;
 use bevy::picking::hover::PickingInteraction;
-use bevy::scene::CommandsSceneExt;
+use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{Display, JustifyContent, Node, UiRect, Val, px};
+use bevy::ui::widget;
 use infiltrator_bevy_ui::app::{
     BOTTOM_NAV_HEIGHT_PX, BottomNavBar, LayoutMode, NavSpacer, RailNavTooltip,
     SIDEBAR_RAIL_WIDTH_PX, SIDEBAR_WIDTH_PX, ShellLayoutState, ShellPlugin, ShellRoot,
@@ -28,16 +27,22 @@ use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand
 use infiltrator_bevy_ui::gesture::GestureHostReport;
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{ActiveRoute, PagesPlugin, Route, RouteChanged};
-use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, CloseModal, OpenModal};
+use infiltrator_bevy_widgets::adaptive_modal::{
+    AdaptiveModalRoot, CloseModal, OpenModal, adaptive_modal_scene,
+};
 use infiltrator_bevy_widgets::nav::NavLabel;
+use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::{
     Density, DensitySwitch, MasterDetailMode, ModalForm, ResponsiveContext, SafeAreaInsets,
     SidebarMode, TouchHitbox,
 };
 use infiltrator_bevy_widgets::smart_truncate::{truncate_adaptive, truncate_middle, truncate_tail};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
+use infiltrator_contract::responsive_viewport::ViewportTier;
 use infiltrator_contract::shell_gesture;
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
+use std::sync::Arc;
 
 use crate::support::*;
 
@@ -123,19 +128,14 @@ fn test_proxy_grid_columns_match_shared_contract() {
     }
 
     // The Bevy grid and the shared operator agree at the desktop tier.
-    assert_eq!(
-        infiltrator_contract::responsive_viewport::ViewportTier::Expanded.proxy_grid_columns(false),
-        3
-    );
+    assert_eq!(ViewportTier::Expanded.proxy_grid_columns(false), 3);
 }
 
 fn setup_responsive_app(width: f32) -> App {
     let mut app = App::new();
     headless_plugins(&mut app);
     app.add_plugins(ShellPlugin::new_with_width(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
+        ThemePreference::Fixed(ThemeSkin::Dark),
         width,
     ));
     app.add_plugins(PagesPlugin::new(DemoOverviewSource::running()));
@@ -386,23 +386,20 @@ fn test_smart_text_truncation_rules() {
 #[test]
 fn test_dialog_to_actionsheet_morphology_transitions() {
     let mut app = setup_responsive_app(1000.0);
-    let palette = *app
-        .world()
-        .resource::<infiltrator_bevy_widgets::palette::UiPalette>();
-    let body = Box::new(bevy::scene::bsn! {
-                bevy::ui::widget::Text({ "Modal Body Content".to_owned() })
+    let palette = *app.world().resource::<UiPalette>();
+    let body = Box::new(bsn! {
+                widget::Text({ "Modal Body Content".to_owned() })
     });
-    let actions = vec![Box::new(bevy::scene::bsn! {
-                    bevy::ui::widget::Text({ "Confirm".to_owned() })
-    }) as Box<dyn bevy::scene::Scene>];
-    app.world_mut().commands().spawn_scene(
-        infiltrator_bevy_widgets::adaptive_modal::adaptive_modal_scene(
-            "Test Modal".to_owned(),
-            body,
-            actions,
-            &palette,
-        ),
-    );
+    let actions = vec![Box::new(bsn! {
+                    widget::Text({ "Confirm".to_owned() })
+    }) as Box<dyn Scene>];
+    app.world_mut().commands().spawn_scene(adaptive_modal_scene(
+        "Test Modal".to_owned(),
+        "Close".to_owned(),
+        body,
+        actions,
+        &palette,
+    ));
     app.update();
 
     // Initial state: dialog mode on Expanded breakpoint
@@ -411,7 +408,7 @@ fn test_dialog_to_actionsheet_morphology_transitions() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         let root = roots.iter(world).next().expect("modal root mounted");
         assert_eq!(root.display, Display::Flex);
         assert_eq!(root.justify_content, JustifyContent::Center);
@@ -428,7 +425,7 @@ fn test_dialog_to_actionsheet_morphology_transitions() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         let root = roots.iter(world).next().expect("modal root mounted");
         assert_eq!(root.display, Display::Flex);
         assert_eq!(root.justify_content, JustifyContent::FlexEnd);
@@ -440,7 +437,7 @@ fn test_dialog_to_actionsheet_morphology_transitions() {
 
     {
         let world = app.world_mut();
-        let mut roots = world.query_filtered::<&Node, bevy::ecs::query::With<AdaptiveModalRoot>>();
+        let mut roots = world.query_filtered::<&Node, With<AdaptiveModalRoot>>();
         let root = roots.iter(world).next().expect("modal root mounted");
         assert_eq!(root.display, Display::None);
     }

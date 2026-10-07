@@ -6,11 +6,21 @@
 //! control is prefilled from the shared `ProfilesPageSnapshot` projection and
 //! submitted through the shared command bus; the surface owns no policy logic.
 
+#[path = "profiles_subscription_policy_query_access.rs"]
+pub mod query_access;
+use self::query_access::{SubscriptionPolicyControls, SubscriptionPolicyTargets};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
+use crate::localized_widgets::localized_field_scene;
+use crate::pages::profiles::{
+    LastProfilesProjection, ProfileItem, ProfilesProjection, ProfilesProjectionUpdated,
+};
+use crate::pages::profiles_import::selected_profile;
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, QueryFilter, With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::Checked;
@@ -19,20 +29,18 @@ use bevy::ui::prelude::{
     percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button, Checkbox};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::subscription_status_projection::{reload_status, schedule_status};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles::{LastProfilesProjection, ProfileItem, ProfilesProjection};
-use crate::pages::profiles_import::selected_profile;
 use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
 
 /// Marker for the subscription URL text field parent.
@@ -104,31 +112,16 @@ fn auto_reload_of(profile: Option<&ProfileItem>) -> bool {
 }
 
 /// The selected profile's persisted schedule summary.
-pub fn policy_status(profile: Option<&ProfileItem>) -> String {
-    let Some(profile) = profile else {
-        return "更新策略：无选中配置".to_owned();
-    };
-    if !profile.auto_update_enabled {
-        return "更新策略：手动更新".to_owned();
-    }
-    match profile.cron_expression.as_deref() {
-        Some(cron) if !cron.trim().is_empty() => format!("更新策略：按 Cron `{cron}` 排程"),
-        _ => match profile.update_interval_hours {
-            Some(hours) => format!("更新策略：每 {hours} 小时自动更新"),
-            None => "更新策略：已启用自动更新但未设置周期".to_owned(),
-        },
-    }
+fn policy_status(profile: Option<&ProfileItem>, locale: &str) -> String {
+    schedule_status(
+        profile.map(|profile| profile.auto_update_enabled),
+        profile.and_then(|profile| profile.cron_expression.as_deref()),
+        profile.and_then(|profile| profile.update_interval_hours),
+    )
+    .render(locale)
 }
-
-/// DUAL-07-09: the persisted core-reload preference for the selected profile.
-pub fn auto_reload_status(profile: Option<&ProfileItem>) -> String {
-    match profile {
-        Some(profile) if profile.auto_reload_core => {
-            "内核重载：更新成功后重载内核（宿主无重载能力时由命令返回明确拒绝）".to_owned()
-        }
-        Some(_) => "内核重载：仅保存更新，不重载内核".to_owned(),
-        None => "内核重载：无选中配置".to_owned(),
-    }
+fn auto_reload_status(profile: Option<&ProfileItem>, locale: &str) -> String {
+    reload_status(profile.map(|profile| profile.auto_reload_core)).render(locale)
 }
 
 /// Subscription update-policy card scene.
@@ -142,8 +135,8 @@ pub fn subscription_policy_card_scene(
     let cron = cron_of(profile);
     let auto_update = auto_update_of(profile);
     let auto_reload = auto_reload_of(profile);
-    let status = policy_status(profile);
-    let reload_status = auto_reload_status(profile);
+    let status = policy_status(profile, UiLocale::default().code());
+    let reload_status = auto_reload_status(profile, UiLocale::default().code());
 
     surface_scene(
         vec![
@@ -157,7 +150,7 @@ pub fn subscription_policy_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                Text({ "订阅更新策略 (Update Policy)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_update_policy_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -171,19 +164,19 @@ pub fn subscription_policy_card_scene(
                                 Node { width: percent(100) }
                                 SubscriptionPolicyUrlField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(url, "订阅 URL".to_owned(), palette) }
+                                    @{ localized_field_scene(url, LocalizedText::plain("field_subscription_url"), palette) } NativeTextField(5)
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 SubscriptionPolicyIntervalField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(interval, "自动更新周期（小时）".to_owned(), palette) }
+                                    @{ localized_field_scene(interval, LocalizedText::plain("field_subscription_interval"), palette) } NativeTextField(6)
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 SubscriptionPolicyCronField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(cron, "Cron 表达式（留空按小时周期）".to_owned(), palette) }
+                                    @{ localized_field_scene(cron, LocalizedText::plain("field_subscription_cron"), palette) } NativeTextField(7)
                                 ]
                             ]
             }),
@@ -201,7 +194,7 @@ pub fn subscription_policy_card_scene(
                                 }
                                 SubscriptionAutoUpdateToggle
                                 Children [
-                                    @{ checkbox_scene("启用定时自动更新".to_owned(), auto_update, palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("subscription_schedule_enabled"), auto_update, palette) }
                                 ]
                                 --
                                 Node {
@@ -222,7 +215,7 @@ pub fn subscription_policy_card_scene(
                                     Button
                                     SaveSubscriptionPolicyButton
                                     Children [
-                                        Text({ "保存更新策略".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("profiles_update_policy_save") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -241,7 +234,7 @@ pub fn subscription_policy_card_scene(
                                 }
                                 SubscriptionAutoReloadToggle
                                 Children [
-                                    @{ checkbox_scene("更新后自动重载内核".to_owned(), auto_reload, palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("subscription_reload_after_update"), auto_reload, palette) }
                                 ]
                                 --
                                 Node {
@@ -262,7 +255,7 @@ pub fn subscription_policy_card_scene(
                                     Button
                                     SaveSubscriptionAutoReloadButton
                                     Children [
-                                        Text({ "保存内核重载策略".to_owned() }) TextRole(Role::Body)
+                                        LocalizedText::plain("profiles_reload_policy_save") TextRole(Role::Body)
                                     ]
                                 ]
                             ]
@@ -274,32 +267,23 @@ pub fn subscription_policy_card_scene(
 
 /// Restamp the policy controls from the shared projection: the surfaces never
 /// keep a second copy of the persisted schedule or reload preference.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn sync_subscription_policy_controls(
-    update: On<crate::pages::profiles::ProfilesProjectionUpdated>,
-    urls: Query<&Children, With<SubscriptionPolicyUrlField>>,
-    intervals: Query<&Children, With<SubscriptionPolicyIntervalField>>,
-    crons: Query<&Children, With<SubscriptionPolicyCronField>>,
-    auto_update_toggles: Query<&Children, With<SubscriptionAutoUpdateToggle>>,
-    auto_reload_toggles: Query<&Children, With<SubscriptionAutoReloadToggle>>,
-    checkboxes: Query<(Entity, Has<Checked>), With<Checkbox>>,
-    mut text_fields: Query<&mut TextField>,
-    mut status_lines: Query<
-        &mut Text,
-        (
-            With<SubscriptionPolicyStatus>,
-            Without<SubscriptionAutoReloadStatus>,
-        ),
-    >,
-    mut reload_lines: Query<
-        &mut Text,
-        (
-            With<SubscriptionAutoReloadStatus>,
-            Without<SubscriptionPolicyStatus>,
-        ),
-    >,
+    update: On<ProfilesProjectionUpdated>,
     mut commands: Commands,
+    targets: SubscriptionPolicyTargets,
 ) {
+    let SubscriptionPolicyTargets {
+        urls,
+        intervals,
+        crons,
+        auto_update_toggles,
+        auto_reload_toggles,
+        checkboxes,
+        mut text_fields,
+        mut status_lines,
+        mut reload_lines,
+    } = targets;
+
     let profile = selected_profile(&update.0);
 
     macro_rules! restamp {
@@ -309,11 +293,7 @@ pub(super) fn sync_subscription_policy_controls(
                     if let Ok(mut field) = text_fields.get_mut(*child)
                         && field.0.text() != $value
                     {
-                        field.0.apply(
-                            infiltrator_bevy_widgets::text_input::state::TextFieldInput::SetText(
-                                $value.clone(),
-                            ),
-                        );
+                        field.0.apply(TextFieldInput::SetText($value.clone()));
                     }
                 }
             }
@@ -353,11 +333,11 @@ pub(super) fn sync_subscription_policy_controls(
         }
     }
 
-    let status = policy_status(profile);
+    let status = policy_status(profile, UiLocale::default().code());
     for mut line in &mut status_lines {
         line.0 = status.clone();
     }
-    let reload = auto_reload_status(profile);
+    let reload = auto_reload_status(profile, UiLocale::default().code());
     for mut line in &mut reload_lines {
         line.0 = reload.clone();
     }
@@ -387,19 +367,22 @@ fn checked_toggle<F: QueryFilter>(
 /// DUAL-07-14: submit the edited schedule draft through the shared command bus.
 /// The application validates the cron expression, the URL/auto-update
 /// relationship, and the interval; the surface never pre-validates.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn on_save_subscription_policy(
     activate: On<Activate>,
-    buttons: Query<(), With<SaveSubscriptionPolicyButton>>,
     last: Option<Res<LastProfilesProjection>>,
-    urls: Query<&Children, With<SubscriptionPolicyUrlField>>,
-    intervals: Query<&Children, With<SubscriptionPolicyIntervalField>>,
-    crons: Query<&Children, With<SubscriptionPolicyCronField>>,
-    auto_update_toggles: Query<&Children, With<SubscriptionAutoUpdateToggle>>,
-    text_fields: Query<&TextField>,
-    checkboxes: Query<&Checked>,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: SubscriptionPolicyControls,
 ) {
+    let SubscriptionPolicyControls {
+        buttons,
+        urls,
+        intervals,
+        crons,
+        auto_update_toggles,
+        text_fields,
+        checkboxes,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
@@ -465,4 +448,34 @@ pub(super) fn on_save_subscription_auto_reload(
         profile_id: profile.id.clone(),
         enabled,
     });
+}
+
+#[derive(QueryFilter)]
+pub struct PolicyCopyFilter {
+    with_status: With<SubscriptionPolicyStatus>,
+}
+#[derive(QueryFilter)]
+pub struct ReloadCopyFilter {
+    with_reload: With<SubscriptionAutoReloadStatus>,
+    without_status: Without<SubscriptionPolicyStatus>,
+}
+pub fn replay_policy_copy(
+    last: Res<LastProfilesProjection>,
+    locale: Res<UiLocale>,
+    mut policies: Query<&mut Text, PolicyCopyFilter>,
+    mut reloads: Query<&mut Text, ReloadCopyFilter>,
+) {
+    let profile = last.0.as_ref().and_then(selected_profile);
+    let status = policy_status(profile, locale.code());
+    for mut text in &mut policies {
+        if text.0 != status {
+            text.0 = status.clone();
+        }
+    }
+    let status = auto_reload_status(profile, locale.code());
+    for mut text in &mut reloads {
+        if text.0 != status {
+            text.0 = status.clone();
+        }
+    }
 }

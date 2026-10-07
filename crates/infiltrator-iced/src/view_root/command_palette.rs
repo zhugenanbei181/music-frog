@@ -6,13 +6,18 @@
 //! shared substring rule, and dispatch into the same handlers the global
 //! chords use.
 
+use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge, kbd_badge, modern_scrollable};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::command_palette_projection::localized_title;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::command_catalogue::{CommandCategory, CommandTarget, ShellPage};
@@ -64,18 +69,6 @@ pub fn command_category_badge(category: CommandCategory) -> BadgeKind {
     }
 }
 
-/// The localized title of one catalogue row. Profile rows render the category
-/// label plus the live profile name, exactly like the shared `title_zh`.
-fn localized_title(
-    lang: &Lang<'_>,
-    entry: &infiltrator_contract::command_catalogue::CommandEntry,
-) -> String {
-    match entry.profile_name() {
-        Some(name) => format!("{}: {}", lang.tr(entry.title_key), name),
-        None => lang.tr(entry.title_key).into_owned(),
-    }
-}
-
 pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let filtered = state.filtered_command_indices();
@@ -89,15 +82,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             &state.shell.command_query,
         )
         .on_input(Message::SetCommandQuery)
-        .on_submit(
-            match filtered
-                .first()
-                .and_then(|index| state.shell.command_catalogue.entry(*index))
-            {
-                Some(entry) => Message::ExecuteCommand(entry.target.clone()),
-                None => Message::Noop,
-            }
-        )
+        .on_submit(Message::ExecuteSelectedCommand)
         .padding([8, 12])
         .size(14)
         .width(Length::Fill)
@@ -116,7 +101,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
             }
         }),
         button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_tertiary))
-            .style(crate::view::component_forms::style_ghost)
+            .style(style_ghost)
             .padding(4)
             .on_press(Message::CloseCommandPalette),
     ]
@@ -125,7 +110,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     // DUAL-15-10/11: the query line is a shared semantics row; Iced cannot
     // publish roles, so it carries the localized label as a real tooltip on
     // the search row (the same key Bevy mounts on the query node).
-    let search_row = crate::accessibility::labelled(
+    let search_row = labelled(
         ShellA11yNode::CommandPaletteQuery,
         &state.shell.lang,
         search_row.into(),
@@ -182,7 +167,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
                 continue;
             };
             let is_selected = position == selected_idx;
-            let title_str = localized_title(&lang, entry);
+            let title_str = localized_title(entry, &|key| lang.tr(key).into_owned());
             let cat_label = lang.tr(entry.category.label_key());
             let cat_badge_kind = command_category_badge(entry.category);
             let icon = command_icon(&entry.target);
@@ -268,7 +253,9 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
         }
 
         modern_scrollable(list_col)
-            .height(Length::Fixed(280.0))
+            .height(Length::Fixed(
+                (state.shell.viewport.height_px - 200.0).clamp(80.0, 280.0),
+            ))
             .into()
     };
 
@@ -337,6 +324,7 @@ pub fn command_palette_modal(state: &AppState) -> Element<'_, Message> {
     ];
 
     let card = container(dialog_content)
+        .id(InteractionRegion::Palette.id())
         .width(Length::Fixed(
             state.shell.viewport.clamped_modal_width(560.0),
         ))

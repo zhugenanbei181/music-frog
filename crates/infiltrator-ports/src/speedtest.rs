@@ -4,11 +4,10 @@
 //! this port is the zero-toolkit seam an inbound UI uses to trigger it and read
 //! the canonical snapshot, without constructing a Mihomo client of its own.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::speedtest::{SpeedtestScope, SpeedtestSnapshot};
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait SpeedtestPort: Send + Sync {

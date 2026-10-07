@@ -1,8 +1,9 @@
 # 多 UI 求同存异矩阵
 
-本项目的 UI 不是多份产品逻辑。Iced 是当前成熟主桌面 surface（Tauri + Vue 已退役，台账见 [TAURI_WEBUI_RETIREMENT_LEDGER.md](TAURI_WEBUI_RETIREMENT_LEDGER.md)），Bevy UI 是跨平台统一战略 surface（桌面 + 移动 + iOS 大一统，章程见 [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)），Android Compose 是原生移动伴侣。三者共享用户意图和 Rust 结果，不共享 toolkit 的状态和布局实现。
-
+Iced 与 Bevy UI 是同权、独立发行的产品；Android Compose 是原生移动伴侣。三者共享 Rust 意图、结果与能力语义，各自保留 toolkit 状态与布局。产品平权与 L1/L2/L3 验收的唯一规范见 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)。
 从 0.30 起，三类前端都通过 `infiltrator-application` 的 contract 接入；application 通过 `ApplicationRuntime` port 工作，Tokio 只在 composition/outbound/host adapter 实现，不能通过 `MihomoClient`、Reqwest 类型或 Tokio channel 进入前端契约。Desktop、Android、iOS 是与 UI 正交的同级 host adapter，负责各自的进程、VPN、权限和系统能力。当前实现边界与未完成的双端 live parity 见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
+
+Bevy Android 与 Compose 的宿主复用、进程/IPC、输入和节能联合接线遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)。已有能力保留扩展，缺失项进入本地 TODO；移动平台交付证据不能用桌面或组件结果代替。
 
 > **双端同步战略演进说明（2026-09-03 升级）**：
 > 依据最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)，Iced 与 Bevy UI 正式确立为**对等双主干 Surface**。二者彻底告别“先后跟随”模式，在**功能完备度**与**UI/UX 表现**上步调一致、严格同步演进。双端全面对标 Clash Verge Rev、Mihomo Party、Flclash、Surge 的最完善功能并集。
@@ -14,11 +15,11 @@
 | `shared` | 命令、数据、错误和生命周期语义共用；实现可在各端独立 |
 | `local` | 只属于该端的窗口、手势、布局、导航或宿主能力 |
 | `accepted difference` | 有意不同，但对应同一个 shared intent，且有替代路径/原因 |
-| `unsupported` | 当前端没有能力或产品价值不足，必须显示 typed 不支持，不得静默隐藏 |
+| `unsupported` | 宿主平台确实缺少能力时展示有原因的 typed 不支持；同一平台上的 UI 缺口、未组合宿主或“产品价值不足”不能作为平权豁免 |
 
 ## 2. 功能矩阵（Iced / Bevy UI / Android Compose）
 
-| 用户意图 | Iced 主桌面 | Bevy UI 跨平台主干 | Android Compose | 共享规则与权威契约 |
+| 用户意图 | Iced 产品 | Bevy UI 产品 | Android Compose | 共享规则与权威契约 |
 | --- | --- | --- | --- | --- |
 | 启动/停止/重启 mihomo | `shared` + desktop tray `local` | `shared` + desktop/mobile tray `local` | `shared` + VPN/background `local` | 同一 lifecycle state、failure、generation |
 | profile 导入/编辑/删除/切换 | `shared` + 桌面编辑器 `local` | `shared` + bsn! 编辑器 `local` | `shared` + 移动表单 `local` | profile identity、revision 和重建结果一致 |
@@ -59,7 +60,7 @@
 
 ## 4. 双端同步演进规则
 
-1. 业务逻辑下沉到 `infiltrator-core` 与 `mihomo-platform`，共享视图模型定义于 `infiltrator-shared`。
+1. 业务语义归于 domain/contract/application；平台操作由 ports 与 host adapter 承担，composition 注入；一次折叠，多端渲染。
 2. 任何功能特性或 UI 交互升级，必须在同一批次同时向 `infiltrator-iced` 与 `infiltrator-bevy-ui` 提交对应实现。
 3. 双端必须通过对应的无头自动化测试（`iced_*_tests.rs` 与 `headless/*_tests.rs`），杜绝单端功能漂移。
 4. 具体并集功能点与 UI 表现清单，严格对齐 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)。

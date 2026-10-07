@@ -1,7 +1,6 @@
+use bevy::color::Color;
 use bevy::math::Vec2;
 use bevy::ui::prelude::{FlexDirection, UiRect, Val};
-
-use bevy::color::Color;
 use infiltrator_bevy_widgets::abi::{
     DesktopRunnerHost, UniversalRunnerHost, WIDGET_ABI_VERSION, is_abi_compatible,
 };
@@ -18,6 +17,7 @@ use infiltrator_bevy_widgets::sandbox::SandboxedWidgetInstance;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_bevy_widgets::theme_export::{ThemeExportFormat, export_palette_tokens};
 use infiltrator_bevy_widgets::windowing::{DockPanel, DockSlot, PipOverlayState};
+use std::time;
 
 #[test]
 fn test_abi_version_and_runner_host() {
@@ -44,18 +44,32 @@ fn test_auto_heal_wizard_anomalies_and_actions() {
     assert_eq!(wizard.pending_actions.len(), 3);
 
     assert_eq!(
-        wizard.pending_actions[0].title,
+        wizard.pending_actions[0].title("zh-CN"),
         "轮换控制器端口 (占用: 9090)"
     );
     assert!(!wizard.pending_actions[0].is_destructive);
 
     assert_eq!(
-        wizard.pending_actions[1].title,
+        wizard.pending_actions[1].title("zh-CN"),
         "强制启用 Strict Route 阻断直连 DNS"
     );
     assert!(!wizard.pending_actions[1].is_destructive);
 
-    assert_eq!(wizard.pending_actions[2].title, "清理僵尸核心进程");
+    assert_eq!(wizard.pending_actions[2].title("zh-CN"), "清理僵尸核心进程");
+    assert!(wizard.pending_actions[2].is_destructive);
+
+    assert_eq!(
+        wizard.pending_actions[0].title("en-US"),
+        "Rotate controller port (occupied: 9090)"
+    );
+    assert_eq!(
+        wizard.pending_actions[0].description("en-US"),
+        "Find a free high port and restart the core interface"
+    );
+    assert_eq!(
+        wizard.pending_actions[2].title("en-US"),
+        "Clean up orphaned core processes"
+    );
     assert!(wizard.pending_actions[2].is_destructive);
 
     // Idempotent push
@@ -375,7 +389,7 @@ fn test_advanced_ecosystem_round_three_capabilities() {
     let mut reg = MultiNodeCircuitRegistry::new();
     let nodes = ["Node1", "Node2"];
     assert_eq!(
-        reg.select_first_healthy(&nodes, std::time::Duration::ZERO),
+        reg.select_first_healthy(&nodes, time::Duration::ZERO),
         Some("Node1")
     );
 
@@ -437,7 +451,7 @@ fn test_advanced_ecosystem_round_four_capabilities() {
     let backoff = ExponentialBackoffPolicy::default();
     assert_eq!(
         backoff.delay_for_attempt(1),
-        std::time::Duration::from_millis(1000)
+        time::Duration::from_millis(1000)
     );
 
     // 6. WCAG AAA Contrast

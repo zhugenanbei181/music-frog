@@ -203,6 +203,40 @@ pub enum SubscriptionFilterDedup {
     AppendIndex,
 }
 
+impl SubscriptionFilterDedup {
+    pub const ALL: [Self; 4] = [
+        Self::Disabled,
+        Self::KeepFirst,
+        Self::KeepLast,
+        Self::AppendIndex,
+    ];
+    pub const fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::Disabled),
+            1 => Some(Self::KeepFirst),
+            2 => Some(Self::KeepLast),
+            3 => Some(Self::AppendIndex),
+            _ => None,
+        }
+    }
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Disabled => 0,
+            Self::KeepFirst => 1,
+            Self::KeepLast => 2,
+            Self::AppendIndex => 3,
+        }
+    }
+    pub const fn label_key(self) -> &'static str {
+        match self {
+            Self::Disabled => "filter_dedup_disabled",
+            Self::KeepFirst => "filter_dedup_first",
+            Self::KeepLast => "filter_dedup_last",
+            Self::AppendIndex => "filter_dedup_index",
+        }
+    }
+}
+
 /// DUAL-07-08: contract mirror of the per-profile node-keyword filter a
 /// surface edits and submits through the shared command bus.
 ///
@@ -218,11 +252,15 @@ pub struct SubscriptionFilterDraft {
     pub exclude_types: String,
     pub renames: String,
     pub dedup_index: usize,
+    /// Advanced filter policy in YAML/JSON mapping form. None leaves legacy
+    /// callers' unowned policy unchanged; an explicitly empty mapping clears it.
+    pub advanced_policy: Option<String>,
 }
 
 impl SubscriptionFilterDraft {
-    /// True when the draft would not reshape the document, so the surfaces can
-    /// render an "inactive" state and the pipeline can be skipped.
+    /// True for an empty textual draft. Validated policy activity is folded
+    /// by the domain; invalid or explicitly inactive advanced text is not
+    /// classified as an observed active policy by this input convenience.
     pub fn is_empty(&self) -> bool {
         [
             &self.include,
@@ -233,5 +271,9 @@ impl SubscriptionFilterDraft {
         .iter()
         .all(|value| value.trim().is_empty())
             && self.dedup_index == 0
+            && self
+                .advanced_policy
+                .as_deref()
+                .is_none_or(|policy| policy.trim().is_empty() || policy.trim() == "{}")
     }
 }

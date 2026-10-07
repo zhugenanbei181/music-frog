@@ -7,35 +7,37 @@
 //! 4. Action execution dispatches to `RouteChanged` and the command sink, using
 //!    the same rows the Iced surface renders.
 
-use std::sync::Arc;
-
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
+use bevy::ecs::entity;
 use bevy::input::ButtonState;
-use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::scene::CommandsSceneExt;
+use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
 use infiltrator_bevy_ui::command_palette::{
-    CommandPaletteOverlayRoot, CommandPaletteState, ExecuteSelectedPaletteAction,
-    command_palette_modal_scene,
+    CommandPaletteOverlayRoot, CommandPaletteState, ExecutePaletteEntry,
+    ExecuteSelectedPaletteAction, ToggleCommandPalette, command_palette_modal_scene,
 };
 use infiltrator_bevy_ui::command_palette_shell::CommandPalettePlugin;
-use infiltrator_bevy_ui::route::{ActiveRoute, Route};
+use infiltrator_bevy_ui::pages::dns_cache::{CacheConfirmation, CacheModalCard};
+use infiltrator_bevy_ui::route::{ActiveRoute, PagesPlugin, Route};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shortcuts::ShortcutRegistry;
+use std::sync::Arc;
 
 use crate::support::*;
 
 fn keyboard_message(logical_key: Key) -> KeyboardInput {
     KeyboardInput {
-        key_code: bevy::input::keyboard::KeyCode::KeyA,
+        key_code: KeyCode::KeyA,
         logical_key,
         state: ButtonState::Pressed,
         text: None,
         repeat: false,
-        window: bevy::ecs::entity::Entity::PLACEHOLDER,
+        window: entity::Entity::PLACEHOLDER,
     }
 }
 
@@ -88,9 +90,7 @@ fn test_palette_mounts_and_unmounts_from_the_shared_catalogue() {
     assert!(state.catalogue.index_of("nav.dns").is_some());
     assert!(state.catalogue.index_of("action.toggle_mini_hud").is_some());
 
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::command_palette::ToggleCommandPalette);
+    app.world_mut().commands().trigger(ToggleCommandPalette);
     app.update();
 
     let world = app.world_mut();
@@ -110,9 +110,7 @@ fn test_palette_keyboard_navigation_typing_and_close() {
     app.add_plugins(CommandPalettePlugin);
     app.update();
 
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::command_palette::ToggleCommandPalette);
+    app.world_mut().commands().trigger(ToggleCommandPalette);
     app.update();
     assert!(app.world().resource::<CommandPaletteState>().is_open);
 
@@ -167,10 +165,8 @@ fn test_palette_keyboard_navigation_typing_and_close() {
 fn test_command_palette_action_execution_dispatches_route_and_command() {
     let mut app = App::new();
     headless_plugins(&mut app);
-    let theme = Theme::dark();
-    app.add_plugins(WidgetsPlugin::new(&theme));
-    app.add_plugins(CommandPalettePlugin);
-    app.init_resource::<ActiveRoute>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
 
     let sink = Arc::new(DemoCommandSink::accepting());
     app.add_plugins(CommandPumpPlugin::new(
@@ -210,9 +206,17 @@ fn test_command_palette_action_execution_dispatches_route_and_command() {
         .trigger(ExecuteSelectedPaletteAction);
     app.update();
 
-    let submitted = sink.submitted();
-    assert_eq!(submitted.len(), 1);
-    assert_eq!(submitted[0], UiCommand::ClearDnsCache);
+    app.update();
+    assert!(sink.submitted().is_empty());
+    assert!(app.world().resource::<CacheConfirmation>().model.open);
+    assert_eq!(app.world().resource::<ActiveRoute>().0, Some(Route::Dns));
+    assert_eq!(
+        app.world_mut()
+            .query::<&CacheModalCard>()
+            .iter(app.world())
+            .count(),
+        1
+    );
     assert!(!app.world().resource::<CommandPaletteState>().is_open);
 }
 
@@ -220,10 +224,8 @@ fn test_command_palette_action_execution_dispatches_route_and_command() {
 fn test_palette_row_click_executes_that_row() {
     let mut app = App::new();
     headless_plugins(&mut app);
-    let theme = Theme::dark();
-    app.add_plugins(WidgetsPlugin::new(&theme));
-    app.add_plugins(CommandPalettePlugin);
-    app.init_resource::<ActiveRoute>();
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
     app.update();
 
     {
@@ -243,9 +245,7 @@ fn test_palette_row_click_executes_that_row() {
             .expect("second row")
     };
 
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::command_palette::ExecutePaletteEntry(1));
+    app.world_mut().commands().trigger(ExecutePaletteEntry(1));
     app.update();
 
     assert!(!app.world().resource::<CommandPaletteState>().is_open);
@@ -256,4 +256,264 @@ fn test_palette_row_click_executes_that_row() {
         route.is_some() || second_id == "action.run_doctor",
         "the clicked row dispatched through the shared target vocabulary"
     );
+}
+
+#[test]
+fn palette_empty_invalid_and_closed_execution_have_no_effects() {
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    let sink = Arc::new(DemoCommandSink::accepting());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(ExecuteSelectedPaletteAction);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ActiveRoute>().0,
+        Some(Route::Overview)
+    );
+    assert!(sink.submitted().is_empty());
+    {
+        let mut state = app.world_mut().resource_mut::<CommandPaletteState>();
+        state.open();
+        state.set_query("no-catalogue-entry-8371");
+    }
+    app.world_mut()
+        .commands()
+        .trigger(ExecuteSelectedPaletteAction);
+    app.update();
+    assert!(app.world().resource::<CommandPaletteState>().is_open);
+    assert!(
+        app.world()
+            .resource::<CommandPaletteState>()
+            .filtered_indices
+            .is_empty()
+    );
+    assert!(sink.submitted().is_empty());
+    {
+        let mut state = app.world_mut().resource_mut::<CommandPaletteState>();
+        state.set_query("dns");
+    }
+    app.world_mut()
+        .commands()
+        .trigger(ExecutePaletteEntry(usize::MAX));
+    app.update();
+    assert!(app.world().resource::<CommandPaletteState>().is_open);
+    assert_eq!(
+        app.world().resource::<ActiveRoute>().0,
+        Some(Route::Overview)
+    );
+    app.world_mut().write_message(keyboard_message(Key::Escape));
+    app.update();
+    assert!(!app.world().resource::<CommandPaletteState>().is_open);
+    app.world_mut()
+        .commands()
+        .trigger(ExecuteSelectedPaletteAction);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ActiveRoute>().0,
+        Some(Route::Overview)
+    );
+    assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn palette_mounts_every_catalogue_row_including_the_last_selection() {
+    use bevy::ecs::entity::Entity;
+    use bevy::ecs::query::With;
+    use bevy::ui::Node;
+    use infiltrator_bevy_ui::command_palette::CommandPaletteRow;
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
+    app.add_plugins(CommandPalettePlugin);
+    app.update();
+    let count = app
+        .world()
+        .resource::<CommandPaletteState>()
+        .catalogue
+        .len();
+    assert!(count > 8);
+    app.world_mut().commands().trigger(ToggleCommandPalette);
+    app.update();
+    assert_eq!(
+        app.world_mut()
+            .query::<&CommandPaletteRow>()
+            .iter(app.world())
+            .count(),
+        count
+    );
+    app.world_mut()
+        .resource_mut::<CommandPaletteState>()
+        .selected_index = count - 1;
+    app.update();
+    let (entity, row) = app
+        .world_mut()
+        .query::<(Entity, &CommandPaletteRow)>()
+        .iter(app.world())
+        .find(|(_, row)| row.0 == count - 1)
+        .unwrap();
+    assert_eq!(row.0, count - 1);
+    assert_eq!(app.world().get::<Node>(entity).unwrap().flex_shrink, 0.0);
+    assert_eq!(
+        app.world_mut()
+            .query_filtered::<Entity, With<CommandPaletteOverlayRoot>>()
+            .iter(app.world())
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn palette_english_titles_categories_and_empty_state_use_shared_locales() {
+    use bevy::ecs::query::With;
+    use bevy::ui::widget::Text;
+    use infiltrator_bevy_ui::command_palette::CommandPaletteEmptyState;
+    use infiltrator_shared::locales::{Lang, Localizer};
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
+    let palette = UiPalette::new(&Theme::dark());
+    let mut state = CommandPaletteState::new();
+    state.open();
+    state.set_language("en-US");
+    state.set_query("dns");
+    let scene = command_palette_modal_scene(&palette, &state, &ShortcutRegistry::with_defaults());
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+    let texts: Vec<_> = app
+        .world_mut()
+        .query::<&Text>()
+        .iter(app.world())
+        .map(|text| text.0.clone())
+        .collect();
+    assert!(texts.contains(&Lang("en-US").tr("cmd_nav_dns").into_owned()));
+    assert!(texts.contains(&Lang("en-US").tr("cmd_cat_nav").into_owned()));
+    state.set_query("no-catalogue-entry-8371");
+    let scene = command_palette_modal_scene(&palette, &state, &ShortcutRegistry::with_defaults());
+    app.world_mut().commands().spawn_scene(scene);
+    app.update();
+    let empty = app
+        .world_mut()
+        .query_filtered::<&Text, With<CommandPaletteEmptyState>>()
+        .single(app.world())
+        .unwrap();
+    assert_eq!(empty.0, Lang("en-US").tr("cmd_no_results"));
+}
+
+#[test]
+fn palette_locale_category_search_keeps_all_navigation_targets() {
+    use infiltrator_contract::command_catalogue::CommandTarget;
+    let mut state = CommandPaletteState::new();
+    state.set_language("en-US");
+    state.set_query("Navigation");
+    assert_eq!(state.filtered_indices.len(), 11);
+    assert!(state.filtered_indices.iter().all(|index| matches!(
+        state.catalogue.entry(*index).unwrap().target,
+        CommandTarget::Navigate(_)
+    )));
+}
+
+#[test]
+fn palette_profile_refresh_repaints_same_length_catalogue_and_preserves_identity() {
+    use crate::support::subtree_has_text;
+    use bevy::ecs::entity::Entity;
+    use bevy::ecs::query::With;
+    use infiltrator_bevy_ui::pages::profiles::{ProfilesProjection, ProfilesProjectionUpdated};
+    use infiltrator_bevy_ui::route::RouteChanged;
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    let sink = Arc::new(DemoCommandSink::accepting());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+    app.world_mut()
+        .commands()
+        .trigger(RouteChanged(Route::Profiles));
+    app.update();
+    let mut projection = ProfilesProjection::demo();
+    let id = projection.profiles[0].id.clone();
+    projection.profiles[0].name = "Old profile label".into();
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection.clone()));
+    app.update();
+    app.world_mut().commands().trigger(ToggleCommandPalette);
+    app.update();
+    let index = app
+        .world()
+        .resource::<CommandPaletteState>()
+        .catalogue
+        .index_of(&format!("profile.{id}"))
+        .unwrap();
+    app.world_mut()
+        .resource_mut::<CommandPaletteState>()
+        .selected_index = index;
+    app.update();
+    let root = app
+        .world_mut()
+        .query_filtered::<Entity, With<CommandPaletteOverlayRoot>>()
+        .single(app.world())
+        .unwrap();
+    assert!(subtree_has_text(app.world(), root, "Old profile label"));
+    let count = app
+        .world()
+        .resource::<CommandPaletteState>()
+        .catalogue
+        .len();
+    projection.profiles[0].name = "New profile label".into();
+    app.world_mut()
+        .commands()
+        .trigger(ProfilesProjectionUpdated(projection));
+    app.update();
+    app.update();
+    assert_eq!(
+        app.world()
+            .resource::<CommandPaletteState>()
+            .catalogue
+            .len(),
+        count
+    );
+    let root = app
+        .world_mut()
+        .query_filtered::<Entity, With<CommandPaletteOverlayRoot>>()
+        .single(app.world())
+        .unwrap();
+    assert!(subtree_has_text(app.world(), root, "New profile label"));
+    assert!(!subtree_has_text(app.world(), root, "Old profile label"));
+    app.world_mut()
+        .commands()
+        .trigger(ExecuteSelectedPaletteAction);
+    app.update();
+    assert_eq!(sink.submitted(), vec![UiCommand::ActivateProfile { id }]);
+}
+
+#[test]
+fn palette_visible_dismiss_button_closes_without_executing() {
+    use bevy::ecs::entity::Entity;
+    use bevy::ecs::query::With;
+    use bevy::ui_widgets::Activate;
+    use infiltrator_bevy_ui::command_palette::CommandPaletteDismissButton;
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins(ShellPlugin::default());
+    app.add_plugins(PagesPlugin::demo());
+    let sink = Arc::new(DemoCommandSink::accepting());
+    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
+    app.update();
+    app.world_mut().commands().trigger(ToggleCommandPalette);
+    app.update();
+    let entity = app
+        .world_mut()
+        .query_filtered::<Entity, With<CommandPaletteDismissButton>>()
+        .single(app.world())
+        .unwrap();
+    app.world_mut().commands().trigger(Activate { entity });
+    app.update();
+    assert!(!app.world().resource::<CommandPaletteState>().is_open);
+    assert!(sink.submitted().is_empty());
 }

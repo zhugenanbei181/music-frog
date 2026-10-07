@@ -18,15 +18,21 @@
 //! Red lines: the server never binds anything but loopback, and unit tests
 //! never start it (`apply_admin_server_lifecycle` is inert under `cfg(test)`).
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
+use crate::host::desktop::{read_system_proxy_state, system_proxy_port};
+use crate::notify::NotifyUrgency;
+use crate::state::AppState;
+use crate::types::app::ToastStatus;
+use crate::types::message::Message;
+use crate::types::runtime::RuntimeStatus;
 use anyhow::anyhow;
 use iced::advanced::subscription::{EventStream, Hasher, Recipe, from_recipe};
+use iced::futures::channel::mpsc::Sender;
+use iced::futures::channel::oneshot;
 use iced::futures::stream::BoxStream;
 use iced::{Subscription, Task, stream};
+use infiltrator_admin::admin_api::events::{AdminEvent, AdminEventBus, EVENT_SETTINGS_CHANGED};
 use infiltrator_admin::admin_api::state::AdminApiContext;
-use infiltrator_admin::servers::AdminServerHandle;
+use infiltrator_admin::servers::{AdminServerHandle, start_admin_server};
 use infiltrator_application::cache_application::CacheApplication;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
@@ -37,15 +43,24 @@ use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home;
+use infiltrator_desktop::editor::open_profile_in_editor;
+use infiltrator_desktop::storage::{
+    doctor, fake_ip_cache, profile_controller_url, profile_reset, profile_store, public_ip_probe,
+    save_webdav_password, settings_store, subscription_source, sync, version, webdav_password,
+};
 use infiltrator_domain::settings::{AdminServerConfig, AppSettings};
 use infiltrator_ports::host_runtime::HostRuntime;
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway};
 use infiltrator_ports::subscription_source::SubscriptionSource;
-
-use crate::state::AppState;
-use crate::types::app::ToastStatus;
-use crate::types::message::Message;
-use infiltrator_contract::error::InfiltratorError;
+use infiltrator_shared::autostart::{is_autostart_enabled, set_autostart_enabled};
+use std::fmt::{Debug, Formatter};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, mpsc};
+use std::{fmt, time};
+use tokio::task::spawn_blocking;
+use tokio::time::{sleep, timeout};
 
 /// Same default the legacy Tauri client passes to `start_admin_server`.
 pub const ADMIN_DEFAULT_PORT: u16 = 25210;
@@ -114,18 +129,18 @@ pub enum AdminHostCommand {
     SystemNotify {
         title: String,
         body: String,
-        urgency: crate::notify::NotifyUrgency,
+        urgency: NotifyUrgency,
     },
     /// The WebUI saved settings; reload them from disk.
     SettingsSavedExternally,
     /// Core version data changed; refresh the kernel list.
     CoreVersionsChanged,
     /// Open a native file dialog on the main thread and report the pick back.
-    PickEditorPath(Arc<iced::futures::channel::oneshot::Sender<Option<String>>>),
+    PickEditorPath(Arc<oneshot::Sender<Option<String>>>),
 }
 
-impl std::fmt::Debug for AdminHostCommand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for AdminHostCommand {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::RuntimeResynced(result) => f
                 .debug_tuple("RuntimeResynced")
@@ -153,7 +168,7 @@ impl std::fmt::Debug for AdminHostCommand {
 }
 
 /// Receiver side of the admin command channel, shared with the subscription.
-pub type SharedAdminCommandReceiver = Arc<Mutex<std::sync::mpsc::Receiver<AdminHostCommand>>>;
+pub type SharedAdminCommandReceiver = Arc<Mutex<mpsc::Receiver<AdminHostCommand>>>;
 
 /// Shared, `Send + Sync` snapshot of what the admin REST context needs from
 /// the app: the live mihomo runtime, the event bus and the command channel.
@@ -164,15 +179,12 @@ pub struct AdminSharedRuntime {
 
 struct SharedInner {
     runtime: Mutex<Option<Arc<dyn HostRuntime>>>,
-    commands: std::sync::mpsc::Sender<AdminHostCommand>,
-    events: infiltrator_admin::admin_api::events::AdminEventBus,
+    commands: mpsc::Sender<AdminHostCommand>,
+    events: AdminEventBus,
 }
 
 impl AdminSharedRuntime {
-    pub fn new(
-        events: infiltrator_admin::admin_api::events::AdminEventBus,
-        commands: std::sync::mpsc::Sender<AdminHostCommand>,
-    ) -> Self {
+    pub fn new(events: AdminEventBus, commands: mpsc::Sender<AdminHostCommand>) -> Self {
         Self {
             inner: Arc::new(SharedInner {
                 runtime: Mutex::new(None),
@@ -182,7 +194,7 @@ impl AdminSharedRuntime {
         }
     }
 
-    pub fn event_bus(&self) -> infiltrator_admin::admin_api::events::AdminEventBus {
+    pub fn event_bus(&self) -> AdminEventBus {
         self.inner.events.clone()
     }
 
@@ -226,7 +238,7 @@ pub struct AdminServerManager {
 struct ManagerInner {
     handle: Mutex<Option<AdminServerHandle>>,
     started_for: Mutex<Option<AdminServerConfig>>,
-    events: infiltrator_admin::admin_api::events::AdminEventBus,
+    events: AdminEventBus,
 }
 
 impl Default for AdminServerManager {
@@ -241,13 +253,13 @@ impl AdminServerManager {
             inner: Arc::new(ManagerInner {
                 handle: Mutex::new(None),
                 started_for: Mutex::new(None),
-                events: infiltrator_admin::admin_api::events::AdminEventBus::new(),
+                events: AdminEventBus::new(),
             }),
         }
     }
 
     /// The event bus feeding the server's SSE stream; stable across restarts.
-    pub fn event_bus(&self) -> infiltrator_admin::admin_api::events::AdminEventBus {
+    pub fn event_bus(&self) -> AdminEventBus {
         self.inner.events.clone()
     }
 
@@ -397,7 +409,7 @@ impl IcedAdminContext {
 }
 
 async fn settings_application() -> anyhow::Result<SettingsApplication> {
-    let store = infiltrator_desktop::storage::settings_store().await?;
+    let store = settings_store().await?;
     Ok(SettingsApplication::new(store))
 }
 
@@ -431,70 +443,65 @@ async fn save_settings_to_disk(settings: &AppSettings) -> anyhow::Result<()> {
 #[async_trait::async_trait]
 impl AdminApiContext for IcedAdminContext {
     async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
-        let store = infiltrator_desktop::storage::profile_store().await?;
+        let store = profile_store().await?;
         Ok(ProfileApplication::new(store))
     }
 
     async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
-        let store = infiltrator_desktop::storage::profile_store().await?;
+        let store = profile_store().await?;
         Ok(ConfigurationApplication::new(store))
     }
 
     async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
-        let doctor = infiltrator_desktop::storage::doctor()?;
+        let doctor = doctor()?;
         Ok(DoctorApplication::new(Arc::new(doctor)))
     }
 
     async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
-        Ok(infiltrator_desktop::storage::profile_controller_url()
-            .await
-            .ok())
+        Ok(profile_controller_url().await.ok())
     }
 
     async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication> {
-        let reset = infiltrator_desktop::storage::profile_reset();
+        let reset = profile_reset();
         Ok(ProfileResetApplication::new(Arc::new(reset)))
     }
 
     async fn cache_application(&self) -> anyhow::Result<CacheApplication> {
-        let cache = infiltrator_desktop::storage::fake_ip_cache();
+        let cache = fake_ip_cache();
         Ok(CacheApplication::new(Arc::new(cache)))
     }
 
     async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>> {
-        Ok(Arc::new(infiltrator_desktop::storage::subscription_source()))
+        Ok(Arc::new(subscription_source()))
     }
 
     async fn sync_application(&self) -> anyhow::Result<SyncApplication> {
-        let sync = infiltrator_desktop::storage::sync()?;
+        let sync = sync()?;
         Ok(SyncApplication::new(Arc::new(sync)))
     }
 
     async fn version_application(&self) -> anyhow::Result<VersionApplication> {
-        let version = infiltrator_desktop::storage::version()?;
+        let version = version()?;
         Ok(VersionApplication::new(Arc::new(version)))
     }
 
     async fn network_application(&self) -> anyhow::Result<NetworkApplication> {
-        Ok(NetworkApplication::new(Arc::new(
-            infiltrator_desktop::storage::public_ip_probe(),
-        )))
+        Ok(NetworkApplication::new(Arc::new(public_ip_probe())))
     }
 
     async fn webdav_password(&self) -> Option<String> {
-        infiltrator_desktop::storage::webdav_password().await
+        webdav_password().await
     }
 
     async fn set_webdav_password(&self, password: &str) -> anyhow::Result<()> {
-        infiltrator_desktop::storage::save_webdav_password(password).await
+        save_webdav_password(password).await
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {
         if let Some(runtime) = self.shared.take_runtime() {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
-        let (rebuilt, _rotated) =
-            infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(true, &[]).await?;
+        let (rebuilt, _rotated) = bootstrap_host_runtime_from_current_home(true, &[]).await?;
         self.shared.set_runtime(Some(rebuilt.clone()));
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));
@@ -557,9 +564,9 @@ impl AdminApiContext for IcedAdminContext {
             },
             body: text,
             urgency: if success {
-                crate::notify::NotifyUrgency::Low
+                NotifyUrgency::Low
             } else {
-                crate::notify::NotifyUrgency::Critical
+                NotifyUrgency::Critical
             },
         });
     }
@@ -578,11 +585,11 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn pick_editor_path(&self) -> Option<String> {
-        let (tx, rx) = iced::futures::channel::oneshot::channel();
+        let (tx, rx) = oneshot::channel();
         self.shared
             .send(AdminHostCommand::PickEditorPath(Arc::new(tx)));
         // The dialog runs on the main thread; give the user ample time.
-        tokio::time::timeout(std::time::Duration::from_secs(300), rx)
+        timeout(time::Duration::from_secs(300), rx)
             .await
             .ok()?
             .ok()?
@@ -590,7 +597,7 @@ impl AdminApiContext for IcedAdminContext {
 
     async fn open_profile_in_editor(&self, profile_name: &str) -> anyhow::Result<()> {
         let editor_path = self.editor_path().await;
-        infiltrator_desktop::editor::open_profile_in_editor(editor_path, profile_name).await
+        open_profile_in_editor(editor_path, profile_name).await
     }
 
     async fn get_app_settings(&self) -> AppSettings {
@@ -601,9 +608,7 @@ impl AdminApiContext for IcedAdminContext {
         save_settings_to_disk(&settings).await?;
         self.shared
             .event_bus()
-            .publish(infiltrator_admin::admin_api::events::AdminEvent::new(
-                infiltrator_admin::admin_api::events::EVENT_SETTINGS_CHANGED,
-            ));
+            .publish(AdminEvent::new(EVENT_SETTINGS_CHANGED));
         self.shared.send(AdminHostCommand::SettingsSavedExternally);
         Ok(())
     }
@@ -626,11 +631,11 @@ impl AdminApiContext for IcedAdminContext {
         let proxy_port = runtime
             .as_ref()
             .and_then(|runtime| runtime.system_proxy_port())
-            .unwrap_or_else(crate::host::desktop::system_proxy_port);
+            .unwrap_or_else(system_proxy_port);
         if let Some(runtime) = runtime {
             let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
         }
-        if crate::host::desktop::read_system_proxy_state()
+        if read_system_proxy_state()
             .map(|state| state.enabled)
             .unwrap_or(false)
         {
@@ -652,7 +657,7 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn system_proxy_enabled(&self) -> bool {
-        crate::host::desktop::read_system_proxy_state()
+        read_system_proxy_state()
             .map(|state| state.enabled)
             .unwrap_or(false)
     }
@@ -668,13 +673,13 @@ impl AdminApiContext for IcedAdminContext {
                 .ok_or_else(|| anyhow!("当前配置中未配置代理端口（port/mixed-port）"))?;
             let proxy_port = runtime
                 .system_proxy_port()
-                .unwrap_or_else(crate::host::desktop::system_proxy_port);
+                .unwrap_or_else(system_proxy_port);
             SystemProxyApplication::new(proxy_port)
                 .set_enabled(true, Some(endpoint), None)
                 .await
                 .map_err(|failure| anyhow!(failure.message))?;
         } else {
-            SystemProxyApplication::new(crate::host::desktop::system_proxy_port())
+            SystemProxyApplication::new(system_proxy_port())
                 .set_enabled(false, None, None)
                 .await
                 .map_err(|failure| anyhow!(failure.message))?;
@@ -683,14 +688,11 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn autostart_enabled(&self) -> bool {
-        infiltrator_shared::autostart::is_autostart_enabled(crate::AUTOSTART_REG_NAME)
+        is_autostart_enabled(crate::AUTOSTART_REG_NAME)
     }
 
     async fn set_autostart_enabled(&self, enabled: bool) -> anyhow::Result<()> {
-        Ok(infiltrator_shared::autostart::set_autostart_enabled(
-            crate::AUTOSTART_REG_NAME,
-            enabled,
-        )?)
+        Ok(set_autostart_enabled(crate::AUTOSTART_REG_NAME, enabled)?)
     }
 
     fn supports_system_proxy_control(&self) -> bool {
@@ -718,15 +720,9 @@ fn spawn_admin_server_start(
                 let dir = None;
                 // preferred_port=None: scan upward from the configured port
                 // when it is occupied instead of failing hard.
-                let handle = infiltrator_admin::servers::start_admin_server(
-                    dir,
-                    ctx,
-                    None,
-                    desired.port,
-                    manager.event_bus(),
-                )
-                .await
-                .map_err(|e| InfiltratorError::Config(e.to_string()))?;
+                let handle = start_admin_server(dir, ctx, None, desired.port, manager.event_bus())
+                    .await
+                    .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                 Ok(handle)
             }
             .await;
@@ -770,27 +766,24 @@ impl Recipe for AdminCommandsRecipe {
 
     fn stream(self: Box<Self>, _input: EventStream) -> BoxStream<'static, Message> {
         let receiver = self.receiver;
-        let channel = stream::channel(
-            100,
-            move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                loop {
-                    let commands = {
-                        let rx = receiver
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner());
-                        let mut batch = Vec::new();
-                        while let Ok(command) = rx.try_recv() {
-                            batch.push(command);
-                        }
-                        batch
-                    };
-                    for command in commands {
-                        let _ = output.try_send(Message::AdminHostCommand(command));
+        let channel = stream::channel(100, move |mut output: Sender<Message>| async move {
+            loop {
+                let commands = {
+                    let rx = receiver
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    let mut batch = Vec::new();
+                    while let Ok(command) = rx.try_recv() {
+                        batch.push(command);
                     }
-                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                    batch
+                };
+                for command in commands {
+                    let _ = output.try_send(Message::AdminHostCommand(command));
                 }
-            },
-        );
+                sleep(time::Duration::from_millis(20)).await;
+            }
+        });
         Box::pin(channel)
     }
 }
@@ -799,9 +792,9 @@ impl AppState {
     /// Keep `AppState.runtime` and the admin context's shared snapshot in
     /// sync. Every runtime mutation on the main thread must go through here
     /// (or [`Self::take_app_runtime`]) so the REST context sees the live one.
-    pub(crate) fn sync_runtime_slot(&mut self, runtime: Option<std::sync::Arc<dyn HostRuntime>>) {
+    pub(crate) fn sync_runtime_slot(&mut self, runtime: Option<Arc<dyn HostRuntime>>) {
         let runtime_changed = match (&self.runtime.runtime, &runtime) {
-            (Some(previous), Some(next)) => !std::sync::Arc::ptr_eq(previous, next),
+            (Some(previous), Some(next)) => !Arc::ptr_eq(previous, next),
             (None, None) => false,
             _ => true,
         };
@@ -824,11 +817,7 @@ impl AppState {
             && let Some(proxy) = runtime.system_proxy_port()
         {
             self.runtime.system_proxy_port = Some(proxy.clone());
-            self.runtime.system_proxy_application = Some(
-                infiltrator_application::system_proxy_application::SystemProxyApplication::new(
-                    proxy,
-                ),
-            );
+            self.runtime.system_proxy_application = Some(SystemProxyApplication::new(proxy));
         }
         if runtime_changed {
             // DUAL-11-06/07: keep the kernel's local rule-provider files
@@ -844,7 +833,7 @@ impl AppState {
     }
 
     /// Take the runtime for shutdown/teardown, clearing the shared snapshot.
-    pub(crate) fn take_app_runtime(&mut self) -> Option<std::sync::Arc<dyn HostRuntime>> {
+    pub(crate) fn take_app_runtime(&mut self) -> Option<Arc<dyn HostRuntime>> {
         let taken = self.runtime.runtime.take();
         self.runtime.runtime_generation = self.runtime.runtime_generation.saturating_add(1);
         self.runtime.runtime_patch_token = self.runtime.runtime_patch_token.wrapping_add(1);
@@ -892,7 +881,7 @@ impl AppState {
         match command {
             AdminHostCommand::RuntimeResynced(result) => match result {
                 Ok(runtime) => {
-                    self.runtime.status = crate::types::runtime::RuntimeStatus::Running;
+                    self.runtime.status = RuntimeStatus::Running;
                     self.sync_runtime_slot(Some(runtime));
                     self.refresh_tray();
                     Task::batch(vec![
@@ -902,17 +891,11 @@ impl AppState {
                     ])
                 }
                 Err(e) => {
-                    self.runtime.status = crate::types::runtime::RuntimeStatus::Error(
-                        InfiltratorError::Config(e.clone()),
-                    );
+                    self.runtime.status = RuntimeStatus::Error(InfiltratorError::Config(e.clone()));
                     self.set_error(InfiltratorError::Config(e.clone()));
                     // 0.20: a failed resync can happen with the window hidden
                     // (admin WebUI trigger); mirror it as a system notification.
-                    self.system_notify(
-                        "notify_kernel_error",
-                        &e,
-                        crate::notify::NotifyUrgency::Critical,
-                    )
+                    self.system_notify("notify_kernel_error", &e, NotifyUrgency::Critical)
                 }
             },
             AdminHostCommand::RuntimeStopped => {
@@ -948,7 +931,7 @@ impl AppState {
             AdminHostCommand::CoreVersionsChanged => Task::done(Message::LoadKernels),
             AdminHostCommand::PickEditorPath(tx) => Task::perform(
                 async {
-                    tokio::task::spawn_blocking(|| rfd::FileDialog::new().pick_file())
+                    spawn_blocking(|| rfd::FileDialog::new().pick_file())
                         .await
                         .ok()
                         .flatten()

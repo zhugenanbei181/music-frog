@@ -1,12 +1,15 @@
-use std::net::IpAddr;
-
-use serde::{Deserialize, Serialize};
-
 use super::RuleEntry;
-use super::types::{ParsedRule, RuleType, parse_rule_str};
-use crate::sub_rules::{LogicalRuleAst, format_ast};
+use super::types::{ParsedRule, RuleType};
+use crate::sub_rules::format_ast;
+use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, SocketAddr};
 
+pub mod context;
 pub mod decision_chain;
+pub mod evaluation;
+pub mod named;
+use infiltrator_contract::rule_condition::RuleTraceIssue;
+use infiltrator_contract::rule_location::{RuleLocation, RulePathEntry};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrafficContext {
@@ -125,7 +128,7 @@ impl TrafficContext {
         }
 
         // SocketAddr: e.g. 1.2.3.4:80 or [::1]:80
-        if let Ok(socket_addr) = trimmed.parse::<std::net::SocketAddr>() {
+        if let Ok(socket_addr) = trimmed.parse::<SocketAddr>() {
             return Self {
                 ip: Some(socket_addr.ip()),
                 port: Some(socket_addr.port()),
@@ -191,6 +194,9 @@ pub struct RuleTraceMatch {
     pub index: usize,
     pub rule: String,
     pub target: String,
+    pub location: RuleLocation,
+    pub raw: String,
+    pub path: Vec<RulePathEntry>,
 }
 
 impl From<RuleTraceMatch> for (usize, String, String) {
@@ -268,351 +274,6 @@ fn matches_port(port_spec: &str, port: u16) -> bool {
     false
 }
 
-/// Comprehensive evaluation against all 28+ rule types.
-pub fn eval_single_rule_type(rule_type: &RuleType, context: &TrafficContext) -> bool {
-    match rule_type {
-        RuleType::Domain(domain) => {
-            if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(domain)
-            } else {
-                false
-            }
-        }
-        RuleType::DomainSuffix(suffix) => {
-            if let Some(ref d) = context.domain {
-                let s = suffix.trim_start_matches('.').to_ascii_lowercase();
-                let d_lower = d.trim_start_matches('.').to_ascii_lowercase();
-                d_lower == s || d_lower.ends_with(&format!(".{s}"))
-            } else {
-                false
-            }
-        }
-        RuleType::DomainKeyword(kw) => {
-            if let Some(ref d) = context.domain {
-                d.to_ascii_lowercase().contains(&kw.to_ascii_lowercase())
-            } else {
-                false
-            }
-        }
-        RuleType::DomainRegex(pattern) => {
-            if let Some(ref d) = context.domain {
-                regex::Regex::new(pattern)
-                    .map(|re| re.is_match(d))
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        RuleType::Geosite(code) => {
-            if let Some(ref d) = context.domain {
-                d.to_ascii_lowercase().contains(&code.to_ascii_lowercase())
-            } else {
-                false
-            }
-        }
-        RuleType::IpCidr(cidr) | RuleType::IpCidr6(cidr) => {
-            if let Some(ip) = context.ip {
-                matches_cidr(cidr, ip)
-            } else if let Some(ref d) = context.domain
-                && let Ok(ip) = d.parse::<IpAddr>()
-            {
-                matches_cidr(cidr, ip)
-            } else {
-                false
-            }
-        }
-        RuleType::SrcIpCidr(cidr) => {
-            if let Some(ip) = context.src_ip.or(context.client_ip) {
-                matches_cidr(cidr, ip)
-            } else {
-                false
-            }
-        }
-        RuleType::IpSuffix(suffix) => {
-            if let Some(ip) = context.ip {
-                ip.to_string().ends_with(suffix)
-            } else {
-                false
-            }
-        }
-        RuleType::IpAsn(asn) => {
-            if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(asn)
-            } else {
-                false
-            }
-        }
-        RuleType::SrcIpAsn(asn) => {
-            if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(asn)
-            } else {
-                false
-            }
-        }
-        RuleType::GeoIp(country) => {
-            if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(country)
-            } else {
-                false
-            }
-        }
-        RuleType::SrcGeoIp(country) => {
-            if let Some(ref d) = context.domain {
-                d.eq_ignore_ascii_case(country)
-            } else {
-                false
-            }
-        }
-        RuleType::DstPort(port_spec) => {
-            if let Some(port) = context.port {
-                matches_port(port_spec, port)
-            } else {
-                false
-            }
-        }
-        RuleType::SrcPort(port_spec) => {
-            if let Some(port) = context.src_port {
-                matches_port(port_spec, port)
-            } else {
-                false
-            }
-        }
-        RuleType::InPort(port_spec) => {
-            if let Some(port) = context.in_port {
-                matches_port(port_spec, port)
-            } else {
-                false
-            }
-        }
-        RuleType::InType(in_type) => {
-            if let Some(ref t) = context.in_type {
-                t.eq_ignore_ascii_case(in_type)
-            } else {
-                false
-            }
-        }
-        RuleType::InName(name) => {
-            if let Some(ref n) = context.in_name {
-                n.eq_ignore_ascii_case(name)
-            } else {
-                false
-            }
-        }
-        RuleType::InUser(user) => {
-            if let Some(ref u) = context.in_user {
-                u.eq_ignore_ascii_case(user)
-            } else {
-                false
-            }
-        }
-        RuleType::ProcessPath(path) => {
-            if let Some(ref p) = context.process_path {
-                p.eq_ignore_ascii_case(path)
-                    || p.ends_with(path)
-                    || p.to_ascii_lowercase()
-                        .ends_with(&format!("/{}", path.to_ascii_lowercase()))
-                    || p.to_ascii_lowercase()
-                        .ends_with(&format!("\\{}", path.to_ascii_lowercase()))
-            } else if let Some(ref p) = context.process_name {
-                p.eq_ignore_ascii_case(path)
-            } else {
-                false
-            }
-        }
-        RuleType::ProcessPathRegex(pattern) => {
-            let target = context
-                .process_path
-                .as_ref()
-                .or(context.process_name.as_ref());
-            if let Some(p) = target {
-                regex::Regex::new(pattern)
-                    .map(|re| re.is_match(p))
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        RuleType::ProcessName(name) => {
-            if let Some(ref p) = context.process_name {
-                p.eq_ignore_ascii_case(name)
-                    || p.ends_with(name)
-                    || p.to_ascii_lowercase()
-                        .ends_with(&format!("/{}", name.to_ascii_lowercase()))
-                    || p.to_ascii_lowercase()
-                        .ends_with(&format!("\\{}", name.to_ascii_lowercase()))
-            } else {
-                false
-            }
-        }
-        RuleType::ProcessNameRegex(pattern) => {
-            if let Some(ref p) = context.process_name {
-                regex::Regex::new(pattern)
-                    .map(|re| re.is_match(p))
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        RuleType::Network(net) => {
-            if let Some(ref n) = context.network {
-                n.eq_ignore_ascii_case(net)
-            } else {
-                false
-            }
-        }
-        RuleType::Dscp(val_str) => {
-            if let Some(dscp) = context.dscp {
-                val_str
-                    .trim()
-                    .parse::<u8>()
-                    .map(|v| v == dscp)
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        RuleType::Uid(val_str) => {
-            if let Some(uid) = context.uid {
-                val_str
-                    .trim()
-                    .parse::<u32>()
-                    .map(|v| v == uid)
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-        RuleType::PackageName(pkg) => {
-            if let Some(ref p) = context.package_name {
-                p.eq_ignore_ascii_case(pkg)
-            } else if let Some(ref p) = context.process_name {
-                p.eq_ignore_ascii_case(pkg)
-            } else {
-                false
-            }
-        }
-        RuleType::RuleSet(name) => {
-            if let Some(ref d) = context.domain {
-                d.to_ascii_lowercase().contains(&name.to_ascii_lowercase())
-            } else {
-                false
-            }
-        }
-        RuleType::Match => true,
-        RuleType::Logical(logical) => eval_logical_ast(&logical.payload, context),
-        RuleType::Unknown(_, payload) => {
-            if let Some(ref d) = context.domain {
-                d.to_ascii_lowercase()
-                    .contains(&payload.to_ascii_lowercase())
-            } else if let Some(ref p) = context.process_name {
-                p.to_ascii_lowercase()
-                    .contains(&payload.to_ascii_lowercase())
-            } else {
-                false
-            }
-        }
-    }
-}
-
-/// Evaluate an individual leaf inside an AND / OR / NOT / SUB-RULE clause.
-/// Supports ANY rule syntax supported in standard rules by parsing through `parse_rule_str`.
-fn eval_sub_rule(leaf_str: &str, context: &TrafficContext) -> bool {
-    let trimmed = leaf_str
-        .trim()
-        .trim_start_matches('(')
-        .trim_end_matches(')');
-    if trimmed.is_empty() {
-        return false;
-    }
-
-    let synth = if trimmed.eq_ignore_ascii_case("MATCH") {
-        "MATCH,DIRECT".to_string()
-    } else if trimmed.contains(',') {
-        format!("{trimmed},_DUMMY_TARGET_")
-    } else {
-        format!("{trimmed},,_DUMMY_TARGET_")
-    };
-
-    if let Ok(parsed) = parse_rule_str(&synth) {
-        eval_single_rule_type(&parsed.rule_type, context)
-    } else {
-        false
-    }
-}
-
-fn eval_logical_ast(ast: &LogicalRuleAst, context: &TrafficContext) -> bool {
-    ast.evaluate(&|leaf| eval_sub_rule(leaf, context))
-}
-
-/// Recursively explain a logical rule AST against the current traffic context.
-pub fn explain_logical_ast(ast: &LogicalRuleAst, context: &TrafficContext) -> Vec<String> {
-    let mut explanations = Vec::new();
-    explain_ast_recursive(ast, context, &mut explanations, 0);
-    explanations
-}
-
-fn explain_ast_recursive(
-    ast: &LogicalRuleAst,
-    context: &TrafficContext,
-    out: &mut Vec<String>,
-    depth: usize,
-) {
-    let indent = "  ".repeat(depth);
-    match ast {
-        LogicalRuleAst::Leaf(payload) => {
-            let matched = eval_sub_rule(&payload.0, context);
-            let status = if matched { "[PASS]" } else { "[FAIL]" };
-            out.push(format!("{indent}{status} {}", payload.0));
-        }
-        LogicalRuleAst::And(children) => {
-            let all_pass = children
-                .iter()
-                .all(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
-            let status = if all_pass { "[AND PASS]" } else { "[AND FAIL]" };
-            out.push(format!("{indent}{status}"));
-            for c in children {
-                explain_ast_recursive(c, context, out, depth + 1);
-            }
-        }
-        LogicalRuleAst::Or(children) => {
-            let any_pass = children
-                .iter()
-                .any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
-            let status = if any_pass { "[OR PASS]" } else { "[OR FAIL]" };
-            out.push(format!("{indent}{status}"));
-            for c in children {
-                explain_ast_recursive(c, context, out, depth + 1);
-            }
-        }
-        LogicalRuleAst::Not(child) => {
-            let inner_pass = child.evaluate(&|l| eval_sub_rule(l, context));
-            let status = if !inner_pass {
-                "[NOT PASS]"
-            } else {
-                "[NOT FAIL]"
-            };
-            out.push(format!(
-                "{indent}{status} (子条件取反: 原值为 {inner_pass})"
-            ));
-            explain_ast_recursive(child, context, out, depth + 1);
-        }
-        LogicalRuleAst::SubRule(children) => {
-            let any_pass = children
-                .iter()
-                .any(|c| c.evaluate(&|l| eval_sub_rule(l, context)));
-            let status = if any_pass {
-                "[SUB-RULE PASS]"
-            } else {
-                "[SUB-RULE FAIL]"
-            };
-            out.push(format!("{indent}{status}"));
-            for c in children {
-                explain_ast_recursive(c, context, out, depth + 1);
-            }
-        }
-    }
-}
-
 fn format_matched_rule_desc(parsed: &ParsedRule) -> String {
     match &parsed.rule_type {
         RuleType::Match => "MATCH".to_string(),
@@ -629,28 +290,14 @@ fn format_matched_rule_desc(parsed: &ParsedRule) -> String {
 
 /// Pure rule tracer: evaluates a traffic context against a rule list in order,
 /// returning the matched rule match record (index, rule string/pattern, and target).
-pub fn trace_rules(rules: &[RuleEntry], context: &TrafficContext) -> Option<RuleTraceMatch> {
-    for (index, entry) in rules.iter().enumerate() {
-        if !entry.enabled {
-            continue;
-        }
-
-        let Ok(parsed) = parse_rule_str(&entry.rule) else {
-            continue;
-        };
-
-        let matched = eval_single_rule_type(&parsed.rule_type, context);
-        if matched {
-            let rule = format_matched_rule_desc(&parsed);
-            return Some(RuleTraceMatch {
-                index,
-                rule,
-                target: parsed.target,
-            });
-        }
-    }
-
-    None
+pub fn trace_rules(
+    rules: &[RuleEntry],
+    context: &TrafficContext,
+) -> Result<Option<RuleTraceMatch>, RuleTraceIssue> {
+    named::trace_in_tables(rules, None, context).map_err(|mut issue| {
+        issue.location = None;
+        issue
+    })
 }
 
 #[cfg(test)]

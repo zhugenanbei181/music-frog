@@ -10,6 +10,12 @@
 //! chrome and chevron icon; [`combobox_dropdown_scene`] renders the anchored floating panel
 //! with search filter and selectable items on token layers.
 
+use crate::icon::IconId;
+use crate::icon_tile::icon_tile_scene;
+use crate::palette::UiPalette;
+use crate::popover::{ANCHOR_GAP_PX, AnchorHint, placement};
+use crate::text::{Role, TextRole};
+use crate::theme::{metrics, space};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -26,13 +32,6 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
-
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
-use crate::palette::UiPalette;
-use crate::popover::{ANCHOR_GAP_PX, AnchorHint, placement};
-use crate::text::{Role, TextRole};
-use crate::theme::{metrics, space};
 
 /// One selectable option in a combobox / select dropdown.
 #[derive(Clone, Debug, PartialEq, Eq)]

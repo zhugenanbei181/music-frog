@@ -1,6 +1,5 @@
 use bevy::color::Color;
 use bevy::math::{Vec2, Vec3};
-
 use infiltrator_bevy_widgets::haptics::{HapticPattern, ProceduralTone};
 use infiltrator_bevy_widgets::particle::{GreatCircleArc, ParticleEmitter, TrafficParticle};
 use infiltrator_bevy_widgets::shader_fx::{KawasePassMetrics, OklchColor, SdfRoundedBox};

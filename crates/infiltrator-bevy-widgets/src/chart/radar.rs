@@ -4,12 +4,35 @@
 //! Mathematical pure core computing normalized n-dimensional polygon radar metrics,
 //! composite node health grading, and real-time bandwidth saturation burst alerts.
 
+use infiltrator_shared::locales::{Lang, Localizer};
 use std::f32::consts::PI;
+
+/// Built-in metrics carry neutral identities; caller labels remain user data.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RadarMetricName {
+    Latency,
+    Jitter,
+    PacketLoss,
+    Uptime,
+    Custom(String),
+}
+impl RadarMetricName {
+    pub fn label(&self, locale: &str) -> String {
+        let key = match self {
+            Self::Latency => "radar_metric_latency",
+            Self::Jitter => "radar_metric_jitter",
+            Self::PacketLoss => "radar_metric_packet_loss",
+            Self::Uptime => "radar_metric_uptime",
+            Self::Custom(name) => return name.clone(),
+        };
+        Lang(locale).tr(key).into_owned()
+    }
+}
 
 /// A single dimensional metric on the radar chart.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadarMetric {
-    pub name: String,
+    pub name: RadarMetricName,
     pub raw_value: f32,
     pub max_value: f32,
     pub higher_is_better: bool,
@@ -23,9 +46,23 @@ impl RadarMetric {
         higher_is_better: bool,
     ) -> Self {
         Self {
-            name: name.into(),
+            name: RadarMetricName::Custom(name.into()),
             raw_value,
             max_value: max_value.max(1e-5),
+            higher_is_better,
+        }
+    }
+
+    fn builtin(
+        name: RadarMetricName,
+        raw_value: f32,
+        max_value: f32,
+        higher_is_better: bool,
+    ) -> Self {
+        Self {
+            name,
+            raw_value,
+            max_value,
             higher_is_better,
         }
     }
@@ -63,13 +100,14 @@ impl HealthGrade {
         }
     }
 
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Excellent => "优异 (Excellent)",
-            Self::Good => "良好 (Good)",
-            Self::Fair => "一般 (Fair)",
-            Self::Poor => "劣质 (Poor)",
-        }
+    pub fn label(&self, locale: &str) -> String {
+        let key = match self {
+            Self::Excellent => "radar_grade_excellent",
+            Self::Good => "radar_grade_good",
+            Self::Fair => "radar_grade_fair",
+            Self::Poor => "radar_grade_poor",
+        };
+        Lang(locale).tr(key).into_owned()
     }
 }
 
@@ -90,10 +128,10 @@ impl NodeHealthAssessment {
         uptime_pct: f32,
     ) -> Self {
         let metrics = vec![
-            RadarMetric::new("延迟", latency_ms, 500.0, false),
-            RadarMetric::new("抖动", jitter_ms, 60.0, false),
-            RadarMetric::new("丢包", packet_loss_pct, 50.0, false),
-            RadarMetric::new("可用率", uptime_pct, 100.0, true),
+            RadarMetric::builtin(RadarMetricName::Latency, latency_ms, 500.0, false),
+            RadarMetric::builtin(RadarMetricName::Jitter, jitter_ms, 60.0, false),
+            RadarMetric::builtin(RadarMetricName::PacketLoss, packet_loss_pct, 50.0, false),
+            RadarMetric::builtin(RadarMetricName::Uptime, uptime_pct, 100.0, true),
         ];
 
         let weights = [0.35, 0.20, 0.25, 0.20];
@@ -245,6 +283,29 @@ mod tests {
         let degraded = NodeHealthAssessment::evaluate(380.0, 45.0, 25.0, 80.0);
         assert!(degraded.composite_score < 60.0);
         assert_eq!(degraded.grade, HealthGrade::Poor);
+    }
+
+    #[test]
+    fn localized_metric_names_preserve_custom_data_and_health_facts() {
+        let assessment = NodeHealthAssessment::evaluate(45.0, 8.0, 1.0, 99.5);
+        let english = assessment
+            .metrics
+            .iter()
+            .map(|metric| metric.name.label("en-US"))
+            .collect::<Vec<_>>();
+        let chinese = assessment
+            .metrics
+            .iter()
+            .map(|metric| metric.name.label("zh-CN"))
+            .collect::<Vec<_>>();
+        assert_eq!(english, ["Latency", "Jitter", "Packet loss", "Uptime"]);
+        assert_eq!(chinese, ["延迟", "抖动", "丢包", "可用率"]);
+        assert_eq!(assessment.grade.label("en-US"), "Excellent");
+        assert_eq!(assessment.grade.label("zh-CN"), "优异 (Excellent)");
+        let custom = RadarMetric::new("自定义 {value}", 45.0, 500.0, false);
+        assert_eq!(custom.name.label("en-US"), "自定义 {value}");
+        assert_eq!(custom.name.label("zh-CN"), "自定义 {value}");
+        assert_eq!(custom.normalized(), assessment.metrics[0].normalized());
     }
 
     #[test]

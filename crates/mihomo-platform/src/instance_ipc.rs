@@ -1,6 +1,13 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::env;
+#[cfg(not(unix))]
+use std::fs::read_to_string;
+use std::fs::remove_file;
+#[cfg(not(unix))]
+use std::fs::write;
+#[cfg(not(unix))]
+use std::net;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,7 +18,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::broadcast;
-use tokio::time::timeout;
+use tokio::time;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum IpcCommand {
@@ -28,7 +35,7 @@ pub enum IpcResponse {
 }
 
 fn get_ipc_temp_dir() -> PathBuf {
-    std::env::var("TMPDIR")
+    env::var("TMPDIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| env::temp_dir())
 }
@@ -50,7 +57,7 @@ impl SingleInstanceIpcServer {
         let (server, _tx) = {
             let socket_path = get_ipc_temp_dir().join(format!("{}.sock", socket_id));
             if socket_path.exists() {
-                let _ = std::fs::remove_file(&socket_path);
+                let _ = remove_file(&socket_path);
             }
             let listener =
                 UnixListener::bind(&socket_path).context("Failed to bind Unix socket")?;
@@ -58,7 +65,8 @@ impl SingleInstanceIpcServer {
             let t = tx.clone();
             tokio::spawn(async move {
                 while r.load(Ordering::Relaxed) {
-                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await
+                    if let Ok(result) =
+                        time::timeout(Duration::from_millis(100), listener.accept()).await
                         && let Ok((mut stream, _)) = result
                     {
                         let t = t.clone();
@@ -106,16 +114,17 @@ impl SingleInstanceIpcServer {
         let (server, _tx) = {
             let port_file = get_ipc_temp_dir().join(format!("{}.port", socket_id));
             let std_listener =
-                std::net::TcpListener::bind("127.0.0.1:0").context("Failed to bind TCP socket")?;
+                net::TcpListener::bind("127.0.0.1:0").context("Failed to bind TCP socket")?;
             let port = std_listener.local_addr()?.port();
-            std::fs::write(&port_file, port.to_string())?;
+            write(&port_file, port.to_string())?;
             std_listener.set_nonblocking(true)?;
             let listener = TcpListener::from_std(std_listener)?;
             let r = running.clone();
             let t = tx.clone();
             tokio::spawn(async move {
                 while r.load(Ordering::Relaxed) {
-                    if let Ok(result) = timeout(Duration::from_millis(100), listener.accept()).await
+                    if let Ok(result) =
+                        time::timeout(Duration::from_millis(100), listener.accept()).await
                     {
                         if let Ok((mut stream, _)) = result {
                             let t = t.clone();
@@ -160,9 +169,9 @@ impl SingleInstanceIpcServer {
     pub fn stop(&self) {
         self.running.store(false, Ordering::Relaxed);
         #[cfg(unix)]
-        let _ = std::fs::remove_file(&self.socket_path);
+        let _ = remove_file(&self.socket_path);
         #[cfg(not(unix))]
-        let _ = std::fs::remove_file(&self.port_file);
+        let _ = remove_file(&self.port_file);
     }
 }
 
@@ -185,7 +194,7 @@ impl SingleInstanceIpcClient {
         #[cfg(unix)]
         let mut stream = {
             let socket_path = get_ipc_temp_dir().join(format!("{}.sock", socket_id));
-            tokio::time::timeout(timeout, UnixStream::connect(&socket_path))
+            time::timeout(timeout, UnixStream::connect(&socket_path))
                 .await
                 .context("Connection timeout")?
                 .context("Failed to connect to Unix socket")?
@@ -194,10 +203,9 @@ impl SingleInstanceIpcClient {
         #[cfg(not(unix))]
         let mut stream = {
             let port_file = get_ipc_temp_dir().join(format!("{}.port", socket_id));
-            let port_str =
-                std::fs::read_to_string(&port_file).context("Failed to read port file")?;
+            let port_str = read_to_string(&port_file).context("Failed to read port file")?;
             let port: u16 = port_str.trim().parse().context("Invalid port number")?;
-            tokio::time::timeout(timeout, TcpStream::connect(format!("127.0.0.1:{}", port)))
+            time::timeout(timeout, TcpStream::connect(format!("127.0.0.1:{}", port)))
                 .await
                 .context("Connection timeout")?
                 .context("Failed to connect to TCP socket")?
@@ -210,7 +218,7 @@ impl SingleInstanceIpcClient {
 
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        tokio::time::timeout(timeout, reader.read_line(&mut line))
+        time::timeout(timeout, reader.read_line(&mut line))
             .await
             .context("Read timeout")?
             .context("Failed to read response")?;

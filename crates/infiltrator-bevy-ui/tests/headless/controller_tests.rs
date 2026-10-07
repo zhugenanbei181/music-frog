@@ -4,36 +4,47 @@
 //! chain (demo flip + live PATCH + refused-command failure projection) —
 //! all on `MinimalPlugins`, no window, no real core.
 
-use std::io::Write;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
 use bevy::MinimalPlugins;
 use bevy::app::App;
-use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::asset::{AssetApp, AssetPlugin, Assets};
+use bevy::ecs::entity;
 use bevy::ecs::observer::On;
+use bevy::ecs::query::With;
 use bevy::ecs::world::World;
+use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
+use bevy::ui::{Display, Node};
 use bevy::ui_widgets::Activate;
-use infiltrator_bevy_ui::app::{ModeCommandInFlight, PendingModeAck, ShellPlugin};
-use infiltrator_bevy_ui::controller::{
-    ControllerConfig, FailureDwell, MihomoOverviewSource, PumpDrainPlugin,
-    controller_config_from_raw,
-};
+use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use infiltrator_bevy_ui::app::{ModeAckSlot, ModeActionState, PendingModeAck, ShellPlugin};
+use infiltrator_bevy_ui::controller::{ControllerConfig, MihomoOverviewSource, PumpDrainPlugin};
 use infiltrator_bevy_ui::history::TrafficHistory;
 use infiltrator_bevy_ui::pages::overview::{
-    OverviewLine, OverviewLineKind, OverviewModePill, OverviewProjectionUpdated, StopButton,
+    OverviewLine, OverviewLineKind, OverviewModePill, OverviewProjectionUpdated,
 };
+use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlButton;
 use infiltrator_bevy_ui::projection::{
     DemoOverviewSource, OverviewOrigin, OverviewProjection, OverviewSource, OverviewState,
 };
 use infiltrator_bevy_ui::route::{OverviewSourceHandle, PagesPlugin};
-use infiltrator_bevy_widgets::button::ControlVisual;
+use infiltrator_bevy_ui::shell_mode_issue::{ModeIssueRoot, ModeIssueText};
+use infiltrator_bevy_ui::surface::LatestSurfaceSnapshot;
+use infiltrator_bevy_widgets::button::{ButtonDisabled, ControlVisual};
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_domain::traffic_waveform::display_series;
+use infiltrator_shared::locales::{Lang, Localizer};
 use serde_json::json;
+use std::io::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 
 /// A short pump interval so tests sample in milliseconds, not seconds.
 const TEST_INTERVAL: Duration = Duration::from_millis(60);
@@ -101,7 +112,7 @@ fn wait_until<T>(read: impl Fn() -> Option<T>) -> T {
         if let Some(value) = read() {
             return value;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(10));
     }
 }
 
@@ -130,7 +141,7 @@ fn pump_projects_live_controller_fields() {
     assert_eq!(projection.core_version.as_deref(), Some("v1.19.18"));
     assert_eq!(projection.active_connections, 3);
     assert_eq!(projection.memory_bytes, Some(40 * 1024 * 1024));
-    assert_eq!(projection.mode, ProxyMode::Rule);
+    assert_eq!(projection.proxy_mode.current, Some(ProxyMode::Rule));
     assert_eq!(projection.failure, None);
 
     // The totals grow per request, so a later sample must carry a
@@ -217,7 +228,7 @@ fn idle_null_tracker_falls_back_and_stays_running() {
     assert_eq!(projection.memory_bytes, Some(0));
     assert_eq!(projection.upload_bps, 0.0);
     assert_eq!(projection.download_bps, 0.0);
-    assert_eq!(projection.mode, ProxyMode::Rule);
+    assert_eq!(projection.proxy_mode.current, Some(ProxyMode::Rule));
 }
 
 /// Dropping the last source clone stops the pump thread (channel-driven
@@ -256,9 +267,9 @@ fn dropping_the_source_stops_the_pump() {
     drop(source);
     // Grace window for an in-flight request, then verify the counter is
     // stable across several sampling intervals.
-    std::thread::sleep(Duration::from_millis(150));
+    sleep(Duration::from_millis(150));
     let settled = requests.load(Ordering::SeqCst);
-    std::thread::sleep(TEST_INTERVAL * 6);
+    sleep(TEST_INTERVAL * 6);
     assert_eq!(
         requests.load(Ordering::SeqCst),
         settled,
@@ -303,19 +314,20 @@ fn mode_command_patches_configs_and_reads_back() {
     config.sample_interval = TEST_INTERVAL;
     let source = MihomoOverviewSource::spawn(config);
 
-    let (ack_tx, ack_rx) = std::sync::mpsc::channel();
+    let (ack_tx, ack_rx) = channel();
     source.set_mode(ProxyMode::Global, ack_tx);
     let receipt = ack_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("the pump always answers the receipt");
-    assert_eq!(receipt, Ok(()));
+    assert_eq!(receipt, Ok(ProxyMode::Global));
     patch.assert();
 
     let mode = wait_until(|| {
         let current = source.current();
-        (current.mode == ProxyMode::Global).then_some(current.mode)
+        (current.proxy_mode.current == Some(ProxyMode::Global))
+            .then_some(current.proxy_mode.current)
     });
-    assert_eq!(mode, ProxyMode::Global);
+    assert_eq!(mode, Some(ProxyMode::Global));
 }
 
 /// A controller that refuses the mode switch (HTTP 400) delivers the
@@ -354,15 +366,15 @@ fn refused_mode_patch_answers_err_receipt() {
     config.sample_interval = TEST_INTERVAL;
     let source = MihomoOverviewSource::spawn(config);
 
-    let (ack_tx, ack_rx) = std::sync::mpsc::channel();
+    let (ack_tx, ack_rx) = channel();
     source.set_mode(ProxyMode::Direct, ack_tx);
     let receipt = ack_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("the pump always answers the receipt");
     let reason = receipt.expect_err("a refused switch must arrive as Err");
     assert!(
-        reason.contains("400") || reason.contains("仍为 rule"),
-        "the refusal names the controller rejection: {reason}"
+        reason.message.contains("400") || reason.message.contains("仍为 rule"),
+        "the refusal names the controller rejection: {reason:?}"
     );
 }
 
@@ -415,25 +427,22 @@ fn pump_snapshots_flow_through_the_bridge_into_refresh_events() {
         {
             assert_eq!(snapshot.active_connections, 3);
             assert_eq!(snapshot.memory_bytes, Some(40 * 1024 * 1024));
-            assert_eq!(snapshot.mode, ProxyMode::Rule);
+            assert_eq!(snapshot.proxy_mode.current, Some(ProxyMode::Rule));
             break;
         }
     }
 }
 
-/// The drain records every delivered snapshot in the trend chart's rate
-/// ring — and the page's chart plate follows: the restamped spec carries
-/// the ring and the image asset was rewritten under the same handle (the
-/// full drain → observer → `sync_charts` chain, no fake controller needed:
-/// an unreachable core keeps *delivering* unavailable snapshots whose zero
-/// rates accumulate in the ring exactly as the page displayed them).
+/// Successful controller deltas reach the application waveform, the native
+/// chart plate and its actual CPU raster without replacing the entity or handle.
 #[test]
-fn pump_drain_records_the_rate_ring_into_the_chart() {
-    let mut config = ControllerConfig::new("http://127.0.0.1:1", None);
+fn pump_drain_records_actual_shared_samples_into_the_chart() {
+    let server = spawn_fake_controller();
+    let mut config = ControllerConfig::new(server.url(), None);
     config.sample_interval = TEST_INTERVAL;
     let source = MihomoOverviewSource::spawn(config);
     let (mut app, _captured) = mounted_live_app(&source);
-    app.init_asset::<bevy::image::Image>();
+    app.init_asset::<Image>();
 
     let deadline = Instant::now() + Duration::from_secs(5);
     let (plate_id, handle) = loop {
@@ -444,7 +453,7 @@ fn pump_drain_records_the_rate_ring_into_the_chart() {
         app.update();
         let world = app.world_mut();
         if world.resource::<TrafficHistory>().len() >= 10 {
-            let mut plates = world.query::<(bevy::ecs::entity::Entity, &ChartPlate, &ImageNode)>();
+            let mut plates = world.query::<(entity::Entity, &ChartPlate, &ImageNode)>();
             let (id, _, node) = plates
                 .single(world)
                 .expect("the traffic chart plate is mounted and rasterized");
@@ -453,29 +462,26 @@ fn pump_drain_records_the_rate_ring_into_the_chart() {
     };
 
     let world = app.world();
-    // Unavailable snapshots carry zero rates, and those are what the page
-    // displayed — the ring mirrors the display honestly, and the plate
-    // spells exactly the ring it was shown.
+    // Actual successful observations, rather than failed reads padded with zeros.
     let history = world.resource::<TrafficHistory>();
     assert!(
-        history.upload_series().iter().all(|rate| *rate == 0.0)
-            && history.download_series().iter().all(|rate| *rate == 0.0),
-        "the unavailable samples' zero rates are recorded as shown"
+        history.upload_series().iter().any(|rate| *rate > 0.0)
+            && history.download_series().iter().any(|rate| *rate > 0.0),
+        "the actual controller deltas are recorded"
     );
     let plate = world.get::<ChartPlate>(plate_id).expect("plate survives");
+    let expected = display_series(&world.resource::<LatestSurfaceSnapshot>().0.traffic_waveform);
     assert_eq!(
-        plate.0.up,
-        history.upload_series(),
-        "the plate spells exactly the recorded ring"
+        (plate.0.up.clone(), plate.0.down.clone()),
+        expected,
+        "the plate spells the application-owned samples"
     );
-    assert_eq!(plate.0.down, history.download_series());
     let image = world
-        .resource::<bevy::asset::Assets<bevy::image::Image>>()
+        .resource::<Assets<Image>>()
         .get(&handle)
         .expect("chart asset under the original handle")
         .clone();
-    // The rewrite happened: a flat zero series still draws its mid line,
-    // so pixels beyond the mount-time grid-only raster carry alpha. (The
+    // The rewrite happened: actual samples draw beyond the mount-time grid-only raster. (The
     // CPU-side data is always present in a headless composition — only a
     // render-backed host may strip it after GPU upload.)
     let data = image.data.expect("cpu-side pixel data headless");
@@ -487,7 +493,10 @@ fn pump_drain_records_the_rate_ring_into_the_chart() {
         .count();
     assert!(
         painted as u32 > image.texture_descriptor.size.width * 2,
-        "the flat line was rasterized"
+        "the observed samples were rasterized: painted={painted}, width={}, height={}, points={}",
+        image.texture_descriptor.size.width,
+        image.texture_descriptor.size.height,
+        plate.0.up.len(),
     );
 }
 
@@ -509,8 +518,8 @@ fn mounted_demo_app() -> (App, Captured) {
     (app, captured)
 }
 
-fn mode_pill_entity(world: &mut World, mode: ProxyMode) -> bevy::ecs::entity::Entity {
-    let mut pills = world.query::<(bevy::ecs::entity::Entity, &OverviewModePill)>();
+fn mode_pill_entity(world: &mut World, mode: ProxyMode) -> entity::Entity {
+    let mut pills = world.query::<(entity::Entity, &OverviewModePill)>();
     pills
         .iter(world)
         .find(|(_, pill)| pill.0 == mode)
@@ -549,7 +558,7 @@ fn activating_a_mode_pill_flips_the_demo_fixture() {
     );
     assert!(!pill_selected(world, ProxyMode::Rule));
     assert!(
-        !world.resource::<ModeCommandInFlight>().0,
+        world.resource::<ModeActionState>().0.pending.is_none(),
         "the receipt cleared the in-flight latch"
     );
     assert!(world.resource::<PendingModeAck>().0.is_none());
@@ -558,7 +567,7 @@ fn activating_a_mode_pill_flips_the_demo_fixture() {
         .expect("capture lock")
         .clone()
         .expect("the drain fired a refresh event");
-    assert_eq!(projection.mode, ProxyMode::Global);
+    assert_eq!(projection.proxy_mode.current, Some(ProxyMode::Global));
     assert_eq!(projection.origin, OverviewOrigin::Demo);
 }
 
@@ -568,7 +577,14 @@ fn activating_a_mode_pill_flips_the_demo_fixture() {
 fn in_flight_mode_commands_ignore_duplicate_activations() {
     let (mut app, _captured) = mounted_demo_app();
 
-    app.world_mut().resource_mut::<ModeCommandInFlight>().0 = true;
+    let snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    let actions = &mut app.world_mut().resource_mut::<ModeActionState>().0;
+    actions.observe(
+        snapshot.generation,
+        snapshot.revision,
+        ProxyModeApplication::from_surface(&snapshot),
+    );
+    let request = actions.begin(ProxyMode::Global).unwrap();
     let pill = mode_pill_entity(app.world_mut(), ProxyMode::Direct);
     app.world_mut()
         .commands()
@@ -576,7 +592,11 @@ fn in_flight_mode_commands_ignore_duplicate_activations() {
     app.update();
 
     let world = app.world_mut();
-    assert!(world.resource::<ModeCommandInFlight>().0, "latch held");
+    assert_eq!(
+        world.resource::<ModeActionState>().0.pending,
+        Some(request),
+        "request remains pending"
+    );
     assert!(
         world.resource::<PendingModeAck>().0.is_none(),
         "no second command was submitted"
@@ -594,13 +614,27 @@ fn in_flight_mode_commands_ignore_duplicate_activations() {
 fn refused_mode_receipt_projects_the_failure() {
     let (mut app, _captured) = mounted_demo_app();
 
-    let (ack_tx, ack_rx) = std::sync::mpsc::channel();
+    let (ack_tx, ack_rx) = channel();
     ack_tx
-        .send(Err("内核拒绝模式切换：400 Bad Request".to_owned()))
+        .send(Err(Failure::new(
+            ErrorCode::InvalidInput,
+            "400 Bad Request",
+            false,
+        )))
         .expect("injected receipt");
+    let snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    let actions = &mut app.world_mut().resource_mut::<ModeActionState>().0;
+    actions.observe(
+        snapshot.generation,
+        snapshot.revision,
+        ProxyModeApplication::from_surface(&snapshot),
+    );
+    let request = actions.begin(ProxyMode::Global).unwrap();
     app.world_mut()
-        .insert_resource(PendingModeAck(Some(Mutex::new(ack_rx))));
-    app.world_mut().resource_mut::<ModeCommandInFlight>().0 = true;
+        .insert_resource(PendingModeAck(Some(ModeAckSlot {
+            request,
+            receiver: Mutex::new(ack_rx),
+        })));
     app.update();
 
     let world = app.world_mut();
@@ -610,20 +644,41 @@ fn refused_mode_receipt_projects_the_failure() {
         .find(|(line, _)| line.0 == OverviewLineKind::State)
         .map(|(line, text)| (line, text.0.clone(), ()))
         .expect("state line mounted");
-    assert_eq!(state_text, "不可用", "the failure projection is visible");
+    assert_eq!(
+        state_text, "运行中",
+        "a mode write failure cannot change observed lifecycle"
+    );
     let (_, failure_text) = world
-        .query::<(&OverviewLine, &Text)>()
+        .query::<(&ModeIssueText, &Text)>()
         .iter(world)
-        .find(|(line, _)| line.0 == OverviewLineKind::Failure)
+        .next()
         .map(|(line, text)| (line, text.0.clone()))
         .expect("failure line mounted");
     assert!(
-        failure_text.contains("模式切换失败"),
+        failure_text.contains("切换到全局失败"),
         "the refusal reason rides the failure line: {failure_text}"
     );
     assert!(
-        !world.resource::<ModeCommandInFlight>().0,
+        world.resource::<ModeActionState>().0.pending.is_none(),
         "the failed receipt cleared the latch"
+    );
+    assert_eq!(
+        world
+            .query_filtered::<&Node, With<ModeIssueRoot>>()
+            .single(world)
+            .unwrap()
+            .display,
+        Display::Flex
+    );
+    assert_eq!(
+        world
+            .resource::<ModeActionState>()
+            .0
+            .failure
+            .as_ref()
+            .unwrap()
+            .code,
+        ErrorCode::InvalidInput
     );
 }
 
@@ -639,9 +694,10 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
         fn current(&self) -> OverviewProjection {
             OverviewProjection {
                 state: OverviewState::Running,
-                mode: ProxyMode::Rule,
+                lifecycle: CoreLifecycle::Running,
                 upload_bps: 0.0,
                 download_bps: 0.0,
+                readout: Default::default(),
                 active_connections: 0,
                 memory_bytes: None,
                 sampled_at: Duration::from_secs(1),
@@ -660,7 +716,10 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
                 system_toggles: Default::default(),
                 cpu_percent: None,
                 total_traffic_bytes: None,
-                proxy_mode: Default::default(),
+                proxy_mode: ProxyModeSnapshot {
+                    current: Some(ProxyMode::Rule),
+                    ..ProxyModeSnapshot::demo_fixture()
+                },
                 speedtest: Default::default(),
             }
         }
@@ -679,17 +738,24 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
         note, "实时内核 · v1.19.18",
         "the banner names the real core version"
     );
-    let mut stops = world.query::<&StopButton>();
+    let mut stops = world.query::<&CoreControlButton>();
     assert_eq!(
         stops.iter(world).count(),
-        0,
-        "a live core gets no stop button pretense"
+        1,
+        "the live source exposes the lifecycle control surface"
+    );
+    assert!(
+        world
+            .query::<(&CoreControlButton, &ButtonDisabled)>()
+            .iter(world)
+            .all(|(_, disabled)| disabled.0),
+        "an uncomposed legacy source cannot execute lifecycle actions"
     );
     assert!(
         world
             .query::<&Text>()
             .iter(world)
-            .any(|text| text.0 == "核心生命周期控制 · 0.30 后续接入"),
+            .any(|text| text.0 == Lang("zh-CN").tr("core_control_unavailable_hint")),
         "the honest lifecycle caption is visible"
     );
     assert!(
@@ -708,8 +774,12 @@ fn banner_note_and_stop_slot_follow_the_projection_origin() {
         banner_text(world, OverviewLineKind::BannerNote),
         "演示数据 · 未接实时内核"
     );
-    let mut stops = world.query::<&StopButton>();
-    assert_eq!(stops.iter(world).count(), 1, "demo keeps the stop pill");
+    let mut stops = world.query::<&CoreControlButton>();
+    assert_eq!(
+        stops.iter(world).count(),
+        1,
+        "demo exposes the same lifecycle control surface"
+    );
 }
 
 fn banner_text(world: &mut World, kind: OverviewLineKind) -> String {
@@ -721,48 +791,8 @@ fn banner_text(world: &mut World, kind: OverviewLineKind) -> String {
         .unwrap_or_else(|| panic!("no {kind:?} line mounted"))
 }
 
-// ---- the config seam ----------------------------------------------------------
-
-/// The env-shaped config resolver: a valid controller switches the source,
-/// junk/missing values keep the demo frontend, the secret is trimmed and
-/// optional. Pure-function level (no process-global env assertions).
-#[test]
-fn controller_config_resolves_or_keeps_the_demo() {
-    assert!(controller_config_from_raw(None, None).is_none());
-    assert!(controller_config_from_raw(Some(""), None).is_none());
-    assert!(controller_config_from_raw(Some("127.0.0.1:9099"), None).is_none());
-
-    let config = controller_config_from_raw(Some("http://127.0.0.1:9099"), Some("sekrit"))
-        .expect("valid controller resolves");
-    assert_eq!(config.endpoint, "http://127.0.0.1:9099");
-    assert_eq!(config.secret.as_deref(), Some("sekrit"));
-    assert_eq!(config.sample_interval, Duration::from_millis(700));
-
-    assert!(controller_config_from_raw(Some("http://127.0.0.1:9099"), None).is_some());
-}
-
-// ---- the failure-verdict dwell -------------------------------------------------
-
-/// The dwell's own law, at pure-resource level: successful snapshots are
-/// deferred only inside the latched window.
-#[test]
-fn failure_dwell_defers_successes_only_inside_the_window() {
-    let mut dwell = FailureDwell::new(Duration::from_secs(5));
-    let now = Instant::now();
-    assert!(
-        dwell.success_may_pass(now),
-        "an unlatched dwell passes everything"
-    );
-    dwell.latch(now);
-    assert!(
-        !dwell.success_may_pass(now + Duration::from_millis(4_999)),
-        "a success inside the window is deferred"
-    );
-    assert!(
-        dwell.success_may_pass(now + Duration::from_secs(5)),
-        "the first success after the window clears the verdict"
-    );
-}
+#[path = "controller_configuration_tests.rs"]
+mod configuration_tests;
 
 /// The page state word.
 fn state_line_text(world: &mut World) -> String {
@@ -774,14 +804,10 @@ fn state_line_text(world: &mut World) -> String {
         .expect("state line mounted")
 }
 
-/// The reported defect: a mode switch the core refuses (HTTP 400, readback
-/// still the old mode) surfaces the failure verdict — and the pump's very
-/// next samples (≤3s apart) must NOT wash it away. The verdict dwells: the
-/// pump keeps sampling successfully, the page keeps 不可用, and recovery
-/// happens only once the dwell window has elapsed AND a successful sample
-/// arrives.
+/// A refused mode write retains its failure until explicit dismissal.
+/// Successful polling preserves the actual running lifecycle throughout.
 #[test]
-fn refused_mode_failure_dwells_until_a_later_successful_sample() {
+fn refused_mode_failure_survives_healthy_reads_without_corrupting_lifecycle_until_dismissed() {
     let mut server = mockito::Server::new();
     server
         .mock("GET", "/version")
@@ -837,37 +863,53 @@ fn refused_mode_failure_dwells_until_a_later_successful_sample() {
     loop {
         assert!(Instant::now() < deadline, "the refusal never surfaced");
         app.update();
-        if state_line_text(app.world_mut()) == "不可用" {
+        if app
+            .world()
+            .resource::<ModeActionState>()
+            .0
+            .failure
+            .is_some()
+        {
             break;
         }
     }
     assert!(
-        !app.world().resource::<ModeCommandInFlight>().0,
+        app.world()
+            .resource::<ModeActionState>()
+            .0
+            .pending
+            .is_none(),
         "the receipt cleared the command latch"
     );
 
-    // The dwell: for well over a dozen sampling ticks the pump samples
-    // successfully (its own mirror is Running) yet the page keeps the
-    // verdict — routine samples are deferred, nothing washes the failure.
+    // Successful polling cannot dismiss an independent mode-write failure.
     let deadline = Instant::now() + Duration::from_millis(600);
     while Instant::now() < deadline {
         app.update();
         assert_eq!(
             source.current().state,
             OverviewState::Running,
-            "the pump itself samples fine during the dwell"
+            "the pump continues to report the actual running lifecycle"
         );
         assert_eq!(
             state_line_text(app.world_mut()),
-            "不可用",
-            "a sample inside the dwell window must not wash the verdict"
+            "运行中",
+            "a mode failure cannot alter the observed lifecycle"
         );
     }
 
-    // Let the window elapse: the next successful sample passes through and
-    // the page recovers to the live projection.
-    app.world_mut().resource_mut::<FailureDwell>().latched_at =
-        Instant::now().checked_sub(Duration::from_secs(6));
+    assert!(
+        app.world()
+            .resource::<ModeActionState>()
+            .0
+            .failure
+            .is_some(),
+        "healthy reads do not dismiss a rejected write"
+    );
+    app.world_mut()
+        .resource_mut::<ModeActionState>()
+        .0
+        .dismiss_failure();
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         assert!(Instant::now() < deadline, "the page never recovered");

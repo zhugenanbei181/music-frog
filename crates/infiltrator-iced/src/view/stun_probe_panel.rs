@@ -12,73 +12,31 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, text_btn};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::theme::{self, SP_XS, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::theme;
+use crate::view::theme::{SP_XS, tokens};
 use iced::widget::{Space, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::stun_probe::{StunEgressComparison, StunProbeReport, StunProbeStatus};
+use infiltrator_application::dns_observation_projection::DnsObservationTone;
+use infiltrator_application::stun_projection::project_stun;
 use infiltrator_shared::locales::{Lang, Localizer};
-
-/// The typed status heading both locales render.
-pub(crate) fn stun_status_copy(report: &StunProbeReport, lang: &Lang<'_>) -> (String, BadgeKind) {
-    match &report.status {
-        StunProbeStatus::Observed => {
-            let mapping = report
-                .mapping()
-                .map(|mapping| mapping.display())
-                .unwrap_or_default();
-            (
-                lang.tr("dns_stun_observed").replace("{mapping}", &mapping),
-                BadgeKind::Success,
-            )
-        }
-        StunProbeStatus::TimedOut => (
-            lang.tr("dns_stun_timed_out").to_string(),
-            BadgeKind::Warning,
-        ),
-        StunProbeStatus::Failed { message } => (
-            lang.tr("dns_stun_failed").replace("{reason}", message),
-            BadgeKind::Danger,
-        ),
-        StunProbeStatus::Unsupported { reason } => (
-            lang.tr("dns_stun_unsupported").replace("{reason}", reason),
-            BadgeKind::Neutral,
-        ),
-        StunProbeStatus::Unknown => (lang.tr("dns_stun_unknown").to_string(), BadgeKind::Neutral),
-    }
-}
-
-/// The comparison line: consistent / divergent facts / unknown, never a leak
-/// verdict.
-pub(crate) fn stun_comparison_copy(report: &StunProbeReport, lang: &Lang<'_>) -> String {
-    match report.comparison() {
-        StunEgressComparison::Consistent => lang.tr("dns_stun_consistent").to_string(),
-        StunEgressComparison::Divergent => {
-            let observed = report
-                .mapping()
-                .map(|mapping| mapping.display())
-                .unwrap_or_default();
-            let expected = report.expected_egress_ip().unwrap_or_default();
-            lang.tr("dns_stun_divergent")
-                .replace("{observed}", &observed)
-                .replace("{expected}", expected)
-        }
-        StunEgressComparison::Unknown { reason } => lang
-            .tr("dns_stun_unknown_comparison")
-            .replace("{reason}", &reason),
-    }
-}
 
 /// The STUN UDP-egress card.
 pub(crate) fn stun_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let report = &state.editor.dns_stun;
     let probing = state.diag.is_probing_stun;
-    let (status, kind) = stun_status_copy(report, lang);
-    let comparison = stun_comparison_copy(report, lang);
-    let server = lang
-        .tr("dns_stun_server")
-        .replace("{server}", &report.server);
+    let display = project_stun(report, lang.0);
+    let status = display.status;
+    let kind = match display.tone {
+        DnsObservationTone::Neutral => BadgeKind::Neutral,
+        DnsObservationTone::Success => BadgeKind::Success,
+        DnsObservationTone::Warning => BadgeKind::Warning,
+        DnsObservationTone::Danger => BadgeKind::Danger,
+    };
+    let comparison = display.comparison;
+    let server = display.server;
 
     let body = column![
         text(lang.tr("dns_stun_probe_desc").to_string())
@@ -107,7 +65,7 @@ pub(crate) fn stun_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
                 color: Some(tokens(t).text_secondary)
             }),
         text(comparison).size(12),
-        text(lang.tr("dns_stun_not_webrtc").to_string())
+        text(display.boundary)
             .size(11)
             .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary)

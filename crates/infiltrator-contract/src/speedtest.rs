@@ -1,7 +1,9 @@
 //! Shared contracts and models for latency testing, jitter variance analysis,
 //! packet loss gradient rating, and bandwidth throughput evaluation.
 
+use crate::capability::Availability;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 /// Packet loss gradient rating reflecting connection quality tiers.
@@ -385,6 +387,9 @@ pub struct HistoricalSpeedtestRecord {
 /// Shared canonical read model for concurrent speedtesting and stability telemetry.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SpeedtestSnapshot {
+    /// None means unobserved; a missing host engine is explicitly unsupported.
+    #[serde(default)]
+    pub availability: Option<Availability>,
     pub generation: u64,
     pub revision: u64,
     pub phase: SpeedtestPhase,
@@ -408,6 +413,7 @@ impl Default for SpeedtestSnapshot {
             node_results: BTreeMap::new(),
             recent_history: Vec::new(),
             failure: None,
+            availability: None,
         }
     }
 }
@@ -514,6 +520,7 @@ impl SpeedtestSnapshot {
                 overall_star_rating: 5,
             }],
             failure: None,
+            availability: Some(Availability::Supported),
         }
     }
 
@@ -568,8 +575,8 @@ impl SpeedtestSnapshot {
         let mut list: Vec<&NodeSpeedtestResult> = self.node_results.values().collect();
         list.sort_by(|a, b| match (a.delay_ms, b.delay_ms) {
             (Some(da), Some(db)) => da.cmp(&db),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
             (None, None) => a.node_name.cmp(&b.node_name),
         });
         list

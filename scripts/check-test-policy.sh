@@ -35,9 +35,11 @@ require_text "scripts/test.sh" "--workspace"
 require_text "scripts/test.sh" "--build-jobs 4"
 require_text "scripts/test.sh" "--test-threads 4"
 
-# Guards register ONLY in scripts/test.sh (full gate) and scripts/test-bevy.sh
-# (bevy gate). CI workflows must invoke those scripts — the inline per-guard
-# workflow steps were four drifting copies of the same list and are banned.
+# Both entry points use the same structural checks and dynamic evidence resolver.
+require_text "scripts/test.sh" "check-structure.sh"
+require_text "scripts/test-bevy.sh" "check-structure.sh"
+require_text "scripts/test.sh" "resolve_surface_evidence.py"
+require_text "scripts/test-bevy.sh" "resolve_surface_evidence.py"
 require_text "scripts/test.sh" "--guards-only"
 require_text "scripts/test-bevy.sh" "--guards-only"
 require_text ".github/workflows/test.yml" "bash scripts/check-test-policy.sh"
@@ -46,41 +48,18 @@ require_text ".github/workflows/test.yml" "bash scripts/test.sh --no-run"
 require_text ".github/workflows/test.yml" "bash scripts/test.sh"
 require_text ".github/workflows/bevy.yml" "bash scripts/test-bevy.sh --guards-only"
 require_text ".github/workflows/bevy.yml" "bash scripts/test-bevy.sh"
-# Bevy crates are workspace members: the full gate must cover bsn! authoring,
-# and the bevy gate must cover the 0.30 core boundaries.
-require_text "scripts/test.sh" "bevy_bsn_guard.py"
-require_text "scripts/test-bevy.sh" "core-boundary-guard.py"
 require_text "scripts/test-bevy.sh" "cargo nextest run"
-require_text "scripts/test.sh" "parity-guard.py"
-require_text "scripts/test.sh" "session-guard.py"
-require_text "scripts/test.sh" "hot-reload-guard.py"
-require_text "scripts/test.sh" "crash-watchdog-guard.py"
-require_text "scripts/test.sh" "core-channel-guard.py"
-require_text "scripts/test.sh" "kernel-integrity-guard.py"
-require_text "scripts/test.sh" "kernel-rollback-guard.py"
-require_text "scripts/test.sh" "controller-auth-guard.py"
-require_text "scripts/test.sh" "core-log-level-guard.py"
-require_text "scripts/test.sh" "service-mode-guard.py"
-require_text "scripts/test.sh" "process-exit-guard.py"
-require_text "scripts/test.sh" "port-conflict-guard.py"
-require_text "scripts/test.sh" "core-resource-guard.py"
-require_text "scripts/test.sh" "offline-startup-guard.py"
-require_text "scripts/test.sh" "lifecycle-sync-guard.py"
-require_text "scripts/test.sh" "lifecycle-matrix-guard.py"
-require_text "scripts/test.sh" "tun-stack-guard.py"
-require_text "scripts/test.sh" "mtu-negotiation-guard.py"
-require_text "scripts/test.sh" "tun-routing-guard.py"
-require_text "scripts/test.sh" "system-proxy-guard.py"
-require_text "scripts/test.sh" "system-proxy-watchdog-guard.py"
-require_text "scripts/test.sh" "system-proxy-recovery-guard.py"
-require_text "scripts/test.sh" "lan-sharing-guard.py"
-require_text "scripts/test.sh" "lan-security-guard.py"
-require_text "scripts/test.sh" "ipv6-routing-guard.py"
-require_text "scripts/test.sh" "uwp-loopback-guard.py"
-require_text "scripts/test.sh" "pac-service-guard.py"
-require_text "scripts/test.sh" "network-roaming-guard.py"
-require_text "scripts/test.sh" "vpn-service-guard.py"
 require_text "TESTING.md" "line-guard.py"
+# Prevent re-registering retired text guards under either runner or the shared gate.
+while IFS=$'\t' read -r script replacement; do
+  [[ "$script" == script ]] && continue
+  for runner in scripts/test.sh scripts/test-bevy.sh scripts/quality/check-structure.sh; do
+    if grep -Fq -- "$script" "$runner"; then
+      echo "retired source-evidence guard registered in $runner: $script" >&2
+      failed=1
+    fi
+  done
+done < scripts/parity/retired_source_guards.tsv
 
 if [[ "$failed" -ne 0 ]]; then
   exit 1

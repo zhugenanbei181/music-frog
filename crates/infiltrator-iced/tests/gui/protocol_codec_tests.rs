@@ -5,8 +5,12 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use infiltrator_application::dialer_chain_application::DialerChainApplication;
 use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
-use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
+use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
+use infiltrator_contract::protocol_fidelity::{NodeCodecFormat, ProtocolDraft, ProtocolFamily};
+use infiltrator_contract::protocol_trust::CaLoadStatus;
+use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 // 2022-blake3-aes-256-gcm with a 32-byte PSK, base64 userinfo (SIP002).
@@ -240,11 +244,9 @@ rules:
             .map(Vec::len),
         Some(1)
     );
-    let nodes = ProtocolCodecApplication::parse_nodes(
-        &commit.profile_yaml,
-        infiltrator_contract::protocol_fidelity::NodeCodecFormat::ClashYaml,
-    )
-    .unwrap();
+    let nodes =
+        ProtocolCodecApplication::parse_nodes(&commit.profile_yaml, NodeCodecFormat::ClashYaml)
+            .unwrap();
     assert_eq!(nodes[0].server, "9.9.9.9");
     assert_eq!(
         nodes[0].extra.get("custom-flag"),
@@ -395,7 +397,7 @@ fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_iced_surface() {
-    let report = infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix();
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",
@@ -447,10 +449,7 @@ fn new_locale_keys_resolve_in_both_languages() {
         assert_ne!(zh.tr(key).as_ref(), key, "zh missing {key}");
         assert_ne!(en.tr(key).as_ref(), key, "en missing {key}");
     }
-    let gap = infiltrator_shared::i18n_interpolator::interpolate(
-        &zh.tr("custom_node_uri_gap"),
-        &[("field", "smux")],
-    );
+    let gap = interpolate(&zh.tr("custom_node_uri_gap"), &[("field", "smux")]);
     assert!(gap.contains("smux"), "{gap}");
 }
 
@@ -458,11 +457,7 @@ fn new_locale_keys_resolve_in_both_languages() {
 fn the_shared_dialer_report_reaches_the_iced_studio_and_never_validates_a_loop() {
     let mut state = state_with_modal();
     let loop_profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: b\n  - name: b\n    type: ss\n    server: 2.2.2.2\n    port: 8388\n    cipher: aes-128-gcm\n    password: pw\n    dialer-proxy: a\n";
-    let report =
-        infiltrator_application::dialer_chain_application::DialerChainApplication::analyze_profile(
-            loop_profile,
-        )
-        .expect("loop report");
+    let report = DialerChainApplication::analyze_profile(loop_profile).expect("loop report");
     assert!(report.has_loops());
     let _ = state.update(Message::CustomNodeDialerScanned(Ok(report.clone())));
     let studio = &state.runtime.custom_node_studio;
@@ -558,10 +553,7 @@ fn an_inline_bundle_is_validated_in_process_and_a_mismatching_pin_is_refused() {
     let _ = state.update(Message::UpdateCustomNodeDraft(Box::new(pinned)));
     let _ = state.update(Message::VerifyCustomNodeCertificateAuthority);
     let report = &state.runtime.custom_node_studio.ca_trust;
-    assert_eq!(
-        report.status(),
-        infiltrator_contract::protocol_trust::CaLoadStatus::FingerprintMismatch
-    );
+    assert_eq!(report.status(), CaLoadStatus::FingerprintMismatch);
     assert!(
         report
             .resolutions

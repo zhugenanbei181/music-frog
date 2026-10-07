@@ -1,11 +1,28 @@
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
-
+use crate::paths::get_home_dir;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use signal_hook::consts::{SIGINT, SIGTERM};
+#[cfg(windows)]
+use signal_hook::flag::register;
+use signal_hook::iterator::Signals;
+use std::backtrace::Backtrace;
+use std::collections::HashMap;
+use std::env::consts::OS;
+use std::fs::{create_dir_all, read_dir, read_to_string, remove_file, rename, write};
+use std::mem::take;
+use std::panic::{AssertUnwindSafe, catch_unwind, set_hook, take_hook};
+use std::path::{Path, PathBuf};
+use std::process::exit;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::Builder;
+#[cfg(windows)]
+use std::thread::sleep;
+use std::time;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::watch;
+use tokio::time::{MissedTickBehavior, interval};
 
 static PROCESS_START_TIME: OnceLock<Instant> = OnceLock::new();
 type CleanupHookFn = Box<dyn Fn() + Send + Sync + 'static>;
@@ -98,7 +115,7 @@ pub struct DnsStateSentinel {
     pub heartbeat_timeout_secs: u64,
     pub is_active: bool,
     #[serde(default)]
-    pub metadata: std::collections::HashMap<String, String>,
+    pub metadata: HashMap<String, String>,
 }
 
 impl DnsStateSentinel {
@@ -123,7 +140,7 @@ impl DnsStateSentinel {
             heartbeat_secs: now,
             heartbeat_timeout_secs: default_heartbeat_timeout_secs(),
             is_active: true,
-            metadata: std::collections::HashMap::new(),
+            metadata: HashMap::new(),
         }
     }
 
@@ -217,8 +234,8 @@ impl DnsCrashWatchdog {
         let path = home_dir.join(Self::SENTINEL_FILE);
         let temp_path = home_dir.join(format!("{}.tmp", Self::SENTINEL_FILE));
         let json = serde_json::to_string_pretty(sentinel)?;
-        std::fs::write(&temp_path, json)?;
-        std::fs::rename(&temp_path, &path)?;
+        write(&temp_path, json)?;
+        rename(&temp_path, &path)?;
         Ok(path)
     }
 
@@ -237,7 +254,7 @@ impl DnsCrashWatchdog {
         if !path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&path)?;
+        let content = read_to_string(&path)?;
         let sentinel = serde_json::from_str::<DnsStateSentinel>(&content)?;
         Ok(Some(sentinel))
     }
@@ -246,7 +263,7 @@ impl DnsCrashWatchdog {
     pub fn remove_sentinel(home_dir: &Path) -> anyhow::Result<()> {
         let path = home_dir.join(Self::SENTINEL_FILE);
         if path.exists() {
-            std::fs::remove_file(path)?;
+            remove_file(path)?;
         }
         Ok(())
     }
@@ -384,14 +401,14 @@ impl DnsCrashWatchdog {
 /// automatically reverting hijacked settings if the main daemon crashes or locks up.
 pub struct StandaloneDnsWatchdog {
     pub home_dir: PathBuf,
-    pub poll_interval: std::time::Duration,
+    pub poll_interval: time::Duration,
     pub heartbeat_timeout_secs: u64,
     pub is_running: Arc<AtomicBool>,
 }
 
 impl StandaloneDnsWatchdog {
     /// Default watchdog poll interval (2 seconds).
-    pub const DEFAULT_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
+    pub const DEFAULT_POLL_INTERVAL: time::Duration = time::Duration::from_secs(2);
     /// Default heartbeat expiry threshold (30 seconds).
     pub const DEFAULT_HEARTBEAT_TIMEOUT: u64 = 30;
 
@@ -406,7 +423,7 @@ impl StandaloneDnsWatchdog {
     }
 
     /// Sets custom poll interval.
-    pub fn with_poll_interval(mut self, interval: std::time::Duration) -> Self {
+    pub fn with_poll_interval(mut self, interval: time::Duration) -> Self {
         self.poll_interval = interval;
         self
     }
@@ -444,7 +461,7 @@ impl StandaloneDnsWatchdog {
         &self,
         restore_dns: F1,
         restore_proxy: F2,
-        mut stop_rx: tokio::sync::watch::Receiver<bool>,
+        mut stop_rx: watch::Receiver<bool>,
     ) -> usize
     where
         F1: Fn(&[String]) -> anyhow::Result<()> + Send + Sync + 'static,
@@ -452,8 +469,8 @@ impl StandaloneDnsWatchdog {
     {
         self.is_running.store(true, Ordering::SeqCst);
         let mut recoveries = 0;
-        let mut interval = tokio::time::interval(self.poll_interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut interval = interval(self.poll_interval);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         let restore_dns_arc = Arc::new(restore_dns);
         let restore_proxy_arc = Arc::new(restore_proxy);
@@ -597,7 +614,7 @@ impl CrashReporter {
             .unwrap_or_default()
             .as_secs();
 
-        let os_info = std::env::consts::OS.to_string();
+        let os_info = OS.to_string();
 
         CrashReport {
             timestamp_secs,
@@ -638,9 +655,7 @@ impl CrashReporter {
             texts.push(sig);
         }
 
-        let home_from_paths = crate::paths::get_home_dir()
-            .ok()
-            .map(|p| p.to_string_lossy().to_string());
+        let home_from_paths = get_home_dir().ok().map(|p| p.to_string_lossy().to_string());
         let home_from_dirs = dirs::home_dir().map(|p| p.to_string_lossy().to_string());
 
         let token_bearer_re = Regex::new(r"(?i)(bearer\s+)[a-zA-Z0-9_\-\.]+").unwrap();
@@ -726,20 +741,20 @@ impl CrashReporter {
 
         let base_dir = match base_dir_override {
             Some(dir) => dir.to_path_buf(),
-            None => crate::paths::get_home_dir().or_else(|_| {
+            None => get_home_dir().or_else(|_| {
                 dirs::home_dir()
                     .ok_or_else(|| anyhow::anyhow!("Unable to determine home directory"))
             })?,
         };
 
         let reports_dir = base_dir.join("crash_reports");
-        std::fs::create_dir_all(&reports_dir)?;
+        create_dir_all(&reports_dir)?;
 
         let filename = format!("crash_{}.json", sanitized_report.timestamp_secs);
         let report_file = reports_dir.join(filename);
 
         let json = Self::serialize_report(&sanitized_report)?;
-        std::fs::write(&report_file, json)?;
+        write(&report_file, json)?;
 
         // Auto-rotate older dumps keeping latest 20
         let _ = Self::rotate_crash_dumps(&reports_dir, 20);
@@ -754,7 +769,7 @@ impl CrashReporter {
         }
 
         let mut entries = Vec::new();
-        for entry in std::fs::read_dir(reports_dir)? {
+        for entry in read_dir(reports_dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_file()
@@ -779,7 +794,7 @@ impl CrashReporter {
         let mut removed = 0;
 
         for (_, path) in entries.iter().take(remove_count) {
-            if std::fs::remove_file(path).is_ok() {
+            if remove_file(path).is_ok() {
                 removed += 1;
             }
         }
@@ -815,12 +830,12 @@ impl CleanExitHook {
         CLEANUP_PERFORMED.store(true, Ordering::SeqCst);
 
         let hooks: Vec<(&'static str, CleanupHookFn)> = match CLEANUP_HOOKS.lock() {
-            Ok(mut h) => std::mem::take(&mut *h),
-            Err(e) => std::mem::take(&mut *e.into_inner()),
+            Ok(mut h) => take(&mut *h),
+            Err(e) => take(&mut *e.into_inner()),
         };
 
         for (name, hook) in hooks {
-            let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let res = catch_unwind(AssertUnwindSafe(|| {
                 hook();
             }));
             if res.is_err() {
@@ -854,16 +869,13 @@ impl CleanExitHook {
         let stop_for_thread = Arc::clone(&stop);
 
         #[cfg(unix)]
-        let mut signals = signal_hook::iterator::Signals::new([
-            signal_hook::consts::SIGINT,
-            signal_hook::consts::SIGTERM,
-        ])?;
+        let mut signals = Signals::new([SIGINT, SIGTERM])?;
         #[cfg(not(any(unix, windows)))]
-        let mut signals = signal_hook::iterator::Signals::new([signal_hook::consts::SIGINT])?;
+        let mut signals = Signals::new([SIGINT])?;
 
         #[cfg(not(windows))]
         {
-            std::thread::Builder::new()
+            Builder::new()
                 .name("infiltrator-exit-cleanup".to_owned())
                 .spawn(move || {
                     if let Some(signal) = signals.forever().next() {
@@ -871,7 +883,7 @@ impl CleanExitHook {
                             return;
                         }
                         CleanExitHook::run_emergency_cleanup();
-                        std::process::exit(128 + signal);
+                        exit(128 + signal);
                     }
                 })?;
         }
@@ -879,20 +891,20 @@ impl CleanExitHook {
         #[cfg(windows)]
         {
             let signal_received = Arc::new(AtomicBool::new(false));
-            signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&signal_received))?;
-            std::thread::Builder::new()
+            register(SIGINT, Arc::clone(&signal_received))?;
+            Builder::new()
                 .name("infiltrator-exit-cleanup".to_owned())
                 .spawn(move || {
                     while !signal_received.load(Ordering::Acquire)
                         && !stop_for_thread.load(Ordering::Acquire)
                     {
-                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        sleep(time::Duration::from_millis(50));
                     }
                     if stop_for_thread.load(Ordering::Acquire) {
                         return;
                     }
                     CleanExitHook::run_emergency_cleanup();
-                    std::process::exit(128 + signal_hook::consts::SIGINT);
+                    exit(128 + SIGINT);
                 })?;
         }
         Ok(TerminationHandler { stop })
@@ -904,11 +916,11 @@ impl CleanExitHook {
         let client_ver = client_version.to_string();
         let core_ver = core_version.map(|s| s.to_string());
 
-        let default_hook = std::panic::take_hook();
+        let default_hook = take_hook();
 
-        std::panic::set_hook(Box::new(move |panic_info| {
+        set_hook(Box::new(move |panic_info| {
             let panic_message = panic_info.to_string();
-            let backtrace = std::backtrace::Backtrace::force_capture().to_string();
+            let backtrace = Backtrace::force_capture().to_string();
 
             let mut report = CrashReporter::new_full_report(
                 &panic_message,

@@ -14,9 +14,8 @@
 # is ever mapped.
 #
 # Differences from the iced pipeline (documented for reviewers):
-#   * the bevy frontend is a STANDALONE workspace: `cargo build` runs inside
-#     crates/infiltrator-bevy-ui/, producing
-#     crates/infiltrator-bevy-ui/target/debug/infiltrator-bevy-ui;
+#   * the Bevy product belongs to the root workspace; the package binary is
+#     target/debug/infiltrator-bevy-ui;
 #   * the app's env knobs are INFILTRATOR_BEVY_SKIN (dark|light),
 #     INFILTRATOR_BEVY_WINDOW_SIZE (WxH) and INFILTRATOR_CAPTURE_MARKER
 #     (frame-counted readiness file written by src/capture.rs);
@@ -42,6 +41,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
+source "$REPO/scripts/parity/capture_attempt.sh"
 export RUSTC_WRAPPER=
 
 APP_ID="infiltrator-bevy-ui"
@@ -56,7 +56,7 @@ ASSET_ROOT="$REPO/crates/infiltrator-bevy-widgets"
 MATRIX_SRC="${INFILTRATOR_CAPTURE_MATRIX:-$REPO/scripts/capture_bevy_scenarios.tsv}"
 OUT_DIR="${INFILTRATOR_CAPTURE_OUT_DIR:-$REPO/docs/screenshots/bevy}"
 MANIFEST_PUBLISHED="$OUT_DIR/manifest.tsv"
-EVIDENCE_ROOT="$REPO/target/bevy-evidence"
+EVIDENCE_ROOT="$REPO/.evidence/captures/bevy"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 GIT_HEAD="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'no-git')"
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
@@ -93,10 +93,7 @@ NIRI_IPC=""
 KEEP_RUNTIME=0
 START_EPOCH="$(date +%s)"
 
-process_group() {
-  local pid="$1"
-  ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]'
-}
+source "$REPO/scripts/parity/process_ownership.sh"
 
 terminate_owned() {
   local pid="$1" pgid="$2"
@@ -219,7 +216,7 @@ while IFS=$'\t' read -r name page skin window_size; do
     exit 2
   }
   case "$page" in
-  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | sync | settings) ;;
+  overview | proxies | profiles | rules | connections | logs | dns | doctor | app_routing | app-routing | sync | settings) ;;
   *)
     printf 'invalid scenario row (bad page): %s -> %s\n' "$name" "$page" >&2
     exit 2
@@ -246,9 +243,12 @@ awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' "$MATRIX" | while IFS= read -r nam
 done
 
 # ------------------------------------------------------------------- build --
-printf 'build: cargo build --quiet (standalone workspace: crates/infiltrator-bevy-ui)\n'
+SOURCE_FINGERPRINT="$(python3 scripts/parity/visual_receipts.py --fingerprint)"
+printf 'build: cargo build --quiet (workspace package: infiltrator-bevy-ui)\n'
 timeout --kill-after=10s 20m cargo build --quiet --manifest-path "$CRATE_DIR/Cargo.toml"
 [ -x "$APP" ] || fail_hard "bevy binary was not produced: $APP"
+APP="$(python3 scripts/parity/product_build.py --surface bevy --binary "$APP" --output "$RUN_DIR/product-build.json")"
+ASSET_ROOT="$(dirname "$APP")/runtime"
 BINARY_SHA256="$(sha256sum "$APP" | cut -d' ' -f1)"
 
 # ----------------------------------------------------------------- receipt --
@@ -260,10 +260,12 @@ CAPTURED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'worktree=%s\n' "$WORKTREE_STATE"
   printf 'rust=%s\n' "$(rustc -V 2>/dev/null || printf 'unknown')"
   printf 'niri=%s\n' "$(niri --version)"
-  printf 'binary=crates/infiltrator-bevy-ui/target/debug/infiltrator-bevy-ui\n'
+  printf 'binary=%s\n' "${APP#$REPO/}"
+  printf 'build_manifest=%s\n' "$(dirname "${APP#$REPO/}")/build.json"
   printf 'binary_sha256=%s\n' "$BINARY_SHA256"
+  printf 'source_fingerprint=%s\n' "$SOURCE_FINGERPRINT"
   printf 'app_id=%s\n' "$APP_ID"
-  printf 'matrix=scripts/capture_bevy_scenarios.tsv\n'
+  printf 'matrix=%s\n' "$MATRIX_SRC"
   printf 'scenario_count=%s\n' "$SCENARIO_COUNT"
   printf 'niri_host=kwin-wayland-virtual\n'
   printf 'command=bash scripts/capture-bevy.sh\n'
@@ -435,8 +437,14 @@ printf 'compositor: ready (wayland=%s ipc=%s)\n' "$NIRI_SOCK" "$NIRI_IPC"
 # -------------------------------------------------------------- per scenario --
 capture_one() {
   local name="$1" page="$2" skin="$3" window_size="$4"
-  # The app writes the marker naming its only mounted route (overview).
+  local interaction=""
+  case "$name" in
+    *-standard) interaction="${name%-standard}" ;;
+    *-compact) interaction="${name%-compact}" ;;
+  esac
+  # The marker names the actual mounted route and activated interaction.
   local marker_page="$page"
+  if [ "$marker_page" = "app-routing" ]; then marker_page="app_routing"; fi
   local scenario_dir="$RUN_DIR/$name"
   local log="$scenario_dir/app.log"
   local marker="$scenario_dir/marker.log"
@@ -470,8 +478,11 @@ capture_one() {
       attempt_note="(retry)"
       printf '  retry %-22s (attempt %d/2)\n' "$name" "$attempt"
     fi
-    rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
     terminate_owned "$APP_PID" "$APP_PGID"
+    if [ "$attempt" -gt 1 ]; then
+      archive_capture_attempt "$scenario_dir" "$((attempt - 1))" "$action_status" "$APP_PID" "$window_id"
+    fi
+    rm -f "$marker" "$windows_json" "$windows_tmp" "$windows_error" "$action" "$image"
     APP_PID=""
     APP_PGID=""
     window_id=""
@@ -489,7 +500,8 @@ capture_one() {
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND="$wgpu_backend" \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
-        INFILTRATOR_BEVY_PAGE="$page" \
+        INFILTRATOR_DEMO=1 INFILTRATOR_BEVY_PAGE="$page" \
+      INFILTRATOR_SCENARIO="$interaction" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \
@@ -498,7 +510,8 @@ capture_one() {
       XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$NIRI_SOCK" DISPLAY= \
         LIBGL_ALWAYS_SOFTWARE=1 \
         BEVY_ASSET_ROOT="$ASSET_ROOT" \
-        INFILTRATOR_BEVY_PAGE="$page" \
+        INFILTRATOR_DEMO=1 INFILTRATOR_BEVY_PAGE="$page" \
+      INFILTRATOR_SCENARIO="$interaction" \
         INFILTRATOR_BEVY_SKIN="$skin" \
         INFILTRATOR_BEVY_WINDOW_SIZE="$window_size" \
         INFILTRATOR_CAPTURE_MARKER="$marker" \
@@ -572,10 +585,21 @@ capture_one() {
       done
     fi
 
+    # A failed activation retains a diagnostic image of this exact owned window.
+    # It remains failed and never publishes a PNG or digest as acceptance evidence.
+    if [ "$marker_ready" -eq 0 ] && [ "$window_ready" -eq 1 ] \
+      && kill -0 "$APP_PID" 2>/dev/null \
+      && niri_ipc -j windows >"$windows_tmp" 2>/dev/null \
+      && jq -e --arg app "$APP_ID" --arg title "$APP_TITLE" --arg pid "$APP_PID" --arg id "$window_id" \
+        'any(.[]; ((.pid | tostring) == $pid) and (.title == $title or .app_id == $app) and ((.id | tostring) == $id))' \
+        "$windows_tmp" >/dev/null 2>&1; then
+      NIRI_SOCKET="$NIRI_IPC" timeout 8s niri msg action screenshot-window \
+        --id "$window_id" --write-to-disk true --path "$scenario_dir/diagnostic.png" >>"$action" 2>&1 || true
+    fi
+
     if [ "$action_status" = ok ]; then
       # Wait briefly for niri to finish flushing the file, then verify the
-      # PNG receipt: readable IHDR, exactly the requested window size or
-      # larger (niri's screenshot-window can carry a shadow margin; nested
+      # PNG receipt: readable IHDR, exactly the requested window size (shadow disabled; nested
       # output scale=1 makes logical == physical pixels).
       local wait
       for wait in $(seq 1 20); do
@@ -588,8 +612,8 @@ capture_one() {
       if [ "$bytes" -gt 5000 ] && dims="$(png_dims "$image")"; then
         read -r width height <<<"$dims"
         hash="$(sha256sum "$image" | cut -d' ' -f1)"
-        if [ "$width" -lt "$exp_w" ] || [ "$height" -lt "$exp_h" ]; then
-          action_status="failed-dims ($width x $height, smaller than requested $window_size)"
+        if [ "$width" -ne "$exp_w" ] || [ "$height" -ne "$exp_h" ]; then
+          action_status="failed-dims ($width x $height, different from requested $window_size)"
         fi
       else
         action_status=failed
@@ -613,7 +637,7 @@ capture_one() {
     if [ "$window_ready" -eq 0 ]; then
       action_status="failed-window (no pid+identity match via niri IPC)"
     elif [ "$marker_ready" -eq 0 ]; then
-      action_status="failed-marker (no CAPTURE_READY within ${MARKER_TIMEOUT_ITERS}x0.25s; see app.log — likely wgpu device init)"
+      action_status="failed-marker (no activated, visible frame within ${MARKER_TIMEOUT_ITERS}x0.25s; see app.log)"
     fi
   fi
 
@@ -634,7 +658,12 @@ capture_one() {
     "$APP_PID" "$window_id" "$width" "$height" "$bytes" "$hash" "$action_status" \
     >>"$MANIFEST"
 
+  if [ "$action_status" != ok ] && [ "$window_ready" -eq 1 ]; then
+    niri_ipc action screenshot-window --id "$window_id" --write-to-disk true \
+      --path "$scenario_dir/diagnostic.png" >>"$action" 2>&1 || true
+  fi
   terminate_owned "$APP_PID" "$APP_PGID"
+  archive_capture_attempt "$scenario_dir" "$attempt" "$action_status" "$APP_PID" "$window_id"
   APP_PID=""
   APP_PGID=""
   [ "$action_status" = ok ]

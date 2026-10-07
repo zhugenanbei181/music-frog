@@ -196,6 +196,16 @@ impl PullToRefreshState {
     pub fn fraction(&self) -> f32 {
         (self.pull_offset / self.threshold).clamp(0.0, 1.0)
     }
+
+    pub fn label_key(&self) -> &'static str {
+        if self.is_refreshing {
+            "gesture_pull_refreshing"
+        } else if self.pull_offset >= self.threshold {
+            "gesture_pull_release"
+        } else {
+            "gesture_pull_idle"
+        }
+    }
 }
 
 /// Marker component for items supporting swipe-to-action (left delete / right pin).
@@ -268,13 +278,13 @@ pub struct SwipeActionDrawer;
 #[derive(Event, Clone, Debug, PartialEq)]
 pub struct GestureEvent(pub GestureOutcome);
 
+use crate::localization::LocalizedText;
 use crate::motion::Spring;
 use crate::palette::UiPalette;
 use crate::text::{Role, TextRole};
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{AlignItems, JustifyContent, Node, Overflow, percent, px};
-use bevy::ui::widget::Text;
 
 /// Component tracking pull-to-refresh UI container.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -301,13 +311,7 @@ impl Default for PullToRefreshSpring {
 /// Construct a pull-to-refresh header indicator scene.
 pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -> Box<dyn Scene> {
     let height = state.pull_offset.min(state.threshold * 1.5);
-    let label = if state.is_refreshing {
-        "正在更新..."
-    } else if state.pull_offset >= state.threshold {
-        "释放以刷新"
-    } else {
-        "下拉刷新"
-    };
+    let key = state.label_key();
 
     let spring = Spring::new(height, 240.0, 22.0);
 
@@ -322,7 +326,7 @@ pub fn pull_to_refresh_scene(state: &PullToRefreshState, _palette: &UiPalette) -
             PullToRefreshIndicator
             PullToRefreshSpring { spring }
             Children [
-                Text({ label.to_owned() })
+                LocalizedText::plain(key)
                 TextRole(Role::Caption)
                 PullToRefreshText
             ]

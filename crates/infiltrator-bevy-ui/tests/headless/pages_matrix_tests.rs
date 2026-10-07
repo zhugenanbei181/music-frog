@@ -12,21 +12,21 @@ use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::Text;
+use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin};
 use infiltrator_bevy_ui::pages::app_routing::{
-    AppItem, AppRouteRule, AppRoutingMode, AppRoutingProjection, AppRoutingProjectionUpdated,
-    AppRuleText,
+    AppItem, AppRoutingProjection, AppRoutingProjectionUpdated, AppRuleText,
 };
 use infiltrator_bevy_ui::pages::connections::{
-    ConnSpeedText, ConnectionItem, ConnectionsProjection, ConnectionsProjectionUpdated,
+    ConnSpeedText, ConnectionsProjection, ConnectionsProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::dns::{DnsProjection, DnsProjectionUpdated, DnsServerItem};
 use infiltrator_bevy_ui::pages::dns_servers::DnsServerLatency;
 use infiltrator_bevy_ui::pages::doctor::{
-    CheckStateText, DoctorCheckItem, DoctorCheckState, DoctorProjection, DoctorProjectionUpdated,
+    CheckStateText, DoctorCheckItem, DoctorProjection, DoctorProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::logs::{
-    LogEntry, LogLevel, LogMessageText, LogsProjection, LogsProjectionUpdated,
+    LogEntry, LogMessageText, LogsProjection, LogsProjectionUpdated,
 };
 use infiltrator_bevy_ui::pages::profiles::{
     ProfileItem, ProfileNameText, ProfilesProjection, ProfilesProjectionUpdated,
@@ -43,22 +43,41 @@ use infiltrator_bevy_ui::pages::settings::settings_core::{
     SettingsLine, SettingsLineKind, SettingsProjection,
 };
 use infiltrator_bevy_ui::pages::sync::{
-    SnapshotItem, SyncProjection, SyncProjectionUpdated, SyncStatus,
+    SnapshotItem, SyncLine, SyncLineKind, SyncProjection, SyncProjectionUpdated,
 };
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PageRoot, PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_contract::controller::{ControllerAuthSnapshot, ControllerAuthStatus};
-use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
+use infiltrator_contract::dns::{
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, FakeIpMappingPool,
+};
+use infiltrator_contract::dns_cache::DnsCacheFlushReport;
+use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_leak::DnsLeakReport;
+use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
+use infiltrator_contract::doctor::DoctorStatus;
+use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
+use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::offline_startup::{LocalAssetStatus, OfflineStartupSnapshot};
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_contract::proxies::ProxyGroupClassification;
 use infiltrator_contract::resources::{CoreGcStatus, CoreResourceSnapshot};
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_contract::service_mode::{
     ServiceModePlatform, ServiceModeSnapshot, ServiceModeState,
 };
+use infiltrator_contract::stun_probe::StunProbeReport;
+use infiltrator_contract::surface_snapshot::{ConnectionSnapshot, PageStatus};
+use infiltrator_contract::sync::SyncStatus;
 use infiltrator_contract::version::{
     CoreArtifactVerification, CoreChannelSnapshot, CoreChannelStatus, CoreRelease,
     CoreReleaseChannel, CoreVersionSnapshot,
 };
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 
 fn create_test_app() -> App {
     let mut app = App::new();
@@ -135,13 +154,17 @@ fn proxies_page_in_place_update() {
 
     // Trigger updated projection
     let updated = ProxiesProjection {
+        name_runs: Default::default(),
+        search_query: String::new(),
         active_exit: "🇯🇵 日本东京 01 · 专线".to_owned(),
         testing: true,
+        filter_alive: false,
+        compact_view: false,
         custom_node: Default::default(),
         groups: vec![ProxyGroup {
             name: "节点选择 (PROXIES)".to_owned(),
             group_type: "Selector".to_owned(),
-            classification: infiltrator_contract::proxies::ProxyGroupClassification::Selector,
+            classification: ProxyGroupClassification::Selector,
             current: "🇯🇵 日本东京 01 · 专线".to_owned(),
             expanded: true,
             proxies: vec![ProxyNode {
@@ -193,6 +216,7 @@ fn profiles_page_in_place_update() {
         yaml_ast_diff: None,
         snapshot_history: None,
         apply_transaction: None,
+        editor_read: Default::default(),
         profile_document: None,
         profile_options: None,
         script_sandbox: None,
@@ -202,9 +226,9 @@ fn profiles_page_in_place_update() {
             name: "自建中继节点订阅".to_owned(),
             url: "https://my.nodes.net/sub".to_owned(),
             updated_at: "2026-09-02 11:00".to_owned(),
-            upload_bytes: 500_000_000,
-            download_bytes: 20_000_000_000,
-            total_bytes: 500_000_000_000,
+            upload_bytes: Some(500_000_000),
+            download_bytes: Some(20_000_000_000),
+            total_bytes: Some(500_000_000_000),
             is_active: true,
             user_agent: "Clash.Meta/1.18.0".to_owned(),
             insecure_skip_verify: false,
@@ -217,6 +241,8 @@ fn profiles_page_in_place_update() {
             next_update: None,
             auto_reload_core: true,
             filter: Default::default(),
+            filter_source: observation("sub-custom", FIXTURE_DOCUMENT, Default::default())
+                .map(|o| o.source),
             write_protection: Default::default(),
         }],
     };
@@ -238,6 +264,7 @@ fn profiles_page_in_place_update() {
 #[test]
 fn rules_page_in_place_update() {
     let mut app = create_test_app();
+    app.insert_resource(UiLocale::new("en-US"));
     app.world_mut()
         .commands()
         .trigger(RouteChanged(Route::Rules));
@@ -256,11 +283,16 @@ fn rules_page_in_place_update() {
             cache_fingerprint: None,
         }],
         rules: vec![RuleItem {
+            edit_id: None,
+            raw: "DOMAIN-SUFFIX,anthropic.com,AI-PROXIES".to_owned(),
+            source_ip: false,
+            no_resolve: false,
+            failure: None,
             id: 1,
             rule_type: "DOMAIN-SUFFIX".to_owned(),
             payload: "anthropic.com".to_owned(),
             proxy: "AI-PROXIES".to_owned(),
-            hit_count: 8888,
+            hit_count: Some(8888),
             is_enabled: true,
             last_hit_secs: None,
             is_shadowed: false,
@@ -270,7 +302,7 @@ fn rules_page_in_place_update() {
         hit_audit: Default::default(),
         mrs_acceleration: Default::default(),
         truncated_rule_count: None,
-        rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
+        rule_publish_limit: RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
         etag_support: Default::default(),
         json_documents: Vec::new(),
@@ -284,7 +316,7 @@ fn rules_page_in_place_update() {
     let world = app.world_mut();
     let mut hits = world.query::<(&Text, &RuleHitText)>();
     let (hit_text, _) = hits.iter(world).find(|(_, m)| m.0 == 0).expect("rule hit");
-    assert_eq!(hit_text.0, "8888 次命中");
+    assert_eq!(hit_text.0, "8888 local trace hits");
 
     let mut proxies = world.query::<(&Text, &RuleProxyText)>();
     let (proxy_text, _) = proxies
@@ -306,9 +338,11 @@ fn connections_page_in_place_update() {
         total_connections: 1,
         total_upload_bytes: 1_000_000,
         total_download_bytes: 5_000_000,
-        stream_phase: infiltrator_contract::connection::ConnectionStreamPhase::Live,
-        connections: vec![ConnectionItem {
+        stream_phase: ConnectionStreamPhase::Live,
+        connections: vec![ConnectionSnapshot {
+            start: String::new(),
             id: "c-test".to_owned(),
+            destination_host: "musicfrog.app:443".to_owned(),
             host: "musicfrog.app:443".to_owned(),
             process: "musicfrog-client".to_owned(),
             rule: "DOMAIN musicfrog.app".to_owned(),
@@ -322,6 +356,7 @@ fn connections_page_in_place_update() {
             destination_port: "443".to_owned(),
             destination_geo_ip: None,
             destination_ip_asn: String::new(),
+            rate_observed: true,
             upload_bps: 1024.0,
             download_bps: 2048.0,
             upload_total: 100_000,
@@ -352,9 +387,13 @@ fn logs_page_in_place_update() {
     app.update();
 
     let updated = LogsProjection {
+        status: PageStatus::Ready,
+        generation: 0,
+        session_token: None,
         total_entries: 1,
         active_level: Some(LogLevel::Warn),
         entries: vec![LogEntry {
+            id: 1,
             timestamp: "12:00:00.000".to_owned(),
             level: LogLevel::Warn,
             tag: "CORE".to_owned(),
@@ -382,25 +421,29 @@ fn settings_page_in_place_update() {
     app.update();
 
     let updated = SettingsProjection {
+        close_to_tray: Some(false),
+        notifications_enabled: Some(true),
+        preference_status: PageStatus::Ready,
+        runtime_status: RuntimeControlStatus::Ready,
         autostart: false,
         system_proxy: false,
         system_proxy_snapshot: Default::default(),
         system_proxy_recovery: Default::default(),
-        mixed_port: 7895,
-        allow_lan: true,
-        lan_bind_address: "192.168.1.10".to_owned(),
-        lan_security: Default::default(),
-        ipv6_routing: infiltrator_contract::ipv6::Ipv6RoutingSnapshot::new(1, false, true),
+        mixed_port: Some(7895),
+        allow_lan: Some(true),
+        lan_bind_address: Some("192.168.1.10".to_owned()),
+        lan_security: Some(Default::default()),
+        ipv6_routing: Some(Ipv6RoutingSnapshot::new(1, false, true)),
         pac: Default::default(),
         network_roaming: Default::default(),
         vpn: Default::default(),
         privileged_network: Default::default(),
-        tun_enabled: true,
-        tun_stack: "System (Native Stack)".to_owned(),
-        tun_auto_route: true,
-        tun_strict_route: true,
-        controller_port: 9099,
-        log_level: "debug".to_owned(),
+        tun_enabled: Some(true),
+        tun_stack: Some("System (Native Stack)".to_owned()),
+        tun_auto_route: Some(true),
+        tun_strict_route: Some(true),
+        controller_port: Some(9099),
+        log_level: Some("debug".to_owned()),
         core_channel: "alpha".to_owned(),
         core_versions: CoreVersionSnapshot {
             revision: 1,
@@ -493,7 +536,7 @@ fn settings_page_in_place_update() {
     let service_text = lines
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::ServiceMode);
-    assert_eq!(service_text.unwrap().0.0, "Linux Polkit · ready");
+    assert_eq!(service_text.unwrap().0.0, "Linux Polkit · 已就绪");
     let ports_text = lines
         .iter(world)
         .find(|(_, l)| l.0 == SettingsLineKind::PortConflicts);
@@ -514,16 +557,18 @@ fn sync_page_in_place_update() {
 
     let updated = SyncProjection {
         status: SyncStatus::Syncing,
+        history_status: PageStatus::Ready,
         server_url: "https://webdav.custom.org/".to_owned(),
         username: "user2@custom.org".to_owned(),
         last_sync: Some("2026-09-02 12:30".to_owned()),
         auto_sync: false,
         conflict: None,
         snapshots: vec![SnapshotItem {
+            profile: "main".into(),
             id: "snap-new".to_owned(),
             timestamp: "2026-09-02 12:30".to_owned(),
             device: "SteamDeck".to_owned(),
-            size_bytes: 99_000,
+            size_bytes: Some(99_000),
         }],
     };
 
@@ -536,10 +581,10 @@ fn sync_page_in_place_update() {
     let (_, route) = current_page_root(world);
     assert_eq!(route, Route::Sync);
 
-    let mut lines = world.query::<(&Text, &infiltrator_bevy_ui::pages::sync::SyncLine)>();
+    let mut lines = world.query::<(&Text, &SyncLine)>();
     let summary = lines
         .iter(world)
-        .find(|(_, l)| l.0 == infiltrator_bevy_ui::pages::sync::SyncLineKind::Summary);
+        .find(|(_, l)| l.0 == SyncLineKind::Summary);
     assert!(summary.unwrap().0.0.contains("正在同步数据中..."));
 }
 
@@ -552,13 +597,17 @@ fn doctor_page_in_place_update() {
     app.update();
 
     let updated = DoctorProjection {
+        report_finished_at: Some(20),
         overall_healthy: false,
         last_run: "2026-09-02 12:45".to_owned(),
         checks: vec![DoctorCheckItem {
+            kind: None,
+            detail_copy_key: None,
+            hint: None,
             id: "chk-fail".to_owned(),
             name: "TUN Device Error".to_owned(),
             category: "TUN".to_owned(),
-            state: DoctorCheckState::Fail,
+            state: DoctorStatus::Fail,
             detail: "Interface down".to_owned(),
             fix_available: true,
         }],
@@ -574,9 +623,9 @@ fn doctor_page_in_place_update() {
     let mut states = world.query::<(&Text, &CheckStateText)>();
     let (state_text, _) = states
         .iter(world)
-        .find(|(_, m)| m.0 == 0)
+        .find(|(_, m)| m.0 == "chk-fail")
         .expect("check state");
-    assert_eq!(state_text.0, "异常 (FAIL)");
+    assert_eq!(state_text.0, "失败");
 }
 
 #[test]
@@ -588,13 +637,13 @@ fn app_routing_page_in_place_update() {
     app.update();
 
     let updated = AppRoutingProjection {
-        mode: AppRoutingMode::ProxyList,
+        mode: AppRoutingMode::BypassSelected,
         include_system: true,
         apps: vec![AppItem {
             id: "app-block".to_owned(),
             name: "Malicious App".to_owned(),
             process_name: "bad.exe".to_owned(),
-            rule: AppRouteRule::Block,
+            rule: AppRoutingRule::Block,
             is_system: false,
         }],
         uwp_loopback: Default::default(),
@@ -630,13 +679,13 @@ fn dns_page_in_place_update() {
             is_fallback: false,
             tags: Vec::new(),
         }],
-        form: infiltrator_contract::dns_form::DnsWorkbenchForm::default(),
-        cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
-        fake_ip_pool: infiltrator_contract::dns::FakeIpMappingPool::default(),
-        latency: infiltrator_contract::dns_latency::DnsLatencyReport::default(),
-        leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
-        stun: infiltrator_contract::stun_probe::StunProbeReport::default(),
-        self_heal: infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot::default(),
+        form: DnsWorkbenchForm::default(),
+        cache_flush: DnsCacheFlushReport::default(),
+        fake_ip_pool: FakeIpMappingPool::default(),
+        latency: DnsLatencyReport::default(),
+        leak: DnsLeakReport::default(),
+        stun: StunProbeReport::default(),
+        self_heal: DnsSelfHealSnapshot::default(),
         hosts: Vec::new(),
     };
 

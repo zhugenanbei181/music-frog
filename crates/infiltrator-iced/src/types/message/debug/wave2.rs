@@ -4,6 +4,7 @@
 //! parent `debug` module dispatches to these sections in turn.
 
 use crate::types::message::Message;
+use crate::types::script::ScriptAction;
 use std::fmt;
 
 pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
@@ -17,27 +18,34 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
             write!(f, "EditProfileAs({},{:?})", path.display(), pane)
         }
         Message::MixinEditorAction(_) => write!(f, "MixinEditorAction"),
-        Message::MixinLoaded(Ok(_)) => write!(f, "MixinLoaded(Ok)"),
-        Message::MixinLoaded(Err(e)) => write!(f, "MixinLoaded(Err({:?}))", e),
+        Message::MixinLoaded(reply) => write!(f, "MixinLoaded(ticket={})", reply.ticket),
         Message::SaveMixin => write!(f, "SaveMixin"),
-        Message::MixinSaved(Ok(_)) => write!(f, "MixinSaved(Ok)"),
-        Message::MixinSaved(Err(e)) => write!(f, "MixinSaved(Err({:?}))", e),
+        Message::MixinSaved(reply) => {
+            write!(f, "MixinSaved(operation={})", reply.pending.operation)
+        }
         Message::ToggleMixinPreset(id, enabled) => {
             write!(f, "ToggleMixinPreset({id}, {enabled})")
         }
+        Message::DiscardProfileFilter => write!(f, "DiscardProfileFilter"),
         Message::LoadProfileFilter => write!(f, "LoadProfileFilter"),
-        Message::ProfileFilterLoaded(Ok(_)) => write!(f, "ProfileFilterLoaded(Ok)"),
-        Message::ProfileFilterLoaded(Err(e)) => write!(f, "ProfileFilterLoaded(Err({:?}))", e),
+        Message::ProfileFilterLoaded { result: Ok(_), .. } => write!(f, "ProfileFilterLoaded(Ok)"),
+        Message::ProfileFilterLoaded { result: Err(e), .. } => {
+            write!(f, "ProfileFilterLoaded(Err({:?}))", e)
+        }
         Message::UpdateFilterInclude(v) => write!(f, "UpdateFilterInclude({})", v),
         Message::UpdateFilterExclude(v) => write!(f, "UpdateFilterExclude({})", v),
         Message::UpdateFilterExcludeTypes(v) => write!(f, "UpdateFilterExcludeTypes({})", v),
         Message::UpdateFilterRenames(v) => write!(f, "UpdateFilterRenames({})", v),
         Message::UpdateFilterDedup(i) => write!(f, "UpdateFilterDedup({})", i),
         Message::SaveProfileFilter => write!(f, "SaveProfileFilter"),
-        Message::ProfileFilterSaved(Ok(report)) => {
-            write!(f, "ProfileFilterSaved(Ok(passed={}))", report.passed)
+        Message::ProfileFilterSaved {
+            result: Ok(report), ..
+        } => {
+            write!(f, "ProfileFilterSaved(Ok(passed={}))", report.report.passed)
         }
-        Message::ProfileFilterSaved(Err(e)) => write!(f, "ProfileFilterSaved(Err({:?}))", e),
+        Message::ProfileFilterSaved { result: Err(e), .. } => {
+            write!(f, "ProfileFilterSaved(Err({:?}))", e)
+        }
         Message::ScanMrsProviders => write!(f, "ScanMrsProviders"),
         Message::MrsDetailsReady(Ok(details)) => {
             write!(f, "MrsDetailsReady(Ok({} providers))", details.len())
@@ -148,25 +156,27 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::WindowChromeToggleMaximize => write!(f, "WindowChromeToggleMaximize"),
         Message::WindowChromeMinimize => write!(f, "WindowChromeMinimize"),
         Message::WindowChromeClose => write!(f, "WindowChromeClose"),
-        Message::RunScriptSandboxTest => write!(f, "RunScriptSandboxTest"),
-        Message::SelectScriptPreset(p) => write!(f, "SelectScriptPreset({p})"),
-        Message::UpdateScriptSandboxCode(c) => {
+        Message::Script(ScriptAction::Run) => write!(f, "RunScriptSandboxTest"),
+        Message::Script(ScriptAction::SelectPreset(p)) => write!(f, "SelectScriptPreset({p})"),
+        Message::Script(ScriptAction::EditCode(c)) => {
             write!(f, "UpdateScriptSandboxCode({} chars)", c.len())
         }
-        Message::UpdateScriptSandboxInputYaml(y) => {
+        Message::Script(ScriptAction::EditDocument { field, .. }) => {
+            write!(f, "ScriptEdit({field:?})")
+        }
+        Message::Script(ScriptAction::EditYaml(y)) => {
             write!(f, "UpdateScriptSandboxInputYaml({} chars)", y.len())
         }
-        Message::ClearScriptSandbox => write!(f, "ClearScriptSandbox"),
-        Message::ExportScriptDraft(kind) => write!(f, "ExportScriptDraft({kind:?})"),
-        Message::ScriptExportFinished(Ok(snapshot)) => write!(
+        Message::Script(ScriptAction::Clear) => write!(f, "ClearScriptSandbox"),
+        Message::Script(ScriptAction::Export(kind)) => write!(f, "ExportScriptDraft({kind:?})"),
+        Message::Script(ScriptAction::ConfirmExport) => write!(f, "ConfirmScriptExport"),
+        Message::Script(ScriptAction::CancelExport) => write!(f, "CancelScriptExport"),
+        Message::Script(ScriptAction::Retry) => write!(f, "RetryScriptWorkbench"),
+        Message::Script(ScriptAction::Finished { operation, result }) => write!(
             f,
-            "ScriptExportFinished(Ok({} {} bytes))",
-            snapshot.file_name,
-            snapshot.byte_len()
+            "ScriptFinished({operation}, {})",
+            if result.is_ok() { "output" } else { "failure" }
         ),
-        Message::ScriptExportFinished(Err(e)) => {
-            write!(f, "ScriptExportFinished(Err({:?}))", e)
-        }
         _ => return None,
     })
 }

@@ -42,6 +42,13 @@ mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/512x512/apps"
 # Copy binary
 cp "$BIN_PATH" "$DEB_ROOT/usr/bin/$APP_BIN"
 chmod 755 "$DEB_ROOT/usr/bin/$APP_BIN"
+case "$ARCH" in
+    amd64) kernel_target=x86_64-unknown-linux-gnu ;;
+    arm64) kernel_target=aarch64-unknown-linux-gnu ;;
+    *) echo "Error: unsupported kernel architecture: $ARCH" >&2; exit 1 ;;
+esac
+bash "$REPO_ROOT/scripts/fetch-mihomo.sh" --target "$kernel_target" \
+    --stage "$DEB_ROOT/usr/libexec/musicfrog/$APP_BIN/mihomo"
 
 # Copy desktop and icon metadata
 cp "$REPO_ROOT/$APP_DESKTOP" "$DEB_ROOT/usr/share/applications/${APP_PKG}.desktop"
@@ -64,6 +71,6 @@ done
 
 mkdir -p "$OUTPUT_DIR"
 DEB_NAME="${APP_PKG}_${VERSION}_${ARCH}.deb"
-dpkg-deb --build "$DEB_ROOT" "$OUTPUT_DIR/$DEB_NAME"
+dpkg-deb --build --root-owner-group "$DEB_ROOT" "$OUTPUT_DIR/$DEB_NAME"
 
 echo "[build-deb] Created Debian package: $OUTPUT_DIR/$DEB_NAME"

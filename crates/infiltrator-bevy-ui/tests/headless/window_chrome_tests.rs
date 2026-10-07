@@ -7,6 +7,9 @@ use bevy::app::{App, AppExit};
 use bevy::asset::AssetPlugin;
 use bevy::camera::NormalizedRenderTarget;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::message::Messages;
+use bevy::ecs::query::{Or, With};
+use bevy::math::Vec2;
 use bevy::picking::backend::HitData;
 use bevy::picking::events::{Pointer, PointerClick, PointerPress};
 use bevy::picking::pointer::{Location, PointerButton, PointerId};
@@ -17,6 +20,8 @@ use infiltrator_bevy_ui::chrome::{
     ChromeCloseButton, ChromeDragBar, ChromeMaximizeButton, ChromeMaximizeLatch,
     ChromeMinimizeButton, WindowChromePlugin, WindowChromeReport, chrome_shape, support,
 };
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use std::time;
 
 fn chrome_app() -> (App, Entity) {
     let mut app = App::new();
@@ -37,7 +42,7 @@ fn press_on(app: &mut App, window: Entity, entity: Entity, count: u8) {
                 .normalize(Some(window))
                 .expect("a mounted window normalizes"),
         ),
-        position: bevy::math::Vec2::ZERO,
+        position: Vec2::ZERO,
     };
     app.world_mut().trigger(PointerPress {
         entity,
@@ -55,14 +60,14 @@ fn double_click_on(app: &mut App, window: Entity, entity: Entity) {
                 .normalize(Some(window))
                 .expect("a mounted window normalizes"),
         ),
-        position: bevy::math::Vec2::ZERO,
+        position: Vec2::ZERO,
     };
     app.world_mut().trigger(PointerClick {
         entity,
         pointer: Pointer::new(PointerId::Mouse, location),
         button: PointerButton::Primary,
         hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-        duration: std::time::Duration::from_millis(120),
+        duration: time::Duration::from_millis(120),
         count: 2,
     });
 }
@@ -183,7 +188,7 @@ fn the_three_chrome_controls_request_minimize_maximize_and_exit() {
     app.update();
     let exits: Vec<AppExit> = app
         .world_mut()
-        .resource_mut::<bevy::ecs::message::Messages<AppExit>>()
+        .resource_mut::<Messages<AppExit>>()
         .drain()
         .collect();
     assert_eq!(exits, vec![AppExit::Success]);
@@ -194,11 +199,7 @@ fn the_mounted_shell_carries_the_chrome_bar_and_its_controls() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     app.update();
 
     let world = app.world_mut();
@@ -206,10 +207,10 @@ fn the_mounted_shell_carries_the_chrome_bar_and_its_controls() {
     assert_eq!(bars, 1, "exactly one drag bar is mounted");
     let world = app.world_mut();
     let buttons = world
-        .query_filtered::<Entity, bevy::ecs::query::Or<(
-            bevy::ecs::query::With<ChromeMinimizeButton>,
-            bevy::ecs::query::With<ChromeMaximizeButton>,
-            bevy::ecs::query::With<ChromeCloseButton>,
+        .query_filtered::<Entity, Or<(
+            With<ChromeMinimizeButton>,
+            With<ChromeMaximizeButton>,
+            With<ChromeCloseButton>,
         )>>()
         .iter(world)
         .count();

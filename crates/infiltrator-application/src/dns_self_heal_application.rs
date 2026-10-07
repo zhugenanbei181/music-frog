@@ -17,7 +17,9 @@ use infiltrator_contract::dns_self_heal::{
 };
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
 use infiltrator_domain::dns::DnsConfig;
-use infiltrator_domain::dns_topology::{DnsTopologyDiagnostic, TopologySeverity};
+use infiltrator_domain::dns_topology::{
+    DnsTopologyDiagnostic, TopologySeverity, validate_dns_topology,
+};
 
 /// The `dns.listen` observation inside a port-conflict snapshot, when the host
 /// probe covered it.
@@ -35,7 +37,7 @@ pub fn dns_self_heal_snapshot(
     listen: Option<&PortConflict>,
     latency: &DnsLatencyReport,
 ) -> DnsSelfHealSnapshot {
-    let topology = infiltrator_domain::dns_topology::validate_dns_topology(config);
+    let topology = validate_dns_topology(config);
     DnsSelfHealSnapshot::new(vec![
         listen_port_check(listen),
         upstream_check(latency),
@@ -223,8 +225,12 @@ mod tests {
         );
         assert_eq!(
             snapshot.overall_state(),
-            DnsSelfHealState::Healthy,
-            "the clean topology audit is the only observed fact"
+            DnsSelfHealState::Unknown,
+            "the unobserved port and upstream prevent a complete health claim"
+        );
+        assert_eq!(
+            snapshot.check(DnsSelfHealKind::Topology).unwrap().state,
+            DnsSelfHealState::Healthy
         );
         assert!(!snapshot.needs_repair());
         assert!(

@@ -1,3 +1,6 @@
+use std::env::var;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 /// Linux 桌面环境分类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DesktopEnvironment {
@@ -18,15 +21,15 @@ impl DesktopEnvironment {
     }
 }
 
-impl std::fmt::Display for DesktopEnvironment {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DesktopEnvironment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
 /// 探测当前 Linux 桌面环境。
 pub fn detect_desktop_environment() -> DesktopEnvironment {
-    detect_desktop_environment_with(|k| std::env::var(k).ok())
+    detect_desktop_environment_with(|k| var(k).ok())
 }
 
 /// 基于自定义环境变量获取函数的桌面环境探测器（便于单元测试与沙箱探测）。

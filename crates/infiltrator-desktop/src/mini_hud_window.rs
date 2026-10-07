@@ -94,6 +94,10 @@ impl MiniHudWindowPort for DesktopMiniHudWindow {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
+    #[cfg(test)]
+    use tokio::runtime::Builder;
+    #[cfg(test)]
+    use tokio::runtime::Runtime;
 
     #[derive(Default)]
     struct RecordingHandle {
@@ -134,10 +138,8 @@ mod tests {
         }
     }
 
-    fn runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("runtime")
+    fn runtime() -> Runtime {
+        Builder::new_current_thread().build().expect("runtime")
     }
 
     #[test]

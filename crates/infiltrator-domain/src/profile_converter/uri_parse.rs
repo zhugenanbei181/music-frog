@@ -1,10 +1,10 @@
 //! URI parsing implementations for proxy protocols.
 
+use crate::profile_converter::{ProxyNodeItem, ReservedField, uri_parse_aux};
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 use url::Url;
-
-use crate::profile_converter::{ProxyNodeItem, uri_parse_aux};
 
 /// Parses any supported proxy URI string into a strongly-typed [`ProxyNodeItem`].
 pub fn parse_uri(raw_uri: &str) -> Result<ProxyNodeItem> {
@@ -217,7 +217,7 @@ fn parse_vless(parsed: &Url) -> Result<ProxyNodeItem> {
         h2_opts: None,
         http_opts: None,
         xhttp_opts,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
     })
 }
 
@@ -346,7 +346,7 @@ fn parse_hysteria2(parsed: &Url) -> Result<ProxyNodeItem> {
         h2_opts: None,
         http_opts: None,
         xhttp_opts: None,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
     })
 }
 
@@ -478,7 +478,7 @@ fn parse_tuic(parsed: &Url) -> Result<ProxyNodeItem> {
         h2_opts: None,
         http_opts: None,
         xhttp_opts: None,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }
@@ -534,7 +534,7 @@ fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
                     .filter_map(|s| s.trim().parse::<u8>().ok())
                     .collect();
                 if !bytes.is_empty() {
-                    reserved = Some(crate::profile_converter::ReservedField::Array(bytes));
+                    reserved = Some(ReservedField::Array(bytes));
                 }
             }
             "jc" => awg_jc = v.parse::<u8>().ok(),
@@ -662,7 +662,7 @@ fn parse_wireguard(parsed: &Url) -> Result<ProxyNodeItem> {
         h2_opts: None,
         http_opts: None,
         xhttp_opts: None,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }
@@ -774,7 +774,7 @@ fn parse_anytls(parsed: &Url) -> Result<ProxyNodeItem> {
         h2_opts: None,
         http_opts: None,
         xhttp_opts: None,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }

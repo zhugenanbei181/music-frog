@@ -1,13 +1,10 @@
 //! The Overview page: run state banner, live traffic card and the four
-//! stat chips, rendered from an [`OverviewProjection`] in the iced
-//! reference product language.
+//! stat chips, rendered from the shared [`OverviewProjection`].
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`OverviewLine`],
 //! [`OverviewChip`] + the widget layer's `StatChipValue`,
 //! [`OverviewStatusCard`] / [`OverviewCardState`], [`OverviewModePill`]).
-//! The page self-registers [`apply_overview_projection`] once per world
-//! (the [`OverviewPageRoot`] `on_insert` bind hook — the taskmanager
-//! idiom), and the router fires the first paint with the mounted
+//! [`OverviewPagePlugin`] registers [`apply_overview_projection`] once at product assembly, and the router fires the first paint with the mounted
 //! projection right after `spawn_scene`. From then on, an
 //! [`OverviewProjectionUpdated`] trigger restamps texts, inks, pill
 //! selection bits and the banner's stored state *in place*: entity ids
@@ -33,32 +30,52 @@
 //! nodes seeded in the scenes and restamped by the refresh observer —
 //! the same in-place restamp the visible texts get.
 //!
-//! **Copy note**: this page's user-facing strings are zh-CN literals by
-//! design of this demo slice — the 0.30 i18n milestone unifies them into
-//! locale keys. (本片文案为 zh-CN 字面量，0.30 i18n 里程碑统一 locale key。)
+//! Remaining localized status folds are tracked by the shared-copy quality gate.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::history::{TrafficHistory, chart_inputs};
+use crate::pages::overview_lifecycle::core_control_scene;
+use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
+use crate::pages::overview_quota_copy;
+use crate::pages::overview_rates;
+use crate::pages::overview_restamp::{
+    apply_overview_projection, on_overview_master_switch_activated,
+};
+use crate::pages::overview_speedtest::{
+    on_overview_speedtest_activated, on_overview_speedtest_concurrency_stepped,
+    on_overview_speedtest_detail_activated, speedtest_button_scene,
+};
+use crate::pages::overview_topology::on_topology_stage_activated;
+use crate::pages::{overview_cards, overview_public_ip, overview_topology};
+use crate::projection::{OverviewOrigin, OverviewProjection};
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
+use bevy::ui::PositionType;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, ComputedNode, Display, FlexDirection, FlexWrap,
     JustifyContent, Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, ScrollArea};
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
+use infiltrator_application::proxy_mode_projection::mode_status_copy;
+use infiltrator_application::shell_readout_projection::{observed_rate, rate_copy, rate_status};
 use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_bevy_widgets::stat_chip::stat_chip_scene;
@@ -68,22 +85,10 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::{Breakpoint, space};
 use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::history::{TrafficHistory, chart_inputs};
-use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
-use crate::pages::overview_restamp::{
-    apply_overview_projection, on_overview_master_switch_activated,
-    on_overview_mode_segment_activated,
-};
-use crate::pages::overview_speedtest::{
-    on_overview_speedtest_activated, on_overview_speedtest_concurrency_stepped,
-    on_overview_speedtest_detail_activated, speedtest_button_scene,
-};
-use crate::pages::overview_topology::on_topology_stage_activated;
-use crate::projection::{OverviewOrigin, OverviewProjection, OverviewState};
-use crate::route::{PageRoot, Route};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
@@ -107,15 +112,12 @@ pub(crate) fn chart_dims() -> (u32, u32) {
 }
 
 /// The Overview page root. Stamps [`PageRoot`]`(`[`Route::Overview`]`)`
-/// next to it; mounting this marker binds the page's refresh observer.
+/// next to it; the page plugin owns refresh wiring.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_overview_page)]
 pub struct OverviewPageRoot;
 
-/// Once-per-world guard for the bind hook: a remounted page must not
-/// stack duplicate refresh observers.
-#[derive(Resource)]
-struct OverviewPageBound;
+#[derive(Component, Clone, Copy, Default)]
+pub struct OverviewTrafficCard;
 
 /// Which mutable line of the page a text node is. One enum marker keeps
 /// the refresh observer to a single (conflict-free) query.
@@ -132,6 +134,7 @@ pub enum OverviewLineKind {
     Upload,
     /// Downlink rate (arrow prefix + mono value, ordinary ink).
     Download,
+    TelemetryFailure,
     /// The failure reason (empty unless unavailable).
     Failure,
     /// The mode chip's label.
@@ -219,8 +222,8 @@ pub struct AccentFill;
 
 /// The banner's stored projection state; restamped by the refresh
 /// observer, read by [`reskin_overview_tokens`].
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-pub struct OverviewCardState(pub OverviewState);
+#[derive(Component, Clone, Debug, Default, PartialEq)]
+pub struct OverviewCardState(pub Option<CoreLifecycle>);
 
 /// Marker on the banner's status dot (success token fill).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -229,12 +232,6 @@ pub struct StatusDot;
 /// Marker on the banner's mode chip (accent fill, `on_accent` label).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewModeChip;
-
-/// Marker on the banner's stop button (danger fill — demo semantics: the
-/// official `Button` emits `Activate` but the shell wires no handler, so
-/// the copy is honest about doing nothing yet).
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct StopButton;
 
 /// Marker on text drawn over an accent/danger fill: its ink is the
 /// `on_accent` token, restamped by the reskin system.
@@ -276,49 +273,18 @@ pub(crate) fn replay_projection_after_theme(
 
 // ---- pure functions (headless-testable without any app) --------------------
 
-/// Format one byte count for display, byte-exact with the iced reference
-/// product (evidence: `crates/infiltrator-iced/src/utils.rs:3-17` —
-/// 1024-based divisors carrying the decimal unit labels B / KB / MB / GB,
-/// two decimals from KB up, an integer byte count below; the Overview page
-/// renders rates as this formatter + `"/s"`, `src/view/overview.rs:205-208,
-/// 241, 247`, and memory as this formatter directly, `:235`). Pure function.
-pub fn format_byte_count(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = 1024.0 * 1024.0;
-    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
-    let bytes = bytes as f64;
-    if bytes >= GB {
-        format!("{:.2} GB", bytes / GB)
-    } else if bytes >= MB {
-        format!("{:.2} MB", bytes / MB)
-    } else if bytes >= KB {
-        format!("{:.2} KB", bytes / KB)
-    } else {
-        format!("{} B", bytes as u64)
-    }
-}
-
-/// Format a byte-per-second rate for display: the shared [`format_byte_count`]
-/// ladder (the iced reference spells rates the same way, plus `/s`) with an
-/// honest zero for absent traffic and non-finite input. Pure function.
+/// Format a byte-per-second rate for display: the shared [`format_bytes`]
+/// ladder used by both peer products with an
+/// an explicit unknown for invalid observations. Pure function.
 pub fn format_rate(bytes_per_second: f64) -> String {
-    let rate = if bytes_per_second.is_finite() && bytes_per_second > 0.0 {
-        bytes_per_second
-    } else {
-        0.0
-    };
-    // f64→u64 casts saturate (NaN was clamped above), so the reference
-    // formatter's u64 input contract holds for any finite rate.
-    format!("{}/s", format_byte_count(rate as u64))
+    rate_copy(&observed_rate(Some(bytes_per_second)), "en-US")
 }
 
-/// Format a byte count for the memory chip: the shared [`format_byte_count`]
+/// Format a byte count for the memory chip: the shared [`format_bytes`]
 /// ladder; `None` renders an honest em-dash placeholder (the value is not
 /// known — never a fabricated zero). Pure function.
 pub fn format_memory(bytes: Option<u64>) -> String {
-    bytes
-        .map(format_byte_count)
-        .unwrap_or_else(|| "—".to_owned())
+    bytes.map(format_bytes).unwrap_or_else(|| "—".to_owned())
 }
 
 /// Format CPU utilization percentage for the CPU chip.
@@ -330,44 +296,25 @@ pub fn format_cpu(percent: Option<f32>) -> String {
 
 /// Format cumulative session total traffic for the TotalTraffic chip.
 pub fn format_total_traffic(bytes: Option<u64>) -> String {
-    bytes
-        .map(format_byte_count)
-        .unwrap_or_else(|| "—".to_owned())
-}
-
-/// The word the state line shows. The typed tri-state, spelled out
-/// (zh-CN literals — see the module copy note).
-pub(crate) fn state_label(state: OverviewState) -> &'static str {
-    match state {
-        OverviewState::Running => "运行中",
-        OverviewState::Stopped => "已停止",
-        OverviewState::Unavailable => "不可用",
-    }
-}
-
-/// The proxy mode's segmented-control label (zh-CN literals — see the
-/// module copy note).
-pub(crate) fn mode_label(mode: ProxyMode) -> &'static str {
-    match mode {
-        ProxyMode::Rule => "规则模式",
-        ProxyMode::Global => "全局模式",
-        ProxyMode::Direct => "直连模式",
-        ProxyMode::Script => "脚本模式",
-    }
+    bytes.map(format_bytes).unwrap_or_else(|| "—".to_owned())
 }
 
 /// A metrics chip's stat name (zh-CN literals — see the module copy
 /// note). The scene and the a11y group label both spell it through this
 /// one function, so they can never drift apart.
-pub(crate) fn chip_label(kind: OverviewChipKind) -> &'static str {
+pub(crate) fn chip_label_key(kind: OverviewChipKind) -> &'static str {
     match kind {
-        OverviewChipKind::Connections => "连接数",
-        OverviewChipKind::Memory => "内存",
-        OverviewChipKind::Cpu => "CPU",
-        OverviewChipKind::Upload => "上传",
-        OverviewChipKind::Download => "下载",
-        OverviewChipKind::TotalTraffic => "总流量",
+        OverviewChipKind::Connections => "overview_connections",
+        OverviewChipKind::Memory => "overview_memory",
+        OverviewChipKind::Cpu => "overview_cpu",
+        OverviewChipKind::Upload => "overview_upload",
+        OverviewChipKind::Download => "overview_download",
+        OverviewChipKind::TotalTraffic => "overview_total_traffic",
     }
+}
+
+pub(crate) fn chip_label(kind: OverviewChipKind, language: &str) -> String {
+    Lang(language).tr(chip_label_key(kind)).into_owned()
 }
 
 /// The banner's status-word semantic node: a `Status` role carrying the
@@ -391,11 +338,20 @@ pub fn stat_group_semantic_node(label: &str) -> AccessibilityNode {
 /// The state line's ink: readable on the accent container while
 /// running/stopped, `on_accent` on the danger fill while unavailable.
 /// Tokens only.
-pub(crate) fn state_ink(state: OverviewState, palette: &UiPalette) -> Color {
+pub(crate) fn state_ink(state: &CoreLifecycle, palette: &UiPalette) -> Color {
     match state {
-        OverviewState::Running => palette.ink,
-        OverviewState::Stopped => palette.ink_dim,
-        OverviewState::Unavailable => palette.on_accent,
+        CoreLifecycle::Running | CoreLifecycle::Ready => palette.ink,
+        CoreLifecycle::Stopped => palette.ink_dim,
+        CoreLifecycle::Starting | CoreLifecycle::Stopping => palette.warning,
+        CoreLifecycle::Failed => palette.on_accent,
+    }
+}
+pub(crate) fn status_dot_color(state: Option<&CoreLifecycle>, palette: &UiPalette) -> Color {
+    match state {
+        Some(CoreLifecycle::Ready | CoreLifecycle::Running) => palette.success,
+        Some(CoreLifecycle::Starting | CoreLifecycle::Stopping) => palette.warning,
+        Some(CoreLifecycle::Failed) => palette.danger,
+        Some(CoreLifecycle::Stopped) | None => palette.ink_dim,
     }
 }
 
@@ -403,23 +359,22 @@ pub(crate) fn state_ink(state: OverviewState, palette: &UiPalette) -> Color {
 /// core names the version it actually reported (an empty or unread
 /// version stays honest as 版本读取中 — the failure line, not this note,
 /// carries the failure verdict). Pure function.
-pub(crate) fn banner_note(projection: &OverviewProjection) -> String {
-    match projection.origin {
-        OverviewOrigin::LiveCore => match projection.core_version.as_deref() {
-            Some(version) if !version.trim().is_empty() => {
-                format!("实时内核 · {version}")
-            }
-            _ => "实时内核 · 版本读取中".to_owned(),
+pub(crate) fn banner_note(projection: &OverviewProjection, language: &str) -> String {
+    source_copy(
+        match projection.origin {
+            OverviewOrigin::Demo => SurfaceOrigin::Demo,
+            OverviewOrigin::LiveCore => SurfaceOrigin::Live,
         },
-        OverviewOrigin::Demo => "演示数据 · 未接实时内核".to_owned(),
-    }
+        projection.core_version.as_deref(),
+        language,
+    )
 }
 
 /// The banner's fill: the accent container token, or the danger token
 /// while unavailable — the whole-banner failure projection.
-pub(crate) fn card_fill(state: OverviewState, palette: &UiPalette) -> Color {
+pub(crate) fn card_fill(state: &CoreLifecycle, palette: &UiPalette) -> Color {
     match state {
-        OverviewState::Unavailable => palette.danger,
+        CoreLifecycle::Failed => palette.danger,
         _ => palette.accent_container,
     }
 }
@@ -432,7 +387,7 @@ pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
                 display: Display::None,
-                position_type: bevy::ui::PositionType::Absolute,
+                position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
                 align_items: AlignItems::Center,
@@ -445,7 +400,7 @@ pub(crate) fn reload_mask_scene(palette: &UiPalette) -> impl Scene + use<> {
             Children [
                 @{ icon_scene(IconId::Activity, 24.0, palette.accent) }
                 --
-                Text({ "内核重载中 · 保持上一帧快照 (Reloading Core)".to_owned() }) OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                LocalizedText::plain("overview_core_reloading") OverviewReloadMaskText TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
             ]
     }
 }
@@ -472,24 +427,25 @@ pub fn overview_page(
             }
             PageRoot(Route::Overview)
             OverviewPageRoot
+            ScrollArea
             Children [
                 @{ banner_scene(projection, palette) }
                 --
-                @{ crate::pages::overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) }
+                @{ overview_cards::mode_segmented_controller_scene_with_snapshot(&projection.proxy_mode, palette) }
                 --
-                @{ traffic_card_scene(projection, history, palette) }
+                @{ traffic_card_scene(projection, history, palette) } OverviewTrafficCard
                 --
                 @{ chips_row_scene(projection, palette) }
                 --
-                @{ crate::pages::overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) }
+                @{ overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) }
                 --
-                @{ crate::pages::overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) }
+                @{ overview_cards::active_exit_node_scene_with_snapshot(&projection.active_exit, palette) }
                 --
-                @{ crate::pages::overview_public_ip::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) }
+                @{ overview_public_ip::public_ip_probe_card_scene_with_snapshot(&projection.public_ip, palette) }
                 --
-                @{ crate::pages::overview_topology::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) }
+                @{ overview_topology::topology_chain_scene_with_snapshot(&projection.traffic_topology, palette) }
                 --
-                @{ crate::pages::overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) }
+                @{ overview_cards::subscription_quota_scene_with_snapshot(&projection.subscription_quota, palette) }
                 --
                 @{ reload_mask_scene(palette) }
             ]
@@ -504,11 +460,15 @@ pub fn overview_page(
 /// The origin is fixed for a mounted source, so baking the branch at mount
 /// keeps every restamp in place.
 fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let state = state_label(projection.state).to_owned();
-    let state_node = status_semantic_node(state_label(projection.state));
-    let chip = mode_label(projection.mode).to_owned();
-    let failure = projection.failure_text().to_owned();
-    let note = banner_note(projection);
+    let state = lifecycle_copy(&projection.lifecycle, "en-US");
+    let state_node = status_semantic_node(&state);
+    let chip = mode_status_copy(&projection.proxy_mode, "en-US");
+    let failure = failure_copy(
+        &projection.lifecycle,
+        projection.failure.as_deref(),
+        "en-US",
+    );
+    let note = banner_note(projection, "en-US");
     bsn! {
             Node {
                 width: percent(100),
@@ -520,12 +480,13 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                 flex_wrap: FlexWrap::Wrap,
                 border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),
             }
-            BackgroundColor({ card_fill(projection.state, palette) })
+            BackgroundColor({ card_fill(&projection.lifecycle, palette) })
             OverviewStatusCard
-            OverviewCardState({ projection.state })
+            OverviewCardState({ Some(projection.lifecycle.clone()) })
             Children [
                 Node {
                     flex_grow: 1.0,
+                    min_width: px(180.0),
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(space::S8),
                 }
@@ -541,7 +502,7 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                             flex_shrink: 0.0,
                             border_radius: BorderRadius::all(Val::Px(5.0)),
                         }
-                        BackgroundColor({ palette.success })
+                        BackgroundColor({ status_dot_color(Some(&projection.lifecycle), palette) })
                         StatusDot
                         --
                         Text({ state }) OverviewLine(OverviewLineKind::State)
@@ -572,65 +533,9 @@ fn banner_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl Sc
                     ]
                 ]
                 --
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    @{ speedtest_button_scene(palette) }
-                    --
-                    @{ stop_area_scene(projection, palette) }
-                ]
-            ]
-    }
-}
-
-/// The banner's trailing action: demo sources keep the danger stop pill
-/// (demo semantics, as before); live sources get the honest lifecycle
-/// caption instead — the pump exposes no core-lifecycle command yet
-/// (0.30), and a stop button that stopped nothing would be a lie. Boxed:
-/// the two arms are different scene types.
-fn stop_area_scene(projection: &OverviewProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    match projection.origin {
-        OverviewOrigin::Demo => Box::new(stop_button_scene(palette)),
-        OverviewOrigin::LiveCore => Box::new(lifecycle_caption_scene()),
-    }
-}
-
-/// The banner's stop button: the official unstyled `Button` in a danger
-/// pill skin. `Activate` carries no business action — demo semantics.
-fn stop_button_scene(palette: &UiPalette) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                min_height: px(palette.control_height_px),
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                flex_shrink: 0.0,
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ palette.danger })
-            StopButton
-            Button
-            Children [
-                Text({ "停止代理".to_owned() }) TextRole(Role::BodyStrong) OnAccentText
-            ]
-    }
-}
-
-/// The live-core banner's trailing slot: a plain, typed caption stating
-/// that core lifecycle control ships after 0.30. A plain node (never a
-/// `Button`) — it must not even look pressable, matching the sidebar's
-/// 未迁移 nav entries.
-fn lifecycle_caption_scene() -> impl Scene + use<> {
-    bsn! {
-            Node {
-                padding: UiRect::horizontal(Val::Px(space::S12)),
-                align_items: AlignItems::Center,
-                flex_shrink: 0.0,
-            }
-            Children [
-                Text({ "核心生命周期控制 · 0.30 后续接入".to_owned() }) TextRole(Role::Caption)
+                @{ core_control_scene(palette) }
+                --
+                @{ speedtest_button_scene(palette) }
             ]
     }
 }
@@ -651,12 +556,14 @@ fn traffic_card_scene(
     let (up, down, smooth, scale) = chart_inputs(projection, history);
     surface_scene(
         vec![
-            Box::new(plain_caption("实时流量".to_owned())),
+            Box::new(bsn! { LocalizedText::plain("overview_traffic") TextRole(Role::Caption) }),
             Box::new(rates_row_scene(
-                format_rate(projection.upload_bps),
-                format_rate(projection.download_bps),
+                rate_copy(&projection.readout.upload_bps, "en-US"),
+                rate_copy(&projection.readout.download_bps, "en-US"),
             )),
             Box::new(scale_line_scene(&scale)),
+            Box::new(bsn! { Text({rate_status(&projection.readout, "en-US")})
+            OverviewLine(OverviewLineKind::TelemetryFailure) TextRole(Role::Caption) }),
             Box::new(chart_scene_with_scale(
                 up,
                 down,
@@ -727,17 +634,6 @@ fn rate_line(arrow: &str, kind: OverviewLineKind, value: String) -> impl Scene +
 }
 
 /// A plain caption line inside a card.
-fn plain_caption(label: String) -> impl Scene + use<> {
-    bsn! {
-            Node {
-                align_items: AlignItems::Center,
-            }
-            Children [
-                Text({ label }) TextRole(Role::Caption)
-            ]
-    }
-}
-
 /// The metrics band: four stat chips sharing the width evenly. Each chip
 /// root carries a labeled `Group` semantic node ("name value") that the
 /// refresh observer restamps alongside the visible value.
@@ -745,31 +641,33 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
     let connections = projection.active_connections.to_string();
     let memory = format_memory(projection.memory_bytes);
     let cpu = format_cpu(projection.cpu_percent);
-    let upload = format_rate(projection.upload_bps);
-    let download = format_rate(projection.download_bps);
+    let upload = rate_copy(&projection.readout.upload_bps, "en-US");
+    let download = rate_copy(&projection.readout.download_bps, "en-US");
     let total = format_total_traffic(projection.total_traffic_bytes);
 
     let connections_node = stat_group_semantic_node(&format!(
         "{} {connections}",
-        chip_label(OverviewChipKind::Connections)
+        chip_label(OverviewChipKind::Connections, "en-US")
     ));
     let memory_node = stat_group_semantic_node(&format!(
         "{} {memory}",
-        chip_label(OverviewChipKind::Memory)
+        chip_label(OverviewChipKind::Memory, "en-US")
     ));
-    let cpu_node =
-        stat_group_semantic_node(&format!("{} {cpu}", chip_label(OverviewChipKind::Cpu)));
+    let cpu_node = stat_group_semantic_node(&format!(
+        "{} {cpu}",
+        chip_label(OverviewChipKind::Cpu, "en-US")
+    ));
     let upload_node = stat_group_semantic_node(&format!(
         "{} {upload}",
-        chip_label(OverviewChipKind::Upload)
+        chip_label(OverviewChipKind::Upload, "en-US")
     ));
     let download_node = stat_group_semantic_node(&format!(
         "{} {download}",
-        chip_label(OverviewChipKind::Download)
+        chip_label(OverviewChipKind::Download, "en-US")
     ));
     let total_node = stat_group_semantic_node(&format!(
         "{} {total}",
-        chip_label(OverviewChipKind::TotalTraffic)
+        chip_label(OverviewChipKind::TotalTraffic, "en-US")
     ));
 
     bsn! {
@@ -785,27 +683,27 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
             }
             OverviewMetricsBand
             Children [
-                @{ stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections).to_owned(), connections, palette) }
+                @{ stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections, "en-US").to_owned(), connections, palette) }
                 OverviewChip(OverviewChipKind::Connections)
                 connections_node
                 --
-                @{ stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory).to_owned(), memory, palette) }
+                @{ stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory, "en-US").to_owned(), memory, palette) }
                 OverviewChip(OverviewChipKind::Memory)
                 memory_node
                 --
-                @{ stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu).to_owned(), cpu, palette) }
+                @{ stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu, "en-US").to_owned(), cpu, palette) }
                 OverviewChip(OverviewChipKind::Cpu)
                 cpu_node
                 --
-                @{ stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload).to_owned(), upload, palette) }
+                @{ stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload, "en-US").to_owned(), upload, palette) }
                 OverviewChip(OverviewChipKind::Upload)
                 upload_node
                 --
-                @{ stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download).to_owned(), download, palette) }
+                @{ stat_chip_scene(IconId::ArrowDown, chip_label(OverviewChipKind::Download, "en-US").to_owned(), download, palette) }
                 OverviewChip(OverviewChipKind::Download)
                 download_node
                 --
-                @{ stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic).to_owned(), total, palette) }
+                @{ stat_chip_scene(IconId::Globe, chip_label(OverviewChipKind::TotalTraffic, "en-US").to_owned(), total, palette) }
                 OverviewChip(OverviewChipKind::TotalTraffic)
                 total_node
             ]
@@ -815,30 +713,34 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
 /// The traffic topology chain card: 4 linked stage chips with connecting arrows (">").
 /// 4-stage network traffic topology chain scene (BEVY-GAP-018).
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
-    crate::pages::overview_topology::topology_chain_scene(palette)
+    overview_topology::topology_chain_scene(palette)
 }
 
 /// Subscription quota and billing cycle visualization card (BEVY-GAP-020).
 pub fn subscription_quota_scene(palette: &UiPalette) -> impl Scene + use<> {
-    crate::pages::overview_cards::subscription_quota_scene(palette)
+    overview_cards::subscription_quota_scene(palette)
 }
 
-fn bind_overview_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<OverviewPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct OverviewPagePlugin;
+
+impl Plugin for OverviewPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (overview_rates::refresh, overview_quota_copy::replay),
+        );
+        app.add_observer(apply_overview_projection);
+        app.add_observer(on_topology_stage_activated);
+        app.add_observer(on_overview_master_switch_activated);
+        app.add_observer(on_overview_speedtest_activated);
+        app.add_observer(on_overview_speedtest_concurrency_stepped);
+        app.add_observer(on_overview_speedtest_detail_activated);
+        app.add_observer(on_overview_public_ip_refresh_activated);
+        app.add_observer(on_overview_card_move_up_activated);
+        app.add_observer(on_overview_card_move_down_activated);
     }
-    let mut commands = world.commands();
-    commands.insert_resource(OverviewPageBound);
-    commands.add_observer(apply_overview_projection);
-    commands.add_observer(on_topology_stage_activated);
-    commands.add_observer(on_overview_master_switch_activated);
-    commands.add_observer(on_overview_mode_segment_activated);
-    commands.add_observer(on_overview_speedtest_activated);
-    commands.add_observer(on_overview_speedtest_concurrency_stepped);
-    commands.add_observer(on_overview_speedtest_detail_activated);
-    commands.add_observer(on_overview_public_ip_refresh_activated);
-    commands.add_observer(on_overview_card_move_up_activated);
-    commands.add_observer(on_overview_card_move_down_activated);
 }
 
 /// Convert an Overview card move up action into a UiCommand::MoveOverviewCardUp.

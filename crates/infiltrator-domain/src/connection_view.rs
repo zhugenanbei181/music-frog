@@ -11,6 +11,8 @@
 //! local projection row, so neither surface has to copy its list into a
 //! second representation to reuse the reduction.
 
+use crate::connection_rate::ConnectionRate;
+use crate::rules::RuleEntry;
 use crate::runtime::Connection;
 use std::collections::HashMap;
 
@@ -225,6 +227,14 @@ pub trait ConnectionView {
     fn view_destination_ip(&self) -> &str {
         ""
     }
+    /// Controller-reported remote port for native endpoint display.
+    fn view_destination_port(&self) -> &str {
+        ""
+    }
+    /// Matched rule type; empty when it was not reported.
+    fn view_rule(&self) -> &str {
+        ""
+    }
     /// Connection start timestamp (string sortable), used by latest-first.
     fn view_start(&self) -> &str {
         ""
@@ -268,6 +278,12 @@ impl ConnectionView for Connection {
         &self.metadata.destination_ip
     }
 
+    fn view_destination_port(&self) -> &str {
+        &self.metadata.destination_port
+    }
+    fn view_rule(&self) -> &str {
+        &self.rule
+    }
     fn view_start(&self) -> &str {
         &self.start
     }
@@ -302,11 +318,11 @@ impl ConnectionView for Connection {
 /// whose rows already carry them.
 pub struct RatedConnection<'a, C: ConnectionView> {
     pub row: &'a C,
-    pub rate: crate::connection_rate::ConnectionRate,
+    pub rate: ConnectionRate,
 }
 
 impl<'a, C: ConnectionView> RatedConnection<'a, C> {
-    pub fn new(row: &'a C, rate: crate::connection_rate::ConnectionRate) -> Self {
+    pub fn new(row: &'a C, rate: ConnectionRate) -> Self {
         Self { row, rate }
     }
 }
@@ -344,6 +360,12 @@ impl<C: ConnectionView> ConnectionView for RatedConnection<'_, C> {
         self.row.view_destination_ip()
     }
 
+    fn view_destination_port(&self) -> &str {
+        self.row.view_destination_port()
+    }
+    fn view_rule(&self) -> &str {
+        self.row.view_rule()
+    }
     fn view_start(&self) -> &str {
         self.row.view_start()
     }
@@ -398,15 +420,18 @@ pub fn route_chain<C: ConnectionView>(conn: &C) -> RouteChain {
 
 /// Case-insensitive keyword match over the connection's searchable terms
 /// (domain, IP, process, rule, chain). An empty query matches everything.
-pub fn matches_search<C: ConnectionView>(conn: &C, query: &str) -> bool {
+pub fn matching_term<'a, C: ConnectionView>(conn: &'a C, query: &str) -> Option<&'a str> {
     let query = query.trim();
     if query.is_empty() {
-        return true;
+        return None;
     }
     let needle = query.to_lowercase();
     conn.view_search_terms()
         .into_iter()
-        .any(|term| term.to_lowercase().contains(&needle))
+        .find(|term| term.to_lowercase().contains(&needle))
+}
+pub fn matches_search<C: ConnectionView>(conn: &C, query: &str) -> bool {
+    query.trim().is_empty() || matching_term(conn, query).is_some()
 }
 
 /// Sort the connection slice in place using the shared sort key, with stable
@@ -520,8 +545,8 @@ pub fn quick_rule_spec<C: ConnectionView>(conn: &C, target: &str) -> ConnectionR
 /// Build a rules-editor entry from a reverse-drafted spec (DUAL-13-09). An
 /// un-draftable spec (no usable destination) yields `None` so an empty pattern
 /// is never reported as an added rule.
-pub fn draft_rule_entry(spec: &ConnectionRuleSpec) -> Option<crate::rules::RuleEntry> {
-    spec.is_draftable().then(|| crate::rules::RuleEntry {
+pub fn draft_rule_entry(spec: &ConnectionRuleSpec) -> Option<RuleEntry> {
+    spec.is_draftable().then(|| RuleEntry {
         rule: spec.rule_line(),
         enabled: true,
     })
@@ -531,9 +556,9 @@ pub fn draft_rule_entry(spec: &ConnectionRuleSpec) -> Option<crate::rules::RuleE
 /// rule line. Returns the appended entry, or `None` when the spec was empty or
 /// the identical rule line already existed. Both surfaces call this one seam.
 pub fn append_draft_rule(
-    rules: &mut Vec<crate::rules::RuleEntry>,
+    rules: &mut Vec<RuleEntry>,
     spec: &ConnectionRuleSpec,
-) -> Option<crate::rules::RuleEntry> {
+) -> Option<RuleEntry> {
     let entry = draft_rule_entry(spec)?;
     if rules.iter().any(|existing| existing.rule == entry.rule) {
         return None;
@@ -668,6 +693,7 @@ mod tests {
             (
                 "c1".to_string(),
                 ConnectionRate {
+                    observed: true,
                     upload_bps: 0.0,
                     download_bps: 9_000.0,
                 },
@@ -675,6 +701,7 @@ mod tests {
             (
                 "c2".to_string(),
                 ConnectionRate {
+                    observed: true,
                     upload_bps: 5_000.0,
                     download_bps: 0.0,
                 },
@@ -682,6 +709,7 @@ mod tests {
             (
                 "c3".to_string(),
                 ConnectionRate {
+                    observed: true,
                     upload_bps: 1_000.0,
                     download_bps: 1_000.0,
                 },

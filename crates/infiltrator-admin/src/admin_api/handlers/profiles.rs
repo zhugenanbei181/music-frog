@@ -1,20 +1,25 @@
 //! Profile / subscription management endpoints (`/admin/api/profiles*`).
 
-use std::sync::Arc;
-
-use anyhow::anyhow;
-use axum::{Json, http::StatusCode};
-use chrono::Utc;
-use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
-use log::info;
-
 use super::{schedule_core_restart, schedule_rebuild};
 use crate::admin_api::events::{AdminEvent, EVENT_PROFILES_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState, RebuildStatus};
+use crate::scheduler::subscription::update_all_subscriptions;
+use crate::scheduler::{cancel_all_profile_jobs, cancel_profile_update_job, sync_profile_job};
+use anyhow::anyhow;
+use axum::http::StatusCode;
+use axum::{Json, extract};
+use chrono::Utc;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::profiles::{ProfileDetail, ProfileInfo, sanitize_profile_name};
+use infiltrator_domain::subscription::mask_subscription_url;
+use infiltrator_domain::subscription_scheduler_policy::{CronSchedule, SubscriptionSchedule};
+use log::info;
+use std::sync::Arc;
 
 pub async fn list_profiles_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<Vec<ProfileInfo>>, ApiError> {
     let application = state
         .ctx
@@ -29,8 +34,8 @@ pub async fn list_profiles_http<C: AdminApiContext>(
 }
 
 pub async fn get_profile_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(name): extract::Path<String>,
 ) -> Result<Json<ProfileDetail>, ApiError> {
     let application = state
         .ctx
@@ -45,7 +50,7 @@ pub async fn get_profile_http<C: AdminApiContext>(
 }
 
 pub async fn switch_profile_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<SwitchProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
@@ -60,7 +65,7 @@ pub async fn switch_profile_http<C: AdminApiContext>(
 }
 
 pub async fn import_profile_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ImportProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile_name = ensure_valid_profile_name(&payload.name)?;
@@ -85,11 +90,11 @@ pub async fn import_profile_http<C: AdminApiContext>(
 }
 
 pub async fn save_profile_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<SaveProfilePayload>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
-    if let Err(err) = infiltrator_domain::config::validate_yaml(&payload.content) {
+    if let Err(err) = validate_yaml(&payload.content) {
         return Err(ApiError::bad_request(err.to_string()));
     }
 
@@ -148,7 +153,7 @@ pub async fn save_profile_http<C: AdminApiContext>(
 }
 
 pub async fn clear_profiles_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     state
         .ctx
@@ -168,7 +173,7 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
     // All previous profiles (and their auto-update jobs) are gone.
-    crate::scheduler::cancel_all_profile_jobs();
+    cancel_all_profile_jobs();
     let mut info = profile;
     info.controller_url = state.ctx.profile_controller_url().await.ok().flatten();
     schedule_rebuild(&state.ctx, &state.rebuild_status, "profiles-clear");
@@ -182,8 +187,8 @@ pub async fn clear_profiles_http<C: AdminApiContext>(
 }
 
 pub async fn delete_profile_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(name): extract::Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
     let application = state
@@ -196,7 +201,7 @@ pub async fn delete_profile_http<C: AdminApiContext>(
         .await
         .map_err(|failure| ApiError::bad_request(failure.message))?;
     // The profile is gone: its periodic update job must not fire again.
-    crate::scheduler::cancel_profile_update_job(&profile_name);
+    cancel_profile_update_job(&profile_name);
     state
         .events
         .publish(AdminEvent::new(EVENT_PROFILES_CHANGED));
@@ -204,8 +209,8 @@ pub async fn delete_profile_http<C: AdminApiContext>(
 }
 
 pub async fn set_profile_subscription_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(name): extract::Path<String>,
     Json(payload): Json<SubscriptionConfigPayload>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
@@ -231,7 +236,7 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         .filter(|value| !value.is_empty())
     {
         Some(expr) => Some(
-            infiltrator_domain::subscription_scheduler_policy::CronSchedule::parse(expr)
+            CronSchedule::parse(expr)
                 .map_err(|error| ApiError::bad_request(format!("Cron 表达式无效: {error}")))?
                 .raw,
         ),
@@ -262,7 +267,7 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
     metadata.update_interval_hours = payload.update_interval_hours;
     metadata.cron_expression = cron_expression;
     metadata.next_update = if payload.auto_update_enabled {
-        infiltrator_domain::subscription_scheduler_policy::SubscriptionSchedule::from_metadata(
+        SubscriptionSchedule::from_metadata(
             metadata.update_interval_hours,
             metadata.cron_expression.as_deref(),
         )
@@ -277,7 +282,7 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
         .map_err(|failure| ApiError::internal(failure.message))?;
     // Keep the per-profile periodic job in lockstep with the new metadata
     // (spawn on enable / interval change, cancel on disable).
-    crate::scheduler::sync_profile_job(
+    sync_profile_job(
         &state.ctx,
         &profile_name,
         metadata.auto_update_enabled,
@@ -296,8 +301,8 @@ pub async fn set_profile_subscription_http<C: AdminApiContext>(
 }
 
 pub async fn clear_profile_subscription_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(name): extract::Path<String>,
 ) -> Result<Json<ProfileInfo>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
     let application = state
@@ -323,7 +328,7 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
         .await
         .map_err(|failure| ApiError::internal(failure.message))?;
     // Subscription (and auto-update with it) is gone: drop the periodic job.
-    crate::scheduler::sync_profile_job(&state.ctx, &profile_name, false, None, None, None);
+    sync_profile_job(&state.ctx, &profile_name, false, None, None, None);
     let info = application
         .load_profile_info(&profile_name)
         .await
@@ -335,8 +340,8 @@ pub async fn clear_profile_subscription_http<C: AdminApiContext>(
 }
 
 pub async fn update_profile_now_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
+    extract::State(state): extract::State<AdminApiState<C>>,
+    extract::Path(name): extract::Path<String>,
 ) -> Result<Json<ProfileActionResponse>, ApiError> {
     let profile_name = ensure_valid_profile_name(&name)?;
     let application = state
@@ -357,7 +362,7 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
         .update_subscription(source.as_ref(), &profile_name)
         .await
         .map_err(|failure| {
-            if failure.code == infiltrator_contract::error::ErrorCode::Configuration {
+            if failure.code == ErrorCode::Configuration {
                 ApiError::bad_request(failure.message)
             } else {
                 ApiError::internal(failure.message)
@@ -383,9 +388,9 @@ pub async fn update_profile_now_http<C: AdminApiContext>(
 }
 
 pub async fn update_all_profiles_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ProfilesUpdateAllResponse>, ApiError> {
-    let summary = crate::scheduler::subscription::update_all_subscriptions(&state.ctx)
+    let summary = update_all_subscriptions(&state.ctx)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
@@ -429,7 +434,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         return Err(anyhow!("订阅链接不能为空"));
     }
 
-    let masked_url = infiltrator_domain::subscription::mask_subscription_url(source_url);
+    let masked_url = mask_subscription_url(source_url);
     info!(
         "admin import profile start: name={} url={}",
         profile_name, masked_url
@@ -456,7 +461,7 @@ async fn import_profile_from_url_internal<C: AdminApiContext>(
         .await
         .map_err(|failure| anyhow!(failure.message))?;
     // Re-import may have (re)enabled auto-update on an existing profile.
-    crate::scheduler::sync_profile_job(
+    sync_profile_job(
         ctx,
         &profile_name,
         metadata.auto_update_enabled,

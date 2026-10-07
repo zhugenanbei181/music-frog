@@ -14,10 +14,14 @@
 pub mod scroll_core;
 use scroll_core::*;
 
+use crate::nav::{NavActive, NavItem, NavLabel, nav_fill};
+use crate::palette::UiPalette;
+use crate::text::{Role, TextRole};
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::{Message, MessageReader};
-use bevy::ecs::query::{Changed, With};
+use bevy::ecs::query::{Changed, QueryFilter, With};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -25,11 +29,6 @@ use bevy::ui::prelude::{
     px,
 };
 use bevy::ui::widget::Text;
-
-use crate::nav::{NavActive, NavItem, NavLabel, nav_fill};
-use crate::palette::UiPalette;
-use crate::text::{Role, TextRole};
-use crate::theme::space;
 
 // ===========================================================================
 // 5. Virtual List State Machine
@@ -522,6 +521,12 @@ pub struct VirtualListFling(pub f32);
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VirtualListSelect(pub Option<usize>);
 
+#[derive(QueryFilter)]
+pub struct ListChangedFilter {
+    with_list: With<List>,
+    changed_list_selection: Changed<ListSelection>,
+}
+
 /// Drive virtual lists from incoming messages and step physics.
 pub fn advance_virtual_lists(
     mut scrolls: MessageReader<VirtualListScroll>,
@@ -610,9 +615,8 @@ pub fn sync_list_visuals(
 }
 
 /// Project the list's [`ListSelection`] onto its rows' [`NavActive`] bits.
-#[allow(clippy::type_complexity)]
 pub fn sync_list_selection(
-    mut lists: Query<(&ListSelection, &Children), (With<List>, Changed<ListSelection>)>,
+    mut lists: Query<(&ListSelection, &Children), ListChangedFilter>,
     mut rows: Query<&mut NavActive>,
 ) {
     for (selection, children) in &mut lists {

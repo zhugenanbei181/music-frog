@@ -9,30 +9,25 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ConfigSnapshot {
     pub mode: String,
-    #[serde(default)]
     pub port: u16,
-    #[serde(default)]
     pub mixed_port: u16,
-    #[serde(default)]
     pub log_level: String,
-    #[serde(default)]
     pub allow_lan: bool,
-    /// Top-level Mihomo `ipv6`; missing API fields follow Mihomo's documented
-    /// default of allowing IPv6 rather than silently claiming it is disabled.
-    #[serde(default = "default_ipv6_enabled")]
-    pub ipv6: bool,
-    #[serde(default = "default_bind_address")]
-    pub bind_address: String,
+    /// Missing controller fields remain unobserved. Configuration defaults are not observations.
     #[serde(default)]
-    pub lan_allowed_ips: Vec<String>,
+    pub ipv6: Option<bool>,
     #[serde(default)]
-    pub lan_disallowed_ips: Vec<String>,
+    pub bind_address: Option<String>,
     #[serde(default)]
-    pub skip_auth_prefixes: Vec<String>,
+    pub lan_allowed_ips: Option<Vec<String>>,
     #[serde(default)]
-    pub authentication_enabled: bool,
+    pub lan_disallowed_ips: Option<Vec<String>>,
     #[serde(default)]
-    pub authentication_user_count: usize,
+    pub skip_auth_prefixes: Option<Vec<String>>,
+    #[serde(default)]
+    pub authentication_enabled: Option<bool>,
+    #[serde(default)]
+    pub authentication_user_count: Option<usize>,
     #[serde(default)]
     pub authentication_username: Option<String>,
     pub tun: Option<TunSnapshot>,
@@ -41,20 +36,12 @@ pub struct ConfigSnapshot {
     pub script: Option<serde_json::Value>,
 }
 
-fn default_bind_address() -> String {
-    "*".to_owned()
-}
-
-fn default_ipv6_enabled() -> bool {
-    true
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TunSnapshot {
-    pub enable: bool,
-    pub stack: String,
-    pub auto_route: bool,
-    pub strict_route: bool,
+    pub enable: Option<bool>,
+    pub stack: Option<String>,
+    pub auto_route: Option<bool>,
+    pub strict_route: Option<bool>,
     #[serde(default)]
     pub mtu: Option<u32>,
 }

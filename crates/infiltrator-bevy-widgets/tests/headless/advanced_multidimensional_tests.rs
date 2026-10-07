@@ -1,8 +1,9 @@
+use crate::support::headless_app;
 use bevy::app::Startup;
 use bevy::color::Color;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::CommandsSceneExt;
-
+use bevy::ui::{prelude, widget};
 use infiltrator_bevy_widgets::desktop::ClipboardPayload;
 use infiltrator_bevy_widgets::motion::{SpringAnimator, StaggeredEnterAnimation};
 use infiltrator_bevy_widgets::palette::{
@@ -10,8 +11,6 @@ use infiltrator_bevy_widgets::palette::{
 };
 use infiltrator_bevy_widgets::shader_fx::{ShimmerWaveSpec, skeleton_card_scene};
 use infiltrator_bevy_widgets::text::{RichTextSpan, Role, rich_text_line_scene};
-
-use crate::support::headless_app;
 
 #[test]
 fn test_staggered_enter_animation_and_spring_animator() {
@@ -65,7 +64,7 @@ fn test_shimmer_wave_math_and_skeleton_scene() {
     app.update();
 
     let world = app.world_mut();
-    let mut nodes = world.query::<&bevy::ui::prelude::Node>();
+    let mut nodes = world.query::<&prelude::Node>();
     assert!(nodes.iter(world).count() >= 4); // Root + 3 placeholder rows
 }
 
@@ -105,7 +104,7 @@ fn test_rich_text_spans_and_scene_mounting() {
     app.update();
 
     let world = app.world_mut();
-    let mut texts = world.query::<&bevy::ui::widget::Text>();
+    let mut texts = world.query::<&widget::Text>();
     assert_eq!(texts.iter(world).count(), 3);
 }
 

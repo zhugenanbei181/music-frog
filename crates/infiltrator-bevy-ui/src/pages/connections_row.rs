@@ -1,5 +1,13 @@
 //! Connection row scene rendering with swipe-to-action support (UI-04-02).
 
+use crate::pages::connections::{
+    CloseConnectionButton, ConnChainHopText, ConnHostText, ConnInspectButton, ConnProcessText,
+    ConnSpeedText,
+};
+use crate::pages::connections_pulse::connection_pulse_scene;
+use crate::pages::connections_search::ConnectionMatchTerm;
+use crate::pages::connections_view::ConnectionRow;
+use crate::pages::overview::format_rate;
 use bevy::ecs::hierarchy::Children;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -12,25 +20,21 @@ use bevy::ui_widgets::Button;
 use infiltrator_bevy_widgets::gesture::{
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, SwipeToActionSpring,
 };
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::responsive::TouchHitbox;
 use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+use infiltrator_bevy_widgets::text_runs::TextRuns;
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::search_text::SearchTextRun;
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
 use infiltrator_domain::connection_view;
-
-use crate::pages::connections::{
-    CloseConnectionButton, ConnChainHopText, ConnHostText, ConnInspectButton, ConnProcessText,
-    ConnSpeedText, ConnectionItem,
-};
-use crate::pages::connections_pulse::connection_pulse_scene;
-use crate::pages::connections_view::ConnectionRow;
-use crate::pages::overview::format_rate;
 
 /// Construct a connection row scene supporting horizontal swipe-to-action.
 pub fn connection_row_scene(
     idx: usize,
-    conn: &ConnectionItem,
+    conn: &ConnectionSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let host = conn.host.clone();
@@ -72,22 +76,26 @@ pub fn connection_row_scene(
                     width: percent(100),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(space::S8),
                 }
                 SwipeContentContainer
                 Children [
                     Node {
+                        width: percent(100), min_width: px(0.0),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S4),
                     }
                     Children [
                         Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
+                            width: percent(100), min_width: px(0.0),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(space::S4),
                         }
                         Children [
-                            Text(host) ConnHostText(idx) TextRole(Role::BodyStrong)
+                            TextRuns(vec![SearchTextRun { text: host, highlighted: false }]) ConnHostText(idx) TextRole(Role::BodyStrong)
                             --
-                            Text(process_info) ConnProcessText(idx) TextRole(Role::Caption)
+                            TextRuns(vec![SearchTextRun { text: process_info, highlighted: false }]) ConnProcessText(idx) TextRole(Role::Caption)
                         ]
                         --
                         Node {
@@ -98,6 +106,8 @@ pub fn connection_row_scene(
                             { chain_scenes }
                         ]
                     ]
+                    --
+                    TextRuns(Vec::new()) ConnectionMatchTerm(idx) TextRole(Role::Caption)
                     --
                     Node {
                         align_items: AlignItems::Center,
@@ -120,7 +130,7 @@ pub fn connection_row_scene(
                         TouchHitbox::default()
                         inspect_btn
                         Children [
-                            Text({ "详情".to_owned() }) TextRole(Role::Caption)
+                            LocalizedText::plain("common_details") TextRole(Role::Caption)
                         ]
                         --
                         Node {
@@ -135,7 +145,7 @@ pub fn connection_row_scene(
                         TouchHitbox::default()
                         conn_btn
                         Children [
-                            Text({ "断开".to_owned() }) TextRole(Role::Caption)
+                            LocalizedText::plain("connections_disconnect_action") TextRole(Role::Caption)
                         ]
                     ]
                 ]
@@ -164,7 +174,7 @@ pub fn connection_row_scene(
                     TouchHitbox::default()
                     conn_btn_drawer
                     Children [
-                        Text({ "切断".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.surface })
+                        LocalizedText::plain("connections_cut_action") TextRole(Role::BodyStrong) TextColor({ palette.surface })
                     ]
                 ]
             ]
@@ -173,10 +183,10 @@ pub fn connection_row_scene(
 
 /// DUAL-13-06: render one flat row's route chain as one text per hop, through
 /// the shared parsed chain model (no pre-joined string).
-fn connection_chain_scenes(idx: usize, conn: &ConnectionItem) -> Vec<Box<dyn Scene>> {
+fn connection_chain_scenes(idx: usize, conn: &ConnectionSnapshot) -> Vec<Box<dyn Scene>> {
     let chain = connection_view::route_chain(conn);
     let mut scenes: Vec<Box<dyn Scene>> = vec![Box::new(bsn! {
-            Text({ "链路: ".to_owned() }) TextRole(Role::Caption)
+            LocalizedText::plain("connections_chain_label") TextRole(Role::Caption)
     }) as Box<dyn Scene>];
     if chain.is_empty() {
         scenes.push(Box::new(bsn! {

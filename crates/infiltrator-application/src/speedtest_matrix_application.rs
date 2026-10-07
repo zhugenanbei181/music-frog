@@ -1,6 +1,6 @@
 //! DUAL-06-14: application seam for the Group 06 speedtest regression matrix.
 
-use infiltrator_contract::speedtest::SpeedtestSnapshot;
+use infiltrator_contract::speedtest::{SpeedtestPhase, SpeedtestSnapshot};
 use infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport;
 
 /// Application facade providing on-demand verification of the speedtest suite.
@@ -20,8 +20,7 @@ impl SpeedtestMatrixApplication {
     pub fn verify_dual_surface_snapshot(&self, snapshot: &SpeedtestSnapshot) -> bool {
         let running = snapshot.is_running();
         let known_phase = match snapshot.phase {
-            infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency
-            | infiltrator_contract::speedtest::SpeedtestPhase::MeasuringBandwidth => running,
+            SpeedtestPhase::ProbingLatency | SpeedtestPhase::MeasuringBandwidth => running,
             _ => !running,
         };
         let metrics_consistent = snapshot.node_results.values().all(|node| {
@@ -35,6 +34,10 @@ impl SpeedtestMatrixApplication {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::speedtest::NodeSpeedtestResult;
+    #[cfg(test)]
+    use infiltrator_contract::speedtest::PacketLossRating;
 
     #[test]
     fn test_speedtest_matrix_application_execution() {
@@ -51,19 +54,19 @@ mod tests {
         assert!(app.verify_dual_surface_snapshot(&demo));
 
         let mut inconsistent = SpeedtestSnapshot {
-            phase: infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency,
+            phase: SpeedtestPhase::ProbingLatency,
             ..Default::default()
         };
         inconsistent.node_results.insert(
             "Dead-But-Alive".to_owned(),
-            infiltrator_contract::speedtest::NodeSpeedtestResult {
+            NodeSpeedtestResult {
                 node_name: "Dead-But-Alive".to_owned(),
                 group_name: None,
                 proxy_type: "Shadowsocks".to_owned(),
                 delay_ms: None,
                 jitter: None,
                 bandwidth_mbps: None,
-                packet_loss: infiltrator_contract::speedtest::PacketLossRating::Dead,
+                packet_loss: PacketLossRating::Dead,
                 star_rating: 1,
                 label_country: None,
                 outbound_ip: None,

@@ -1,9 +1,8 @@
 //! Corporate/private subnet classification and bypass rule generation.
 
+use super::{CorporateSubnetDetector, SubnetCategory, matches_cidr, parse_cidr};
 use crate::rules::RuleEntry;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-
-use super::{CorporateSubnetDetector, SubnetCategory, matches_cidr, parse_cidr};
 
 impl Default for CorporateSubnetDetector {
     fn default() -> Self {

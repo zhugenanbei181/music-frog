@@ -1,5 +1,7 @@
 # Bevy UI Core Maturity Gaps Ledger (Bevy UI 前端深度成熟度全景台账)
 
+> 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
+
 本文档归档 MusicFrog Infiltrator 项目中 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 前端在演进至成熟生产级桌面与移动统一客户端（对标 Clash Verge Rev、Mihomo Party、Flclash）过程中的 10 大核心维度与 150 项深度工程缺口，作为后续实施的权威交付台账。
 
 > **双端对齐与主纲从属说明（2026-09-03）**：
@@ -184,12 +186,14 @@
 135. **BEVY-GAP-135 高级主题色谱、纯黑 OLED 模式与排版密度定制**：扩展针对移动端 OLED 屏幕的纯黑 (True Black) 模式以极致省电；提供排版密度调节（舒适 Comfortable / 紧凑 Compact）。模块：`crates/infiltrator-bevy-widgets/src/theme.rs`。验收：紧凑模式下一屏展示更多行数据，主题色自由切换。
 
 ### 大类十：引擎调步、低功耗渲染与底层组件架构 (Engine, Performance & Architecture)
-136. **BEVY-GAP-136 实时双向内核通信契约通道落地 (BEVY-005 Seam)**：基于 Tokio 异步 Runtime 建立常驻管道，订阅 Mihomo WebSocket 流（`/traffic`、`/logs`、`/connections`）；转换为 typed ECS 事件投递主线程，每帧有界排水消费。模块：`crates/infiltrator-bevy-ui/src/controller.rs`。验收：彻底替代 DemoProjection，11 个页面接入真实内核数据，指令毫秒级往返。
-137. **BEVY-GAP-137 多模态引擎渲染调步机制 (Cadence & Low Power Policy)**：实现动态调步状态机：活跃交互时 60 FPS，静置 30 秒后降至 15 FPS；窗口失去焦点或最小化到托盘后，进入完全事件等待或 2 FPS 微息模式。模块：`crates/infiltrator-bevy-widgets/src/cadence.rs`。验收：桌面后台运行 CPU 占用 <0.3%，移动端后台运行彻底杜绝发热耗电。
-138. **BEVY-GAP-138 完全响应式事件驱动渲染管线 (Reactive Rendering Pipeline)**：接入 Bevy 0.20 的 `bevy_winit::UpdateMode::ReactiveLowPower`；仅当窗口事件到达、键鼠交互或 WebSocket 推送新数据时，才唤醒 ECS 调度重绘一帧。模块：`crates/infiltrator-bevy-widgets/src/reactive.rs`。验收：网络闲置状态下 GPU 负荷归零，笔记本电池续航不受代理软件影响。
-139. **BEVY-GAP-139 中文与东亚多语言输入法 (IME) 深度适配**：完善自研纯核文本输入状态机，对接 `Ime::Preedit` 与 `Ime::Commit` 窗口事件；精准计算光标物理位置，确保输入法候选词浮窗紧随输入光标。模块：`crates/infiltrator-bevy-widgets/src/text_input/ime.rs`。验收：在搜索框与编辑器中流畅输入中文、日文、韩文，候选词不漂移。
-140. **BEVY-GAP-140 跨平台原生剪贴板安全与异步交互**：封装原生剪贴板驱动，支持 Wayland `wl-clipboard`、X11、Windows Win32 API 及 Android JNI 通道；集成敏感凭据脱敏保护。模块：`crates/infiltrator-bevy-widgets/src/clipboard_sanitizer.rs`。验收：一键复制节点链接、粘贴订阅 URL 稳定可靠，无死锁或闪退。
-141. **BEVY-GAP-141 通用高性能虚拟视口滚动容器组件 (VirtualList Widget)**：将虚拟视口几何裁剪算法抽象为通用控件包，提供 `VirtualListBuilder<T>` 模板；自动根据容器尺寸与项高度计算可视区间，全页面复用。模块：`crates/infiltrator-bevy-widgets/src/list/scroll_core.rs`。验收：规则列表、连接列表、日志流与节点网格统一接入，零冗余代码。
+本类保留既有实现与演进目标；Android 产品接线和实测要求统一遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)，执行项为本地 TODO 的 `BANDROID-001`～`BANDROID-017`。组件算法、响应式辅助类型或合成 IME 通过不能证明业务页面回收、Winit 事件等待、原生文本或系统剪贴板已接通；下列历史 CPU、GPU、体积与启动数字均须以当前产物实测，不作已验证承诺。
+
+136. **BEVY-GAP-136 实时双向内核通信契约通道落地 (BEVY-005 Seam)**：保留 application-owned pump 与 typed 事件/命令，执行器和 Mihomo transport 由 composition/outbound 注入；Android 经服务 IPC 组合完整 reader，休眠 UI 由宿主主动唤醒。入口：`controller.rs`/`surface.rs`。验收：11 页真实结果、请求终态、饱和/取消/旧会话隔离和有界排水；不以投影或入队宣称远端成功。
+137. **BEVY-GAP-137 多模态引擎渲染调步机制 (Cadence & Low Power Policy)**：保留共享 cadence 与 Winit 策略，扩展交互、可见动画、静置、后台和 Android 挂起；UI 观察与 VPN 服务治理分离。入口：`infiltrator-bevy-ui/src/cadence.rs`。验收：无变化静态界面不空转，实际帧/唤醒/CPU/GPU/功耗报告按 Android 产品规范记录，不能承诺零耗电。
+138. **BEVY-GAP-138 完全响应式事件驱动渲染管线 (Reactive Rendering Pipeline)**：将真实 `WinitSettings`/`UpdateMode::reactive_low_power` 与外部结果唤醒、按需动画联合接线；`widgets::reactive` 的变更追踪辅助类型不等于事件循环已休眠。验收：有限等待与无限事件等待区分，输入和后台终态可靠唤醒，无入睡/入队竞争导致的遗失；实际调度和平台资源分别验证。
+139. **BEVY-GAP-139 中文与东亚多语言输入法 (IME) 深度适配**：保留文本状态机、`Ime::Preedit/Commit`、光标与取消路径，补原生 Android InputConnection/GameTextInput 到锁定 Bevy/winit 的事件通路。验收：实际输入法候选、选区、删除、焦点、键盘 Insets 与返回行为；合成 IME 或 NativeActivity 基本按键不代表完整中文输入已交付。
+140. **BEVY-GAP-140 跨平台原生剪贴板安全与异步交互**：保留桌面系统剪贴板和脱敏策略，由 Android host 注入 ClipboardManager，订阅导入与文本粘贴复用真实系统来源。验收：系统跨应用复制/粘贴互通，受限/空/无效内容和写入失败有实际结果；`clipboard_sanitizer` 算法不证明原生端口已组合。
+141. **BEVY-GAP-141 通用高性能虚拟视口滚动容器组件 (VirtualList Widget)**：复用 `list::scroll_core`、动态行高、overscan 与实体池，实际接入规则/连接/日志/节点网格；不以截断数据减少挂载。验收：可视行槽数量有界、稳定业务身份保护、完整尾项可达与原生滚动资源基准；纯窗口算法不能替代页面实体回收。
 142. **BEVY-GAP-142 矢量派生高清 RGBA 位图渲染与着色器动态染色**：全仓图标统一由矢量 SVG 源文件生成 64px/128px 多分辨率 RGBA 位图；运行时通过 `ImageNode` 结合自定义 Tint 着色器进行色彩注入，告别字形码位乱码与锯齿。模块：`crates/infiltrator-bevy-widgets/src/icon.rs`。验收：在 4K 屏与移动端图标锐利细腻，完美支持主题色实时原地变色。
 143. **BEVY-GAP-143 纯函数核与 BSN 场景适配器严格二分契约**：所有业务控件严格贯彻“纯 Rust 数据核（零 Bevy 依赖、无外部副作用、100% 支持无头测试）+ 消费纯核输出的 `*_scene` 适配器（负责 BSN 树组装）”架构。模块：`crates/infiltrator-bevy-widgets/src/`。验收：所有复杂交互边界与状态机均在无窗口和无 GPU 环境下完成自动化测试。
 144. **BEVY-GAP-144 ECS 实体生命周期追踪与观察者内存泄漏清剿**：建立页面挂载销毁生命周期守卫，在有界子树执行 `despawn_children` 时，通过层级递归遍历，确保关联的定时器、瞬态资源与未决 Observer 观察者彻底反注册。模块：`crates/infiltrator-bevy-ui/src/lifecycle.rs`。验收：10,000 次高频页面切换压力测试下 World 实体总数与堆内存保持稳定，零泄漏。
@@ -197,5 +201,5 @@
 146. **BEVY-GAP-146 全链路 AccessKit 屏幕阅读器语义树补全**：为所有自定义按钮、开关、滑块、列表项、输入框与模态窗口注入精准的 `AccessKit::Role`、`Label`、`Value` 与 `Action` 描述，与操作系统无障碍辅助技术握手。模块：`crates/infiltrator-bevy-widgets/src/a11y.rs`。验收：视障用户在开启 Windows Narrator、Linux Orca 或 Android TalkBack 时无障碍听读操作。
 147. **BEVY-GAP-147 桌面窗口亚克力 (Acrylic) 与毛玻璃 (Mica) 特效**：接入平台原生窗口装饰 API，在 Windows 11 开启 Mica / DWM 亚克力材质，在 macOS 开启 NSVisualEffectView 原生磨砂玻璃背景，与现代操作系统设计语言共鸣。模块：`crates/infiltrator-bevy-widgets/src/windowing.rs`。验收：窗口背景通透优雅，与桌面壁纸产生高级光影层次。
 148. **BEVY-GAP-148 Android 触觉震动反馈与边缘误触抑制**：通过 JNI 封装 Android Vibrator 触觉反馈接口，在移动端执行节点选择、模式切换、开关滑动与长按时提供微妙触觉震动；并在屏幕四周保留 12px 防误触安全边缘。模块：`crates/infiltrator-bevy-widgets/src/haptics.rs`。验收：移动端操作手感厚实精准，防止手指边缘滑动时意外触发切换。
-149. **BEVY-GAP-149 跨平台二进制打包极限瘦身与管线预热**：应用 Cargo profile release strip、LTO 优化、冷门着色器分支裁剪与内置字形按需精简；首次启动时后台异步预热 GPU 渲染管线，消除首次点击控件时的着色器编译微掉帧。模块：`scripts/build-bevy-apk.sh`。验收：二进制体积缩小 40%，Android APK 极简轻量，首屏冷启动 <300ms。
+149. **BEVY-GAP-149 跨平台二进制打包瘦身与按需管线预热**：保留现有 APK 构建入口，整合真实宿主、内核与资产，核验默认特性 release、ABI/SDK/NDK、strip/LTO 和升级回滚；字形裁剪不损害支持语言，预热不阻塞首屏。验收：绑定当前 APK/源码/设备的体积、冷启动与首交互分布；不将无默认特性库检查或历史缩小比例当作最终产品证据。
 150. **BEVY-GAP-150 CI 自动化无头回归与像素级视觉比对门禁**：在 GitHub Actions CI 中持续集成无头 niri 截图矩阵与像素级 Diff 比对，覆盖全 11 个页面在明亮、暗黑模式及多端分辨率下的渲染结果，任何视觉降级直接拦截构建。模块：`scripts/capture-bevy-matrix.sh`、`.github/workflows/test.yml`。验收：后续迭代中 UI 视觉标准与设计规范永不发生意外回退。

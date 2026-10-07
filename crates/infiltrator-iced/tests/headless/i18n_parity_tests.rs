@@ -30,9 +30,15 @@ fn all_locale_keys() -> BTreeSet<String> {
         keys_of("locales_table.rs"),
         keys_of("locales_table_legacy.rs"),
         keys_of("locales_table_ext.rs"),
+        keys_of("locales_table_workflow_zh.rs"),
+        keys_of("locales_table_network_zh.rs"),
+        keys_of("locales_table_surface_zh.rs"),
         keys_of("locales_table_en.rs"),
         keys_of("locales_table_en_legacy.rs"),
         keys_of("locales_table_en_ext.rs"),
+        keys_of("locales_table_workflow_en.rs"),
+        keys_of("locales_table_network_en.rs"),
+        keys_of("locales_table_surface_en.rs"),
     ]
     .into_iter()
     .flatten()
@@ -79,6 +85,9 @@ fn zh_and_en_tables_have_exact_key_parity() {
         keys_of("locales_table.rs"),
         keys_of("locales_table_legacy.rs"),
         keys_of("locales_table_ext.rs"),
+        keys_of("locales_table_workflow_zh.rs"),
+        keys_of("locales_table_network_zh.rs"),
+        keys_of("locales_table_surface_zh.rs"),
     ]
     .into_iter()
     .flatten()
@@ -87,6 +96,9 @@ fn zh_and_en_tables_have_exact_key_parity() {
         keys_of("locales_table_en.rs"),
         keys_of("locales_table_en_legacy.rs"),
         keys_of("locales_table_en_ext.rs"),
+        keys_of("locales_table_workflow_en.rs"),
+        keys_of("locales_table_network_en.rs"),
+        keys_of("locales_table_surface_en.rs"),
     ]
     .into_iter()
     .flatten()

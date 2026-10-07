@@ -7,6 +7,13 @@ use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
 use crate::update::core::profile_apply::save_task;
 use iced::Task;
+use iced::widget::text_editor::Content;
+use infiltrator_domain::proxy_providers::{ProxyProviders, apply_proxy_providers_to_yaml};
+use infiltrator_domain::rules::{RuleProviders, apply_rule_providers_to_yaml};
+use infiltrator_domain::sniffer::apply_sniffer_to_yaml;
+use std::time::Instant;
+use tokio::time;
+use tokio::time::sleep;
 
 impl AppState {
     pub(super) fn ensure_rule_providers_editor_loaded(&mut self) {
@@ -16,9 +23,9 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         self.editor.rule_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.rule_providers_json_cache);
+            Content::with_text(&self.editor.rule_providers_json_cache);
         self.editor.rule_providers_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
@@ -30,9 +37,9 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         self.editor.proxy_providers_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.proxy_providers_json_cache);
+            Content::with_text(&self.editor.proxy_providers_json_cache);
         self.editor.proxy_providers_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
@@ -43,9 +50,8 @@ impl AppState {
         {
             return;
         }
-        let start = std::time::Instant::now();
-        self.editor.sniffer_json_content =
-            iced::widget::text_editor::Content::with_text(&self.editor.sniffer_json_cache);
+        let start = Instant::now();
+        self.editor.sniffer_json_content = Content::with_text(&self.editor.sniffer_json_cache);
         self.editor.sniffer_editor_state = EditorLazyState::Loaded;
         self.diag.perf_snapshot.rules_with_text_apply_ms = start.elapsed().as_millis();
     }
@@ -78,10 +84,9 @@ impl AppState {
                 save_task(
                     self.runtime.runtime.clone(),
                     move |content| {
-                        let providers =
-                            serde_json::from_str::<infiltrator_domain::rules::RuleProviders>(&text)
-                                .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
-                        infiltrator_domain::rules::apply_rule_providers_to_yaml(content, &providers)
+                        let providers = serde_json::from_str::<RuleProviders>(&text)
+                            .map_err(|e| anyhow::anyhow!("Invalid rule providers JSON: {e}"))?;
+                        apply_rule_providers_to_yaml(content, &providers)
                     },
                     Message::RuleProvidersJsonSaved,
                 )
@@ -106,7 +111,7 @@ impl AppState {
                             Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -128,13 +133,9 @@ impl AppState {
                 save_task(
                     self.runtime.runtime.clone(),
                     move |content| {
-                        let providers = serde_json::from_str::<
-                            infiltrator_domain::proxy_providers::ProxyProviders,
-                        >(&text)
-                        .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
-                        infiltrator_domain::proxy_providers::apply_proxy_providers_to_yaml(
-                            content, &providers,
-                        )
+                        let providers = serde_json::from_str::<ProxyProviders>(&text)
+                            .map_err(|e| anyhow::anyhow!("Invalid proxy providers JSON: {e}"))?;
+                        apply_proxy_providers_to_yaml(content, &providers)
                     },
                     Message::ProxyProvidersJsonSaved,
                 )
@@ -159,7 +160,7 @@ impl AppState {
                             Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),
@@ -183,7 +184,7 @@ impl AppState {
                     move |content| {
                         let config = serde_json::from_str::<serde_json::Value>(&text)
                             .map_err(|e| anyhow::anyhow!("Invalid sniffer JSON: {e}"))?;
-                        infiltrator_domain::sniffer::apply_sniffer_to_yaml(content, &config)
+                        apply_sniffer_to_yaml(content, &config)
                     },
                     Message::SnifferJsonSaved,
                 )
@@ -208,7 +209,7 @@ impl AppState {
                             Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error)),
                             Task::perform(
                                 async {
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                    sleep(time::Duration::from_secs(4)).await;
                                 },
                                 |_| Message::ClearRebuildFlow,
                             ),

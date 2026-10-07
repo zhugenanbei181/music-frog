@@ -2,23 +2,60 @@
 //! tables so the full UI renders without any runtime or side effects.
 
 use super::DemoEnv;
+use super::dns_hosts;
+use super::dns_leak;
+use super::dns_query;
+use super::doctor;
+use super::filter;
 use super::fixtures::{
     demo_connections, demo_logs, demo_profiles, demo_rules, demo_traffic_history,
     demo_traffic_waveform, dns_json_fixture, fake_ip_json_fixture, profile_yaml_fixture,
     proxy_providers_json_fixture, rule_providers_json_fixture, sniffer_json_fixture,
     tun_json_fixture,
 };
+use super::interaction;
+use super::language;
+use super::logs;
 use super::proxy_fixtures::demo_proxy_tables;
+use super::proxy_mode;
+use super::rule_list;
+use super::rule_statistics;
+use super::rule_trace;
+use super::snapshot_restore;
+use super::telemetry;
+use crate::admin_server::ADMIN_DEFAULT_PORT;
 use crate::state::AppState;
+use crate::types::app::SyncConflict;
+use crate::types::dns::{FakeIpFormDraft, TunFormDraft};
 use crate::types::message::Message;
+use crate::types::options::{MrsProviderDetail, SyncDiffBundle, SyncDiffState};
 use crate::types::runtime::RuntimeStatus;
+use iced::widget::text_editor::Content;
+use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_application::subscription_filter_fixture::observation;
+use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::dns::{DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode};
+use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
+use infiltrator_contract::parity::FeatureId;
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
+use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
 use infiltrator_contract::version::InstalledCoreVersion;
+use infiltrator_domain::filter_policy_form::filter_spec_to_draft;
+use infiltrator_domain::mrs::{Behavior, MrsMetadata};
+use infiltrator_domain::profile_options::{FilterDedup, FilterSpec, RenameSpec};
 use infiltrator_domain::runtime::{MemoryData, ProxyProvider, RuleProvider, TrafficData};
+use infiltrator_domain::traffic_scale::compute;
 use std::path::PathBuf;
+use std::time;
+use std::time::Instant;
 
 impl AppState {
     /// Fully populated demo state: every page renders with realistic data and
@@ -32,9 +69,12 @@ impl AppState {
         // demo-mode: mark the session before anything else can touch a system.
         state.shell.demo = true;
         state.shell.capture_marker = env.capture_marker.clone();
+        state.shell.capture_scenario = env.scenario;
         state.shell.current_route = env.page;
         state.shell.theme = env.skin.clone();
         state.shell.lang = env.lang.clone();
+        state.shell.viewport =
+            ResponsiveViewportSnapshot::from_dimensions(env.window_size.0, env.window_size.1);
 
         // ---- runtime status -------------------------------------------
         state.runtime.status = RuntimeStatus::Running;
@@ -42,14 +82,10 @@ impl AppState {
         // Demo profile pretends to carry a top-level script: block so the
         // Script mode segment (sidebar + tray) is exercised in captures.
         state.runtime.script_block_present = true;
+        state.runtime.proxy_mode_state = ProxyModeSnapshot::demo_fixture();
         state.runtime.system_proxy_enabled = true;
         state.runtime.tun_enabled = Some(false);
-        state.runtime.system_toggles =
-            infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
-                true,
-                Some(false),
-                1,
-            );
+        state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(true, Some(false), 1);
         state.editor.tun_stack = "gvisor".to_string();
         state.editor.tun_auto_route = true;
         state.editor.tun_strict_route = false;
@@ -63,15 +99,14 @@ impl AppState {
         // ---- proxies page ----------------------------------------------
         let (proxies, groups) = demo_proxy_tables();
         state.runtime.proxies = proxies;
+        state.observe_probe_settings(&Default::default());
         state.runtime.filtered_groups = groups;
+        state.recompute_filtered_groups();
         state.runtime.runtime_selected_group = "GLOBAL".to_string();
-        state.runtime.runtime_selected_proxy = "节点选择".to_string();
-        state.runtime.traffic_topology =
-            infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
-        state.runtime.active_exit =
-            infiltrator_contract::active_exit::ActiveExitSnapshot::demo_fixture();
-        state.runtime.subscription_quota =
-            infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::demo_fixture();
+        state.runtime.runtime_selected_proxy = "PROXIES".to_string();
+        state.runtime.traffic_topology = TrafficTopologySnapshot::demo_fixture();
+        state.runtime.active_exit = ActiveExitSnapshot::demo_fixture();
+        state.runtime.subscription_quota = SubscriptionQuotaSnapshot::demo_fixture();
 
         // ---- traffic / memory / connections ----------------------------
         let history = demo_traffic_history();
@@ -86,8 +121,7 @@ impl AppState {
         // and the shared scale projection is derived from it (the Overview
         // card consumes both; a default scale would flatten the demo chart).
         state.runtime.traffic_waveform = demo_traffic_waveform();
-        state.runtime.traffic_scale =
-            infiltrator_domain::traffic_scale::compute(&state.runtime.traffic_waveform, 60);
+        state.runtime.traffic_scale = compute(&state.runtime.traffic_waveform, 60);
         state.diag.memory = Some(MemoryData {
             in_use: 96_468_992,
             os_limit: 0,
@@ -102,20 +136,26 @@ impl AppState {
             conn.upload /= 2;
             conn.download /= 2;
         }
-        let now = std::time::Instant::now();
-        let _ = state.apply_connections_snapshot(previous, now - std::time::Duration::from_secs(2));
+        let now = Instant::now();
+        let _ = state.apply_connections_snapshot(previous, now - time::Duration::from_secs(2));
         let _ = state.apply_connections_snapshot(connections, now);
         state.diag.log_level = "info".to_string();
         state.diag.logs = demo_logs();
+        state.diag.observe_log_records();
 
         // ---- rules page ---------------------------------------------------
-        state.editor.rules = demo_rules();
+        let document = list_document(demo_rules());
+        state.editor.rule_list.observe(Some(&document), None);
+        state
+            .editor
+            .rule_form_binding
+            .observe(&state.editor.rule_list);
         state.editor.rules_loaded_once = true;
         state.editor.rules_heavy_ready = true;
         // Capture variant `rules-providers` opens the Providers tab so the
         // provider lists and MRS metadata panel are in frame.
         if env.providers_tab {
-            state.editor.rules_tab = infiltrator_contract::rules_workspace::RulesTab::Providers;
+            state.editor.rules_tab = RulesTab::Providers;
             state.editor.rules_providers_expanded = true;
         }
         state.rebuild_rules_render_cache();
@@ -150,14 +190,14 @@ impl AppState {
         // MRS metadata details paired with the rule providers above; the
         // last entry demonstrates the missing-cache failure projection.
         state.editor.mrs_details = vec![
-            crate::types::options::MrsProviderDetail {
+            MrsProviderDetail {
                 name: "reject".to_string(),
                 behavior: "domain".to_string(),
                 file: Some(PathBuf::from(
                     "/home/demo/.config/musicfrog-infiltrator/providers/rules/reject.mrs",
                 )),
-                metadata: Some(infiltrator_domain::mrs::MrsMetadata {
-                    behavior: infiltrator_domain::mrs::Behavior::Domain,
+                metadata: Some(MrsMetadata {
+                    behavior: Behavior::Domain,
                     rule_count: 52_345,
                     version: 1,
                     payload_size: 1_882_304,
@@ -165,14 +205,14 @@ impl AppState {
                 }),
                 errors: Vec::new(),
             },
-            crate::types::options::MrsProviderDetail {
+            MrsProviderDetail {
                 name: "cn-cidr".to_string(),
                 behavior: "ipcidr".to_string(),
                 file: Some(PathBuf::from(
                     "/home/demo/.config/musicfrog-infiltrator/providers/rules/cn-cidr.mrs",
                 )),
-                metadata: Some(infiltrator_domain::mrs::MrsMetadata {
-                    behavior: infiltrator_domain::mrs::Behavior::IpCidr,
+                metadata: Some(MrsMetadata {
+                    behavior: Behavior::IpCidr,
                     rule_count: 9_412,
                     version: 1,
                     payload_size: 264_180,
@@ -180,7 +220,7 @@ impl AppState {
                 }),
                 errors: Vec::new(),
             },
-            crate::types::options::MrsProviderDetail {
+            MrsProviderDetail {
                 name: "google".to_string(),
                 behavior: "domain".to_string(),
                 file: None,
@@ -197,8 +237,8 @@ impl AppState {
         ];
         state.editor.dns_fallback_servers = vec!["8.8.8.8".to_string(), "1.1.1.1".to_string()];
         state.editor.dns_enhanced_mode = "fake-ip".to_string();
-        state.editor.dns_form = infiltrator_contract::dns_form::DnsWorkbenchForm {
-            switches: infiltrator_contract::dns::DnsCoreSwitches {
+        state.editor.dns_form = DnsWorkbenchForm {
+            switches: DnsCoreSwitches {
                 enable: true,
                 ipv6: true,
                 cache: true,
@@ -208,20 +248,20 @@ impl AppState {
             },
             nameserver: "223.5.5.5\n119.29.29.29\nhttps://doh.pub/dns-query".to_string(),
             fallback: "8.8.8.8\n1.1.1.1".to_string(),
-            enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::FakeIp,
+            enhanced_mode: DnsEnhancedMode::FakeIp,
             fake_ip_range: "198.18.0.1/16".to_string(),
             fake_ip_filter: "*.lan\n*.local".to_string(),
-            filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::Blacklist,
+            filter_mode: DnsFakeIpFilterMode::Blacklist,
             proxy_server_nameserver: "https://doh.pub/dns-query".to_string(),
             direct_nameserver: String::new(),
-            ..infiltrator_contract::dns_form::DnsWorkbenchForm::default()
+            ..DnsWorkbenchForm::default()
         };
-        state.editor.fake_ip_form = crate::types::dns::FakeIpFormDraft {
+        state.editor.fake_ip_form = FakeIpFormDraft {
             fake_ip_range: "198.18.0.1/16".to_string(),
             fake_ip_filter: "*.lan\n*.local".to_string(),
             store_fake_ip: true,
         };
-        state.editor.tun_form = crate::types::dns::TunFormDraft {
+        state.editor.tun_form = TunFormDraft {
             enable: false,
             stack: "gvisor".to_string(),
             mtu: "9001".to_string(),
@@ -245,20 +285,27 @@ impl AppState {
         state.profile.subscription_update_interval_hours = "24".to_string();
         // Per-profile subscription filter editor: prefilled from a fixture
         // spec so the Profiles page card shows a realistic working draft.
-        state.editor.filter_draft = infiltrator_domain::profile_options::filter_spec_to_draft(
-            &infiltrator_domain::profile_options::FilterSpec {
-                include_keywords: vec!["香港".to_string(), "日本".to_string()],
-                exclude_keywords: vec!["剩余流量".to_string(), "官网".to_string()],
-                rename_rules: vec![infiltrator_domain::profile_options::RenameSpec {
-                    pattern: r"🇭🇰 香港-(\d+)".to_string(),
-                    replacement: "HK-$1".to_string(),
-                }],
-                exclude_types: vec!["trojan".to_string()],
-                deduplication: infiltrator_domain::profile_options::FilterDedup::AppendIndex,
-                ..Default::default()
-            },
+        let filter_draft = filter_spec_to_draft(&FilterSpec {
+            include_keywords: vec!["香港".to_string(), "日本".to_string()],
+            exclude_keywords: vec!["剩余流量".to_string(), "官网".to_string()],
+            rename_rules: vec![RenameSpec {
+                pattern: r"🇭🇰 香港-(\d+)".to_string(),
+                replacement: "HK-$1".to_string(),
+            }],
+            exclude_types: vec!["trojan".to_string()],
+            deduplication: FilterDedup::AppendIndex,
+            ..Default::default()
+        })
+        .expect("explicit demo filter policy");
+        let filter_observation = observation(
+            "机场订阅",
+            &state.editor.editor_content.text(),
+            filter_draft,
         );
-        state.editor.filter_loaded_for = Some("机场订阅".to_string());
+        state
+            .editor
+            .filter_editor
+            .observe(filter_observation.map(Some));
 
         // ---- sync / settings page ---------------------------------------------
         state.profile.webdav_enabled = true;
@@ -269,25 +316,21 @@ impl AppState {
         state.profile.webdav_sync_on_startup = false;
         // Sync-conflict key-level merge session: one conflict plus the
         // computed diff so the per-key picker renders on the Sync page.
-        state.profile.sync_conflicts = vec![crate::types::app::SyncConflict {
+        state.profile.sync_conflicts = vec![SyncConflict {
             profile: "机场订阅".to_string(),
             remote_path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/冲突副本.yaml"),
         }];
-        state.profile.sync_diff = Some(crate::types::options::SyncDiffState::new(
-            crate::types::options::SyncDiffBundle {
-                profile: "机场订阅".to_string(),
-                remote_path: PathBuf::from(
-                    "/home/demo/.config/musicfrog-infiltrator/冲突副本.yaml",
-                ),
-                added: vec!["dns".to_string()],
-                removed: vec!["tun".to_string()],
-                modified: vec![(
-                    "mixed-port".to_string(),
-                    "7890".to_string(),
-                    "7897".to_string(),
-                )],
-            },
-        ));
+        state.profile.sync_diff = Some(SyncDiffState::new(SyncDiffBundle {
+            profile: "机场订阅".to_string(),
+            remote_path: PathBuf::from("/home/demo/.config/musicfrog-infiltrator/冲突副本.yaml"),
+            added: vec!["dns".to_string()],
+            removed: vec!["tun".to_string()],
+            modified: vec![(
+                "mixed-port".to_string(),
+                "7890".to_string(),
+                "7897".to_string(),
+            )],
+        }));
         if let Some(diff) = &mut state.profile.sync_diff {
             diff.picks.insert("dns".to_string(), true);
         }
@@ -306,21 +349,20 @@ impl AppState {
         // Admin entry stays consistent with the (never started) demo server:
         // settings show the default port 25210 but the server is not running.
         state.shell.admin_enabled = true;
-        state.shell.admin_port = crate::admin_server::ADMIN_DEFAULT_PORT;
-        state.shell.admin_port_input = crate::admin_server::ADMIN_DEFAULT_PORT.to_string();
+        state.shell.admin_port = ADMIN_DEFAULT_PORT;
+        state.shell.admin_port_input = ADMIN_DEFAULT_PORT.to_string();
 
         // ---- editor page --------------------------------------------------------
         state.editor.editor_path = Some(PathBuf::from(
             "/home/demo/.config/musicfrog-infiltrator/profiles/机场订阅.yaml",
         ));
         state.editor.editor_path_setting = String::new();
-        state.editor.editor_content =
-            iced::widget::text_editor::Content::with_text(&profile_yaml_fixture());
+        state.editor.editor_content = Content::with_text(&profile_yaml_fixture());
         // Mixin pane fixture: the overlay document the pane edits, plus the
         // pane selected via the capture scenario (`mixin-*` rows).
         state.editor.editor_pane = env.pane;
         state.editor.mixin_loaded_for = Some("机场订阅".to_string());
-        state.editor.mixin_content = iced::widget::text_editor::Content::with_text(
+        state.editor.mixin_content = Content::with_text(
             r#"# Mixin 覆写：深合并到当前 profile 之上
 mode: rule
 ipv6: true
@@ -333,10 +375,76 @@ rules:
   prepend:
     - DOMAIN-SUFFIX,internal.example.com,DIRECT
   append:
-    - MATCH,节点选择
+    - MATCH,PROXIES
 "#,
         );
 
+        if let Some(feature) = env.scenario {
+            if feature == FeatureId::RuntimeTelemetryObservation {
+                let task = telemetry::activate(&mut state);
+                return (state, task);
+            }
+            if matches!(
+                feature,
+                FeatureId::ShellProxyModeControl | FeatureId::ShellProxyModeAuthentication
+            ) {
+                let task = proxy_mode::activate(&mut state, feature);
+                return (state, task);
+            }
+            if matches!(
+                feature,
+                FeatureId::LogsSearchHighlight
+                    | FeatureId::LogsScrollLock
+                    | FeatureId::LogsRedactedExport
+            ) {
+                let task = logs::activate(&mut state, feature);
+                return (state, task);
+            }
+            if feature == FeatureId::ProfilesFilterEditor {
+                let task = filter::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::RulesStatisticsInspector {
+                let task = rule_statistics::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::RulesListEditor {
+                let task = rule_list::activate(&mut state);
+                return (state, task);
+            }
+            if matches!(
+                feature,
+                FeatureId::RulesTracerDrawer | FeatureId::RulesOverrideEditor
+            ) {
+                let task = rule_trace::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::DnsHostsEditor {
+                let task = dns_hosts::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::DnsQueryDetails {
+                let task = dns_query::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::DnsLeakAlert {
+                let task = dns_leak::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::DoctorFailureRecovery {
+                let task = doctor::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::ProfilesSnapshotRestoreConfirm {
+                let task = snapshot_restore::activate(&mut state);
+                return (state, task);
+            }
+            if feature == FeatureId::SettingsLanguageChoice {
+                let task = language::activate(&mut state);
+                return (state, task);
+            }
+            interaction::activate(&mut state, feature);
+        }
         (state, iced::Task::none())
     }
 }

@@ -4,146 +4,145 @@
 //! async legs, verified against the temp-HOME filesystem.
 //!
 //! test-intent: behavior
+use crate::test_mounts::command_harness::recording_application;
+use crate::test_mounts::profile_edit_fixture;
+use crate::test_mounts::script_workbench_tests::complete;
+use crate::types::script::ScriptAction;
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_domain::filter_policy_form;
 
-use super::support::{TempHome, block_on, feed, fresh_state, last_toast};
+use super::support::{SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast};
+use crate::configs_dir::config_manager;
+use crate::types::app::Route;
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
-use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
-use infiltrator_core::profile_options_io;
-use infiltrator_domain::mixin::MixinConfig;
-use infiltrator_domain::profile_options::{self, ProfileOptions};
+use crate::view::mixin_studio::{cascade_strip, preflight_banner, three_column_row, toggle_row};
+use crate::view::script_export::export_section;
+use futures_util::StreamExt;
+use iced::Task;
+use iced::widget::text_editor::{Action, Edit};
+use iced_runtime::task::into_stream;
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::language_choice_fixtures::LanguageCaptureProcess;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::profile_options_application::ProfileOptionsApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_composition::tokio_application_runtime;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::subscription_filter_form::FilterObservation;
+use infiltrator_desktop::script_export::DesktopScriptExportPort;
+use infiltrator_domain::filter::NodeSortOrder;
+use infiltrator_domain::mixin_studio::mixin_editor_columns;
+use mihomo_config::profile_option_store;
+use std::fs::read_to_string;
+use std::sync::Arc;
+
+fn filter_terminal(task: Task<Message>) -> Message {
+    block_on(async {
+        let mut stream = into_stream(task).expect("production filter command task");
+        let Some(iced_runtime::Action::Output(message)) = stream.next().await else {
+            panic!("filter command must produce a terminal message");
+        };
+        assert!(stream.next().await.is_none());
+        message
+    })
+}
 
 /// Journey 4 — Editor 三 pane：打开 profile → Mixin pane 懒加载 → 编辑 →
 /// 非法 YAML 被校验门拒绝 → 修正 → 保存 → mixin 合并落盘 + options sidecar。
 #[test]
 fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
     let home = TempHome::acquire("mixin-panes");
-    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
 
-    // Profiles page → open editor (EditProfile routes; the async read is fed
-    // back as its result message, exactly what the runtime would deliver).
-    let units = feed(&mut state, Message::EditProfile(profile_path.clone()));
-    assert_eq!(units, 1);
-    feed(
-        &mut state,
-        Message::ProfileContentLoaded(Ok((
-            profile_path.clone(),
-            super::support::SAMPLE_PROFILE_YAML.into(),
-        ))),
+    let store = block_on(config_manager()).unwrap();
+    let profiles = ProfileApplication::new(store.clone());
+    let commands = CoreApplication::new(
+        Arc::new(LanguageCaptureProcess),
+        Arc::new(LanguageCaptureProcess),
+        tokio_application_runtime().unwrap(),
     );
-    // ProfileContentLoaded chains Navigate(Editor) as a lazy done-task; the
-    // runtime delivers it on the next hop — replay that hop here.
-    feed(
-        &mut state,
-        Message::Navigate(crate::types::app::Route::Editor),
-    );
+    commands.install_command_handler(Arc::new(CommandApplication::new().with_profile(profiles)));
+    state.commands = Some(commands);
+    // Native TEA load and save tasks execute the actual application and store boundary.
+    let task = state.update(Message::EditProfile(profile_path.clone()));
+    let reply = filter_terminal(task);
+    feed(&mut state, reply);
+    feed(&mut state, Message::Navigate(Route::Editor));
     assert_eq!(
         state.editor.editor_path.as_deref(),
         Some(profile_path.as_path())
     );
-    assert_eq!(state.shell.current_route, crate::types::app::Route::Editor);
+    assert_eq!(state.shell.current_route, Route::Editor);
     assert_eq!(state.editor.editor_pane, EditorPane::Profile);
-
-    // Switch to the Mixin pane: lazy load arms (task dropped) → the loaded
-    // overlay 回灌 fills the editor.
-    let units = feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
-    assert_eq!(units, 1, "lazy overlay load armed");
+    let task = state.update(Message::SetEditorPane(EditorPane::Mixin));
+    let reply = filter_terminal(task);
+    feed(&mut state, reply);
     assert_eq!(state.editor.mixin_loaded_for.as_deref(), Some("alpha"));
+    feed(&mut state, Message::MixinEditorAction(Action::SelectAll));
     feed(
         &mut state,
-        Message::MixinLoaded(Ok("log-level: silent\n".into())),
+        Message::MixinEditorAction(Action::Edit(Edit::Paste(Arc::new(
+            "log-level: [broken".into(),
+        )))),
     );
-    assert_eq!(state.editor.mixin_content.text(), "log-level: silent\n");
-
-    // Typing flows through the editor action; a broken overlay is rejected
-    // by the synchronous validation gate before any state or task moves.
-    for ch in "log-level: [broken".chars() {
-        feed(
-            &mut state,
-            Message::MixinEditorAction(iced::widget::text_editor::Action::Edit(
-                iced::widget::text_editor::Edit::Insert(ch),
-            )),
-        );
-    }
     let units = feed(&mut state, Message::SaveMixin);
-    assert_eq!(units, 1, "gate rejection arms only the error toast");
+    assert_eq!(
+        units, 1,
+        "preflight rejection exposes the validation failure"
+    );
     assert!(!state.editor.is_saving_mixin);
     assert!(
         state
             .shell
             .error_msg
             .as_deref()
-            .unwrap_or("")
-            .contains("Mixin"),
-        "validation error surfaces through the single sink"
+            .unwrap_or_default()
+            .contains("Mixin")
     );
     assert!(
         !home.configs().join("options/alpha.yaml").exists(),
-        "rejected overlay must not write a sidecar"
+        "rejected draft never writes a sidecar"
     );
-
-    // Fix the overlay (fresh load 回灌 instead of retyping), then save.
+    feed(&mut state, Message::MixinEditorAction(Action::SelectAll));
     feed(
         &mut state,
-        Message::MixinLoaded(Ok("mode: global\n".into())),
+        Message::MixinEditorAction(Action::Edit(Edit::Paste(Arc::new("mode: global\n".into())))),
     );
-    let units = feed(&mut state, Message::SaveMixin);
-    assert!(state.editor.is_saving_mixin, "gate passed → task in flight");
-    assert_eq!(units, 1, "single persistence task armed");
-
-    // Task body for real: load old options → strip old mixin rules → merge →
-    // validate → commit profile → persist sidecar.
-    let mixin: MixinConfig = serde_yaml_ng::from_str("mode: global\n").unwrap();
-    block_on(async {
-        let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options_io::load_options(&config_dir, "alpha")
-            .await
-            .unwrap();
-        let manager = crate::configs_dir::config_manager().await.unwrap();
-        let content = manager.load("alpha").await.unwrap();
-        let removals: Vec<String> = old
-            .mixin
-            .rules
-            .iter()
-            .flat_map(|rules| rules.prepend.iter().chain(rules.append.iter()).cloned())
-            .collect();
-        let base = profile_options::strip_rule_lines(&content, &removals);
-        let merged = infiltrator_domain::mixin::merge_profile_with_config(&base, &mixin).unwrap();
-        infiltrator_domain::config::validate_yaml(&merged).unwrap();
-        crate::update::core::profile_apply::save_profile_content(
-            None,
-            "alpha".into(),
-            merged,
-            infiltrator_domain::apply::ApplyStrategy::PreferReload,
-        )
-        .await
-        .unwrap();
-        profile_options_io::save_options(
-            &config_dir,
-            "alpha",
-            &ProfileOptions {
-                mixin,
-                filter: old.filter,
-            },
-        )
-        .await
-        .unwrap();
-    });
-
-    let units = feed(&mut state, Message::MixinSaved(Ok(())));
+    let task = state.update(Message::SaveMixin);
+    assert!(state.editor.is_saving_mixin);
+    let before_wait = state.editor.mixin_content.text();
+    feed(
+        &mut state,
+        Message::MixinEditorAction(Action::Edit(Edit::Insert('x'))),
+    );
+    assert_eq!(
+        state.editor.mixin_content.text(),
+        before_wait,
+        "the pending transaction freezes its reviewed input"
+    );
+    let reply = filter_terminal(task);
+    let units = feed(&mut state, reply);
     assert!(!state.editor.is_saving_mixin);
-    assert!(units >= 2, "snapshots + editor reload + toast chained");
+    assert!(state.editor.mixin_session.saved);
+    assert!(state.editor.mixin_session.failure.is_none());
+    assert_eq!(
+        units, 1,
+        "only history refresh follows the actual save receipt"
+    );
+    assert!(state.editor.editor_content.text().contains("mode: global"));
 
     // Disk truth: the merged document AND the sidecar round-trip.
-    let on_disk = std::fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    let on_disk = read_to_string(home.configs().join("alpha.yaml")).unwrap();
     assert!(
         on_disk.contains("mode: global"),
         "mixin merged into profile: {on_disk}"
     );
     assert!(on_disk.contains("HK-1"), "proxies survive the merge");
-    let sidecar = block_on(profile_options_io::load_options(&home.configs(), "alpha")).unwrap();
+    let sidecar = block_on(profile_option_store::load_options(&home.configs(), "alpha")).unwrap();
     assert_eq!(
         sidecar.mixin.mode.as_deref(),
         Some("global"),
@@ -156,26 +155,31 @@ fn mixin_three_pane_journey_rejects_bad_yaml_then_persists_sidecar_and_merge() {
 #[test]
 fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
     let home = TempHome::acquire("filter-panes");
-    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
-
-    feed(
-        &mut state,
-        Message::ProfileContentLoaded(Ok((
-            profile_path,
-            super::support::SAMPLE_PROFILE_YAML.into(),
-        ))),
+    let commands = CoreApplication::new(
+        Arc::new(LanguageCaptureProcess),
+        Arc::new(LanguageCaptureProcess),
+        tokio_application_runtime().unwrap(),
     );
-    let units = feed(&mut state, Message::LoadProfileFilter);
-    assert_eq!(units, 1, "lazy filter load armed");
-    assert_eq!(state.editor.filter_loaded_for.as_deref(), Some("alpha"));
+    commands.install_command_handler(Arc::new(
+        CommandApplication::new()
+            .with_profile(ProfileApplication::new(block_on(config_manager()).unwrap())),
+    ));
+    state.commands = Some(commands);
 
-    // Empty store → default draft 回灌.
-    feed(
-        &mut state,
-        Message::ProfileFilterLoaded(Ok(SubscriptionFilterDraft::default())),
+    let reply =
+        profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
+    feed(&mut state, reply);
+    let read = state.update(Message::LoadProfileFilter);
+    assert_eq!(read.units(), 1, "lazy filter load armed");
+    assert_eq!(state.editor.filter_load.as_ref().unwrap().1, "alpha");
+    let loaded = filter_terminal(read);
+    assert!(
+        matches!(&loaded, Message::ProfileFilterLoaded { profile, result: Ok(_), .. } if profile == "alpha")
     );
+    let _ = state.update(loaded);
 
     // User edits the draft.
     feed(&mut state, Message::UpdateFilterInclude("HK".into()));
@@ -187,62 +191,73 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         Message::UpdateFilterRenames("没有箭头的规则".into()),
     );
     let units = feed(&mut state, Message::SaveProfileFilter);
-    assert_eq!(units, 1, "compile gate arms only the error toast");
-    assert!(!state.editor.is_saving_filter);
+    assert_eq!(
+        units, 0,
+        "invalid filter remains in the inline form without a persistence task"
+    );
+    assert_eq!(
+        state.editor.filter_editor.failure.as_ref().unwrap().code,
+        ErrorCode::InvalidInput
+    );
+    assert!(!state.editor.filter_editor.pending.is_some());
 
     // Valid draft → save arms the task; run its body for real.
     feed(&mut state, Message::UpdateFilterRenames(String::new()));
-    let units = feed(&mut state, Message::SaveProfileFilter);
-    assert!(state.editor.is_saving_filter);
-    assert_eq!(units, 1, "single persistence task armed");
-
-    let spec =
-        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
-            .unwrap();
-    let report = block_on(async {
-        let rule = spec.to_rule().unwrap();
-        let manager = crate::configs_dir::config_manager().await.unwrap();
-        let content = manager.load("alpha").await.unwrap();
-        let (filtered, report) = infiltrator_domain::filter::SubscriptionFilterPipeline::new(rule)
-            .apply_to_yaml(&content)
-            .unwrap();
-        infiltrator_domain::config::validate_yaml(&filtered).unwrap();
-        crate::update::core::profile_apply::save_profile_content(
-            None,
-            "alpha".into(),
-            filtered,
-            infiltrator_domain::apply::ApplyStrategy::PreferReload,
-        )
-        .await
-        .unwrap();
-        let config_dir = crate::configs_dir::configs_dir().await.unwrap();
-        let old = profile_options_io::load_options(&config_dir, "alpha")
-            .await
-            .unwrap();
-        profile_options_io::save_options(
-            &config_dir,
-            "alpha",
-            &ProfileOptions {
-                mixin: old.mixin,
-                filter: Some(spec.clone()),
-            },
-        )
-        .await
-        .unwrap();
-        report
-    });
-
+    feed(
+        &mut state,
+        Message::UpdateFilterAdvancedPolicy("{remove-emojis-typo: true}".into()),
+    );
+    assert_eq!(feed(&mut state, Message::SaveProfileFilter), 0);
     assert_eq!(
-        report.total_input, 3,
+        state.editor.filter_editor.failure.as_ref().unwrap().code,
+        ErrorCode::InvalidInput
+    );
+    assert!(state.editor.filter_editor.pending.is_none());
+    feed(
+        &mut state,
+        Message::UpdateFilterAdvancedPolicy("{remove-emojis: true, sort-by: name-desc}".into()),
+    );
+    let task = state.update(Message::SaveProfileFilter);
+    assert!(state.editor.filter_editor.pending.is_some());
+    assert_eq!(task.units(), 1, "single persistence task armed");
+
+    let pending = state.editor.filter_editor.pending.clone().unwrap();
+    let terminal = filter_terminal(task);
+    let Message::ProfileFilterSaved {
+        token,
+        result: Ok(report),
+    } = terminal
+    else {
+        panic!("filter command must return an applied source and report");
+    };
+    assert_eq!(token, pending.token);
+    assert_eq!(
+        report.report.total_input, 3,
         "three seed proxies entered the pipeline"
     );
-    feed(&mut state, Message::ProfileFilterSaved(Ok(report)));
-    assert!(!state.editor.is_saving_filter);
+    assert_eq!(
+        report.source,
+        block_on(async {
+            config_manager()
+                .await
+                .unwrap()
+                .load_workspace("alpha")
+                .await
+                .unwrap()
+                .source
+        })
+    );
+    feed(
+        &mut state,
+        Message::ProfileFilterSaved {
+            token: pending.token,
+            result: Ok(report),
+        },
+    );
+    assert!(state.editor.filter_editor.pending.is_none());
 
-    // Disk truth: the proxies list keeps exactly the nodes that passed (the
-    // pipeline filters the `proxies` sequence, not group references), the
-    // sidecar stores the compiled spec, and reopening the pane reads it back.
-    let on_disk = std::fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    // Disk truth: the pipeline changes proxies, preserves the sidecar and can reopen.
+    let on_disk = read_to_string(home.configs().join("alpha.yaml")).unwrap();
     let kept_names: Vec<String> = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&on_disk)
         .unwrap()
         .get("proxies")
@@ -263,28 +278,45 @@ fn filter_pane_journey_persists_sidecar_and_filters_proxies_on_disk() {
         vec!["HK-1".to_string()],
         "whitelist applied: {kept_names:?}"
     );
-    let sidecar = block_on(profile_options_io::load_options(&home.configs(), "alpha")).unwrap();
+    let sidecar = block_on(profile_option_store::load_options(&home.configs(), "alpha")).unwrap();
     let stored_spec = sidecar.filter.expect("filter spec persisted");
     assert_eq!(stored_spec.include_keywords, vec!["HK".to_string()]);
-
-    // 重开回读: the lazy loader would compile the spec back into a draft.
-    let reopened = infiltrator_domain::profile_options::filter_spec_to_draft(&stored_spec);
-    feed(&mut state, Message::ProfileFilterLoaded(Ok(reopened)));
-    assert_eq!(state.editor.filter_draft.include, "HK");
-    assert_eq!(state.editor.filter_draft.exclude, "US");
+    assert!(stored_spec.remove_emojis);
+    assert_eq!(stored_spec.sort_by, NodeSortOrder::NameDesc);
+    let reopened = filter_policy_form::filter_spec_to_draft(&stored_spec).unwrap();
+    feed(&mut state, Message::LoadProfileFilter);
+    let token = state.editor.filter_load.as_ref().unwrap().0;
+    let snapshot = block_on(async {
+        ProfileOptionsApplication::new(ProfileApplication::new(config_manager().await.unwrap()))
+            .load(Some("alpha"))
+            .await
+            .unwrap()
+    });
+    assert_eq!(snapshot.filter, reopened);
+    feed(
+        &mut state,
+        Message::ProfileFilterLoaded {
+            token,
+            profile: "alpha".into(),
+            result: Ok(FilterObservation {
+                source: snapshot.source,
+                filter: snapshot.filter,
+            }),
+        },
+    );
+    assert_eq!(state.editor.filter_editor.draft.include, "HK");
+    assert_eq!(state.editor.filter_editor.draft.exclude, "US");
 }
 
-/// Compile-gate negative: the filter editor bound to no profile is a no-op
-/// (no task, no flag, no write).
+/// An unbound filter form cannot submit, change pending state or write.
 #[test]
 fn filter_save_without_an_open_profile_is_an_inert_noop() {
     let mut state = fresh_state();
-    state.editor.filter_draft.include = "HK".into();
-    state.editor.filter_draft.renames = String::new();
-
+    state.editor.filter_editor.draft.include = "HK".into();
+    state.editor.filter_editor.draft.renames = String::new();
     let units = feed(&mut state, Message::SaveProfileFilter);
     assert_eq!(units, 0, "no editor_path → nothing to save");
-    assert!(!state.editor.is_saving_filter);
+    assert!(state.editor.filter_editor.pending.is_none());
     assert!(last_toast(&state).is_none());
 }
 
@@ -295,22 +327,16 @@ fn filter_save_without_an_open_profile_is_an_inert_noop() {
 #[test]
 fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     let home = TempHome::acquire("mixin-studio");
-    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
-    feed(
-        &mut state,
-        Message::ProfileContentLoaded(Ok((
-            profile_path,
-            super::support::SAMPLE_PROFILE_YAML.into(),
-        ))),
-    );
-    feed(
-        &mut state,
-        Message::Navigate(crate::types::app::Route::Editor),
-    );
+    let reply =
+        profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
+    feed(&mut state, reply);
+    feed(&mut state, Message::Navigate(Route::Editor));
     feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
-    feed(&mut state, Message::MixinLoaded(Ok("{}\n".into())));
+    let reply = profile_edit_fixture::options(&mut state, "{}\n".into());
+    feed(&mut state, reply);
 
     // DUAL-10-11: toggling flips a real MixinConfig field, not a text splice.
     feed(&mut state, Message::ToggleMixinPreset("ipv6".into(), true));
@@ -332,14 +358,14 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     // DUAL-10-10/08: the pane builds the shared preflight banner and the real
     // cascade strip over the open document.
     {
-        let _banner = crate::view::mixin_studio::preflight_banner(&state);
-        let _strip = crate::view::mixin_studio::cascade_strip(&state);
-        let _chips = crate::view::mixin_studio::toggle_row(&state);
+        let _banner = preflight_banner(&state);
+        let _strip = cascade_strip(&state);
+        let _chips = toggle_row(&state);
         // DUAL-10-09: the three-column row compiles and reads the shared
         // reduction over the open base document.
-        let _columns = crate::view::mixin_studio::three_column_row(&state);
+        let _columns = three_column_row(&state);
     }
-    let columns = infiltrator_domain::mixin_studio::mixin_editor_columns(
+    let columns = mixin_editor_columns(
         &state.editor.editor_content.text(),
         &state.editor.mixin_content.text(),
     );
@@ -352,9 +378,12 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     );
 
     // A broken overlay is blocked by the shared preflight before any write.
+    feed(&mut state, Message::MixinEditorAction(Action::SelectAll));
     feed(
         &mut state,
-        Message::MixinLoaded(Ok("mode: [unterminated\n".into())),
+        Message::MixinEditorAction(Action::Edit(Edit::Paste(Arc::new(
+            "mode: [unterminated\n".into(),
+        )))),
     );
     let units = feed(&mut state, Message::SaveMixin);
     assert_eq!(units, 1, "gate rejection arms only the error toast");
@@ -365,7 +394,7 @@ fn mixin_studio_toggles_preflight_and_cascade_ride_the_shared_module() {
     );
     // DUAL-10-09: a blocked overlay empties the composed column with the real
     // reason instead of a mock document.
-    let blocked = infiltrator_domain::mixin_studio::mixin_editor_columns(
+    let blocked = mixin_editor_columns(
         &state.editor.editor_content.text(),
         &state.editor.mixin_content.text(),
     );
@@ -384,47 +413,41 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
     use std::sync::Arc;
 
     let home = TempHome::acquire("mixin-export");
-    home.seed_profile("alpha", super::support::SAMPLE_PROFILE_YAML);
+    home.seed_profile("alpha", SAMPLE_PROFILE_YAML);
     let profile_path = home.configs().join("alpha.yaml");
     let mut state = fresh_state();
-    feed(
-        &mut state,
-        Message::ProfileContentLoaded(Ok((
-            profile_path,
-            super::support::SAMPLE_PROFILE_YAML.into(),
-        ))),
-    );
+    let reply =
+        profile_edit_fixture::document(&mut state, profile_path, SAMPLE_PROFILE_YAML.into());
+    feed(&mut state, reply);
     feed(&mut state, Message::SetEditorPane(EditorPane::Mixin));
-    feed(&mut state, Message::MixinLoaded(Ok("ipv6: true\n".into())));
+    let reply = profile_edit_fixture::options(&mut state, "ipv6: true\n".into());
+    feed(&mut state, reply);
 
-    // The user action arms the shared export task (no local composition).
-    let units = feed(
-        &mut state,
-        Message::ExportScriptDraft(ScriptExportKind::MixinOverlayYaml),
+    let exports =
+        ScriptExportApplication::new(Some(Arc::new(DesktopScriptExportPort::new(home.configs()))));
+    let (commands, _) = recording_application();
+    commands.install_command_handler(Arc::new(
+        CommandApplication::new().with_scripts(ScriptApplication::new(), exports.clone()),
+    ));
+    state.commands = Some(commands);
+    let task = state.update(Message::Script(ScriptAction::Export(
+        ScriptExportKind::MixinOverlayYaml,
+    )));
+    assert_eq!(task.units(), 1, "review task is armed");
+    complete(&mut state, task);
+    assert!(
+        !home.configs().join("exports/alpha.mixin.yaml").exists(),
+        "review does not write"
     );
-    assert_eq!(units, 1, "the export task is armed");
-    assert!(state.editor.script_sandbox.is_exporting);
-
-    // The same task body the update arm runs, with the real desktop adapter
-    // over this journey's temp home: a real file must land on disk.
-    let port =
-        Arc::new(infiltrator_desktop::script_export::DesktopScriptExportPort::new(home.configs()));
-    let snapshot =
-        infiltrator_application::script_export_application::ScriptExportApplication::new(Some(
-            port,
-        ))
-        .export_mixin_overlay(
-            "alpha",
-            &state.editor.editor_content.text(),
-            &state.editor.mixin_content.text(),
-        )
-        .expect("real export");
+    let task = state.update(Message::Script(ScriptAction::ConfirmExport));
+    complete(&mut state, task);
+    let snapshot = exports.snapshot().expect("actual export result");
     let exported_path = home.configs().join("exports/alpha.mixin.yaml");
     assert!(
         exported_path.exists(),
         "the host wrote a real overlay export at {exported_path:?}"
     );
-    let written = std::fs::read_to_string(&exported_path).expect("read export");
+    let written = read_to_string(&exported_path).expect("read export");
     assert!(written.contains("ipv6: true"));
     assert!(written.contains("非 JavaScript"));
     match &snapshot.outcome {
@@ -439,28 +462,17 @@ fn mixin_export_writes_a_real_yaml_file_and_reports_the_host_outcome() {
     }
 
     // The result message clears the busy flag and publishes the shared fact.
-    feed(
-        &mut state,
-        Message::ScriptExportFinished(Ok(snapshot.clone())),
-    );
-    assert!(!state.editor.script_sandbox.is_exporting);
-    assert_eq!(
-        state.editor.script_sandbox.export.as_ref(),
-        Some(&snapshot),
-        "the pane renders the shared export projection"
-    );
-    assert!(
-        last_toast(&state)
-            .map(|(text, _)| text.contains("alpha.mixin.yaml"))
-            .unwrap_or(false),
-        "the toast names the real file"
-    );
-    let _panel =
-        crate::view::script_export::export_section(&state, &[ScriptExportKind::MixinOverlayYaml]);
+    assert!(!state.editor.script_sandbox.is_exporting());
+    assert_eq!(state.editor.script_sandbox.export.as_ref(), Some(&snapshot));
+    let _panel = export_section(&state, &[ScriptExportKind::MixinOverlayYaml]);
 
     // A host with no save-file adapter is a typed unsupported, not a fake path.
-    let hostless = infiltrator_application::script_export_application::ScriptExportApplication::without_host_port()
-        .export_directive_dsl(Some("alpha"), "function main(config) { return config; }", None)
+    let hostless = ScriptExportApplication::without_host_port()
+        .export_directive_dsl(
+            Some("alpha"),
+            "function main(config) { return config; }",
+            None,
+        )
         .expect("compose for a hostless export");
     assert!(hostless.outcome.is_unsupported());
     assert!(hostless.content.contains("不是 JavaScript"));

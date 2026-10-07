@@ -5,31 +5,65 @@
 //! ([`AggregatorComposerState`]) and the observers that collect the draft from
 //! the widget tree and submit it through the shared command bus.
 
+#[path = "profiles_aggregator_wizard_query_access.rs"]
+pub mod query_access;
+use self::query_access::{
+    AggregationGroupControls, AggregationPreviewControls, AggregationSaveControls,
+    AggregationTemplateLoadControls, AggregationTemplateSaveControls,
+    OnAddAggregatorCustomGroupCustomLinesFilter, OnPreviewAggregationStatusFilter,
+};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::profiles::LastProfilesProjection;
+use crate::pages::profiles_aggregator::{
+    AggregatorNameField, AggregatorRenamesField, AggregatorSourceToggle, AggregatorSwitch,
+    AggregatorSwitchKind, AggregatorTemplateNameField, ClearAggregatorCustomGroupsButton,
+    DeleteAggregationTemplateButton, ReAggregateTemplateButton,
+};
 use bevy::ecs::component::Component;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryData, With};
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::ui::Checked;
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::{Activate, Checkbox, ValueChange};
+use infiltrator_application::aggregation_preview_projection::aggregation_custom_groups;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldState;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles_aggregator::{
-    AddAggregatorCustomGroupButton, AggregatorCustomGroupKeywordsField,
-    AggregatorCustomGroupNameField, AggregatorCustomGroupsText, AggregatorNameField,
-    AggregatorRenamesField, AggregatorSourceToggle, AggregatorStatusText, AggregatorSwitch,
-    AggregatorSwitchKind, AggregatorTemplateNameField, ClearAggregatorCustomGroupsButton,
-    DeleteAggregationTemplateButton, PreviewAggregationButton, ReAggregateTemplateButton,
-    SaveAggregatedProfileButton, SaveAggregationTemplateButton, UseAggregationTemplateButton,
-    aggregation_custom_groups,
-};
 use infiltrator_contract::aggregator::{
-    AggregationCustomGroup, AggregationDraft, AggregationRenameRule,
+    AggregationCustomGroup, AggregationDraft, AggregationRenameRule, AggregationTemplate,
 };
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct AggregatorStatusParts {
+    text: &'static mut Text,
+    copy: &'static mut LocalizedText,
+}
+
+/// SDK checkbox changes edit the local wizard draft; persistence waits for submit.
+pub(super) fn on_aggregation_checkbox_changed(
+    event: On<ValueChange<bool>>,
+    checkboxes: Query<&ChildOf, With<Checkbox>>,
+    sources: Query<(), With<AggregatorSourceToggle>>,
+    switches: Query<(), With<AggregatorSwitch>>,
+    mut commands: Commands,
+) {
+    let Ok(parent) = checkboxes.get(event.source) else {
+        return;
+    };
+    if !sources.contains(parent.parent()) && !switches.contains(parent.parent()) {
+        return;
+    }
+    if event.value {
+        commands.entity(event.source).insert(Checked);
+    } else {
+        commands.entity(event.source).remove::<Checked>();
+    }
+}
 
 /// DUAL-08-10: surface-local accumulation of the custom groups typed into the
 /// wizard. Everything else on the card is a projection of the shared report.
@@ -43,15 +77,9 @@ pub struct AggregatorComposerState {
 /// before it is submitted.
 fn refresh_custom_groups_text(
     groups: &[AggregationCustomGroup],
-    lines: &mut Query<
-        &mut Text,
-        (
-            With<AggregatorCustomGroupsText>,
-            Without<AggregatorStatusText>,
-        ),
-    >,
+    lines: &mut Query<&mut Text, OnAddAggregatorCustomGroupCustomLinesFilter>,
 ) {
-    let text = aggregation_custom_groups(groups);
+    let text = aggregation_custom_groups(groups, UiLocale::default().code());
     for mut line in lines.iter_mut() {
         line.0 = text.clone();
     }
@@ -127,7 +155,6 @@ fn write_text_field<M: Component>(
 /// Collect the edited draft from the card widgets. The shared application
 /// re-validates every field, so the surface sends raw values; a malformed
 /// rename line is reported back to the caller instead of being dropped.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn draft_from_widgets(
     name_field: &Query<&Children, With<AggregatorNameField>>,
     renames_field: &Query<&Children, With<AggregatorRenamesField>>,
@@ -167,26 +194,23 @@ fn draft_from_widgets(
 }
 
 /// DUAL-08-01/08-11: submit the edited draft for a real shared preview.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_preview_aggregation(
     activate: On<Activate>,
-    buttons: Query<(), With<PreviewAggregationButton>>,
-    name_field: Query<&Children, With<AggregatorNameField>>,
-    renames_field: Query<&Children, With<AggregatorRenamesField>>,
-    source_toggles: Query<(&AggregatorSourceToggle, &Children)>,
-    switches: Query<(&AggregatorSwitch, &Children)>,
-    text_fields: Query<&TextField>,
-    checkboxes: Query<&Checked>,
     composer: Option<Res<AggregatorComposerState>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: AggregationPreviewControls,
 ) {
+    let AggregationPreviewControls {
+        buttons,
+        name_field,
+        renames_field,
+        source_toggles,
+        switches,
+        text_fields,
+        checkboxes,
+        mut status,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
@@ -206,37 +230,37 @@ pub(super) fn on_preview_aggregation(
         &custom_groups,
     ) {
         Ok(draft) => {
-            report_status(&mut status, "已提交共享聚合预览");
+            report_status(
+                &mut status,
+                LocalizedText::plain("aggregation_preview_submitted"),
+            );
             handle.submit(UiCommand::PreviewProfileAggregation { draft });
         }
         Err(line) => report_status(
             &mut status,
-            &format!("重命名规则格式错误（应为 模式 => 替换）: {line}"),
+            LocalizedText::new("aggregator_rename_invalid", vec![("line", line)]),
         ),
     }
 }
 
 /// DUAL-08-06: submit the edited draft for materialisation into a new profile.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_save_aggregated_profile(
     activate: On<Activate>,
-    buttons: Query<(), With<SaveAggregatedProfileButton>>,
-    name_field: Query<&Children, With<AggregatorNameField>>,
-    renames_field: Query<&Children, With<AggregatorRenamesField>>,
-    source_toggles: Query<(&AggregatorSourceToggle, &Children)>,
-    switches: Query<(&AggregatorSwitch, &Children)>,
-    text_fields: Query<&TextField>,
-    checkboxes: Query<&Checked>,
     composer: Option<Res<AggregatorComposerState>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: AggregationSaveControls,
 ) {
+    let AggregationSaveControls {
+        buttons,
+        name_field,
+        renames_field,
+        source_toggles,
+        switches,
+        text_fields,
+        checkboxes,
+        mut status,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
@@ -256,40 +280,34 @@ pub(super) fn on_save_aggregated_profile(
         &custom_groups,
     ) {
         Ok(draft) => {
-            report_status(&mut status, "已提交共享聚合落盘命令");
+            report_status(
+                &mut status,
+                LocalizedText::plain("aggregation_save_submitted"),
+            );
             handle.submit(UiCommand::CreateAggregatedProfile { draft });
         }
         Err(line) => report_status(
             &mut status,
-            &format!("重命名规则格式错误（应为 模式 => 替换）: {line}"),
+            LocalizedText::new("aggregator_rename_invalid", vec![("line", line)]),
         ),
     }
 }
 
 /// DUAL-08-10: append the typed custom group to the wizard's accumulation.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn on_add_aggregator_custom_group(
     activate: On<Activate>,
-    buttons: Query<(), With<AddAggregatorCustomGroupButton>>,
-    name_field: Query<&Children, With<AggregatorCustomGroupNameField>>,
-    keywords_field: Query<&Children, With<AggregatorCustomGroupKeywordsField>>,
-    text_fields: Query<&TextField>,
     mut composer: Option<ResMut<AggregatorComposerState>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
-    mut custom_lines: Query<
-        &mut Text,
-        (
-            With<AggregatorCustomGroupsText>,
-            Without<AggregatorStatusText>,
-        ),
-    >,
+    targets: AggregationGroupControls,
 ) {
+    let AggregationGroupControls {
+        buttons,
+        name_field,
+        keywords_field,
+        text_fields,
+        mut status,
+        mut custom_lines,
+    } = targets;
+
     if buttons.get(activate.entity).is_err() {
         return;
     }
@@ -301,7 +319,10 @@ pub(super) fn on_add_aggregator_custom_group(
         .trim()
         .to_owned();
     if name.is_empty() {
-        report_status(&mut status, "请先填写自定义策略组名称");
+        report_status(
+            &mut status,
+            LocalizedText::plain("aggregation_custom_name_required"),
+        );
         return;
     }
     let keywords = read_text_field(&keywords_field, &text_fields)
@@ -317,7 +338,10 @@ pub(super) fn on_add_aggregator_custom_group(
         member_keywords: keywords,
     });
     refresh_custom_groups_text(&composer.custom_groups, &mut custom_lines);
-    report_status(&mut status, "已追加自定义策略组，预览/保存后生效");
+    report_status(
+        &mut status,
+        LocalizedText::plain("aggregation_custom_added"),
+    );
 }
 
 /// DUAL-08-10: drop the wizard's appended custom groups.
@@ -325,13 +349,7 @@ pub(super) fn on_clear_aggregator_custom_groups(
     activate: On<Activate>,
     buttons: Query<(), With<ClearAggregatorCustomGroupsButton>>,
     mut composer: Option<ResMut<AggregatorComposerState>>,
-    mut custom_lines: Query<
-        &mut Text,
-        (
-            With<AggregatorCustomGroupsText>,
-            Without<AggregatorStatusText>,
-        ),
-    >,
+    mut custom_lines: Query<&mut Text, OnAddAggregatorCustomGroupCustomLinesFilter>,
 ) {
     if buttons.get(activate.entity).is_err() {
         return;
@@ -346,27 +364,24 @@ pub(super) fn on_clear_aggregator_custom_groups(
 }
 
 /// DUAL-08-13: save the edited draft as a template under the typed name.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_save_aggregation_template(
     activate: On<Activate>,
-    buttons: Query<(), With<SaveAggregationTemplateButton>>,
-    template_field: Query<&Children, With<AggregatorTemplateNameField>>,
-    name_field: Query<&Children, With<AggregatorNameField>>,
-    renames_field: Query<&Children, With<AggregatorRenamesField>>,
-    source_toggles: Query<(&AggregatorSourceToggle, &Children)>,
-    switches: Query<(&AggregatorSwitch, &Children)>,
-    text_fields: Query<&TextField>,
-    checkboxes: Query<&Checked>,
     composer: Option<Res<AggregatorComposerState>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: AggregationTemplateSaveControls,
 ) {
+    let AggregationTemplateSaveControls {
+        buttons,
+        template_field,
+        name_field,
+        renames_field,
+        source_toggles,
+        switches,
+        text_fields,
+        checkboxes,
+        mut status,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
@@ -377,7 +392,10 @@ pub(super) fn on_save_aggregation_template(
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
     else {
-        report_status(&mut status, "请先填写模板名称");
+        report_status(
+            &mut status,
+            LocalizedText::plain("aggregation_template_name_required"),
+        );
         return;
     };
     let custom_groups = composer
@@ -393,46 +411,40 @@ pub(super) fn on_save_aggregation_template(
         &custom_groups,
     ) {
         Ok(draft) => {
-            report_status(&mut status, "已提交模板保存命令");
+            report_status(
+                &mut status,
+                LocalizedText::plain("aggregation_template_save_submitted"),
+            );
             handle.submit(UiCommand::SaveAggregationTemplate { name, draft });
         }
         Err(line) => report_status(
             &mut status,
-            &format!("重命名规则格式错误（应为 模式 => 替换）: {line}"),
+            LocalizedText::new("aggregator_rename_invalid", vec![("line", line)]),
         ),
     }
 }
 
 /// DUAL-08-13: prefill the wizard from the named saved template.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_use_aggregation_template(
     activate: On<Activate>,
-    buttons: Query<(), With<UseAggregationTemplateButton>>,
-    template_field: Query<&Children, With<AggregatorTemplateNameField>>,
-    name_field: Query<&Children, With<AggregatorNameField>>,
-    renames_field: Query<&Children, With<AggregatorRenamesField>>,
-    source_toggles: Query<(&AggregatorSourceToggle, &Children)>,
-    switches: Query<(&AggregatorSwitch, &Children)>,
-    mut text_fields: Query<&mut TextField>,
-    checkboxes: Query<&Checked>,
-    last: Option<Res<crate::pages::profiles::LastProfilesProjection>>,
+    last: Option<Res<LastProfilesProjection>>,
     composer: Option<Res<AggregatorComposerState>>,
     mut commands: Commands,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
-    mut custom_lines: Query<
-        &mut Text,
-        (
-            With<AggregatorCustomGroupsText>,
-            Without<AggregatorStatusText>,
-        ),
-    >,
+    targets: AggregationTemplateLoadControls,
 ) {
+    let AggregationTemplateLoadControls {
+        buttons,
+        template_field,
+        name_field,
+        renames_field,
+        source_toggles,
+        switches,
+        mut text_fields,
+        checkboxes,
+        mut status,
+        mut custom_lines,
+    } = targets;
+
     if buttons.get(activate.entity).is_err() {
         return;
     }
@@ -453,7 +465,10 @@ pub(super) fn on_use_aggregation_template(
         })
         .cloned();
     let Some(template) = template else {
-        report_status(&mut status, "未找到该名称的已保存模板");
+        report_status(
+            &mut status,
+            LocalizedText::plain("aggregation_template_not_found"),
+        );
         return;
     };
     let draft = template.draft.clone();
@@ -527,7 +542,10 @@ pub(super) fn on_use_aggregation_template(
     composer.custom_groups = draft.custom_groups.clone();
     refresh_custom_groups_text(&composer.custom_groups, &mut custom_lines);
     commands.insert_resource(composer);
-    report_status(&mut status, "已复用模板，可预览或保存");
+    report_status(
+        &mut status,
+        LocalizedText::plain("aggregation_template_loaded"),
+    );
 }
 
 /// DUAL-08-07: re-aggregate the profile the named template produced.
@@ -536,14 +554,8 @@ pub(super) fn on_reaggregate_template(
     buttons: Query<(), With<ReAggregateTemplateButton>>,
     template_field: Query<&Children, With<AggregatorTemplateNameField>>,
     text_fields: Query<&TextField>,
-    last: Option<Res<crate::pages::profiles::LastProfilesProjection>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
+    last: Option<Res<LastProfilesProjection>>,
+    mut status: Query<AggregatorStatusParts, OnPreviewAggregationStatusFilter>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -553,10 +565,16 @@ pub(super) fn on_reaggregate_template(
         return;
     }
     let Some(template) = find_template(&template_field, &text_fields, last.as_deref()) else {
-        report_status(&mut status, "未找到该名称的已保存模板");
+        report_status(
+            &mut status,
+            LocalizedText::plain("aggregation_template_not_found"),
+        );
         return;
     };
-    report_status(&mut status, "已提交重新聚合命令");
+    report_status(
+        &mut status,
+        LocalizedText::plain("aggregation_template_regenerate_submitted"),
+    );
     handle.submit(UiCommand::ReAggregateProfile {
         template_name: template.name.clone(),
     });
@@ -568,14 +586,8 @@ pub(super) fn on_delete_aggregation_template(
     buttons: Query<(), With<DeleteAggregationTemplateButton>>,
     template_field: Query<&Children, With<AggregatorTemplateNameField>>,
     text_fields: Query<&TextField>,
-    last: Option<Res<crate::pages::profiles::LastProfilesProjection>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
+    last: Option<Res<LastProfilesProjection>>,
+    mut status: Query<AggregatorStatusParts, OnPreviewAggregationStatusFilter>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -585,10 +597,16 @@ pub(super) fn on_delete_aggregation_template(
         return;
     }
     let Some(template) = find_template(&template_field, &text_fields, last.as_deref()) else {
-        report_status(&mut status, "未找到该名称的已保存模板");
+        report_status(
+            &mut status,
+            LocalizedText::plain("aggregation_template_not_found"),
+        );
         return;
     };
-    report_status(&mut status, "已提交模板删除命令");
+    report_status(
+        &mut status,
+        LocalizedText::plain("aggregation_template_delete_submitted"),
+    );
     handle.submit(UiCommand::DeleteAggregationTemplate {
         name: template.name.clone(),
     });
@@ -597,8 +615,8 @@ pub(super) fn on_delete_aggregation_template(
 fn find_template(
     template_field: &Query<&Children, With<AggregatorTemplateNameField>>,
     text_fields: &Query<&TextField>,
-    last: Option<&crate::pages::profiles::LastProfilesProjection>,
-) -> Option<infiltrator_contract::aggregator::AggregationTemplate> {
+    last: Option<&LastProfilesProjection>,
+) -> Option<AggregationTemplate> {
     let name = read_text_field(template_field, text_fields)?;
     let projection = last?.0.as_ref()?;
     projection
@@ -609,16 +627,11 @@ fn find_template(
 }
 
 fn report_status(
-    status: &mut Query<
-        &mut Text,
-        (
-            With<AggregatorStatusText>,
-            Without<AggregatorCustomGroupsText>,
-        ),
-    >,
-    message: &str,
+    status: &mut Query<AggregatorStatusParts, OnPreviewAggregationStatusFilter>,
+    message: LocalizedText,
 ) {
-    for mut line in status.iter_mut() {
-        line.0 = message.to_owned();
+    for mut parts in status.iter_mut() {
+        parts.text.0 = message.render(&UiLocale::default());
+        *parts.copy = message.clone();
     }
 }

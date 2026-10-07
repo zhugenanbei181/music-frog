@@ -7,6 +7,7 @@
 
 use super::*;
 use iced::widget::text_editor;
+use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn large_document(lines: usize) -> text_editor::Content {
@@ -81,10 +82,10 @@ fn a_short_document_needs_no_viewport_readout() {
 
 #[test]
 fn every_catalogue_snippet_is_localized_on_both_surfaces() {
-    // The Iced bar renders `label_key`; the Bevy bar renders `label_zh`. A
+    // Both bars render the shared locale key. A
     // catalogue entry that loses its locale key would fall back to the raw key
     // and be visible immediately, so this pins the whole catalogue.
-    for snippet in infiltrator_contract::yaml_snippets::YAML_SNIPPETS {
+    for snippet in YAML_SNIPPETS {
         assert_ne!(
             Lang("zh-CN").tr(snippet.label_key).as_ref(),
             snippet.label_key,
@@ -97,6 +98,6 @@ fn every_catalogue_snippet_is_localized_on_both_surfaces() {
             "en-US copy missing for {}",
             snippet.id
         );
-        assert!(snippet.label_zh.starts_with("+ "));
+        assert!(Lang("en-US").tr(snippet.label_key).starts_with("+ "));
     }
 }

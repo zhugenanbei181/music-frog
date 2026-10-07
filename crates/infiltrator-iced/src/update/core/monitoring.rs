@@ -1,20 +1,46 @@
 //! Live runtime monitoring: the periodic polling loop (traffic, memory,
 //! public IP, proxies) plus log ingestion and per-connection operations.
 
+use crate::network::application;
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::types::runtime::{IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState};
+use crate::types::runtime::{
+    IpProbeResult, RuntimeStatus, RuntimeStreamKind, RuntimeStreamState, current_unix_secs,
+};
 use iced::Task;
+use iced::widget::Id;
+use iced::widget::operation::{scroll_to, snap_to};
+use iced::widget::scrollable::{AbsoluteOffset, RelativeOffset};
 use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_contract::command::CoreLogLevel;
+use infiltrator_contract::command::{CommandIntent, CoreLogLevel};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::connection_view::matches_search;
+use infiltrator_domain::runtime::ConnectionSnapshot;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
+use std::time::Instant;
 
 impl AppState {
+    pub(crate) fn sync_logs_viewport_task(&self) -> Task<Message> {
+        if self.diag.log_search.follow.should_follow() {
+            snap_to(Id::new("log_scroller"), RelativeOffset::END)
+        } else {
+            scroll_to(
+                Id::new("log_scroller"),
+                AbsoluteOffset {
+                    x: None,
+                    y: Some(self.diag.log_search.follow.restored_offset(f32::MAX)),
+                },
+            )
+        }
+    }
+
     /// Kick one polling round: connections + memory always, proxies every
     /// other tick and runtime config every 6th. Public-egress probing is
     /// intentionally explicit (`FetchIpInfo`) because it contacts an
     /// external provider.
     pub(super) fn schedule_runtime_refresh(&mut self, follow_auto_refresh: bool) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         if follow_auto_refresh && !self.runtime.runtime_auto_refresh {
             return Task::none();
         }
@@ -28,6 +54,7 @@ impl AppState {
         self.runtime.runtime_poll_tick = self.runtime.runtime_poll_tick.saturating_add(1);
         let poll_tick = self.runtime.runtime_poll_tick;
 
+        let connections_locale = copy_locale.clone();
         let rt_for_connections = rt.clone();
         let rt_for_memory = rt.clone();
         let mut tasks = vec![
@@ -38,9 +65,13 @@ impl AppState {
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))
                 },
-                |result| match result {
+                move |result| match result {
                     Ok(snapshot) => Message::ConnectionsReceived(snapshot),
-                    Err(error) => Message::RuntimePollFailed(format!("连接刷新失败: {error}")),
+                    Err(error) => Message::RuntimePollFailed(localize(
+                        &connections_locale,
+                        "connections_refresh_failed",
+                        &[("reason", error.to_string())],
+                    )),
                 },
             ),
             Task::perform(
@@ -50,9 +81,13 @@ impl AppState {
                         .await
                         .map_err(|error| InfiltratorError::Internal(error.to_string()))
                 },
-                |result| match result {
+                move |result| match result {
                     Ok(memory) => Message::MemoryReceived(memory),
-                    Err(error) => Message::RuntimePollFailed(format!("内存刷新失败: {error}")),
+                    Err(error) => Message::RuntimePollFailed(localize(
+                        &copy_locale,
+                        "memory_refresh_failed",
+                        &[("reason", error.to_string())],
+                    )),
                 },
             ),
         ];
@@ -70,6 +105,7 @@ impl AppState {
     /// Unmatched messages fall through to the next domain in the
     /// `update_core` chain.
     pub(super) fn update_core_monitoring(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::FetchIpInfo => {
                 self.cancel_all_tasks();
@@ -79,10 +115,12 @@ impl AppState {
                     async move {
                         let runtime = runtime.ok_or_else(|| {
                             InfiltratorError::Internal(
-                                "内核未运行，无法探测代理出口 IP".to_string(),
+                                Lang(&copy_locale)
+                                    .tr("core_egress_not_running")
+                                    .into_owned(),
                             )
                         })?;
-                        let snapshot = crate::network::application()
+                        let snapshot = application()
                             .probe_through_runtime(runtime)
                             .await
                             .map_err(|failure| InfiltratorError::Internal(failure.message))?;
@@ -119,6 +157,9 @@ impl AppState {
                 ])
             }
             Message::TrafficReceived(data) => {
+                if self.commands.is_some() {
+                    return Task::none();
+                }
                 self.diag.traffic = Some(data.clone());
                 self.diag.traffic_history.push_back((data.up, data.down));
                 if self.diag.traffic_history.len() > 60 {
@@ -127,6 +168,9 @@ impl AppState {
                 Task::none()
             }
             Message::MemoryReceived(data) => {
+                if self.commands.is_some() {
+                    return Task::none();
+                }
                 self.diag.memory = Some(data);
                 Task::none()
             }
@@ -148,7 +192,7 @@ impl AppState {
                 Task::none()
             }
             Message::ConnectionsReceived(data) => {
-                self.apply_connections_snapshot(data, std::time::Instant::now())
+                self.apply_connections_snapshot(data, Instant::now())
             }
             Message::ConnectionsPrevPage => {
                 self.diag.connections_page = self.diag.connections_page.saturating_sub(1);
@@ -160,14 +204,15 @@ impl AppState {
                 Task::none()
             }
             Message::LogReceived(log) => {
+                if self.commands.is_some() {
+                    return Task::none();
+                }
                 self.diag.logs.push_back(log);
                 if self.diag.logs.len() > 500 {
                     self.diag.logs.pop_front();
                 }
-                iced::widget::operation::snap_to(
-                    iced::widget::Id::new("log_scroller"),
-                    iced::widget::scrollable::RelativeOffset::END,
-                )
+                self.diag.observe_log_records();
+                self.sync_logs_viewport_task()
             }
             Message::RuntimeStreamLogReceived(generation, log) => {
                 if generation == self.runtime.runtime_generation {
@@ -214,8 +259,44 @@ impl AppState {
                 self.set_error(InfiltratorError::Mihomo(error));
                 Task::none()
             }
+            Message::LogsCommandFinished { generation, result } => {
+                if generation == self.runtime.core_lifecycle.generation {
+                    self.diag.log_command_failure = result.err();
+                }
+                Task::none()
+            }
+            Message::ToggleLogFollow => {
+                self.diag.log_search.follow.toggle_follow();
+                self.sync_logs_viewport_task()
+            }
+            Message::LogsScrolled {
+                offset,
+                content,
+                viewport,
+            } => {
+                self.diag
+                    .log_search
+                    .follow
+                    .observe_viewport(offset, content, viewport);
+                Task::none()
+            }
             Message::ClearRuntimeLogs => {
+                if let Some(application) = self.commands.clone() {
+                    let generation = self.runtime.core_lifecycle.generation;
+                    return Task::perform(
+                        async move {
+                            application
+                                .execute(CommandIntent::ClearLogs)
+                                .await
+                                .into_unit()
+                                .map(|_| ())
+                        },
+                        move |result| Message::LogsCommandFinished { generation, result },
+                    );
+                }
+
                 self.diag.logs.clear();
+                self.diag.observe_log_records();
                 Task::none()
             }
             Message::SetLogLevel(level) => {
@@ -255,6 +336,24 @@ impl AppState {
                 Task::none()
             }
             Message::CloseConnection(id) => {
+                if self.diag.inspecting_connection_id.as_ref() == Some(&id) {
+                    self.diag.inspecting_connection_id = None;
+                }
+                if let Some(application) = self.commands.clone() {
+                    return Task::perform(
+                        async move {
+                            match (application
+                                .execute(CommandIntent::CloseConnection { id })
+                                .await)
+                                .into_unit()
+                            {
+                                Ok(()) => Ok(()),
+                                Err(failure) => Err(InfiltratorError::Internal(failure.message)),
+                            }
+                        },
+                        Message::OperationResult,
+                    );
+                }
                 if let Some(rt) = self.runtime.runtime.clone() {
                     Task::perform(
                         async move {
@@ -269,10 +368,25 @@ impl AppState {
                 }
             }
             Message::CloseAllConnections => {
-                if let Some(rt) = self.runtime.runtime.clone() {
+                if let Some(application) = self.commands.clone() {
                     Task::perform(
                         async move {
-                            rt.close_all_connections()
+                            match (application
+                                .execute(CommandIntent::CloseAllConnections)
+                                .await)
+                                .into_unit()
+                            {
+                                Ok(()) => Ok(()),
+                                Err(failure) => Err(InfiltratorError::Internal(failure.message)),
+                            }
+                        },
+                        Message::OperationResult,
+                    )
+                } else if let Some(runtime) = self.runtime.runtime.clone() {
+                    Task::perform(
+                        async move {
+                            runtime
+                                .close_all_connections()
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
@@ -306,9 +420,7 @@ impl AppState {
                         snapshot
                             .connections
                             .iter()
-                            .filter(|conn| {
-                                infiltrator_domain::connection_view::matches_search(*conn, &query)
-                            })
+                            .filter(|conn| matches_search(*conn, &query))
                             .map(|conn| conn.id.clone())
                             .collect()
                     })
@@ -334,7 +446,7 @@ impl AppState {
                     return Task::none();
                 };
                 let timeout = self.diag.connection_idle_timeout_secs;
-                let now = crate::types::runtime::current_unix_secs();
+                let now = current_unix_secs();
                 let idle: Vec<String> = match self.diag.connections.clone() {
                     Some(snapshot) => {
                         self.diag
@@ -368,8 +480,8 @@ impl AppState {
     /// This is the seam the deterministic tests drive.
     pub(crate) fn apply_connections_snapshot(
         &mut self,
-        data: infiltrator_domain::runtime::ConnectionSnapshot,
-        now: std::time::Instant,
+        data: ConnectionSnapshot,
+        now: Instant,
     ) -> Task<Message> {
         use infiltrator_domain::runtime::TrafficData;
 
@@ -380,14 +492,17 @@ impl AppState {
         // expose it, retain a safe polling fallback based on the actual
         // elapsed time rather than assuming every refresh happened exactly
         // two seconds apart.
-        if !matches!(
-            self.diag.traffic_stream_state,
-            RuntimeStreamState::Connected
-        ) && let (Some(prev_up), Some(prev_down), Some(previous_at)) = (
-            self.runtime.runtime_prev_upload_total,
-            self.runtime.runtime_prev_download_total,
-            self.runtime.runtime_prev_snapshot_at,
-        ) {
+        if self.commands.is_none()
+            && !matches!(
+                self.diag.traffic_stream_state,
+                RuntimeStreamState::Connected
+            )
+            && let (Some(prev_up), Some(prev_down), Some(previous_at)) = (
+                self.runtime.runtime_prev_upload_total,
+                self.runtime.runtime_prev_download_total,
+                self.runtime.runtime_prev_snapshot_at,
+            )
+        {
             let elapsed = now.duration_since(previous_at).as_secs_f64();
             if elapsed > 0.0 {
                 let up_rate = (upload_total.saturating_sub(prev_up) as f64 / elapsed) as u64;
@@ -416,10 +531,28 @@ impl AppState {
             .observe_at(now, &data.connections);
 
         // DUAL-13-11: record byte-change times for idle detection.
-        let observed_at = crate::types::runtime::current_unix_secs();
+        let observed_at = current_unix_secs();
         self.diag
             .connection_activity
             .observe(&data.connections, observed_at);
+        if self
+            .diag
+            .inspecting_connection_id
+            .as_ref()
+            .is_some_and(|id| {
+                !data
+                    .connections
+                    .iter()
+                    .any(|connection| &connection.id == id)
+            })
+        {
+            self.diag.inspecting_connection_id = None;
+        }
+        let filter = self.runtime.runtime_connection_filter.trim();
+        self.diag
+            .connection_groups
+            .edit_query(filter.strip_prefix("tab:closed").unwrap_or(filter).trim());
+        self.diag.connection_groups.observe(&data.connections);
         self.diag.connections = Some(data);
         self.clamp_connections_page();
         Task::none()

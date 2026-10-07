@@ -4,22 +4,19 @@
 //! Visualizes protocol distribution, outbound routing shares, or domain traffic
 //! breakdowns with proportioned annular sectors, gap padding, and center summaries.
 
-use std::f32::consts::PI;
-
+use super::mesh::{TelemetryMeshData, build_donut_sector_mesh};
+use super::texture::ChartTextureView;
+use crate::chart::to_rgba8;
+use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
-use bevy::ecs::change_detection::DetectChanges;
+use bevy::ecs::change_detection::{DetectChanges, Ref};
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, px};
-use bevy::ui::widget::ImageNode;
-
-use crate::palette::UiPalette;
-
-use super::mesh::{TelemetryMeshData, build_donut_sector_mesh};
+use std::f32::consts::PI;
 
 /// Single slice of the donut chart.
 #[derive(Clone, Debug, PartialEq)]
@@ -155,7 +152,7 @@ pub fn rasterize_donut(spec: &DonutChartSpec, palette: &UiPalette) -> Vec<u8> {
 
     if geometries.is_empty() {
         // Empty state: render a faint neutral ring
-        let border_rgba = crate::chart::to_rgba8(palette.border);
+        let border_rgba = to_rgba8(palette.border);
         for y in 0..height {
             for x in 0..width {
                 let dx = x as f32 + 0.5 - cx;
@@ -294,7 +291,7 @@ pub fn donut_chart_scene(spec: DonutChartSpec) -> impl Scene + use<> {
 pub fn sync_donut_charts(
     palette: Res<UiPalette>,
     images: Option<ResMut<Assets<Image>>>,
-    mut charts: Query<(Entity, &mut DonutChartPlate, Option<&ImageNode>)>,
+    charts: Query<(Ref<DonutChartPlate>, ChartTextureView)>,
     mut commands: Commands,
 ) {
     let retheme = palette.is_changed();
@@ -302,25 +299,13 @@ pub fn sync_donut_charts(
         return;
     };
 
-    for (entity, plate, node) in &mut charts {
-        if !retheme && !plate.is_changed() && node.is_some() {
-            continue;
-        }
+    for (plate, texture) in &charts {
         let spec = &plate.0;
-        match node {
-            Some(node) => {
-                if let Some(mut image) = images.get_mut(&node.image) {
-                    *image = donut_chart_image(spec, &palette);
-                }
-            }
-            None => {
-                let image = donut_chart_image(spec, &palette);
-                let handle = images.add(image);
-                commands.entity(entity).insert(ImageNode {
-                    image: handle,
-                    ..ImageNode::default()
-                });
-            }
-        }
+        texture.sync::<DonutChartPlate>(
+            &mut images,
+            retheme || plate.is_changed(),
+            || donut_chart_image(spec, &palette),
+            &mut commands,
+        );
     }
 }

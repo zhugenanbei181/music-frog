@@ -7,16 +7,41 @@
 //! test-intent: behavior
 
 use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
+use crate::configs_dir::{config_manager, configs_dir};
+use crate::host::runtime::application_runtime;
+use crate::host::storage::subscription_import_port;
+use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::types::options::EditorPane;
 use crate::types::runtime::RuntimeStatus;
+use crate::update::core::profile_apply::activate_profile;
+use crate::update::profile::subscription::subscription_update_toast;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::subscription_filter_fixture::{FIXTURE_DOCUMENT, observation};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::subscription_import::{
-    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionUpdateOutcome, SubscriptionUpdateReport,
+    CoreReloadOutcome, SubscriptionBatchReport, SubscriptionFilterDraft, SubscriptionScheduleDraft,
+    SubscriptionUpdateOutcome, SubscriptionUpdateReport,
 };
 use infiltrator_core::subscription_io::HttpSubscriptionSource;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::filter_policy_form::filter_spec_from_draft;
+use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::sanitize_profile_name;
+use infiltrator_domain::subscription::CheckedSubscriptionUrl;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use infiltrator_ports::subscription_source::{
+    ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
+};
+use infiltrator_shared::locales::Lang;
+use mihomo_config::profile_option_store::{delete_options, save_options};
+use std::fs::write;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time;
+use tokio::fs::read_to_string;
 
 const LOCAL_IMPORT_YAML: &str = "mixed-port: 7890\nmode: rule\n";
 
@@ -88,7 +113,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     // use-case on a closed port fails without any network egress.
     let name = sanitize_profile_name("Bad Sub").unwrap();
     let remote = block_on(async {
-        let store = crate::configs_dir::config_manager().await.unwrap();
+        let store = config_manager().await.unwrap();
         let application = ProfileApplication::new(store);
         let source = HttpSubscriptionSource::with_default_clients();
         application
@@ -113,7 +138,7 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
 
     // ---- local import: real read → validate → save through the manager ----
     let source = home.join("downloaded-source.yaml");
-    std::fs::write(&source, LOCAL_IMPORT_YAML).unwrap();
+    write(&source, LOCAL_IMPORT_YAML).unwrap();
     feed(
         &mut state,
         Message::UpdateLocalImportPath(source.to_string_lossy().into()),
@@ -128,13 +153,11 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
 
     // Task body for real: read_to_string → validate_yaml → save → activate.
     let stored = block_on(async {
-        let content = tokio::fs::read_to_string(&source).await.unwrap();
-        infiltrator_domain::config::validate_yaml(&content).unwrap();
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let content = read_to_string(&source).await.unwrap();
+        validate_yaml(&content).unwrap();
+        let manager = config_manager().await.unwrap();
         manager.save("Travel Node", &content).await.unwrap();
-        crate::update::core::profile_apply::activate_profile(None, "Travel Node")
-            .await
-            .unwrap()
+        activate_profile(None, "Travel Node").await.unwrap()
     });
     assert!(!stored, "no runtime → activation reports not-reloaded");
 
@@ -154,23 +177,13 @@ fn import_then_activate_then_restart_kernel_chain_round_trips_real_files() {
     );
     assert_eq!(units, 1);
 
-    let was_running = block_on(async {
-        crate::update::core::profile_apply::activate_profile(None, "default").await
-    })
-    .unwrap();
+    let was_running = block_on(async { activate_profile(None, "default").await }).unwrap();
     assert!(!was_running);
     let units = feed(&mut state, Message::ProfileActivationFinished(Ok(false)));
     assert!(units >= 2, "activation without runtime chains StartProxy");
 
     // The current pointer really moved on disk.
-    let current = block_on(async {
-        crate::configs_dir::config_manager()
-            .await
-            .unwrap()
-            .get_current()
-            .await
-            .unwrap()
-    });
+    let current = block_on(async { config_manager().await.unwrap().get_current().await.unwrap() });
     assert_eq!(current, "default");
 
     // ---- restart-kernel chain: StartProxy → ProxyStarted(Err) 回灌 ----
@@ -263,7 +276,7 @@ fn subscription_settings_save_gates_persists_and_reloads_profiles() {
     // tray auto-update toggle persists) lands in config.toml and round-trips
     // through the manager that LoadProfiles would read.
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let mut meta = manager.get_profile_metadata("Paid").await.unwrap();
         meta.auto_update_enabled = false;
         meta.subscription_url = None;
@@ -409,12 +422,12 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     // A stored, non-empty options sidecar exists for the doomed profile
     // (empty options would be treated as "no sidecar" by save_options).
-    block_on(infiltrator_core::profile_options_io::save_options(
+    block_on(save_options(
         &home.configs(),
         "Doomed",
-        &infiltrator_domain::profile_options::ProfileOptions {
+        &ProfileOptions {
             mixin: Default::default(),
-            filter: Some(infiltrator_domain::profile_options::FilterSpec {
+            filter: Some(FilterSpec {
                 include_keywords: vec!["HK".into()],
                 ..Default::default()
             }),
@@ -433,10 +446,10 @@ fn delete_profile_removes_yaml_and_options_sidecar_from_disk() {
 
     // Task body for real: delete + best-effort sidecar cleanup.
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         manager.delete_profile("Doomed").await.unwrap();
-        let dir = crate::configs_dir::configs_dir().await.unwrap();
-        infiltrator_core::profile_options_io::delete_options(&dir, "Doomed").await;
+        let dir = configs_dir().await.unwrap();
+        delete_options(&dir, "Doomed").await.unwrap();
     });
 
     let units = feed(&mut state, Message::ProfileDeleted(Ok(())));
@@ -498,10 +511,7 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     // (view/profiles.rs): opens the editor with the pane preselected.
     let units = feed(
         &mut state,
-        Message::EditProfileAs(
-            PathBuf::from("/configs/Paid.yaml"),
-            crate::types::options::EditorPane::Mixin,
-        ),
+        Message::EditProfileAs(PathBuf::from("/configs/Paid.yaml"), EditorPane::Mixin),
     );
     assert!(units >= 1, "EditProfileAs dispatched");
     // The path binds asynchronously (ProfileContentLoaded); the pane is
@@ -509,7 +519,7 @@ fn tray_bulk_entry_messages_reach_their_handlers() {
     assert!(state.editor.editor_path.is_none(), "content not loaded yet");
     assert_eq!(
         state.editor.editor_pane,
-        crate::types::options::EditorPane::Mixin,
+        EditorPane::Mixin,
         "pane preselected"
     );
 }
@@ -527,7 +537,7 @@ fn subscription_fetch_options_load_and_not_modified_feedback() {
     state.shell.lang = "zh-CN".into();
 
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
         metadata.subscription_url = Some("https://sub.example.com/token".into());
         metadata.user_agent = Some("ClashVerge/2.0".into());
@@ -572,83 +582,65 @@ fn subscription_fetch_options_load_and_not_modified_feedback() {
         Message::SubscriptionUpdatedNow(Ok(not_modified_report("Paid"))),
     );
     assert!(units >= 2, "LoadProfiles + toast legs");
-    let lang = infiltrator_shared::locales::Lang(&state.shell.lang);
-    let (text, status) = crate::update::profile::subscription::subscription_update_toast(
-        &lang,
-        &not_modified_report("Paid"),
-    );
-    assert_eq!(status, crate::types::app::ToastStatus::Info);
+    let lang = Lang(&state.shell.lang);
+    let (text, status) = subscription_update_toast(&lang, &not_modified_report("Paid"));
+    assert_eq!(status, ToastStatus::Info);
     assert!(
         text.contains("未变更"),
         "304 surfaces the honest not-modified toast, got {text:?}"
     );
-    let (_, success_status) = crate::update::profile::subscription::subscription_update_toast(
-        &lang,
-        &subscription_report("Paid"),
-    );
-    assert_eq!(success_status, crate::types::app::ToastStatus::Success);
+    let (_, success_status) = subscription_update_toast(&lang, &subscription_report("Paid"));
+    assert_eq!(success_status, ToastStatus::Success);
 }
 
 /// A source that fails the first `failures_before_success` conditional fetches
 /// and then reports modified content, counting every attempt.
 struct FlakyUpdateSource {
     failures_before_success: usize,
-    calls: std::sync::atomic::AtomicUsize,
+    calls: AtomicUsize,
 }
 
 impl FlakyUpdateSource {
     fn new(failures_before_success: usize) -> Self {
         Self {
             failures_before_success,
-            calls: std::sync::atomic::AtomicUsize::new(0),
+            calls: AtomicUsize::new(0),
         }
     }
 
     fn calls(&self) -> usize {
-        self.calls.load(std::sync::atomic::Ordering::SeqCst)
+        self.calls.load(Ordering::SeqCst)
     }
 }
 
 #[async_trait::async_trait]
-impl infiltrator_ports::subscription_source::SubscriptionSource for FlakyUpdateSource {
+impl SubscriptionSource for FlakyUpdateSource {
     async fn fetch(
         &self,
         _profile: &str,
-        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
-    ) -> Result<
-        infiltrator_ports::subscription_source::SubscriptionDocument,
-        infiltrator_ports::error::PortError,
-    > {
-        Err(infiltrator_ports::error::PortError::Network(
-            "use fetch_conditional".into(),
-        ))
+        _url: &CheckedSubscriptionUrl,
+    ) -> Result<SubscriptionDocument, PortError> {
+        Err(PortError::Network("use fetch_conditional".into()))
     }
 
     async fn fetch_conditional(
         &self,
         _profile: &str,
-        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
-        _headers: &infiltrator_ports::subscription_source::ConditionalFetchHeaders,
-    ) -> Result<
-        infiltrator_ports::subscription_source::ConditionalDocumentResult,
-        infiltrator_ports::error::PortError,
-    > {
-        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        _url: &CheckedSubscriptionUrl,
+        _headers: &ConditionalFetchHeaders,
+    ) -> Result<ConditionalDocumentResult, PortError> {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
         if call <= self.failures_before_success {
-            return Err(infiltrator_ports::error::PortError::Network(format!(
-                "attempt {call} failed"
-            )));
+            return Err(PortError::Network(format!("attempt {call} failed")));
         }
-        Ok(
-            infiltrator_ports::subscription_source::ConditionalDocumentResult::Modified {
-                document: infiltrator_ports::subscription_source::SubscriptionDocument {
-                    content: "proxies:\n  - name: n1\n    type: ss\n".into(),
-                    userinfo: None,
-                },
-                etag: Some("\"refresh-etag\"".into()),
-                last_modified: None,
+        Ok(ConditionalDocumentResult::Modified {
+            document: SubscriptionDocument {
+                content: "proxies:\n  - name: n1\n    type: ss\n".into(),
+                userinfo: None,
             },
-        )
+            etag: Some("\"refresh-etag\"".into()),
+            last_modified: None,
+        })
     }
 }
 
@@ -666,7 +658,7 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
         use infiltrator_contract::error::ErrorCode;
         use infiltrator_domain::subscription_scheduler_policy::RetryBackoffPolicy;
 
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
         metadata.subscription_url = Some("https://sub.example.com/token".into());
         manager
@@ -677,8 +669,8 @@ fn subscription_refresh_retries_and_single_flights_through_shared_application() 
         let application = ProfileApplication::new(manager);
         let refresh = SubscriptionRefreshApplication::new(
             application,
-            crate::host::runtime::application_runtime(),
-            RetryBackoffPolicy::new(vec![std::time::Duration::from_millis(1)]),
+            application_runtime(),
+            RetryBackoffPolicy::new(vec![time::Duration::from_millis(1)]),
         );
         let source = FlakyUpdateSource::new(1);
 
@@ -720,39 +712,49 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
     );
     let mut state = fresh_state();
 
+    state.editor.editor_path = Some(home.configs().join("Paid.yaml"));
+    feed(&mut state, Message::LoadProfileFilter);
+
     // The view model loads the stored draft; editing replaces it.
     feed(
         &mut state,
-        Message::ProfileFilterLoaded(Ok(
-            infiltrator_contract::subscription_import::SubscriptionFilterDraft {
-                include: "香港".into(),
-                ..Default::default()
-            },
-        )),
+        Message::ProfileFilterLoaded {
+            token: 1,
+            profile: "Paid".into(),
+            result: observation(
+                "Paid",
+                FIXTURE_DOCUMENT,
+                SubscriptionFilterDraft {
+                    include: "香港".into(),
+                    ..Default::default()
+                },
+            ),
+        },
     );
-    assert_eq!(state.editor.filter_draft.include, "香港");
+    assert_eq!(state.editor.filter_editor.draft.include, "香港");
     feed(
         &mut state,
         Message::UpdateFilterInclude("香港, 日本".into()),
     );
     feed(&mut state, Message::UpdateFilterExclude("广告".into()));
-    assert_eq!(state.editor.filter_draft.include, "香港, 日本");
+    assert_eq!(state.editor.filter_editor.draft.include, "香港, 日本");
 
     // The editor's draft compiles into the shared spec and runs the shared
     // pipeline over the real config-manager store.
-    let spec =
-        infiltrator_domain::profile_options::filter_spec_from_draft(&state.editor.filter_draft)
-            .expect("draft compiles");
+    let spec = filter_spec_from_draft(&state.editor.filter_editor.draft).expect("draft compiles");
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let application = ProfileApplication::new(manager.clone());
-        let runtime: Option<
-            std::sync::Arc<dyn infiltrator_ports::runtime_gateway::ManagedRuntime>,
-        > = None;
+        let runtime: Option<Arc<dyn ManagedRuntime>> = None;
         let report = application
-            .apply_subscription_filter(runtime, "Paid", spec)
+            .apply_subscription_filter(
+                runtime,
+                &application.load_workspace("Paid").await.unwrap().source,
+                spec,
+            )
             .await
-            .expect("shared filter runs");
+            .expect("shared filter runs")
+            .report;
         assert_eq!(report.total_input, 2);
         assert_eq!(report.passed, 1);
 
@@ -774,9 +776,9 @@ fn subscription_filter_panel_rides_the_shared_pipeline() {
 fn local_import_reads_through_the_host_import_port() {
     let home = TempHome::acquire("sub-import-port");
     let source = home.join("picked.yaml");
-    std::fs::write(&source, LOCAL_IMPORT_YAML).unwrap();
+    write(&source, LOCAL_IMPORT_YAML).unwrap();
 
-    let port = crate::host::storage::subscription_import_port();
+    let port = subscription_import_port();
     let content =
         block_on(port.read_local_file(&source.to_string_lossy())).expect("port reads file");
     assert_eq!(content, LOCAL_IMPORT_YAML);
@@ -795,7 +797,7 @@ fn subscription_cron_editor_loads_and_validates() {
     state.shell.lang = "zh-CN".into();
 
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let mut metadata = manager.get_profile_metadata("Paid").await.unwrap();
         metadata.subscription_url = Some("https://sub.example.com/token".into());
         metadata.auto_update_enabled = true;
@@ -870,7 +872,7 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
 
     // Opt out for real so the editor state is the honest persisted one.
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         ProfileApplication::new(manager)
             .update_subscription_auto_reload("Paid", false)
             .await
@@ -924,12 +926,12 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
     // The persistence leg for real: the shared schedule + reload methods land
     // in the config.toml store the editor reloads.
     block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let application = ProfileApplication::new(manager.clone());
         application
             .update_subscription_schedule(
                 "Paid",
-                &infiltrator_contract::subscription_import::SubscriptionScheduleDraft {
+                &SubscriptionScheduleDraft {
                     url: "https://sub.example.com/token".to_string(),
                     auto_update_enabled: true,
                     update_interval_hours: "12".to_string(),
@@ -970,17 +972,15 @@ fn subscription_policy_and_auto_reload_are_shared_application_wired() {
 /// a typed unsupported or failed reload is a warning, not a clean success.
 #[test]
 fn subscription_toast_reports_the_reload_outcome_honestly() {
-    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let lang = Lang("zh-CN");
     let mut report = subscription_report("Paid");
     report.core_reload = CoreReloadOutcome::Reloaded;
-    let (_, reloaded_status) =
-        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
-    assert_eq!(reloaded_status, crate::types::app::ToastStatus::Success);
+    let (_, reloaded_status) = subscription_update_toast(&lang, &report);
+    assert_eq!(reloaded_status, ToastStatus::Success);
 
     report.core_reload = CoreReloadOutcome::Unsupported;
-    let (text, unsupported_status) =
-        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
-    assert_eq!(unsupported_status, crate::types::app::ToastStatus::Warning);
+    let (text, unsupported_status) = subscription_update_toast(&lang, &report);
+    assert_eq!(unsupported_status, ToastStatus::Warning);
     assert!(
         text.contains("宿主") && text.contains("未应用"),
         "the unsupported reload names the host gap, got {text:?}"
@@ -989,8 +989,7 @@ fn subscription_toast_reports_the_reload_outcome_honestly() {
     report.core_reload = CoreReloadOutcome::Failed {
         error: "reload rejected".to_string(),
     };
-    let (text, failed_status) =
-        crate::update::profile::subscription::subscription_update_toast(&lang, &report);
-    assert_eq!(failed_status, crate::types::app::ToastStatus::Warning);
+    let (text, failed_status) = subscription_update_toast(&lang, &report);
+    assert_eq!(failed_status, ToastStatus::Warning);
     assert!(text.contains("reload rejected"), "got {text:?}");
 }

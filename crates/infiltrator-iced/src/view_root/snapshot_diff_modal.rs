@@ -13,10 +13,12 @@ use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{
     BadgeKind, badge, icon_button, modern_scrollable, segmented_control,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::snapshot_presentation;
 use infiltrator_contract::yaml_ast_diff::{DiffKind, DiffLine, SplitDiffRow, YamlAstDiffSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -42,26 +44,14 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
     // DUAL-09-14: when the shared diff is loaded, the subtitle names the same
     // source → target pair the Bevy card renders; before that it falls back to
     // the requested snapshot id.
-    let subtitle = match &state.editor.snapshot_diff {
-        Some(diff) => text(format!(
-            "{}: {} → {}",
-            lang.tr("snapshot_diff_compare_with"),
-            diff.source_id,
-            diff.target_id
-        ))
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
-        None => text(format!(
-            "{}: {snapshot_id}",
-            lang.tr("snapshot_diff_compare_with"),
-        ))
-        .size(12)
-        .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_secondary),
-        }),
-    };
+    let subtitle = text(snapshot_presentation::diff_summary(
+        state.editor.snapshot_diff.as_ref(),
+        &state.shell.lang,
+    ))
+    .size(12)
+    .style(|t: &Theme| text::Style {
+        color: Some(tokens(t).text_secondary),
+    });
 
     let body = match &state.editor.snapshot_diff {
         _ if state.editor.snapshot_diff_loading => {
@@ -163,46 +153,12 @@ pub fn snapshot_diff_modal<'a>(state: &'a AppState, snapshot_id: &str) -> Elemen
         });
 
     let target_id = snapshot_id.to_string();
-    let rollback_controls: Element<'a, Message> = if state.editor.snapshot_diff_rollback_armed {
-        row![
-            text(lang.tr("snapshot_diff_confirm_hint").to_string())
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).warning),
-                }),
-            Space::new().width(theme::SP_SM),
-            button(text(lang.tr("btn_cancel").to_string()).size(12))
-                .padding([6, 14])
-                .style(style_ghost)
-                .on_press(Message::CancelSnapshotRollback),
-            Space::new().width(theme::SP_SM),
-            button(
-                text(lang.tr("snapshot_diff_confirm_btn").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM)
-            )
+    let rollback_controls: Element<'a, Message> =
+        button(text(lang.tr("snapshot_diff_rollback_btn")).size(12))
             .padding([6, 16])
             .style(style_accent)
-            .on_press(Message::RollbackToSnapshot(target_id)),
-        ]
-        .align_y(Alignment::Center)
-        .into()
-    } else {
-        button(
-            row![
-                svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).on_accent),
-                Space::new().width(theme::SP_XS),
-                text(lang.tr("snapshot_diff_rollback_btn").to_string())
-                    .size(12)
-                    .font(FONT_MEDIUM),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .padding([6, 16])
-        .style(style_accent)
-        .on_press(Message::ArmSnapshotRollback)
-        .into()
-    };
+            .on_press(Message::RollbackToSnapshot(target_id))
+            .into();
 
     let actions = row![
         button(text(lang.tr("btn_cancel").to_string()).size(12))

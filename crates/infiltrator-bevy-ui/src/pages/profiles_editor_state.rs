@@ -5,18 +5,22 @@
 //! verdict and the formatter state machine; the scene module owns the `bsn!`
 //! composition, the keyboard seam and the command submission.
 
+use crate::pages::profiles::ProfilesProjection;
 use bevy::color::Color;
 use bevy::ecs::resource::Resource;
 use bevy::input::keyboard::Key;
-use infiltrator_bevy_widgets::editor::CodeEditorState;
+use infiltrator_application::profile_document_application::insert_snippet;
+use infiltrator_application::profile_edit_session::ProfileEditSession;
+use infiltrator_application::profile_editor_projection::{self, EditorStatus};
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_contract::command::RequestId;
 use infiltrator_contract::editor_viewport::{EditorViewport, line_indent_level};
 use infiltrator_contract::profile_document::{ProfileDocumentSnapshot, SyntaxDiagnosticSnapshot};
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::yaml_snippets::{byte_offset_of_column, column_of_byte_offset};
 use infiltrator_domain::config::preflight_yaml_syntax;
-use infiltrator_domain::yaml_edit::format::format_yaml;
-
-use crate::pages::profiles::ProfilesProjection;
+use infiltrator_domain::yaml_edit::format::{FormatSkipReason, format_yaml};
 
 /// Maximum number of lines rendered per frame (no virtual scroll; see the
 /// scene module docs). The window follows the cursor, so editing never leaves
@@ -30,6 +34,9 @@ pub const PROFILE_EDITOR_RENDER_LIMIT: usize = 240;
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct ProfileEditorState {
     pub profile: String,
+    pub session: ProfileEditSession,
+    pub protection: ProfileWriteProtection,
+    pub save_request: Option<(RequestId, u64)>,
     pub buffer: CodeEditorState,
     /// The keyboard is routed here only while focused (explicit seam).
     pub focused: bool,
@@ -40,6 +47,7 @@ pub struct ProfileEditorState {
     pub diagnostic: Option<SyntaxDiagnosticSnapshot>,
     /// Honest note: formatter refusals and skipped layout rules.
     pub notice: Option<String>,
+    pub format_note: Option<FormatSkipReason>,
     /// Explicit unlock toggle for a protected subscription.
     pub protection_override: bool,
     /// Bumped on every buffer mutation; the body rebuilds when it moved.
@@ -51,15 +59,25 @@ pub struct ProfileEditorState {
 impl ProfileEditorState {
     /// Adopt a document published by the shared application.
     pub fn load_document(&mut self, document: &ProfileDocumentSnapshot) -> bool {
-        let changed = self.loaded_content.as_deref() != Some(document.content.as_str());
-        self.profile = document.profile.clone();
+        let Some(source) = document.source.as_ref() else {
+            return false;
+        };
+        if self.protection != document.write_protection {
+            self.protection_override = false;
+        }
+        self.protection = document.write_protection;
+        let changed = self
+            .session
+            .observe(source, &document.content, &self.buffer.full_text());
         if changed {
+            self.profile = document.profile.clone();
             self.buffer = CodeEditorState::new(&document.content);
             self.loaded_content = Some(document.content.clone());
             self.dirty = false;
+            self.protection_override = false;
             self.generation += 1;
+            self.diagnostic = document.syntax.clone();
         }
-        self.diagnostic = document.syntax.clone();
         changed
     }
 
@@ -132,7 +150,10 @@ impl ProfileEditorState {
         match key {
             Key::Character(text) => self.insert_text(text),
             Key::Space => self.insert_text(" "),
-            Key::Enter => self.insert_text("\n"),
+            Key::Enter => {
+                self.buffer.insert_newline();
+                self.after_edit();
+            }
             Key::Tab => self.insert_text("  "),
             Key::Backspace => self.backspace(),
             Key::Delete => self.delete_forward(),
@@ -159,14 +180,14 @@ impl ProfileEditorState {
                 let cursor_row = self.buffer.cursor_row;
                 self.buffer = CodeEditorState::new(&report.content);
                 self.buffer.cursor_row = cursor_row.min(self.buffer.line_count().saturating_sub(1));
-                self.notice = report
-                    .skip_reason()
-                    .map(|reason| reason.label_zh().to_owned());
+                self.format_note = report.skip_reason();
+                self.notice = None;
                 self.after_edit();
                 Ok(())
             }
             Err(error) => {
                 let message = error.to_string();
+                self.format_note = None;
                 self.notice = Some(message.clone());
                 Err(message)
             }
@@ -175,7 +196,7 @@ impl ProfileEditorState {
 
     /// Whether the buffer may be saved right now.
     pub fn can_save(&self, protection: ProfileWriteProtection) -> bool {
-        !self.profile.is_empty() && (!protection.is_protected() || self.protection_override)
+        self.session.can_save() && (!protection.is_protected() || self.protection_override)
     }
 
     /// DUAL-09-02: the shared window the body renders. The caret follows the
@@ -205,25 +226,15 @@ impl ProfileEditorState {
         let text = self.buffer.full_text();
         let caret_line = self.buffer.cursor_row.min(self.buffer.line_count() - 1);
         let line_text = self.buffer.lines[caret_line].as_str();
-        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
-            line_text,
-            self.buffer.cursor_col,
-        );
-        match infiltrator_application::profile_document_application::insert_snippet(
-            &text,
-            snippet_id,
-            caret_line + 1,
-            caret_column,
-        ) {
+        let caret_column = column_of_byte_offset(line_text, self.buffer.cursor_col);
+        match insert_snippet(&text, snippet_id, caret_line + 1, caret_column) {
             Ok(insertion) => {
                 let cursor_row = insertion.cursor_line - 1;
                 self.buffer = CodeEditorState::new(&insertion.content);
                 self.buffer.cursor_row = cursor_row.min(self.buffer.line_count().saturating_sub(1));
                 let inserted_line = &self.buffer.lines[self.buffer.cursor_row];
-                self.buffer.cursor_col = infiltrator_contract::yaml_snippets::byte_offset_of_column(
-                    inserted_line,
-                    insertion.cursor_column,
-                );
+                self.buffer.cursor_col =
+                    byte_offset_of_column(inserted_line, insertion.cursor_column);
                 self.notice = insertion.syntax.as_ref().map(|diagnostic| {
                     format!("{} · {}", diagnostic.line_label(), diagnostic.message)
                 });
@@ -241,54 +252,52 @@ impl ProfileEditorState {
 pub(crate) fn status_line(
     state: &ProfileEditorState,
     projection: Option<&ProfilesProjection>,
+    locale: &str,
 ) -> String {
-    let mut parts = vec![if state.dirty {
-        "有未保存修改".to_owned()
-    } else {
-        "与共享配置一致".to_owned()
-    }];
-    parts.push(format!(
-        "{} 行 · 光标 {}:{}",
-        state.buffer.line_count(),
-        state.buffer.cursor_row + 1,
-        state.buffer.cursor_col + 1
-    ));
-    // DUAL-09-02: the shared window is stated, not implied — a windowed
-    // document says which lines it is rendering right now.
     let viewport = state.viewport();
-    if !viewport.covers_document() {
-        parts.push(viewport.range_label());
-    }
-    if state.focused {
-        parts.push("键盘已接管".to_owned());
-    }
-    if let Some(record) = projection.and_then(|projection| projection.apply_transaction.as_ref()) {
-        parts.push(record.summary_zh());
-    }
-    parts.join(" · ")
+    let status = profile_editor_projection::status(
+        &EditorStatus {
+            dirty: state.dirty,
+            line_count: state.buffer.line_count(),
+            cursor_line: state.buffer.cursor_row + 1,
+            cursor_column: column_of_byte_offset(
+                state.buffer.line_content(state.buffer.cursor_row),
+                state.buffer.cursor_col,
+            ) + 1,
+            viewport: &viewport,
+            focused: state.focused,
+            notice: state.notice.as_deref(),
+            transaction: projection.and_then(|projection| projection.apply_transaction.as_ref()),
+        },
+        locale,
+    );
+    [
+        status,
+        state.session.status(&state.buffer.full_text(), locale),
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ")
 }
-
-pub(crate) fn diagnostic_line(state: &ProfileEditorState) -> (String, bool) {
-    match state.diagnostic.as_ref() {
-        Some(diagnostic) => (
-            format!("{} · {}", diagnostic.line_label(), diagnostic.message),
-            true,
-        ),
-        None => ("语法正确（共享预检实时通过）".to_owned(), false),
-    }
+pub(crate) fn diagnostic_line(state: &ProfileEditorState, locale: &str) -> (String, bool) {
+    profile_editor_projection::diagnostic(state.diagnostic.as_ref(), locale)
 }
-
 pub(crate) fn protection_toggle_visual(
     protection: ProfileWriteProtection,
     unlocked: bool,
     palette: &UiPalette,
+    locale: &str,
 ) -> (String, Color) {
-    if !protection.is_protected() {
-        return ("本地配置：可直接保存".to_owned(), palette.surface_elevated);
-    }
-    if unlocked {
-        ("已解锁：点击恢复只读".to_owned(), palette.accent)
+    let fill = if !protection.is_protected() {
+        palette.surface_elevated
+    } else if unlocked {
+        palette.accent
     } else {
-        ("显式解锁编辑".to_owned(), palette.warning)
-    }
+        palette.warning
+    };
+    (
+        profile_editor_projection::protection_action(protection, unlocked, locale),
+        fill,
+    )
 }

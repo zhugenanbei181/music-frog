@@ -101,6 +101,14 @@ impl Region {
     }
 }
 
+/// ASCII region abbreviations are complete letter tokens, optionally followed by node digits.
+/// Substrings of ordinary names such as "Inspection", "Default" or "Australia" are not codes.
+fn has_region_code(lower: &str, code: &str) -> bool {
+    lower
+        .split(|ch: char| !ch.is_ascii_alphabetic())
+        .any(|word| word == code)
+}
+
 /// Identify the geographical region from a proxy node name.
 pub fn match_region(name: &str) -> Option<Region> {
     let lower = name.trim().to_ascii_lowercase();
@@ -118,13 +126,11 @@ pub fn match_region(name: &str) -> Option<Region> {
 
     // Match Hong Kong
     if name.contains("香港")
-        || name.contains("HK")
-        || name.contains("Hkg")
+        || has_region_code(&lower, "hk")
+        || has_region_code(&lower, "hkg")
         || lower.contains("hong kong")
         || lower.contains("hongkong")
         || lower.contains("hong-kong")
-        || lower.contains("hk-")
-        || lower.starts_with("hk")
     {
         return Some(Region::HongKong);
     }
@@ -135,10 +141,9 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("台北")
         || name.contains("台中")
         || name.contains("高雄")
-        || name.contains("TW")
+        || has_region_code(&lower, "tw")
         || lower.contains("taiwan")
         || lower.contains("taipei")
-        || lower.starts_with("tw")
     {
         return Some(Region::Taiwan);
     }
@@ -148,11 +153,10 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("东京")
         || name.contains("大阪")
         || name.contains("福冈")
-        || name.contains("JP")
+        || has_region_code(&lower, "jp")
         || lower.contains("japan")
         || lower.contains("tokyo")
         || lower.contains("osaka")
-        || lower.starts_with("jp")
     {
         return Some(Region::Japan);
     }
@@ -166,14 +170,13 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("硅谷")
         || name.contains("芝加哥")
         || name.contains("纽约")
-        || name.contains("US")
-        || name.contains("USA")
+        || has_region_code(&lower, "us")
+        || has_region_code(&lower, "usa")
         || lower.contains("united states")
         || lower.contains("america")
         || lower.contains("los angeles")
         || lower.contains("san jose")
         || lower.contains("seattle")
-        || lower.starts_with("us")
     {
         return Some(Region::UnitedStates);
     }
@@ -181,9 +184,8 @@ pub fn match_region(name: &str) -> Option<Region> {
     // Match Singapore
     if name.contains("新加坡")
         || name.contains("狮城")
-        || name.contains("SG")
+        || has_region_code(&lower, "sg")
         || lower.contains("singapore")
-        || lower.starts_with("sg")
     {
         return Some(Region::Singapore);
     }
@@ -192,10 +194,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("韩国")
         || name.contains("韓國")
         || name.contains("首尔")
-        || name.contains("KR")
+        || has_region_code(&lower, "kr")
         || lower.contains("korea")
         || lower.contains("seoul")
-        || lower.starts_with("kr")
     {
         return Some(Region::SouthKorea);
     }
@@ -204,12 +205,10 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("英国")
         || name.contains("英國")
         || name.contains("伦敦")
-        || name.contains("UK")
-        || name.contains("GB")
+        || has_region_code(&lower, "uk")
+        || has_region_code(&lower, "gb")
         || lower.contains("united kingdom")
         || lower.contains("london")
-        || lower.starts_with("uk")
-        || lower.starts_with("gb")
     {
         return Some(Region::UnitedKingdom);
     }
@@ -219,11 +218,10 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("德國")
         || name.contains("法兰克福")
         || name.contains("柏林")
-        || name.contains("DE")
+        || has_region_code(&lower, "de")
         || lower.contains("germany")
         || lower.contains("deutschland")
         || lower.contains("frankfurt")
-        || lower.starts_with("de")
     {
         return Some(Region::Germany);
     }
@@ -232,10 +230,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("法国")
         || name.contains("法國")
         || name.contains("巴黎")
-        || name.contains("FR")
+        || has_region_code(&lower, "fr")
         || lower.contains("france")
         || lower.contains("paris")
-        || lower.starts_with("fr")
     {
         return Some(Region::France);
     }
@@ -244,11 +241,10 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("加拿大")
         || name.contains("多伦多")
         || name.contains("温哥华")
-        || name.contains("CA")
+        || has_region_code(&lower, "ca")
         || lower.contains("canada")
         || lower.contains("toronto")
         || lower.contains("vancouver")
-        || lower.starts_with("ca")
     {
         return Some(Region::Canada);
     }
@@ -258,11 +254,10 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("澳洲")
         || name.contains("悉尼")
         || name.contains("墨尔本")
-        || name.contains("AU")
+        || has_region_code(&lower, "au")
         || lower.contains("australia")
         || lower.contains("sydney")
         || lower.contains("melbourne")
-        || lower.starts_with("au")
     {
         return Some(Region::Australia);
     }
@@ -271,10 +266,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("俄罗斯")
         || name.contains("俄羅斯")
         || name.contains("莫斯科")
-        || name.contains("RU")
+        || has_region_code(&lower, "ru")
         || lower.contains("russia")
         || lower.contains("moscow")
-        || lower.starts_with("ru")
     {
         return Some(Region::Russia);
     }
@@ -282,10 +276,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     // Match India
     if name.contains("印度")
         || name.contains("孟买")
-        || name.contains("IN")
+        || has_region_code(&lower, "in")
         || lower.contains("india")
         || lower.contains("mumbai")
-        || lower.starts_with("in")
     {
         return Some(Region::India);
     }
@@ -294,10 +287,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("荷兰")
         || name.contains("荷蘭")
         || name.contains("阿姆斯特丹")
-        || name.contains("NL")
+        || has_region_code(&lower, "nl")
         || lower.contains("netherlands")
         || lower.contains("amsterdam")
-        || lower.starts_with("nl")
     {
         return Some(Region::Netherlands);
     }
@@ -305,10 +297,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     // Match Brazil
     if name.contains("巴西")
         || name.contains("圣保罗")
-        || name.contains("BR")
+        || has_region_code(&lower, "br")
         || lower.contains("brazil")
         || lower.contains("sao paulo")
-        || lower.starts_with("br")
     {
         return Some(Region::Brazil);
     }
@@ -316,20 +307,15 @@ pub fn match_region(name: &str) -> Option<Region> {
     // Match Turkey
     if name.contains("土耳其")
         || name.contains("伊斯坦布尔")
-        || name.contains("TR")
+        || has_region_code(&lower, "tr")
         || lower.contains("turkey")
         || lower.contains("istanbul")
-        || lower.starts_with("tr")
     {
         return Some(Region::Turkey);
     }
 
     // Match Argentina
-    if name.contains("阿根廷")
-        || name.contains("AR")
-        || lower.contains("argentina")
-        || lower.starts_with("ar")
-    {
+    if name.contains("阿根廷") || has_region_code(&lower, "ar") || lower.contains("argentina") {
         return Some(Region::Argentina);
     }
 
@@ -337,10 +323,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("菲律宾")
         || name.contains("菲律賓")
         || name.contains("马尼拉")
-        || name.contains("PH")
+        || has_region_code(&lower, "ph")
         || lower.contains("philippines")
         || lower.contains("manila")
-        || lower.starts_with("ph")
     {
         return Some(Region::Philippines);
     }
@@ -349,10 +334,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("泰国")
         || name.contains("泰國")
         || name.contains("曼谷")
-        || name.contains("TH")
+        || has_region_code(&lower, "th")
         || lower.contains("thailand")
         || lower.contains("bangkok")
-        || lower.starts_with("th")
     {
         return Some(Region::Thailand);
     }
@@ -361,9 +345,8 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("马来西亚")
         || name.contains("馬來西亞")
         || name.contains("吉隆坡")
-        || name.contains("MY")
+        || has_region_code(&lower, "my")
         || lower.contains("malaysia")
-        || lower.starts_with("my")
     {
         return Some(Region::Malaysia);
     }
@@ -372,9 +355,8 @@ pub fn match_region(name: &str) -> Option<Region> {
     if name.contains("越南")
         || name.contains("胡志明")
         || name.contains("河内")
-        || name.contains("VN")
+        || has_region_code(&lower, "vn")
         || lower.contains("vietnam")
-        || lower.starts_with("vn")
     {
         return Some(Region::Vietnam);
     }
@@ -382,10 +364,9 @@ pub fn match_region(name: &str) -> Option<Region> {
     // Match UAE / Dubai
     if name.contains("阿联酋")
         || name.contains("迪拜")
-        || name.contains("AE")
+        || has_region_code(&lower, "ae")
         || lower.contains("dubai")
         || lower.contains("uae")
-        || lower.starts_with("ae")
     {
         return Some(Region::UnitedArabEmirates);
     }
@@ -395,9 +376,8 @@ pub fn match_region(name: &str) -> Option<Region> {
         || name.contains("中國")
         || name.contains("回国")
         || name.contains("国内")
-        || name.contains("CN")
+        || has_region_code(&lower, "cn")
         || lower.contains("china")
-        || lower.starts_with("cn")
     {
         return Some(Region::China);
     }
@@ -439,5 +419,37 @@ mod tests {
         assert_eq!(node_flag_emoji("香港 IEPL"), "🇭🇰");
         assert_eq!(node_flag_emoji("US-01"), "🇺🇸");
         assert_eq!(node_flag_emoji("SomeUnmatchedNodeName"), "🌐");
+    }
+
+    #[test]
+    fn abbreviations_cannot_invent_a_region_from_an_ordinary_word_or_protocol() {
+        for name in [
+            "Inspection node",
+            "Default",
+            "Fallback",
+            "Auto",
+            "USAGE",
+            "CACHE",
+            "TROJAN",
+            "BRIDGE",
+            "MyProxy",
+            "PHASE",
+            "THREAD",
+            "ARCADE",
+            "RUNTIME",
+        ] {
+            assert_eq!(match_region(name), None, "unexpected region for {name}");
+            assert_eq!(node_flag_emoji(name), "🌐");
+        }
+        for (name, region) in [
+            ("[IN] 01", Region::India),
+            ("in-02", Region::India),
+            ("us01", Region::UnitedStates),
+            ("[de] Premium", Region::Germany),
+            ("HKG-03", Region::HongKong),
+            ("[UK] Premium", Region::UnitedKingdom),
+        ] {
+            assert_eq!(match_region(name), Some(region));
+        }
     }
 }

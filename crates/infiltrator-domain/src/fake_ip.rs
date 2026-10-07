@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
+use std::cmp::{max, min};
 use std::collections::{HashMap, VecDeque};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -137,7 +138,7 @@ pub fn detect_private_ip_collision(fake_ip_cidr: &str) -> Vec<String> {
     for (priv_cidr, desc) in private_ranges {
         if let Some((p_start, p_end)) = parse_cidr_range_u32(priv_cidr) {
             // Overlap condition: max(start1, start2) <= min(end1, end2)
-            if std::cmp::max(cidr_start, p_start) <= std::cmp::min(cidr_end, p_end) {
+            if max(cidr_start, p_start) <= min(cidr_end, p_end) {
                 collisions.push(format!("Overlaps with {} ({})", priv_cidr, desc));
             }
         }

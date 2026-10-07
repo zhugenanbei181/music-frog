@@ -4,12 +4,13 @@
 //! empty values, unknown enum-like values), advisory only — validation never
 //! mutates the node and never rejects it.
 
+use crate::profile_converter::ProxyNodeItem;
+use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
 use std::net::IpAddr;
 
+use super::model::{CommonFields, PortHopping, ProxyNode, Reserved};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_yaml_ng::Value;
-
-use super::model::{CommonFields, PortHopping, ProxyNode, RawNode, Reserved};
 
 const TUIC_CONGESTION_CONTROLLERS: [&str; 3] = ["bbr", "cubic", "new-reno"];
 const TUIC_UDP_RELAY_MODES: [&str; 2] = ["native", "quic"];
@@ -22,7 +23,7 @@ const XHTTP_ALLOWED_MODES: [&str; 4] = ["auto", "stream-up", "stream-down", "pac
 /// problem (missing required fields, empty values, unknown enum-like
 /// values). An empty vec means no obvious problem; this is advisory only and
 /// never mutates the node.
-pub fn validate(node: &RawNode) -> Vec<String> {
+pub fn validate(node: &ProxyNode) -> Vec<String> {
     let mut issues = Vec::new();
     match node {
         ProxyNode::Vless(node) => {
@@ -428,7 +429,7 @@ fn validate_ss_2022(cipher: &str, password: &str, issues: &mut Vec<String>) {
 /// port, or a missing protocol credential (uuid / password / cipher / key).
 /// Unknown protocols are *not* flagged for credentials — their requirements
 /// are unknown to this table, and guessing would drop valid nodes.
-pub fn validate_item(node: &crate::profile_converter::ProxyNodeItem) -> Vec<String> {
+pub fn validate_item(node: &ProxyNodeItem) -> Vec<String> {
     let mut issues = Vec::new();
     if node.name.trim().is_empty() {
         issues.push("name must not be empty".to_string());
@@ -518,8 +519,8 @@ fn decode_base64_tolerant(input: &str) -> Result<Vec<u8>, ()> {
     let clean: String = input.chars().filter(|c| !c.is_whitespace()).collect();
     STANDARD
         .decode(&clean)
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&clean))
-        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(&clean))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&clean))
+        .or_else(|_| URL_SAFE.decode(&clean))
+        .or_else(|_| STANDARD_NO_PAD.decode(&clean))
+        .or_else(|_| URL_SAFE_NO_PAD.decode(&clean))
         .map_err(|_| ())
 }

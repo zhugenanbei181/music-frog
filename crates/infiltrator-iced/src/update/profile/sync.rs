@@ -1,36 +1,45 @@
 //! WebDAV sync handlers: upload/download of profiles to the user's DAV
 //! account, completion toasts and the periodic sync tick.
 
+use crate::configs_dir::{config_manager, configs_dir};
+use crate::host::storage;
+use crate::notify::NotifyUrgency;
 use crate::state::AppState;
 use crate::types::app::{SyncConflict, SyncProgress, SyncSummary, ToastStatus};
 use crate::types::message::Message;
+use crate::update::core::profile_apply::save_profile_content;
 use iced::futures::SinkExt;
+use iced::futures::channel::mpsc;
 use iced::{Task, stream};
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::sync;
 use infiltrator_contract::sync::SyncTransferReport;
+use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::config::validate_yaml;
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::sync::SyncProgressSink;
 use infiltrator_shared::locales::{Lang, Localizer};
-use std::sync::Arc;
+use std::mem::take;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 struct IcedSyncProgressSink {
-    output: std::sync::Mutex<iced::futures::channel::mpsc::Sender<Message>>,
+    output: Mutex<mpsc::Sender<Message>>,
     cancel: Arc<AtomicBool>,
 }
 
 impl IcedSyncProgressSink {
-    fn new(output: iced::futures::channel::mpsc::Sender<Message>, cancel: Arc<AtomicBool>) -> Self {
+    fn new(output: mpsc::Sender<Message>, cancel: Arc<AtomicBool>) -> Self {
         Self {
-            output: std::sync::Mutex::new(output),
+            output: Mutex::new(output),
             cancel,
         }
     }
 }
 
 impl SyncProgressSink for IcedSyncProgressSink {
-    fn progress(&self, progress: infiltrator_contract::sync::SyncProgress) {
+    fn progress(&self, progress: sync::SyncProgress) {
         if let Ok(mut output) = self.output.lock() {
             let _ = output.try_send(Message::SyncProgress(SyncProgress {
                 phase: progress.phase,
@@ -46,8 +55,7 @@ impl SyncProgressSink for IcedSyncProgressSink {
 }
 
 pub(super) fn sync_application() -> Result<SyncApplication, InfiltratorError> {
-    let port =
-        crate::host::storage::sync().map_err(|error| InfiltratorError::Sync(error.to_string()))?;
+    let port = storage::sync().map_err(|error| InfiltratorError::Sync(error.to_string()))?;
     Ok(SyncApplication::new(Arc::new(port)))
 }
 
@@ -75,7 +83,7 @@ fn transfer_to_summary(report: SyncTransferReport) -> SyncSummary {
     }
 }
 
-fn contract_conflict_to_ui(conflict: infiltrator_contract::sync::SyncConflict) -> SyncConflict {
+fn contract_conflict_to_ui(conflict: sync::SyncConflict) -> SyncConflict {
     SyncConflict {
         profile: conflict.profile,
         remote_path: conflict.remote_path.into(),
@@ -84,6 +92,7 @@ fn contract_conflict_to_ui(conflict: infiltrator_contract::sync::SyncConflict) -
 
 impl AppState {
     pub(super) fn update_sync(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::SyncUpload => {
                 if self.profile.is_syncing {
@@ -109,16 +118,12 @@ impl AppState {
                 self.profile.sync_cancel = Some(cancel.clone());
                 self.profile.is_syncing = true;
                 self.refresh_tray();
-                let operation = stream::channel(
-                    100,
-                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let operation =
+                    stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
                         let observer =
                             Arc::new(IcedSyncProgressSink::new(output.clone(), cancel.clone()));
                         let result = async {
-                            let configs_dir = crate::configs_dir::configs_dir()
-                                .await?
-                                .to_string_lossy()
-                                .into_owned();
+                            let configs_dir = configs_dir().await?.to_string_lossy().into_owned();
                             application
                                 .upload(config, Some(configs_dir), observer)
                                 .await
@@ -127,8 +132,7 @@ impl AppState {
                         }
                         .await;
                         let _ = output.send(Message::SyncFinished(result)).await;
-                    },
-                );
+                    });
                 Task::run(operation, |message| message)
             }
             Message::SyncDownload => {
@@ -152,16 +156,12 @@ impl AppState {
                 self.profile.is_syncing = true;
                 self.refresh_tray();
                 let runtime_present = self.runtime.runtime.is_some();
-                let operation = stream::channel(
-                    100,
-                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let operation =
+                    stream::channel(100, move |mut output: mpsc::Sender<Message>| async move {
                         let observer =
                             Arc::new(IcedSyncProgressSink::new(output.clone(), cancel.clone()));
                         let result = async {
-                            let configs_dir = crate::configs_dir::configs_dir()
-                                .await?
-                                .to_string_lossy()
-                                .into_owned();
+                            let configs_dir = configs_dir().await?.to_string_lossy().into_owned();
                             application
                                 .download(config, Some(configs_dir), runtime_present, observer)
                                 .await
@@ -170,15 +170,14 @@ impl AppState {
                         }
                         .await;
                         let _ = output.send(Message::SyncFinished(result)).await;
-                    },
-                );
+                    });
                 Task::run(operation, |message| message)
             }
             Message::SyncFinished(result) => {
                 // 0.20: only the scheduler-driven chain (TickWebDavSync →
                 // SyncUpload) notifies; manual upload/download stay silent.
                 // The flag is consumed exactly once, on either outcome.
-                let notify_this_sync = std::mem::take(&mut self.profile.sync_from_tick);
+                let notify_this_sync = take(&mut self.profile.sync_from_tick);
                 self.profile.is_syncing = false;
                 self.profile.sync_cancel = None;
                 self.profile.sync_progress = None;
@@ -197,7 +196,7 @@ impl AppState {
                             // file after the durable download succeeds.
                             tasks.push(Task::perform(
                                 async {
-                                    if let Ok(manager) = crate::configs_dir::config_manager().await
+                                    if let Ok(manager) = config_manager().await
                                         && let Ok(profile) = manager.get_current().await
                                     {
                                         let _ = manager.clear_backup(&profile).await;
@@ -238,9 +237,9 @@ impl AppState {
                                     summary.conflicts
                                 ),
                                 if summary.conflicts > 0 {
-                                    crate::notify::NotifyUrgency::Normal
+                                    NotifyUrgency::Normal
                                 } else {
-                                    crate::notify::NotifyUrgency::Low
+                                    NotifyUrgency::Low
                                 },
                             ));
                         }
@@ -248,7 +247,9 @@ impl AppState {
                     }
                     Err(e) => {
                         self.set_error(&e);
-                        let cancelled = e.to_string().contains("同步已取消");
+                        let cancelled = e
+                            .to_string()
+                            .contains(Lang(&copy_locale).tr("toast_sync_cancelled").as_ref());
                         let toast = Task::done(Message::ShowToast(
                             e.to_string(),
                             if cancelled {
@@ -264,7 +265,7 @@ impl AppState {
                                 self.system_notify(
                                     "notify_sync_failed",
                                     &e.to_string(),
-                                    crate::notify::NotifyUrgency::Critical,
+                                    NotifyUrgency::Critical,
                                 ),
                             ])
                         } else {
@@ -292,13 +293,13 @@ impl AppState {
                 Task::perform(
                     async move {
                         let content = read_conflict_file(&conflict).await?;
-                        infiltrator_domain::config::validate_yaml(&content)
+                        validate_yaml(&content)
                             .map_err(|error| InfiltratorError::Config(error.to_string()))?;
-                        crate::update::core::profile_apply::save_profile_content(
+                        save_profile_content(
                             runtime,
                             conflict.profile.clone(),
                             content,
-                            infiltrator_domain::apply::ApplyStrategy::PreferReload,
+                            ApplyStrategy::PreferReload,
                         )
                         .await?;
                         delete_conflict_file(&conflict).await?;
@@ -379,7 +380,9 @@ impl AppState {
                 let pass = self.profile.webdav_pass.clone();
                 if url.is_empty() || user.is_empty() {
                     return Task::done(Message::ShowToast(
-                        "WebDAV 地址和用户名不能为空".to_string(),
+                        Lang(&copy_locale)
+                            .tr("webdav_credentials_required")
+                            .into_owned(),
                         ToastStatus::Error,
                     ));
                 }
@@ -406,7 +409,9 @@ impl AppState {
                 self.profile.is_testing_webdav = false;
                 match result {
                     Ok(()) => Task::done(Message::ShowToast(
-                        "WebDAV 连接成功".to_string(),
+                        Lang(&copy_locale)
+                            .tr("webdav_connection_success")
+                            .into_owned(),
                         ToastStatus::Success,
                     )),
                     Err(error) => {
@@ -433,7 +438,7 @@ impl AppState {
 }
 
 async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, InfiltratorError> {
-    let configs_dir = crate::configs_dir::configs_dir().await?;
+    let configs_dir = configs_dir().await?;
     sync_application()?
         .read_conflict(
             configs_dir.to_string_lossy().into_owned(),
@@ -444,7 +449,7 @@ async fn read_conflict_file(conflict: &SyncConflict) -> Result<String, Infiltrat
 }
 
 async fn delete_conflict_file(conflict: &SyncConflict) -> Result<(), InfiltratorError> {
-    let configs_dir = crate::configs_dir::configs_dir().await?;
+    let configs_dir = configs_dir().await?;
     sync_application()?
         .delete_conflict(
             configs_dir.to_string_lossy().into_owned(),

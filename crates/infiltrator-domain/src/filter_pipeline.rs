@@ -1,15 +1,16 @@
 //! Node-level [`FilterPipeline`] construction and evaluation stages.
 
-use crate::profile_converter::ProxyNodeItem;
-use anyhow::Result;
-use regex::Regex;
-use std::collections::{HashMap, HashSet};
-
 use super::{
     ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage, NodeMutatorConfig,
     NodeSortOrder, PipelineStats, PortFilterConfig, ServerFilterConfig, compute_node_fingerprint,
     extract_country_code, extract_multiplier, is_private_ip, normalize_country_code, strip_emojis,
 };
+use crate::profile_converter::ProxyNodeItem;
+use anyhow::Result;
+use regex::Regex;
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
+use std::result;
 
 impl FilterStage {
     pub fn regex_rename(pattern: &str, replacement: impl Into<String>) -> Result<Self> {
@@ -52,7 +53,7 @@ impl FilterStage {
         let patterns = keywords
             .into_iter()
             .map(|kw| Regex::new(kw.as_ref()))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         Ok(Self::KeywordBlacklist { patterns })
     }
 
@@ -64,7 +65,7 @@ impl FilterStage {
         let patterns = keywords
             .into_iter()
             .map(|kw| Regex::new(kw.as_ref()))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         Ok(Self::KeywordWhitelist { patterns })
     }
 
@@ -313,14 +314,14 @@ impl FilterPipeline {
                         nodes.sort_by(|a, b| {
                             let ma = extract_multiplier(&a.name).unwrap_or(1.0);
                             let mb = extract_multiplier(&b.name).unwrap_or(1.0);
-                            ma.partial_cmp(&mb).unwrap_or(std::cmp::Ordering::Equal)
+                            ma.partial_cmp(&mb).unwrap_or(Ordering::Equal)
                         });
                     }
                     NodeSortOrder::MultiplierDesc => {
                         nodes.sort_by(|a, b| {
                             let ma = extract_multiplier(&a.name).unwrap_or(1.0);
                             let mb = extract_multiplier(&b.name).unwrap_or(1.0);
-                            mb.partial_cmp(&ma).unwrap_or(std::cmp::Ordering::Equal)
+                            mb.partial_cmp(&ma).unwrap_or(Ordering::Equal)
                         });
                     }
                 },

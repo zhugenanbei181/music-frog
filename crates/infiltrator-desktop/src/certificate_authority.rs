@@ -5,10 +5,10 @@
 //! file, refuses bundles over a sanity limit, and maps a missing file or an I/O
 //! failure to a typed port error instead of an empty success.
 
-use std::fs;
-
 use infiltrator_ports::certificate_authority::{CaFile, CertificateAuthorityPort};
 use infiltrator_ports::error::PortError;
+use std::fs;
+use std::io::ErrorKind;
 
 /// Upper bound for a CA bundle the studio will read (4 MiB).
 pub const MAX_CA_BUNDLE_BYTES: u64 = 4 * 1024 * 1024;
@@ -44,7 +44,7 @@ impl CertificateAuthorityPort for DesktopCertificateAuthority {
             )));
         }
         let pem = fs::read_to_string(path).map_err(|error| {
-            if error.kind() == std::io::ErrorKind::InvalidData {
+            if error.kind() == ErrorKind::InvalidData {
                 PortError::Failed(format!("`{path}` is not valid UTF-8 text"))
             } else {
                 PortError::Io(format!("`{path}`: {error}"))

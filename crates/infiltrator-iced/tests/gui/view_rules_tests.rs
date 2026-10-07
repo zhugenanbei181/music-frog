@@ -1,12 +1,13 @@
 use super::providers::{
-    etag_support_line, format_provider_behavior, format_rule_provider_format,
-    provider_fingerprint_line, provider_lifecycle_line, proxy_provider_row, rule_provider_row,
+    format_provider_behavior, format_rule_provider_format, proxy_provider_row, rule_provider_row,
     total_external_rules,
 };
-use super::rules_list::{RuleHitStats, lookup_hit_stats};
 use super::*;
+use infiltrator_application::rule_provider_projection::{
+    etag_support_line, provider_fingerprint_line, provider_lifecycle_line,
+};
 use infiltrator_domain::runtime::{ProxyProvider, RuleProvider};
-use std::collections::HashMap;
+use infiltrator_shared::locales::Lang;
 
 #[test]
 fn test_semantic_badge_kind_mapping() {
@@ -71,40 +72,6 @@ fn test_display_rule_type_formatting() {
 }
 
 #[test]
-fn test_rule_hit_stats_matching() {
-    let stats_map = {
-        let mut map = HashMap::new();
-        map.insert(
-            "domainsuffix:google.com".to_string(),
-            RuleHitStats {
-                count: 5,
-                is_recent: true,
-            },
-        );
-        map.insert(
-            "match:".to_string(),
-            RuleHitStats {
-                count: 12,
-                is_recent: true,
-            },
-        );
-        map
-    };
-
-    let hit = lookup_hit_stats(&stats_map, "DOMAIN-SUFFIX", "google.com");
-    assert_eq!(hit.count, 5);
-    assert!(hit.is_recent);
-
-    let match_hit = lookup_hit_stats(&stats_map, "MATCH", "");
-    assert_eq!(match_hit.count, 12);
-    assert!(match_hit.is_recent);
-
-    let unhit = lookup_hit_stats(&stats_map, "DOMAIN", "unknown.com");
-    assert_eq!(unhit.count, 0);
-    assert!(!unhit.is_recent);
-}
-
-#[test]
 fn test_proxy_and_rule_provider_row_render() {
     let lang = Lang("en");
     let proxy_p = ProxyProvider {
@@ -143,18 +110,19 @@ fn test_provider_lifecycle_line_reports_shared_source_url() {
         provider_lifecycle_line(
             "2026-09-06 12:00",
             Some("https://example.com/a.mrs"),
-            Some(86_400)
+            Some(86_400),
+            &Lang("en-US")
         ),
         "Updated: 2026-09-06 12:00 · Source: https://example.com/a.mrs · Auto: 1d (kernel-scheduled)"
     );
     // DUAL-11-05: the declared schedule is disclosed; an undeclared one says so
     // and no cache hit/miss state is invented (the kernel owns ETag/304).
     assert_eq!(
-        provider_lifecycle_line("2026-09-06 12:00", None, None),
+        provider_lifecycle_line("2026-09-06 12:00", None, None, &Lang("en-US")),
         "Updated: 2026-09-06 12:00 · Source: not declared · Auto: not declared"
     );
     assert_eq!(
-        provider_lifecycle_line("", None, Some(3_600)),
+        provider_lifecycle_line("", None, Some(3_600), &Lang("en-US")),
         "Updated: — · Source: not declared · Auto: 1h (kernel-scheduled)"
     );
 }

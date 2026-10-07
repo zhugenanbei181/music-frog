@@ -7,11 +7,15 @@
 use super::modals::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::style_ghost;
 use crate::view::components::{BadgeKind, badge};
-use crate::view::theme::{HAIRLINE, MONO, R_SM, tokens};
+use crate::view::theme::{FONT_SEMIBOLD, HAIRLINE, MONO, R_SM, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_contract::speedtest::{EgressCountryMatch, NodeSpeedtestResult, SpeedtestSnapshot};
+use infiltrator_application::speedtest_detail_projection::{notice, project_details, summary};
+use infiltrator_contract::speedtest::EgressCountryMatch;
+use infiltrator_contract::speedtest_details::{SpeedtestDetailRow, SpeedtestDetails};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn metric(label: String, value: String) -> Element<'static, Message> {
@@ -35,37 +39,13 @@ fn egress_badge(matched: EgressCountryMatch, lang: &Lang<'_>) -> Element<'static
     badge(lang.tr(key).to_string(), kind)
 }
 
-fn node_row(node: &NodeSpeedtestResult, lang: &Lang<'_>) -> Element<'static, Message> {
-    let delay = node
-        .delay_ms
-        .map(|ms| format!("{ms} ms"))
-        .unwrap_or_else(|| "—".to_string());
-    let jitter = node
-        .jitter
-        .as_ref()
-        .map(|j| format!("{:.1} ms", j.jitter_ms))
-        .unwrap_or_else(|| "—".to_string());
-    let loss = node
-        .jitter
-        .as_ref()
-        .map(|j| format!("{:.1}%", j.loss_percent))
-        .unwrap_or_else(|| "—".to_string());
-    let bandwidth = node
-        .bandwidth_mbps
-        .map(|mbps| format!("{mbps:.1} Mbps"))
-        .unwrap_or_else(|| "—".to_string());
-    let stars = format!(
-        "{}{}",
-        "★".repeat(node.star_rating.min(5) as usize),
-        "☆".repeat(5usize.saturating_sub(node.star_rating.min(5) as usize)),
-    );
-
+fn node_row(node: &SpeedtestDetailRow, lang: &Lang<'_>) -> Element<'static, Message> {
     container(
         column![
             row![
                 text(node.node_name.clone())
                     .size(12)
-                    .font(crate::view::theme::FONT_SEMIBOLD)
+                    .font(FONT_SEMIBOLD)
                     .width(Length::Fill),
                 text(node.proxy_type.clone())
                     .size(10)
@@ -76,21 +56,34 @@ fn node_row(node: &NodeSpeedtestResult, lang: &Lang<'_>) -> Element<'static, Mes
             .align_y(Alignment::Center),
             Space::new().height(2),
             row![
-                metric(lang.tr("speedtest_detail_delay").to_string(), delay),
-                metric(lang.tr("speedtest_jitter").to_string(), jitter),
-                metric(lang.tr("speedtest_packet_loss").to_string(), loss),
-                metric(lang.tr("speedtest_bandwidth").to_string(), bandwidth),
-                metric(lang.tr("speedtest_detail_stars").to_string(), stars),
-                column![
-                    text(lang.tr("speedtest_detail_egress").to_string())
-                        .size(10)
-                        .style(|t: &Theme| text::Style {
-                            color: Some(tokens(t).text_secondary)
-                        }),
-                    text(node.egress_endpoint_label()).size(12).font(MONO),
-                ]
-                .width(Length::Fill),
-                egress_badge(node.egress_country_match(), lang),
+                metric(
+                    lang.tr("speedtest_detail_delay").to_string(),
+                    node.delay.clone()
+                ),
+                metric(lang.tr("speedtest_jitter").to_string(), node.jitter.clone()),
+                metric(
+                    lang.tr("speedtest_packet_loss").to_string(),
+                    node.loss.clone()
+                ),
+            ]
+            .spacing(8),
+            row![
+                metric(
+                    lang.tr("speedtest_bandwidth").to_string(),
+                    node.bandwidth.clone()
+                ),
+                metric(
+                    lang.tr("speedtest_detail_stars").to_string(),
+                    node.stars.clone()
+                ),
+            ]
+            .spacing(8),
+            row![
+                metric(
+                    lang.tr("speedtest_detail_egress").to_string(),
+                    node.egress.clone()
+                ),
+                egress_badge(node.egress_match, lang),
             ]
             .align_y(Alignment::Center),
         ]
@@ -110,20 +103,16 @@ fn node_row(node: &NodeSpeedtestResult, lang: &Lang<'_>) -> Element<'static, Mes
     .into()
 }
 
-fn body(snapshot: &SpeedtestSnapshot, lang: &Lang<'_>) -> Element<'static, Message> {
+fn body(snapshot: &SpeedtestDetails, lang: &Lang<'_>, height: f32) -> Element<'static, Message> {
     let mut content = column![].spacing(6);
 
-    if let Some(failure) = &snapshot.failure {
-        content = content.push(
-            text(format!("{}: {failure}", lang.tr("speedtest_detail_failed")))
-                .size(11)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).danger),
-                }),
-        );
+    if let Some(message) = notice(snapshot, &|key| lang.tr(key).into_owned()) {
+        content = content.push(text(message).size(11).style(|t: &Theme| text::Style {
+            color: Some(tokens(t).danger),
+        }));
     }
 
-    let mut nodes = snapshot.sorted_by_latency();
+    let nodes = &snapshot.rows;
     if nodes.is_empty() {
         content = content.push(
             text(lang.tr("speedtest_detail_empty").to_string())
@@ -134,24 +123,25 @@ fn body(snapshot: &SpeedtestSnapshot, lang: &Lang<'_>) -> Element<'static, Messa
                 }),
         );
     } else {
-        for node in nodes.drain(..) {
+        for node in nodes {
             content = content.push(node_row(node, lang));
         }
     }
 
-    scrollable(content).height(Length::Fixed(360.0)).into()
+    scrollable(content).height(Length::Fixed(height)).into()
 }
 
 pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
-    let snapshot = &state.diag.speedtest;
+    let snapshot = project_details(&state.diag.speedtest);
+    let height = (state.shell.viewport.height_px - 180.0).clamp(90.0, 360.0);
 
     let header = row![
         column![
             text(lang.tr("speedtest_detail_title").to_string())
                 .size(14)
-                .font(crate::view::theme::FONT_SEMIBOLD),
-            text(snapshot.egress_summary())
+                .font(FONT_SEMIBOLD),
+            text(summary(&snapshot, &|key| lang.tr(key).into_owned()))
                 .size(11)
                 .font(MONO)
                 .style(|t: &Theme| text::Style {
@@ -161,12 +151,20 @@ pub(crate) fn speedtest_detail_modal(state: &AppState) -> Element<'_, Message> {
         .width(Length::Fill),
         button(text(lang.tr("modal_close").to_string()).size(11))
             .padding([4, 10])
-            .style(crate::view::component_forms::style_ghost)
+            .style(style_ghost)
             .on_press(Message::CloseSpeedtestDetail),
     ]
     .align_y(Alignment::Center);
 
-    let card = column![header, Space::new().height(8), body(snapshot, &lang)].spacing(4);
+    let card = column![
+        header,
+        Space::new().height(8),
+        body(&snapshot, &lang, height)
+    ]
+    .spacing(4);
 
-    modal_backdrop(modal_card(card.into(), 720.0))
+    modal_backdrop(modal_card(
+        container(card).id(InteractionRegion::Speedtest.id()).into(),
+        state.shell.viewport.detail_panel_width_px(720.0),
+    ))
 }

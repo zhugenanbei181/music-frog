@@ -14,20 +14,21 @@
 //! HTTP/3) are reported as `NotProbed` with the typed reason instead of a
 //! fabricated latency.
 
+use crate::dns_wire;
+use crate::dns_wire::{DnsQuestion, MAX_RESPONSE_BYTES};
 use infiltrator_contract::dns_latency::{
     DnsLatencyProbeRequest, DnsLatencyReport, DnsProbeOutcome, DnsProbeTarget, DnsProbeTransport,
     DnsServerLatency, MAX_REPORTED_RTT_MS,
 };
 use infiltrator_http::HttpClient;
+use infiltrator_http::reqwest::header::{ACCEPT, CONTENT_TYPE};
 use infiltrator_ports::dns_latency::DnsLatencyProbePort;
 use infiltrator_ports::error::PortError;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::{Duration, Instant, SystemTime};
-use tokio::net::UdpSocket;
+use tokio::net::{UdpSocket, lookup_host};
 use tokio::time::timeout;
-
-use crate::dns_wire::{self, DnsQuestion, MAX_RESPONSE_BYTES};
 
 /// The mihomo `Content-Type`/`Accept` for a wire-format DoH exchange.
 const DOH_CONTENT_TYPE: &str = "application/dns-message";
@@ -180,11 +181,8 @@ impl HttpDnsLatencyProber {
         let response = match self
             .client
             .post(url)
-            .header(
-                infiltrator_http::reqwest::header::CONTENT_TYPE,
-                DOH_CONTENT_TYPE,
-            )
-            .header(infiltrator_http::reqwest::header::ACCEPT, DOH_CONTENT_TYPE)
+            .header(CONTENT_TYPE, DOH_CONTENT_TYPE)
+            .header(ACCEPT, DOH_CONTENT_TYPE)
             .timeout(deadline)
             .body(query)
             .send()
@@ -342,7 +340,7 @@ pub(crate) async fn resolve_target(host: &str, port: u16) -> Result<SocketAddr, 
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok(SocketAddr::new(ip, port));
     }
-    match tokio::net::lookup_host((host, port)).await {
+    match lookup_host((host, port)).await {
         Ok(mut addresses) => addresses
             .next()
             .ok_or_else(|| format!("{host} resolves to no address")),

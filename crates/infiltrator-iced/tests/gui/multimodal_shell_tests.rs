@@ -2,11 +2,30 @@
 //! appearance preference resolution, the shared shortcut registry dispatch,
 //! and the toast dedup/capacity policy.
 
+use crate::mini_hud_window::IcedMiniHudWindowHandle;
 use crate::state::AppState;
-use crate::types::app::ToastStatus;
+use crate::tray::TRAY_RATE_REFRESH_INTERVAL;
+use crate::tray::spec::{TrayController, TraySpec};
+use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
+use crate::view::chrome::strip_height_px;
+use crate::view::mini_hud::mini_hud_view;
+use crate::view::theme::type_scale::{BODY, CAPTION, DISPLAY, HEADING, MONO, TAG, TITLE};
+use crate::view::theme::{is_amoled, is_forest};
+use crate::window_chrome::{support, window_settings};
+use iced::window::Id;
+use infiltrator_application::system_toggle_projection::compact_status_line;
+use infiltrator_contract::command_catalogue::{CommandTarget, ShellPage};
+use infiltrator_contract::design_tokens::type_scale;
+use infiltrator_contract::mini_hud::{MiniHudPlacement, MiniHudWaveformStrip};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
+use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
+use infiltrator_domain::runtime::TrafficData;
+use infiltrator_domain::settings::AppSettings;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 fn chord(key: &str, modifiers: KeyModifiers) -> Message {
     Message::KeyboardChord {
@@ -31,15 +50,15 @@ fn the_shell_follows_the_os_appearance_while_the_preference_is_system() {
         state.shell.theme_preference,
         ThemePreference::Fixed(ThemeSkin::Forest)
     );
-    assert!(crate::view::theme::is_forest(&state.shell.theme));
+    assert!(is_forest(&state.shell.theme));
     let _ = state.update(Message::SystemThemeChanged(false));
-    assert!(crate::view::theme::is_forest(&state.shell.theme));
+    assert!(is_forest(&state.shell.theme));
 }
 
 #[test]
 fn a_system_preference_survives_the_settings_round_trip() {
     let (mut state, _) = AppState::new();
-    let settings = infiltrator_domain::settings::AppSettings {
+    let settings = AppSettings {
         theme: "system".to_string(),
         ..Default::default()
     };
@@ -51,7 +70,7 @@ fn a_system_preference_survives_the_settings_round_trip() {
         "the save path persists the preference, not the resolved skin"
     );
 
-    let pinned = infiltrator_domain::settings::AppSettings {
+    let pinned = AppSettings {
         theme: "EyeForest".to_string(),
         ..Default::default()
     };
@@ -80,7 +99,7 @@ fn the_theme_preference_cycle_visits_every_shared_skin() {
         ]
     );
     // Amoled is a real, distinguishable painting (not dark by another name).
-    assert!(crate::view::theme::is_amoled(&state.shell.theme));
+    assert!(is_amoled(&state.shell.theme));
     assert_ne!(state.shell.theme, iced::Theme::Dark);
 }
 
@@ -178,26 +197,20 @@ fn the_palette_lists_the_shared_catalogue_and_wraps_like_bevy() {
 fn the_palette_executes_shared_targets() {
     let (mut state, _) = AppState::new();
     let _ = state.update(chord("k", KeyModifiers::ctrl()));
-    let _ = state.update(Message::ExecuteCommand(
-        infiltrator_contract::command_catalogue::CommandTarget::Navigate(
-            infiltrator_contract::command_catalogue::ShellPage::Dns,
-        ),
-    ));
+    let _ = state.update(Message::ExecuteCommand(CommandTarget::Navigate(
+        ShellPage::Dns,
+    )));
     assert!(!state.shell.command_palette_open);
-    assert_eq!(state.shell.current_route, crate::types::app::Route::Dns);
+    assert_eq!(state.shell.current_route, Route::Dns);
 
     // A global-chord target re-enters the single shortcut handler.
     let before = state.shell.theme_preference;
-    let _ = state.update(Message::ExecuteCommand(
-        infiltrator_contract::command_catalogue::CommandTarget::CycleTheme,
-    ));
+    let _ = state.update(Message::ExecuteCommand(CommandTarget::CycleTheme));
     assert_eq!(state.shell.theme_preference, before.next());
 
     // The Mini HUD row toggles the same flag the chord does.
     assert!(!state.shell.mini_hud_mode);
-    let _ = state.update(Message::ExecuteCommand(
-        infiltrator_contract::command_catalogue::CommandTarget::ToggleMiniHud,
-    ));
+    let _ = state.update(Message::ExecuteCommand(CommandTarget::ToggleMiniHud));
     assert!(state.shell.mini_hud_mode);
 }
 
@@ -206,18 +219,13 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
     use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
 
     let (mut state, _) = AppState::new();
-    state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData {
+    state.diag.traffic = Some(TrafficData {
         up: 4 * 1024,
         down: 3 * 1024 * 1024,
     });
     state.runtime.proxy_mode = Some("rule".to_owned());
     state.runtime.runtime_selected_proxy = "HK-01".to_owned();
-    state.runtime.system_toggles =
-        infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
-            true,
-            Some(false),
-            7,
-        );
+    state.runtime.system_toggles = SystemToggleSnapshot::from_legacy(true, Some(false), 7);
     state.runtime.traffic_waveform = TrafficWaveformSnapshot {
         generation: 4,
         revision: 2,
@@ -239,24 +247,16 @@ fn the_mini_hud_read_model_comes_from_live_projections() {
     assert_eq!(model.up_bytes_per_sec, 4 * 1024);
     assert_eq!(model.down_bytes_per_sec, 3 * 1024 * 1024);
     assert_eq!(model.exit_node, "HK-01");
-    assert_eq!(
-        model.next_value(infiltrator_contract::system_toggle::SystemToggle::SystemProxy),
-        Some(false)
-    );
-    assert_eq!(
-        model.next_value(infiltrator_contract::system_toggle::SystemToggle::Tun),
-        Some(true)
-    );
-    assert!(model.status_line().contains("系统代理: 开"));
+    assert_eq!(model.next_value(SystemToggle::SystemProxy), Some(false));
+    assert_eq!(model.next_value(SystemToggle::Tun), Some(true));
+    assert!(compact_status_line(&model.system_proxy, &model.tun, "zh-CN").contains("系统代理: 开"));
     assert!(!model.mode_zh.is_empty());
 
     // DUAL-15-03: the waveform strip is the shared projection of the live
     // samples — the very same bars the Bevy overlay rasterizes.
     assert_eq!(
         model.waveform,
-        infiltrator_contract::mini_hud::MiniHudWaveformStrip::from_snapshot(
-            &state.runtime.traffic_waveform
-        )
+        MiniHudWaveformStrip::from_snapshot(&state.runtime.traffic_waveform)
     );
     assert_eq!(model.waveform.up, vec![125, 1_000]);
     assert_eq!(model.waveform.down, vec![500, 125]);
@@ -290,20 +290,19 @@ fn the_mini_hud_view_renders_the_shared_strip() {
     };
     assert!(!state.mini_hud_read_model().waveform.is_empty());
     {
-        let _view = crate::view::mini_hud::mini_hud_view(&state);
+        let _view = mini_hud_view(&state);
     }
 
     // The same state with no live samples still renders an empty strip.
     state.runtime.traffic_waveform = TrafficWaveformSnapshot::default();
     assert!(state.mini_hud_read_model().waveform.is_empty());
-    let _empty_view = crate::view::mini_hud::mini_hud_view(&state);
+    let _empty_view = mini_hud_view(&state);
 }
 
 #[test]
 fn the_mini_hud_drag_moves_the_persisted_placement() {
     let (mut state, _) = AppState::new();
-    state.shell.mini_hud_placement =
-        infiltrator_contract::mini_hud::MiniHudPlacement::new(100, 200);
+    state.shell.mini_hud_placement = MiniHudPlacement::new(100, 200);
     let _ = state.update(Message::MiniHudDisplayKnown(Some(iced::Size::new(
         1920.0, 1080.0,
     ))));
@@ -312,7 +311,7 @@ fn the_mini_hud_drag_moves_the_persisted_placement() {
     let _ = state.update(Message::MiniHudMoved { x: 500.0, y: 400.0 });
     assert_eq!(
         state.shell.mini_hud_placement,
-        infiltrator_contract::mini_hud::MiniHudPlacement::new(100, 200)
+        MiniHudPlacement::new(100, 200)
     );
     let _ = state.update(Message::MiniHudMoved { x: 540.0, y: 430.0 });
     assert_eq!(state.shell.mini_hud_placement.x, 140);
@@ -344,10 +343,10 @@ fn the_placement_update_drains_the_host_window_requests() {
     use infiltrator_ports::mini_hud_window::MiniHudWindowHandle;
 
     let (mut state, _) = AppState::new();
-    let handle = crate::mini_hud_window::IcedMiniHudWindowHandle::host();
+    let handle = IcedMiniHudWindowHandle::host();
     handle.mark_live(false);
     let _ = handle.take_pending();
-    let placement = infiltrator_contract::mini_hud::MiniHudPlacement::new(0, 12);
+    let placement = MiniHudPlacement::new(0, 12);
 
     // A host window that is not live refuses the request: nothing to drain.
     assert!(!handle.apply_placement(placement));
@@ -463,7 +462,7 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
         assert_color(resolved.danger, core.danger, "danger");
     }
 
-    use infiltrator_contract::design_tokens::{self, metrics, radius, space};
+    use infiltrator_contract::design_tokens::{metrics, radius, space};
     assert_eq!(theme::SP_XS, space::XS);
     assert_eq!(theme::SP_SM, space::SM);
     assert_eq!(theme::SP_MD, space::MD);
@@ -477,22 +476,13 @@ fn the_iced_tokens_resolve_the_shared_design_contract() {
     assert_eq!(theme::R_MODAL, radius::MODAL);
     assert_eq!(theme::R_PILL, radius::PILL);
     assert_eq!(theme::R_CHIP, radius::PILL);
-    assert_eq!(
-        theme::type_scale::DISPLAY,
-        design_tokens::type_scale::DISPLAY
-    );
-    assert_eq!(theme::type_scale::TITLE, design_tokens::type_scale::TITLE);
-    assert_eq!(
-        theme::type_scale::HEADING,
-        design_tokens::type_scale::HEADING
-    );
-    assert_eq!(theme::type_scale::BODY, design_tokens::type_scale::BODY);
-    assert_eq!(
-        theme::type_scale::CAPTION,
-        design_tokens::type_scale::CAPTION
-    );
-    assert_eq!(theme::type_scale::TAG, design_tokens::type_scale::TAG);
-    assert_eq!(theme::type_scale::MONO, design_tokens::type_scale::MONO);
+    assert_eq!(DISPLAY, type_scale::DISPLAY);
+    assert_eq!(TITLE, type_scale::TITLE);
+    assert_eq!(HEADING, type_scale::HEADING);
+    assert_eq!(BODY, type_scale::BODY);
+    assert_eq!(CAPTION, type_scale::CAPTION);
+    assert_eq!(TAG, type_scale::TAG);
+    assert_eq!(MONO, type_scale::MONO);
     // The hairline is a real token, not a page-local 1.0 literal: every Iced
     // border calls `theme::HAIRLINE`, and the guard forbids raw
     // `width: 1.0` borders in the whole Iced shell.
@@ -536,11 +526,11 @@ fn the_shell_tracks_window_focus_for_the_shared_cadence() {
 /// A tray controller that records every pushed spec, so the live-badge push
 /// path is observable headlessly (no D-Bus, no backend).
 struct RecordingTrayController {
-    pushed: std::sync::Arc<std::sync::Mutex<Vec<crate::tray::spec::TraySpec>>>,
+    pushed: Arc<Mutex<Vec<TraySpec>>>,
 }
 
-impl crate::tray::spec::TrayController for RecordingTrayController {
-    fn update_spec(&self, spec: crate::tray::spec::TraySpec) {
+impl TrayController for RecordingTrayController {
+    fn update_spec(&self, spec: TraySpec) {
         self.pushed
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -550,10 +540,7 @@ impl crate::tray::spec::TrayController for RecordingTrayController {
     fn shutdown(&mut self) {}
 }
 
-fn live_waveform(
-    up: f64,
-    down: f64,
-) -> infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot {
+fn live_waveform(up: f64, down: f64) -> TrafficWaveformSnapshot {
     use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
     TrafficWaveformSnapshot {
         generation: 1,
@@ -566,7 +553,7 @@ fn live_waveform(
     }
 }
 
-fn info_rate_label(spec: &crate::tray::spec::TraySpec) -> Option<String> {
+fn info_rate_label(spec: &TraySpec) -> Option<String> {
     use crate::tray::spec::{TRAY_ACTION_INFO_RATE, TrayMenuItem};
     fn scan(items: &[TrayMenuItem]) -> Option<String> {
         for item in items {
@@ -628,16 +615,16 @@ fn the_rate_badge_push_is_deduplicated_and_uses_the_shared_interval() {
     use std::time::Duration;
 
     assert_eq!(
-        crate::tray::TRAY_RATE_REFRESH_INTERVAL,
+        TRAY_RATE_REFRESH_INTERVAL,
         Duration::from_millis(TRAY_RATE_REFRESH_INTERVAL_MS),
         "the Iced throttle must be the shared constant, not a local one"
     );
 
     let (mut state, _) = AppState::new();
     state.shell.lang = "zh-CN".to_string();
-    let pushed = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pushed = Arc::new(Mutex::new(Vec::new()));
     state.shell.tray_controller = Some(Box::new(RecordingTrayController {
-        pushed: std::sync::Arc::clone(&pushed),
+        pushed: Arc::clone(&pushed),
     }));
 
     state.runtime.traffic_waveform = live_waveform(1_000.0, 2_000.0);
@@ -654,7 +641,7 @@ fn the_rate_badge_push_is_deduplicated_and_uses_the_shared_interval() {
     );
 
     // A changed badge inside the shared interval stays throttled...
-    state.shell.tray_refresh_cooldown = Some(std::time::Instant::now());
+    state.shell.tray_refresh_cooldown = Some(Instant::now());
     state.runtime.traffic_waveform = live_waveform(3_000.0, 4_000.0);
     state.refresh_tray_rates();
     assert_eq!(pushed.lock().unwrap().len(), 1, "throttled inside 1000 ms");
@@ -677,17 +664,14 @@ fn the_frameless_window_settings_consume_the_shared_chrome_contract() {
     use infiltrator_contract::window_chrome::WindowChrome;
 
     let chrome = WindowChrome::FRAMELESS;
-    let settings = crate::window_chrome::window_settings((1180.0, 780.0), (420.0, 560.0));
+    let settings = window_settings((1180.0, 780.0), (420.0, 560.0));
     assert!(!settings.decorations, "the host runs frameless");
     assert!(settings.transparent, "Wayland transparent surface");
     assert_eq!(settings.decorations, chrome.os_decorations());
     assert!(chrome.needs_custom_controls());
-    assert_eq!(
-        crate::view::chrome::strip_height_px(),
-        chrome.chrome_height_px() as f32
-    );
+    assert_eq!(strip_height_px(), chrome.chrome_height_px() as f32);
 
-    let support = crate::window_chrome::support();
+    let support = support();
     assert!(support.is_hosted());
     assert!(support.drag(), "the press path goes to the OS drag");
     assert!(support.maximize());
@@ -739,7 +723,7 @@ fn the_chrome_strip_mounts_above_the_shell_and_never_fabricates_a_window() {
     let _ = state.update(Message::WindowChromeToggleMaximize);
 
     // With a resolved window the update path accepts the requests.
-    let _ = state.update(Message::WindowIdResolved(Some(iced::window::Id::unique())));
+    let _ = state.update(Message::WindowIdResolved(Some(Id::unique())));
     assert!(state.shell.window_id.is_some());
     let _ = state.update(Message::WindowChromeDragRequested);
     let _ = state.update(Message::WindowChromeToggleMaximize);

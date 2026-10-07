@@ -1,8 +1,8 @@
-use infiltrator_application::proxy_application::ProxyNode;
-
 use crate::commands::ProxyAction;
 use crate::context::Runtime;
 use crate::output::{print_info, print_success, print_table};
+use infiltrator_application::proxy_application::ProxyNode;
+use infiltrator_domain::proxy::ProxyGroup;
 
 pub(crate) async fn handle(action: ProxyAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
@@ -69,11 +69,16 @@ fn node_row(node: &ProxyNode) -> Vec<String> {
         node.delay
             .map(|delay| format!("{delay} ms"))
             .unwrap_or_else(|| "-".to_string()),
-        (if node.alive { "yes" } else { "no" }).to_string(),
+        match node.alive {
+            Some(true) => "yes",
+            Some(false) => "no",
+            None => "unknown",
+        }
+        .to_string(),
     ]
 }
 
-fn group_row(group: &infiltrator_domain::proxy::ProxyGroup) -> Vec<String> {
+fn group_row(group: &ProxyGroup) -> Vec<String> {
     vec![
         group.name.clone(),
         group.now.clone(),
@@ -83,19 +88,18 @@ fn group_row(group: &infiltrator_domain::proxy::ProxyGroup) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::{group_row, node_row};
     use infiltrator_application::proxy_application::ProxyNode;
     use infiltrator_domain::proxy::ProxyGroup;
-
-    use super::{group_row, node_row};
 
     fn sample_node() -> ProxyNode {
         ProxyNode {
             name: "HK-01".to_string(),
             proxy_type: "Shadowsocks".to_string(),
-            udp: true,
+            udp: Some(true),
             history: vec![],
             delay: Some(120),
-            alive: true,
+            alive: Some(true),
         }
     }
 
@@ -108,10 +112,12 @@ mod tests {
 
         let mut dead = sample_node();
         dead.delay = None;
-        dead.alive = false;
+        dead.alive = Some(false);
         let row = node_row(&dead);
         assert_eq!(row[2], "-");
         assert_eq!(row[3], "no");
+        dead.alive = None;
+        assert_eq!(node_row(&dead)[3], "unknown");
     }
 
     #[test]

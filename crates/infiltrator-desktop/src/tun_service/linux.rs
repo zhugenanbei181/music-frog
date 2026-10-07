@@ -9,6 +9,7 @@
 
 use super::ServiceModeStatus;
 use anyhow::{Context, Result};
+use std::ffi::OsString;
 use std::path::Path;
 use std::process::Command;
 
@@ -30,14 +31,12 @@ pub(super) fn check_status_for(exe: &Path) -> ServiceModeStatus {
 /// Builds the argv handed to `pkexec` for a setcap grant (`remove = false`)
 /// or a setcap removal (`remove = true`). Pure helper, unit-tested so the
 /// argv contract cannot drift between install and uninstall.
-fn setcap_argv(bin_path: &Path, remove: bool) -> Vec<std::ffi::OsString> {
-    let mut argv = vec![std::ffi::OsString::from("setcap")];
+fn setcap_argv(bin_path: &Path, remove: bool) -> Vec<OsString> {
+    let mut argv = vec![OsString::from("setcap")];
     if remove {
-        argv.push(std::ffi::OsString::from("-r"));
+        argv.push(OsString::from("-r"));
     } else {
-        argv.push(std::ffi::OsString::from(
-            "cap_net_admin,cap_net_bind_service+ep",
-        ));
+        argv.push(OsString::from("cap_net_admin,cap_net_bind_service+ep"));
     }
     argv.push(bin_path.as_os_str().to_os_string());
     argv

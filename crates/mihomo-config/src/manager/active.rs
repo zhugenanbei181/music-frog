@@ -1,17 +1,18 @@
 //! Active-profile selection (`default.profile` in the settings file) and the
 //! settings-file read/remove plumbing shared by the other manager seams.
 
-use std::path::PathBuf;
-
-use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::{MihomoError, Result};
-use tokio::fs;
-
 use super::ConfigManager;
 use super::paths::sanitized_profile_key;
+use crate::yaml::validate;
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::error::{MihomoError, Result};
+use std::path::PathBuf;
+use tokio::fs;
+use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn set_current(&self, profile: &str) -> Result<()> {
+        let _guard = self.lock_profile_writes().await;
         self.existing_profile_yaml_path(profile).await?;
 
         if let Some(parent) = self.settings_file.parent() {
@@ -20,15 +21,15 @@ impl<S: SecureStore> ConfigManager<S> {
 
         let mut config = if self.settings_file.exists() {
             let content = fs::read_to_string(&self.settings_file).await?;
-            toml::from_str(&content).unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new()))
+            toml::from_str(&content).unwrap_or_else(|_| toml::Value::Table(Map::new()))
         } else {
-            toml::Value::Table(toml::map::Map::new())
+            toml::Value::Table(Map::new())
         };
 
         if let toml::Value::Table(ref mut table) = config {
             let default_table = table
                 .entry("default".to_string())
-                .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+                .or_insert_with(|| toml::Value::Table(Map::new()));
 
             if let toml::Value::Table(default) = default_table {
                 default.insert(
@@ -47,7 +48,7 @@ impl<S: SecureStore> ConfigManager<S> {
 
     pub(super) async fn read_settings_value(&self) -> Result<toml::Value> {
         if !self.settings_file.exists() {
-            return Ok(toml::Value::Table(toml::map::Map::new()));
+            return Ok(toml::Value::Table(Map::new()));
         }
         let content = fs::read_to_string(&self.settings_file).await?;
         toml::from_str(&content).map_err(|e| MihomoError::Config(format!("Invalid config: {}", e)))
@@ -97,6 +98,6 @@ impl<S: SecureStore> ConfigManager<S> {
     pub async fn validate_current_profile(&self) -> Result<()> {
         let profile = self.get_current().await?;
         let content = self.load(&profile).await?;
-        crate::yaml::validate(&content)
+        validate(&content)
     }
 }

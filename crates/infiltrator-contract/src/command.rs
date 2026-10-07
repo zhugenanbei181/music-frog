@@ -1,8 +1,32 @@
-use serde::{Deserialize, Serialize};
-
-use crate::error::Failure;
+use crate::aggregator::AggregationDraft;
+use crate::command_output::CommandOutput;
+use crate::dns::DnsSettingsPatch;
+use crate::dns_cache::DnsCacheOperationId;
+use crate::dns_query::{DnsQueryOperationId, DnsQueryRequest};
+use crate::error::{ErrorCode, Failure};
 use crate::lan::LanCredentials;
+use crate::language::LanguagePreference;
+use crate::log_export::LogExportIdentity;
+use crate::overview_layout::OverviewCardKind;
+use crate::profile_source::ProfileSourceIdentity;
+use crate::protocol_fidelity::ProtocolDraft;
+use crate::protocol_trust::TlsTrustParams;
+use crate::proxies::ProxySortOrder;
+use crate::proxy_probe_options::ProxyProbeOptions;
+use crate::rule_document::RuleListCommit;
+use crate::rule_edit::RuleMoveDirection;
+use crate::rule_source::RuleSourceIdentity;
+use crate::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
+use crate::rule_tracer::TracerRuleOverride;
+use crate::rules_workspace::RulesJsonSection;
+use crate::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
+use crate::script_run::{ScriptOperationId, ScriptRunRequest};
+use crate::snapshot_restore::{SnapshotRestoreIdentity, SnapshotRestoreTarget};
+use crate::subscription_import::{
+    SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
+};
 use crate::tun::TunStack;
+use serde::{Deserialize, Serialize};
 
 /// Correlates an asynchronous command with its result and events.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -102,6 +126,21 @@ impl ProxyMode {
 /// changing a Bevy scene do not belong here.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CommandIntent {
+    RunScriptSandbox {
+        request: ScriptRunRequest,
+    },
+    ClearScriptSandbox {
+        operation: ScriptOperationId,
+    },
+    PrepareScriptExport {
+        draft: ScriptExportDraft,
+    },
+    SaveScriptExport {
+        identity: ScriptExportIdentity,
+    },
+    CancelScriptExport {
+        identity: ScriptExportIdentity,
+    },
     StartCore,
     StopCore,
     RestartCore,
@@ -125,6 +164,13 @@ pub enum CommandIntent {
     },
     TestDelay {
         group: Option<String>,
+        #[serde(default)]
+        url: Option<String>,
+        #[serde(default)]
+        timeout_ms: Option<u32>,
+    },
+    TestNodeDelay {
+        node: String,
         #[serde(default)]
         url: Option<String>,
         #[serde(default)]
@@ -164,7 +210,13 @@ pub enum CommandIntent {
         expanded: bool,
     },
     SetProxySortOrder {
-        order: crate::proxies::ProxySortOrder,
+        order: ProxySortOrder,
+    },
+    SetProxyProbeOptions {
+        options: ProxyProbeOptions,
+    },
+    SetProxySearchQuery {
+        query: String,
     },
     ToggleFilterAlive {
         enabled: bool,
@@ -180,7 +232,7 @@ pub enum CommandIntent {
     },
     ResetProxyGroupOrder,
     ReorderOverviewCards {
-        order: Vec<crate::overview_layout::OverviewCardKind>,
+        order: Vec<OverviewCardKind>,
     },
     ResetOverviewCardOrder,
     UpdateProfile {
@@ -212,20 +264,20 @@ pub enum CommandIntent {
     /// interval, and cron schedule through the shared application.
     UpdateSubscriptionSchedule {
         profile_id: String,
-        draft: crate::subscription_import::SubscriptionScheduleDraft,
+        draft: SubscriptionScheduleDraft,
     },
     /// DUAL-07-08: apply and persist a profile's subscription node-keyword
     /// filter (include/exclude/protocol/rename/dedupe) through the shared
     /// pipeline.
     SaveSubscriptionFilter {
-        profile_id: String,
-        filter: crate::subscription_import::SubscriptionFilterDraft,
+        source: ProfileSourceIdentity,
+        filter: SubscriptionFilterDraft,
     },
     /// DUAL-07-01: import a profile from a URL, local file, or the clipboard
     /// through the shared import application + host import port.
     ImportSubscription {
         profile_id: String,
-        channel: crate::subscription_import::SubscriptionImportChannel,
+        channel: SubscriptionImportChannel,
         source: String,
     },
     DeleteProfile {
@@ -235,17 +287,17 @@ pub enum CommandIntent {
     /// shared preview from the real source contents. Both surfaces render the
     /// resulting `AggregationReport`; neither clusters or dedups locally.
     PreviewProfileAggregation {
-        draft: crate::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-06: materialise the persisted aggregation draft into a brand
     /// new profile, leaving every source profile untouched.
     CreateAggregatedProfile {
-        draft: crate::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-13: upsert the draft as a reusable aggregation template.
     SaveAggregationTemplate {
         name: String,
-        draft: crate::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-13: delete a saved aggregation template.
     DeleteAggregationTemplate {
@@ -258,19 +310,17 @@ pub enum CommandIntent {
     },
     RefreshRuleProviders,
     SimulateRuleTrace {
-        query: String,
-    },
-    /// DUAL-12-10: set the simulated sandbox source IP / inbound environment
-    /// the next rule-tracer replay must merge.
-    SetRuleTracerContext {
-        src_ip: Option<String>,
+        operation: RuleTraceOperationId,
+        request: RuleTraceRequest,
     },
     /// DUAL-12-08: rewrite the traced rule's outbound target and commit the
     /// whole rule list through the atomic apply transaction.
     ApplyTracerRuleOverride {
-        request: crate::rule_tracer::TracerRuleOverride,
+        request: TracerRuleOverride,
     },
-    ResetRuleHitCounters,
+    ResetRuleHitCounters {
+        expected_source: RuleSourceIdentity,
+    },
     UnpackRuleProvider {
         provider_name: String,
     },
@@ -283,11 +333,15 @@ pub enum CommandIntent {
     ToggleRuleEnabled {
         index: usize,
     },
+    /// Commit the complete staged list only against its confirmed source identity.
+    CommitRuleList {
+        request: RuleListCommit,
+    },
     /// DUAL-11-10: move one rule a single step up or down in the active
     /// profile's rule order.
     MoveRule {
         index: usize,
-        direction: crate::rule_edit::RuleMoveDirection,
+        direction: RuleMoveDirection,
     },
     /// DUAL-11-11: insert a wizard-built custom rule at the top of the list,
     /// applying the shared logical-rule validation.
@@ -309,7 +363,7 @@ pub enum CommandIntent {
     /// proxy providers / sniffer) through the shared configuration use-case,
     /// which validates the document before writing the active profile.
     ApplyRulesJsonDocument {
-        section: crate::rules_workspace::RulesJsonSection,
+        section: RulesJsonSection,
         json: String,
     },
     CloseConnection {
@@ -317,10 +371,23 @@ pub enum CommandIntent {
     },
     CloseAllConnections,
     ClearLogs,
+    PrepareLogExport,
+    SaveLogExport {
+        identity: LogExportIdentity,
+    },
+    CancelLogExport {
+        identity: LogExportIdentity,
+    },
     SetLogLevelFilter {
         level: Option<String>,
     },
-    ClearDnsCache,
+    ClearDnsCache {
+        operation: DnsCacheOperationId,
+    },
+    QueryDns {
+        operation: DnsQueryOperationId,
+        request: DnsQueryRequest,
+    },
     TestDnsLatency,
     /// DUAL-14-08: run the shared DNS leak cross-source probe (random
     /// subdomains under every configured echo authority).
@@ -331,9 +398,10 @@ pub enum CommandIntent {
     RunStunProbe,
     /// Apply a shared DNS workbench patch (switches / mapping mode / filter mode).
     ApplyDnsSettings {
-        patch: crate::dns::DnsSettingsPatch,
+        patch: DnsSettingsPatch,
     },
     RunDoctorDiagnostics,
+    BootstrapDoctor,
     RepairDoctorIssue {
         check_id: String,
     },
@@ -401,24 +469,37 @@ pub enum CommandIntent {
         rule: String,
     },
     SyncNow,
-    CreateBackupSnapshot,
+    CreateBackupSnapshot {
+        profile: Option<String>,
+    },
     ResolveConflictKeepLocal,
     ResolveConflictTakeRemote,
-    RestoreSnapshot {
-        id: String,
+    PrepareSnapshotRestore {
+        target: SnapshotRestoreTarget,
+    },
+    ConfirmSnapshotRestore {
+        identity: SnapshotRestoreIdentity,
+    },
+    CancelSnapshotRestore {
+        identity: SnapshotRestoreIdentity,
     },
     /// DUAL-09-08: compute a real snapshot-vs-current AST diff and publish it
-    /// process-wide for the surface snapshot. `snapshot_id = None` selects the
+    /// within the product instance for the surface snapshot. `snapshot_id = None` selects the
     /// newest snapshot of the active profile.
     LoadSnapshotDiff {
+        profile: Option<String>,
         snapshot_id: Option<String>,
     },
     /// DUAL-09-06/07: refresh the active profile's snapshot history and publish
     /// it (entries + the shared prune view) for both surfaces.
-    LoadSnapshotHistory,
+    LoadSnapshotHistory {
+        profile: Option<String>,
+        keep: usize,
+    },
     /// DUAL-09-07: run the shared dedupe+LRU prune now. `keep = None` keeps the
     /// default retention.
     PruneSnapshots {
+        profile: Option<String>,
         keep: Option<usize>,
     },
     /// DUAL-09-03/14: load the active profile's stored document (content +
@@ -427,10 +508,9 @@ pub enum CommandIntent {
         profile: Option<String>,
     },
     /// DUAL-09-14: commit an editor buffer through the shared guarded write
-    /// path (`save_edited_profile_content`, the same transaction the Iced
-    /// editor uses).
+    /// path, comparing the exact document/options source the user observed.
     SaveProfileDocument {
-        profile: String,
+        source: ProfileSourceIdentity,
         content: String,
         allow_protected: bool,
     },
@@ -445,7 +525,7 @@ pub enum CommandIntent {
     /// byte-faithful engine, apply through the transaction and persist the
     /// sidecar). The same call the Iced editor makes.
     SaveMixinOverlay {
-        profile: String,
+        source: ProfileSourceIdentity,
         mixin_yaml: String,
     },
     /// Select the last installed, locally recorded core version.
@@ -453,6 +533,10 @@ pub enum CommandIntent {
     /// DUAL-05-14: decode a share link into the shared protocol draft and
     /// publish the typed report (cipher family / REALITY / smux) for both
     /// surfaces. Never writes a profile.
+    /// Publish a staged protocol draft without persisting any profile.
+    PrepareCustomNodeDraft {
+        draft: Box<ProtocolDraft>,
+    },
     ImportCustomNodeUri {
         uri: String,
     },
@@ -461,7 +545,7 @@ pub enum CommandIntent {
     SaveCustomNodeDraft {
         /// Boxed: the typed draft grew with the DUAL-05 parameter blocks, and
         /// the intent enum must stay small (clippy::large_enum_variant).
-        draft: Box<crate::protocol_fidelity::ProtocolDraft>,
+        draft: Box<ProtocolDraft>,
     },
     /// DUAL-05-09/10: analyse the active profile's dialer/relay graph and
     /// publish the resolved chains + typed loop findings for both surfaces.
@@ -477,7 +561,10 @@ pub enum CommandIntent {
     /// and publish the typed outcome (loaded / unsupported / failed).
     ResolveCertificateAuthority {
         /// Boxed for the same reason as `SaveCustomNodeDraft`.
-        trust: Box<crate::protocol_trust::TlsTrustParams>,
+        trust: Box<TlsTrustParams>,
+    },
+    SetLanguage {
+        preference: LanguagePreference,
     },
     UpdateSetting {
         key: String,
@@ -508,6 +595,10 @@ pub enum CommandResult {
     Completed {
         request_id: RequestId,
     },
+    Produced {
+        request_id: RequestId,
+        output: CommandOutput,
+    },
     Rejected {
         request_id: RequestId,
         failure: Failure,
@@ -522,6 +613,11 @@ impl CommandIntent {
             Self::RepairPortConflicts => CommandKind::Network,
             Self::SetCoreLogLevel { .. } | Self::SetTunStack { .. } => CommandKind::Runtime,
             Self::SwitchProfile { .. }
+            | Self::RunScriptSandbox { .. }
+            | Self::ClearScriptSandbox { .. }
+            | Self::PrepareScriptExport { .. }
+            | Self::SaveScriptExport { .. }
+            | Self::CancelScriptExport { .. }
             | Self::UpdateProfile { .. }
             | Self::UpdateAllSubscriptions
             | Self::RestoreSubscriptionBackup { .. }
@@ -536,6 +632,7 @@ impl CommandIntent {
             | Self::SaveAggregationTemplate { .. }
             | Self::DeleteAggregationTemplate { .. }
             | Self::ReAggregateProfile { .. }
+            | Self::PrepareCustomNodeDraft { .. }
             | Self::ImportCustomNodeUri { .. }
             | Self::SaveCustomNodeDraft { .. }
             | Self::ScanDialerChains
@@ -545,20 +642,21 @@ impl CommandIntent {
             | Self::UnpackRuleProvider { .. }
             | Self::PurgeRuleProviderCache => CommandKind::Profile,
             Self::ToggleRuleEnabled { .. }
+            | Self::CommitRuleList { .. }
             | Self::MoveRule { .. }
             | Self::AddCustomRule { .. }
             | Self::ApplyGameRoutingPresets { .. } => CommandKind::Profile,
             Self::UpgradeGeoDatabases => CommandKind::Runtime,
             Self::ApplyRulesJsonDocument { .. } => CommandKind::Profile,
             Self::SimulateRuleTrace { .. }
-            | Self::SetRuleTracerContext { .. }
             | Self::ApplyTracerRuleOverride { .. }
-            | Self::ResetRuleHitCounters
+            | Self::ResetRuleHitCounters { .. }
             | Self::ReorderOverviewCards { .. }
             | Self::ResetOverviewCardOrder => CommandKind::Runtime,
             Self::SetProxyMode { .. }
             | Self::SelectProxyNode { .. }
             | Self::TestDelay { .. }
+            | Self::TestNodeDelay { .. }
             | Self::RunSpeedtest { .. }
             | Self::RecordSpeedtestBandwidth { .. }
             | Self::RecordSpeedtestOutboundIp { .. }
@@ -567,21 +665,28 @@ impl CommandIntent {
             | Self::ToggleProxyGroupExpand { .. }
             | Self::SetProxyGroupExpanded { .. }
             | Self::SetProxySortOrder { .. }
+            | Self::SetProxySearchQuery { .. }
+            | Self::SetProxyProbeOptions { .. }
             | Self::ToggleFilterAlive { .. }
             | Self::ToggleFavoriteProxy { .. }
             | Self::SetProxyCompactView { .. }
             | Self::ReorderProxyGroups { .. }
             | Self::ResetProxyGroupOrder => CommandKind::Proxy,
-            Self::CloseConnection { .. } | Self::CloseAllConnections | Self::ClearDnsCache => {
-                CommandKind::Runtime
-            }
+            Self::CloseConnection { .. }
+            | Self::CloseAllConnections
+            | Self::ClearDnsCache { .. } => CommandKind::Runtime,
             Self::ClearLogs
+            | Self::PrepareLogExport
+            | Self::SaveLogExport { .. }
+            | Self::CancelLogExport { .. }
             | Self::SetLogLevelFilter { .. }
+            | Self::QueryDns { .. }
             | Self::TestDnsLatency
             | Self::TestDnsLeak
             | Self::RunStunProbe
             | Self::ApplyDnsSettings { .. }
             | Self::RunDoctorDiagnostics
+            | Self::BootstrapDoctor
             | Self::RepairDoctorIssue { .. }
             | Self::RepairAllDoctorIssues => CommandKind::Runtime,
             Self::ToggleTun { .. }
@@ -607,19 +712,41 @@ impl CommandIntent {
             | Self::ToggleIncludeSystemApps { .. }
             | Self::SetAppRule { .. } => CommandKind::Network,
             Self::SyncNow
-            | Self::CreateBackupSnapshot
+            | Self::CreateBackupSnapshot { .. }
             | Self::ResolveConflictKeepLocal
             | Self::ResolveConflictTakeRemote
-            | Self::RestoreSnapshot { .. }
+            | Self::PrepareSnapshotRestore { .. }
+            | Self::ConfirmSnapshotRestore { .. }
+            | Self::CancelSnapshotRestore { .. }
             | Self::LoadSnapshotDiff { .. } => CommandKind::Sync,
-            Self::LoadSnapshotHistory | Self::PruneSnapshots { .. } => CommandKind::Sync,
+            Self::LoadSnapshotHistory { .. } | Self::PruneSnapshots { .. } => CommandKind::Sync,
             Self::LoadProfileDocument { .. } | Self::SaveProfileDocument { .. } => {
                 CommandKind::Profile
             }
             Self::LoadProfileOptions { .. } | Self::SaveMixinOverlay { .. } => CommandKind::Profile,
-            Self::RollbackCore | Self::UpdateSetting { .. } | Self::CheckUpdates => {
-                CommandKind::Update
-            }
+            Self::RollbackCore
+            | Self::SetLanguage { .. }
+            | Self::UpdateSetting { .. }
+            | Self::CheckUpdates => CommandKind::Update,
         }
+    }
+}
+
+impl CommandResult {
+    pub fn into_output(self) -> Result<CommandOutput, Failure> {
+        match self {
+            Self::Completed { .. } => Ok(CommandOutput::Unit),
+            Self::Produced { output, .. } => Ok(output),
+            Self::Rejected { failure, .. } => Err(failure),
+            Self::Accepted { .. } => Err(Failure::new(
+                ErrorCode::NotReady,
+                "Command has no terminal acknowledgment",
+                true,
+            )),
+        }
+    }
+
+    pub fn into_unit(self) -> Result<(), Failure> {
+        self.into_output()?.into_unit()
     }
 }

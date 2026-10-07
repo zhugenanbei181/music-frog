@@ -2,16 +2,17 @@
 //! read model, the mounted scene, the toggle event and the pin persistence
 //! path through the shared settings command.
 
-use std::sync::Arc;
-
 use bevy::MinimalPlugins;
 use bevy::app::App;
-use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::asset::{AssetApp, AssetPlugin, Assets};
+use bevy::ecs::component::Component;
+use bevy::ecs::entity;
 use bevy::ecs::query::With;
 use bevy::image::Image;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
+use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
@@ -22,17 +23,15 @@ use infiltrator_bevy_ui::pages::overview::{LastOverviewProjection, OverviewProje
 use infiltrator_bevy_ui::route::PagesPlugin;
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use std::sync::Arc;
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     // The demo surface is the deterministic projection source (same fixture
     // the shell uses for screenshots).
     app.add_plugins(PagesPlugin::demo());
@@ -87,15 +86,13 @@ fn the_read_model_comes_from_the_live_projections() {
     // A pending system toggle is visibly non-actionable through the shared
     // state letters.
     {
-        let mut toggles = app
-            .world_mut()
-            .resource_mut::<infiltrator_bevy_ui::app::SidebarToggleProjection>();
+        let mut toggles = app.world_mut().resource_mut::<SidebarToggleProjection>();
         toggles.0 = toggles.0.clone().with_pending(SystemToggle::Tun, true);
     }
     app.update();
     let model = app.world().resource::<MiniHudModel>().0.clone();
     assert_eq!(model.next_value(SystemToggle::Tun), None);
-    assert!(model.status_line().contains('…'));
+    assert!(compact_status_line(&model.system_proxy, &model.tun, "zh-CN").contains('…'));
 }
 
 /// The waveform strip is a projection of the shared live samples, not a
@@ -170,17 +167,17 @@ fn the_mounted_waveform_slots_rasterize_the_shared_strip() {
     assert_eq!(model.waveform.up.len(), 2);
 
     let world = app.world_mut();
-    let mut down = world.query_filtered::<bevy::ecs::entity::Entity, With<MiniHudDownWaveform>>();
+    let mut down = world.query_filtered::<entity::Entity, With<MiniHudDownWaveform>>();
     let down_entity = down
         .iter(world)
         .next()
         .expect("the downstream slot mounted");
-    let mut up = world.query_filtered::<bevy::ecs::entity::Entity, With<MiniHudUpWaveform>>();
+    let mut up = world.query_filtered::<entity::Entity, With<MiniHudUpWaveform>>();
     let up_entity = up.iter(world).next().expect("the upstream slot mounted");
     drop(down);
     drop(up);
 
-    let handle_of = |entity: bevy::ecs::entity::Entity| {
+    let handle_of = |entity: entity::Entity| {
         app.world()
             .entity(entity)
             .get::<ImageNode>()
@@ -189,7 +186,7 @@ fn the_mounted_waveform_slots_rasterize_the_shared_strip() {
     };
     let down_image = handle_of(down_entity);
     let up_image = handle_of(up_entity);
-    let images = app.world().resource::<bevy::asset::Assets<Image>>();
+    let images = app.world().resource::<Assets<Image>>();
     let down_image = images.get(&down_image).expect("downstream raster");
     let up_image = images.get(&up_image).expect("upstream raster");
     assert_eq!(down_image.texture_descriptor.size.width, 60);
@@ -225,7 +222,11 @@ fn the_mounted_scene_renders_the_shared_read_model() {
     let model = app.world().resource::<MiniHudModel>().0.clone();
     let texts = hud_texts(&mut app).join(" | ");
     assert!(
-        texts.contains(&model.status_line()),
+        texts.contains(&compact_status_line(
+            &model.system_proxy,
+            &model.tun,
+            "zh-CN"
+        )),
         "the shared toggle-state line renders verbatim: {texts}"
     );
     assert!(
@@ -265,9 +266,9 @@ fn mount_hud_with_toggles(app: &mut App) {
     app.update();
 }
 
-fn first_entity<M: bevy::ecs::component::Component>(app: &mut App) -> bevy::ecs::entity::Entity {
+fn first_entity<M: Component>(app: &mut App) -> entity::Entity {
     let world = app.world_mut();
-    let mut query = world.query_filtered::<bevy::ecs::entity::Entity, With<M>>();
+    let mut query = world.query_filtered::<entity::Entity, With<M>>();
     query
         .iter(world)
         .next()
@@ -292,6 +293,7 @@ fn the_hud_quick_switches_dispatch_the_shared_toggle_commands() {
         sink.submitted()
     );
 
+    assert_eq!(first_entity::<MiniHudSystemProxyToggle>(&mut app), proxy);
     let tun = first_entity::<MiniHudTunToggle>(&mut app);
     app.world_mut().commands().trigger(Activate { entity: tun });
     app.update();

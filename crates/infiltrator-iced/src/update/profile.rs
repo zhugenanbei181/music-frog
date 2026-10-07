@@ -3,6 +3,7 @@
 //! Handlers are grouped by business topic in the sibling submodules; the
 //! root keeps only the dispatcher and the shared cache invalidation helper.
 
+use crate::types::editor::EditorLazyState;
 mod admin;
 mod editor;
 mod import;
@@ -29,12 +30,12 @@ impl AppState {
         self.editor.rules_page = 0;
         self.editor.rules_heavy_ready = false;
         self.editor.dns_heavy_ready = false;
-        self.editor.rule_providers_editor_state = crate::types::editor::EditorLazyState::Unloaded;
-        self.editor.proxy_providers_editor_state = crate::types::editor::EditorLazyState::Unloaded;
-        self.editor.sniffer_editor_state = crate::types::editor::EditorLazyState::Unloaded;
-        self.editor.dns_editor_state = crate::types::editor::EditorLazyState::Unloaded;
-        self.editor.fake_ip_editor_state = crate::types::editor::EditorLazyState::Unloaded;
-        self.editor.tun_editor_state = crate::types::editor::EditorLazyState::Unloaded;
+        self.editor.rule_providers_editor_state = EditorLazyState::Unloaded;
+        self.editor.proxy_providers_editor_state = EditorLazyState::Unloaded;
+        self.editor.sniffer_editor_state = EditorLazyState::Unloaded;
+        self.editor.dns_editor_state = EditorLazyState::Unloaded;
+        self.editor.fake_ip_editor_state = EditorLazyState::Unloaded;
+        self.editor.tun_editor_state = EditorLazyState::Unloaded;
     }
 
     pub fn update_profile(&mut self, message: Message) -> Task<Message> {
@@ -101,10 +102,10 @@ impl AppState {
             | Message::ArmRestoreProfileSnapshot(_)
             | Message::CancelRestoreProfileSnapshot
             | Message::RestoreProfileSnapshot(_)
-            | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
             | Message::InsertYamlSnippet(_)
             | Message::SaveProfile
+            | Message::DiscardProfileDraft
             | Message::ProfileSaved(_) => self.update_editor(message),
 
             // Profile options: mixin overlay editor + subscription filter.
@@ -112,17 +113,20 @@ impl AppState {
             | Message::MixinEditorAction(_)
             | Message::MixinLoaded(_)
             | Message::SaveMixin
+            | Message::DiscardMixinDraft
             | Message::MixinSaved(_)
             | Message::ToggleMixinPreset(_, _)
             | Message::LoadProfileFilter
-            | Message::ProfileFilterLoaded(_)
+            | Message::ProfileFilterLoaded { .. }
             | Message::UpdateFilterInclude(_)
             | Message::UpdateFilterExclude(_)
             | Message::UpdateFilterExcludeTypes(_)
             | Message::UpdateFilterRenames(_)
+            | Message::UpdateFilterAdvancedPolicy(_)
             | Message::UpdateFilterDedup(_)
             | Message::SaveProfileFilter
-            | Message::ProfileFilterSaved(_) => self.update_options(message),
+            | Message::ProfileFilterSaved { .. }
+            | Message::DiscardProfileFilter => self.update_options(message),
 
             // App settings: WebDAV account, editor path, language/theme.
             Message::UpdateWebDavUrl(_)

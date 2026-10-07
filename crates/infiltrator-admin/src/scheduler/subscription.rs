@@ -1,17 +1,16 @@
+use crate::admin_api::state::AdminApiContext;
 use anyhow::anyhow;
 use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_domain::redact::redact_line;
+use infiltrator_domain::subscription::mask_subscription_url;
+use infiltrator_domain::subscription_scheduler_policy::{RetryBackoffPolicy, SubscriptionSchedule};
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use log::{info, warn};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio::time::sleep;
-
-use crate::admin_api::state::AdminApiContext;
-use infiltrator_domain::redact::redact_line;
-use infiltrator_domain::subscription::mask_subscription_url;
-use infiltrator_domain::subscription_scheduler_policy::{RetryBackoffPolicy, SubscriptionSchedule};
 
 #[derive(Clone, Debug, Default)]
 pub struct SubscriptionUpdateSummary {

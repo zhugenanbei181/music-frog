@@ -1,6 +1,5 @@
-use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
-
 use super::{ListFilters, apply_filters, process_name, short_id};
+use infiltrator_domain::runtime::{Connection, ConnectionMetadata};
 
 fn connection(id: &str, host: &str, process_path: &str, rule: &str) -> Connection {
     Connection {

@@ -6,20 +6,25 @@ use super::integration::{
 use crate::state::AppState;
 use crate::types::app::ConfirmAction;
 use crate::types::message::Message;
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::settings_status_projection::{
+    format_controller_auth, format_core_resources, format_core_versions, format_integrity,
+    format_offline_startup, optional_copy,
+};
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
+use infiltrator_shared::i18n_interpolator::localize;
+
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     form_pick_style, responsive_form_row, row_card_surface, style_accent, style_ghost, text_btn,
 };
-use crate::view::components::{BadgeKind, badge, card, icon_button, section_header};
+use crate::view::components::{BadgeKind, badge, icon_button, section_header};
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, R_CONTROL, SP_MD, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, R_CONTROL, SP_MD, tokens};
 use iced::widget::{Space, column, container, pick_list, progress_bar, row, text};
 use iced::{Alignment, Color, Element, Length, Theme, border};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-use super::format::{
-    format_controller_auth, format_core_resources, format_core_versions, format_integrity,
-    format_offline_startup,
-};
 
 pub(super) fn kernel_management_card<'a>(
     state: &'a AppState,
@@ -28,42 +33,73 @@ pub(super) fn kernel_management_card<'a>(
     selected_core_channel: Option<SettingsChoice>,
 ) -> Element<'a, Message> {
     let mut kernel_rows = column![].spacing(theme::SP_SM);
-    let channel_probe = format_core_versions(&state.runtime.core_versions);
-    let integrity = format_integrity(&state.runtime.core_integrity);
-    let controller_auth = format_controller_auth(&state.runtime.controller_auth);
-    let offline_startup = format_offline_startup(&state.runtime.offline_startup);
+    let channel_probe = format_core_versions(&state.runtime.core_versions, lang.0);
+    let integrity = format_integrity(&state.runtime.core_integrity, lang.0);
+    let controller_auth = format_controller_auth(&state.runtime.controller_auth, lang.0);
+    let offline_startup = format_offline_startup(&state.runtime.offline_startup, lang.0);
     let selected_log_level = CORE_LOG_LEVEL_OPTIONS
         .iter()
-        .find(|option| option.value == state.diag.log_level)
+        .find(|option| Some(option.value) == state.runtime.runtime_control.log_level.as_deref())
         .copied();
 
-    kernel_rows = kernel_rows.push(secondary_text(format!("Online channels: {channel_probe}")));
-    kernel_rows = kernel_rows.push(secondary_text(format!("Artifact integrity: {integrity}")));
-    kernel_rows = kernel_rows.push(secondary_text(format!(
-        "Controller auth: {controller_auth}"
+    kernel_rows = kernel_rows.push(secondary_text(localize(
+        lang.0,
+        "core_online_channels_status",
+        &[("value", channel_probe)],
     )));
-    kernel_rows = kernel_rows.push(secondary_text(format!(
-        "Offline startup: {offline_startup}"
+    kernel_rows = kernel_rows.push(secondary_text(localize(
+        lang.0,
+        "core_artifact_integrity_status",
+        &[("value", integrity)],
     )));
-    kernel_rows = kernel_rows.push(secondary_text(format!(
-        "Core resources: {}",
-        format_core_resources(&state.runtime.core_resources)
+    kernel_rows = kernel_rows.push(secondary_text(localize(
+        lang.0,
+        "core_controller_auth_status",
+        &[("value", controller_auth)],
+    )));
+    kernel_rows = kernel_rows.push(secondary_text(localize(
+        lang.0,
+        "core_offline_startup_status",
+        &[("value", offline_startup)],
+    )));
+    kernel_rows = kernel_rows.push(secondary_text(localize(
+        lang.0,
+        "core_resource_values_status",
+        &[(
+            "value",
+            format_core_resources(&state.runtime.core_resources, lang.0),
+        )],
     )));
     kernel_rows = kernel_rows.push(responsive_form_row(
         state.shell.viewport.tier,
         "Core log level",
         None::<&str>,
-        pick_list(
-            CORE_LOG_LEVEL_OPTIONS,
-            selected_log_level,
-            |choice: SettingsChoice| Message::SetCoreLogLevel(choice.value.to_owned()),
-        )
-        .width(if state.shell.viewport.tier.is_compact() {
-            Length::Fill
+        if state.runtime.runtime_control.status == RuntimeControlStatus::Ready
+            && state.runtime.runtime_control.log_level.is_some()
+            && state.runtime.pending_runtime_patch.is_none()
+        {
+            Element::from(
+                pick_list(
+                    CORE_LOG_LEVEL_OPTIONS,
+                    selected_log_level,
+                    |choice: SettingsChoice| Message::SetCoreLogLevel(choice.value.to_owned()),
+                )
+                .width(if state.shell.viewport.tier.is_compact() {
+                    Length::Fill
+                } else {
+                    Length::Shrink
+                })
+                .style(form_pick_style),
+            )
         } else {
-            Length::Shrink
-        })
-        .style(form_pick_style),
+            Element::from(
+                text(optional_copy(
+                    state.runtime.runtime_control.log_level.as_ref(),
+                    lang.0,
+                ))
+                .size(12),
+            )
+        },
     ));
     let rollback_target = state.runtime.core_versions.rollback.target.clone();
     kernel_rows = kernel_rows.push(secondary_text(rollback_target.as_deref().map_or_else(
@@ -73,7 +109,7 @@ pub(super) fn kernel_management_card<'a>(
     if rollback_target.is_some() {
         kernel_rows = kernel_rows.push(
             row![
-                secondary_text("Switch to the previous verified local binary"),
+                secondary_text(lang.tr("settings_previous_kernel_hint").into_owned()),
                 Space::new().width(Length::Fill),
                 text_btn("Rollback core", style_ghost, Some(Message::RollbackCore)),
             ]
@@ -109,7 +145,7 @@ pub(super) fn kernel_management_card<'a>(
                                             .runtime
                                             .download_stats
                                             .as_ref()
-                                            .map(|s| crate::utils::format_bytes(s.speed_bytes))
+                                            .map(|s| format_bytes(s.speed_bytes))
                                             .unwrap_or_else(|| "—".to_string())
                                     )),
                                 ]

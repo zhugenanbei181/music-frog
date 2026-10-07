@@ -1,6 +1,7 @@
 //! DUAL-05-13 domain tests: PEM bundle validation + SHA-256 fingerprint.
 
 use super::*;
+use std::str::from_utf8;
 
 /// A real, tiny self-signed certificate (PEM). Its content is irrelevant to
 /// structure validation; the point is that a real bundle validates.
@@ -51,7 +52,7 @@ fn fingerprints_accept_openssl_spelling_and_reject_noise() {
     let colons = hex
         .as_bytes()
         .chunks(2)
-        .map(|pair| std::str::from_utf8(pair).expect("ascii"))
+        .map(|pair| from_utf8(pair).expect("ascii"))
         .collect::<Vec<_>>()
         .join(":");
     assert!(is_sha256_fingerprint(&colons));

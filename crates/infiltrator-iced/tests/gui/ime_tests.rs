@@ -16,6 +16,8 @@ use crate::state::AppState;
 use crate::types::message::Message;
 use iced::advanced::input_method;
 use iced::advanced::input_method::InputMethod;
+use iced::window;
+use infiltrator_contract::a11y::A11yRole;
 use infiltrator_contract::ime::{ImeCompositionEvent, ImeCursorSource, ImeCursorSupport, ImePhase};
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction};
 
@@ -72,7 +74,7 @@ fn the_raw_toolkit_ime_events_map_onto_the_shared_vocabulary() {
     assert_eq!(payload(&closed), Some(ImeCompositionEvent::Closed));
 
     // Non-IME events stay outside the composition channel.
-    let window_event = iced::Event::Window(iced::window::Event::Focused);
+    let window_event = iced::Event::Window(window::Event::Focused);
     assert_eq!(payload(&window_event), None);
 }
 
@@ -211,7 +213,7 @@ fn the_palette_query_line_carries_the_shared_label_as_a_visible_tooltip() {
     );
     assert_eq!(
         state.a11y_role(ShellA11yNode::CommandPaletteQuery),
-        infiltrator_contract::a11y::A11yRole::Text
+        A11yRole::Text
     );
 
     state.shell.command_palette_open = true;

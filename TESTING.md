@@ -1,59 +1,17 @@
+> 双端平权验收规则见 [docs/UI_PARITY_AUDIT.md](docs/UI_PARITY_AUDIT.md)。79 个字符串型特性 guard 已从执行入口退役；结构检查统一由 `scripts/quality/check-structure.sh` 注册，动态行为证据由 `scripts/parity/` 解析。
+
 # 测试与质量保障指南 (Testing & Quality Assurance)
 
 本文档记录了本项目的测试策略、实战经验以及保持卓越工程质量的最佳实践。
 
-> 2026-09-08 Linux x86_64 本地检查点：`bash scripts/test.sh` 实际启动
-> 2,371 项测试，2,371 项通过、0 项跳过。下表是同一工作树的
-> `cargo nextest list --workspace` 快照；测试数量会随代码变化，以命令输出为准。
+## 验证口径
 
-## 核心测试指标
-
-本项目致力于维持以下高标准：
-- **核心模块覆盖率**：各子模块均维护了与其职责相称的单元/集成测试。以
-  `grep -rE '#\[(tokio::)?test' --include='*.rs' <crate>/src | wc -l` 实测为准：
-
-  | Crate / test target | 测试数（`cargo nextest list --workspace`） |
-  | :--- | ---: |
-  | infiltrator-core | 127 |
-  | infiltrator-domain | 470 |
-  | infiltrator-application | 118 |
-  | infiltrator-ios | 5 |
-  | infiltrator-iced + headless | 300 |
-  | infiltrator-desktop | 226 |
-  | mihomo-version | 90 |
-  | mihomo-config | 75 |
-  | infiltrator-admin | 81 |
-  | mihomo-api | 75 |
-  | infiltrator-shared | 54 |
-  | infiltrator-cli | 49 |
-  | infiltrator-android | 55 |
-  | mihomo-platform + self-healing state machine | 82 |
-  | mihomo-dav-sync (sync-engine 27 + dav-client 7 + state-store 7) | 41 |
-  | infiltrator-http | 7 |
-  | infiltrator-bevy-ui + headless | 217 |
-  | infiltrator-bevy-widgets + headless | 237 |
-  | infiltrator-contract | 61 |
-  | infiltrator-ports | 1 |
-  | **全仓自动化测试总计** | **2371** |
-
-版本 Admin 路由测试使用注入的静态 `VersionPort`，不依赖当天的 GitHub release 内容或外网状态。
-
-- **代码洁净度**：全工作空间必须保持 **0 编译警告** (`cargo check --workspace` 无任何输出)。
-- **测试可靠性**：环境敏感型测试必须在固定 4 个 nextest 测试进程并发下保持
-  **100% 成功率**。
-
-### 当前检查点的明确边界
-
-- 已通过：`bash scripts/test.sh`（2,371/2,371）、`cargo fmt --all -- --check`、
-  `cargo clippy --workspace --all-targets -- -D warnings`，以及脚本中纳管的 DUAL-01～04
-  质量守卫。
-- 尚未通过：`python3 scripts/quality/test-layout-guard.py` 报 20 项生产源码内联测试
-  遗留；`python3 scripts/quality/line-guard.py --mode report` 报 17 个超过 800 非空行的
- 业务文件。它们是结构性债务，本检查点不将其隐藏为“全绿”。
-- 尚未证明：L3 真实渲染捕获、真实 mihomo core/controller、Android 真机、iOS
-  NetworkExtension，以及 Windows/macOS/Linux 发行包和系统权限/网络副作用 smoke；
-  这些仍按 [平台矩阵](docs/PLATFORM_MATRIX.md) 和 [回归矩阵](docs/TEST_MATRIX.md)
-  单独验收。
+- 测试数量与真实 ID 以 `cargo nextest list --workspace --build-jobs 4 --message-format json` 为准，不用源码正则统计覆盖率。历史 2026-09-08 的 2,371 项检查点不能代表当前工作树。
+- 完整 Rust 验证由 `bash scripts/test.sh` 执行，全工作区、4 个构建 job、4 个测试进程；不得靠删测试、跳过失败或替换断言获得通过。
+- 全工作区 `cargo check --workspace --all-targets -j 4`、`cargo fmt --all -- --check` 和 `cargo clippy --workspace --all-targets -j 4 -- -D warnings` 必须无错误与警告。
+- 结构规范由 [代码质量底线](docs/CODE_QUALITY_BASELINE.md) 负责：生产、测试与示例统一 800 行，明确导入、唯一类型定义、禁止规避。
+- 导入和模块重整必须保留原测试，更新真实测试 ID 绑定并执行测试；仅发现测试不等于测试通过。
+- L1/L2/L3 平权验收见 [UI 审计](docs/UI_PARITY_AUDIT.md) 与 `scripts/parity/`；真实 mihomo、移动真机、发行包、系统权限及网络副作用分别按 [平台矩阵](docs/PLATFORM_MATRIX.md) 与 [测试矩阵](docs/TEST_MATRIX.md) 验收，不能由无头测试代替。
 
 ---
 
@@ -87,7 +45,8 @@ iced 桌面端的测试分三层，全部零 mihomo 启动、零外联：
 | --- | --- | --- | --- |
 | L1 无头单元/逻辑 | 各 crate `#[cfg(test)]` | `bash scripts/test.sh` | 业务逻辑、状态机、mock API |
 | L2 GUI 逻辑 | `crates/infiltrator-iced/tests/{common,headless,gui}` | 已并入全量运行 | AppState update/view 管线、demo fixture 契约 |
-| L3 GUI 渲染 | `scripts/capture-iced.sh` | 本地运行，CI 不执行 | 真实渲染像素（9 页 × 亮/暗 = 18 场景） |
+| L3 静态页面渲染 | `scripts/capture-{iced,bevy}.sh` | 本地页面矩阵 | 页面外观；不能证明专用交互场景 |
+| L3 场景验收 | `scripts/parity/accept-surface-interactions.sh` | 本地与正式发布 CI；发布使用 `--all` | 原生交互激活、区域可见性、标准/紧凑视口真实像素与完整证据绑定 |
 
 L3 流程（参照 taskmanager 成熟实践，**全程后台、对操作者桌面零干扰**）：
 
@@ -101,126 +60,33 @@ L3 流程（参照 taskmanager 成熟实践，**全程后台、对操作者桌�
    失败语义区分 `BLOCKED (compositor)` 与场景 `FAIL`，部分成功仍保留证据。
 
 ```bash
-# 全矩阵（18 场景，约 1-2 分钟）
+# 静态页面矩阵；场景与数量由 capture_iced_scenarios.tsv 定义
 bash scripts/capture-iced.sh
 # 单场景
 INFILTRATOR_CAPTURE_SCENARIOS=proxies-dark bash scripts/capture-iced.sh
 # iced 测试布局守卫（tests/{common,headless,gui} 约定）
 python3 scripts/quality/test-layout-guard.py
-# 业务源码行数红线（非注释 ≤800 行/文件；report 模式仅列违规清单）
+# 全仓 Rust 行数红线（生产/测试/示例统一非注释 ≤800 行/文件）
 python3 scripts/quality/line-guard.py --mode report
-# DUAL-01-01 会话 token / generation / orphan ownership 守卫
-python3 scripts/quality/session-guard.py --mode enforce
-# DUAL-01-02 配置热重载事务、双 UI 与移动 host composition 守卫
-python3 scripts/quality/hot-reload-guard.py --mode enforce
-# DUAL-01-03 崩溃自愈看门狗、指数退避与熔断守卫
-python3 scripts/quality/crash-watchdog-guard.py --mode enforce
-# DUAL-01-04 Stable / Alpha / Meta-Core 通道探测与双 UI 投影守卫
-python3 scripts/quality/core-channel-guard.py --mode enforce
-# DUAL-01-05 官方 SHA256 digest gate 与完整性投影守卫
-python3 scripts/quality/kernel-integrity-guard.py --mode enforce
-# DUAL-01-06 本地内核版本历史、健康检查与双端回滚守卫
-python3 scripts/quality/kernel-rollback-guard.py --mode enforce
-# DUAL-01-07 external-controller secret 生成、Bearer 注入与双端状态守卫
-python3 scripts/quality/controller-auth-guard.py --mode enforce
-# DUAL-01-08 内核日志等级 live PATCH、回读与双端控件守卫
-python3 scripts/quality/core-log-level-guard.py --mode enforce
-# DUAL-01-09 Windows Service / Linux Polkit / macOS launchd 服务模式守卫
-python3 scripts/quality/service-mode-guard.py --mode enforce
-# DUAL-01-10 SIGINT/SIGTERM/Ctrl+C 退出清理守卫
-python3 scripts/quality/process-exit-guard.py --mode enforce
-# DUAL-01-11 7890/9090 端口冲突探测、安全避让与 owner 证据守卫
-python3 scripts/quality/port-conflict-guard.py --mode enforce
-# DUAL-01-12 512 MiB 内存软限、CPU 观测与 GC 状态守卫
-python3 scripts/quality/core-resource-guard.py --mode enforce
-# DUAL-01-13 本地配置/core 预校验与 offline-first 启动守卫
-python3 scripts/quality/offline-startup-guard.py --mode enforce
-# DUAL-01-14 CoreLifecycleSnapshot 双端生命周期同步守卫
-python3 scripts/quality/lifecycle-sync-guard.py --mode enforce
-# DUAL-01-15 失败启动/端口冲突/平滑停止无头矩阵守卫
-python3 scripts/quality/lifecycle-matrix-guard.py --mode enforce
-# DUAL-02-01 TUN gVisor/System/Mixed/LWIP 安全目录与 live apply 守卫
-python3 scripts/quality/tun-stack-guard.py --mode enforce
-# DUAL-02-02 物理/虚拟网卡 MTU 自适应协商与 live readback 守卫
-python3 scripts/quality/mtu-negotiation-guard.py --mode enforce
-# DUAL-02-03 strict-route/auto-route 全局流量接管与回读守卫
-python3 scripts/quality/tun-routing-guard.py --mode enforce
-# DUAL-02-04 Windows/Linux/macOS 系统 HTTP/SOCKS 代理注入与回读守卫
-python3 scripts/quality/system-proxy-guard.py --mode enforce
-# DUAL-02-05 系统代理抢占探活、ownership 共享与自动复位守卫
-python3 scripts/quality/system-proxy-watchdog-guard.py --mode enforce
-# DUAL-02-06 系统代理断电/崩溃恢复、owner 判定与正常退出清理守卫
-python3 scripts/quality/system-proxy-recovery-guard.py --mode enforce
-# DUAL-02-07 Allow-LAN 混合端口、绑定地址与 live readback 守卫
-python3 scripts/quality/lan-sharing-guard.py --mode enforce
-# DUAL-02-08 LAN CIDR ACL、免认证前缀与 HTTP Basic Auth 守卫
-python3 scripts/quality/lan-security-guard.py --mode enforce
-# DUAL-02-09 Mihomo IPv6 内核流量策略与 TUN 上下文回读守卫
-python3 scripts/quality/ipv6-routing-guard.py --mode enforce
-# DUAL-02-10 Windows UWP AppContainer 回环隔离守卫
-python3 scripts/quality/uwp-loopback-guard.py --mode enforce
-# DUAL-02-11 PAC 动态脚本与 loopback 本地服务守卫
-python3 scripts/quality/pac-service-guard.py --mode enforce
-# DUAL-02-12 物理网卡漫游、默认网关感知与 TUN 路由修复守卫
-python3 scripts/quality/network-roaming-guard.py --mode enforce
-# DUAL-02-13 Android VpnService 权限、前台保活与隧道 readback 守卫
-python3 scripts/quality/vpn-service-guard.py --mode enforce
-# DUAL-02-14 Iced/Bevy 系统代理与 TUN 快捷开关对等守卫
-python3 scripts/quality/system-toggle-guard.py --mode enforce
-# DUAL-02-15 特权网络注入、清理与失败回滚无头守卫
-python3 scripts/quality/privileged-network-guard.py --mode enforce
-# DUAL-03-01 双通道实时流量波形与 shared Bezier 守卫
-python3 scripts/quality/traffic-waveform-guard.py --mode enforce
-# DUAL-03-02 动态量程与 glow 渲染守卫
-python3 scripts/quality/traffic-scale-guard.py --mode enforce
-# DUAL-03-03 五段真实分流拓扑与流动链守卫
-python3 scripts/quality/traffic-topology-guard.py --mode enforce
-# DUAL-03-04 拓扑节点下钻导航守卫
-python3 scripts/quality/traffic-topology-navigation-guard.py --mode enforce
-# DUAL-03-05 活动出口节点高保真卡片守卫
-python3 scripts/quality/active-exit-guard.py --mode enforce
-# DUAL-03-06 订阅配额与临期动态仪表盘守卫
-python3 scripts/quality/subscription-quota-guard.py --mode enforce
-# DUAL-03-07 Overview 系统代理/TUN 主控大卡守卫
-python3 scripts/quality/overview-master-switch-guard.py --mode enforce
-# DUAL-03-08 代理运行模式即时分段控制器守卫
-python3 scripts/quality/proxy-mode-segment-guard.py --mode enforce
-# DUAL-03-09 全局一键并发测速按钮守卫
-python3 scripts/quality/overview-speedtest-guard.py --mode enforce
-# DUAL-03-10 核心资源 6 项运维网格守卫
-python3 scripts/quality/overview-metrics-grid-guard.py --mode enforce
-python3 scripts/quality/overview-ip-probe-guard.py --mode enforce
-python3 scripts/quality/overview-card-reorder-guard.py --mode enforce
-python3 scripts/quality/overview-reconnect-mask-guard.py --mode enforce
-python3 scripts/quality/overview-responsive-viewport-guard.py --mode enforce
-python3 scripts/quality/overview-regression-matrix-guard.py --mode enforce
-python3 scripts/quality/proxies-five-group-guard.py --mode enforce
-python3 scripts/quality/proxies-group-collapse-guard.py --mode enforce
-python3 scripts/quality/proxies-node-selection-guard.py --mode enforce
-python3 scripts/quality/proxies-filter-alive-guard.py --mode enforce
-python3 scripts/quality/proxies-sorting-guard.py --mode enforce
-python3 scripts/quality/proxies-favorite-pin-guard.py --mode enforce
-python3 scripts/quality/proxies-protocol-chips-guard.py --mode enforce
-python3 scripts/quality/proxies-latency-colors-guard.py --mode enforce
-python3 scripts/quality/proxies-sparkline-guard.py --mode enforce
-python3 scripts/quality/proxies-fuzzy-filter-guard.py --mode enforce
-python3 scripts/quality/proxies-node-detail-drawer-guard.py --mode enforce
-python3 scripts/quality/proxies-group-reorder-guard.py --mode enforce
-python3 scripts/quality/proxies-compact-view-guard.py --mode enforce
-python3 scripts/quality/proxies-skeleton-pulse-guard.py --mode enforce
-python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
+# 同权双端：动态解析真实 nextest 测试锚点；未闭环项明确为 pending。
+python3 scripts/parity/resolve_surface_evidence.py --report-json target/parity/evidence.json
+# 单场景 L1/L2/L3 验收（私有后台 Wayland、真实像素、双视口）。
+bash scripts/parity/accept-surface-interactions.sh connections-close-all-confirm
+# 全量闭环验收；任何缺口阻断，不能用普通测试通过代替。
+bash scripts/parity/accept-surface-interactions.sh --all
 ```
 
 ---
 
-## 源码行数红线（line budget）
+## 全仓代码行数红线（line budget）
 
-单个业务 `.rs` 文件的**非注释、非空行**不得超过 800 行。注释与空行不计入——
+导入、拆分与反规避规范见 [docs/CODE_QUALITY_BASELINE.md](docs/CODE_QUALITY_BASELINE.md)。
+
+每个 `.rs` 文件（生产、测试、示例）的**非注释、非空行**不得超过 800 行。注释与空行不计入——
 "把代码挪进注释"属于违规而非整改。超限说明该文件承载了不止一个业务语义，
 必须按业务域拆分子模块（参照 2026-08-30：`iced update/core.rs` → `update/core/*`）。
 
-- **扫描范围**：`crates/*/src`、`src-tauri/src`；`tests/` 目录与 `*_test(s).rs`
-  挂载测试模块不在红线内（测试规模由评审约束，测试布局由 layout-guard 约束）。
+- **扫描范围**：`crates/` 下所有 Rust 文件（构建产物除外），包含 `tests/`、路径挂载测试和 examples；没有测试豁免。
 - **机械检查**：`python3 scripts/quality/line-guard.py --mode enforce`，CI 强制执行；
   本地先用 `--mode report` 看违规清单。
 - **拆分规范**：按业务语义切子模块（如 lifecycle / proxy / dns / tun），
@@ -231,9 +97,12 @@ python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
 
 ## Bevy UI `bsn!` 场景法守卫（BEVY-004）
 
+Shader 与 GPU handle 开发契约见 [Bevy 前端章程 §1.2](docs/BEVY_UI_FRONTEND.md)。共享结构入口同时运行 `python3 scripts/quality/bevy_shader_guard.py --mode enforce`；其规则测试归 `scripts/quality/tests/test_bevy_shader_guard.py`。资产复用/隔离/缺失恢复与 100 次回退、挂载/销毁基线回归归 widgets 的 `render_cache_tests` / `render_lifecycle_tests`，由正常 nextest 执行。WESL 链接仍须实际 GPU 捕获；CPU 资产表回收不能替代 Android 显存及长时资源报告。
+
 两个 bevy crate（`infiltrator-bevy-widgets`、`infiltrator-bevy-ui`）的生产代码
 执行 100% `bsn!` 场景法：UI 树只能在 `bsn! { … }` 场景内声明并经 `spawn_scene`
-挂载（crate law 见 `docs/BEVY_UI_FRONTEND.md`）；ECS 观察者原地盖章组件不受限。
+挂载；ECS 观察者使用受限参数原位更新组件。开发边界以
+[BEVY_UI_FRONTEND.md](docs/BEVY_UI_FRONTEND.md) 为准。
 
 - **扫描范围**：两个 bevy crate 的 `src/` 生产代码；`tests/` 目录与 `*_test(s).rs`
   挂载测试模块不在红线内。注释与字符串/字符字面量剥离后再扫。
@@ -245,6 +114,9 @@ python3 scripts/quality/proxies-regression-matrix-guard.py --mode enforce
   `.spawn_empty(_at)` 直建实体树；结构原语的 `::default()`/`::EMPTY`/`::new`/
   `::from_*` 临时值构造（BEVY-BSN-005）；`insert(ChildOf(…))` 脱离
   `spawn_scene` 同语句链（BEVY-BSN-006）；`bsn!` 花括号不平衡。
+- **运行态访问检查**：`BEVY-ECS-007/008` 检查整 `World` 类型入口与
+  `App::world()` / `world_mut()` 旁路；业务、页面、控件与截图激活均受检查。
+  正反例覆盖以引号结束的注释，防止词法屏蔽吞掉后续运行代码。
 - **豁免**：`spawn_scene`（唯一挂载缝）、`spawn(Camera2d)` 与
   `spawn(Observer::new(…))`（相机/观察者基础设施，非 UI 树）——按首个实参文本
   前缀机械判定，无逐文件白名单；`accesskit::Node::new`（无障碍树）与

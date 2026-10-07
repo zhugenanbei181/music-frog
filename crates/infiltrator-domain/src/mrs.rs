@@ -1,7 +1,9 @@
 use anyhow::{Context, Result, bail};
+use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
+use std::str::from_utf8;
 
 /// Magic bytes recognized by standard Mihomo / Clash MRS formats.
 pub const MAGIC_STANDARD_MRS: [u8; 4] = [0x00, 0x4D, 0x52, 0x53]; // \x00MRS
@@ -269,7 +271,7 @@ pub fn validate_mrs_bytes(bytes: &[u8]) -> Result<MrsValidationReport> {
     if bytes.len() < 16 + desc_len {
         errors.push("Incomplete description".to_string());
     } else {
-        match std::str::from_utf8(&bytes[16..16 + desc_len]) {
+        match from_utf8(&bytes[16..16 + desc_len]) {
             Ok(s) => description = s.to_string(),
             Err(_) => errors.push("Invalid UTF-8 in description".to_string()),
         }
@@ -433,7 +435,7 @@ pub fn deconstruct_mrs_payload(bytes: &[u8]) -> Result<Vec<String>> {
     let compression = CompressionType::detect_payload_compression(payload);
     let decompressed: Vec<u8> = match compression {
         CompressionType::Gzip => {
-            let mut decoder = flate2::read::GzDecoder::new(payload);
+            let mut decoder = GzDecoder::new(payload);
             let mut buf = Vec::new();
             decoder
                 .read_to_end(&mut buf)

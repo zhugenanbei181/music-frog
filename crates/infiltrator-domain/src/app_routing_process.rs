@@ -1,10 +1,9 @@
 //! Thread-safe per-process traffic accounting.
 
+use super::{ProcessAliasRegistry, ProcessTrafficSnapshot, ProcessUsageTracker};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use super::{ProcessAliasRegistry, ProcessTrafficSnapshot, ProcessUsageTracker};
 
 impl ProcessTrafficSnapshot {
     pub fn total_bytes(&self) -> u64 {

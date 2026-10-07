@@ -1,8 +1,7 @@
 //! Cross-platform process alias registration and canonicalization.
 
-use std::collections::HashMap;
-
 use super::{BUILTIN_ALIAS_TABLE, ProcessAliasRegistry};
+use std::collections::HashMap;
 
 impl Default for ProcessAliasRegistry {
     fn default() -> Self {

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// A record representing the hit statistics for a specific traffic rule.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -77,8 +78,8 @@ impl RuleHitCounter {
 
     /// Records a hit for a specific rule using the current Unix timestamp in seconds.
     pub fn record_hit_now(&mut self, rule_raw: &str, payload_bytes: u64) {
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
         self.record_hit(rule_raw, payload_bytes, now_secs);
@@ -102,8 +103,8 @@ impl RuleHitCounter {
 
     /// Records a batch of hits from active connection observations.
     pub fn record_batch(&mut self, hits: &[(&str, u64)]) {
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
         for &(rule, bytes) in hits {

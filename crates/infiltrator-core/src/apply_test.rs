@@ -1,14 +1,25 @@
 //! Integration and unit tests for config apply transaction and YAML fidelity.
 
+#[path = "apply_source_race_tests.rs"]
+mod source_races;
+#[path = "apply_workspace_tests.rs"]
+mod workspace;
+
 use super::*;
+use crate::history::{list_snapshots, read_snapshot};
 use infiltrator_contract::apply_transaction::ApplyTransactionStage;
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_domain::mixin::{MixinConfig, RuleMixin};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::CoreProcess;
-
+use infiltrator_ports::error::PortError;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::{result, time};
+use tokio::fs::read_to_string;
+use tokio::time::{Instant, sleep};
 
 const OLD: &str = "port: 7890\n";
 const NEW: &str = "port: 7891\n";
@@ -20,32 +31,25 @@ struct MockController {
 
 #[async_trait]
 impl CoreProcess for MockController {
-    async fn start(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+    async fn start(&self) -> result::Result<(), PortError> {
         if self.fail_starts_left.load(Ordering::SeqCst) > 0 {
             self.fail_starts_left.fetch_sub(1, Ordering::SeqCst);
-            return Err(infiltrator_ports::error::PortError::Failed(
-                "start rejected".into(),
-            ));
+            return Err(PortError::Failed("start rejected".into()));
         }
         self.running.store(true, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn stop(&self) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+    async fn stop(&self) -> result::Result<(), PortError> {
         self.running.store(false, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn status(
-        &self,
-    ) -> std::result::Result<
-        infiltrator_contract::snapshot::CoreLifecycle,
-        infiltrator_ports::error::PortError,
-    > {
+    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         Ok(if self.running.load(Ordering::SeqCst) {
-            infiltrator_contract::snapshot::CoreLifecycle::Running
+            CoreLifecycle::Running
         } else {
-            infiltrator_contract::snapshot::CoreLifecycle::Stopped
+            CoreLifecycle::Stopped
         })
     }
 
@@ -57,7 +61,7 @@ impl CoreProcess for MockController {
 struct TestLifecycleState {
     lifecycle: CoreLifecycle,
     generation: u64,
-    session_token: Option<infiltrator_contract::session::SessionToken>,
+    session_token: Option<SessionToken>,
 }
 
 struct TestLifecycle {
@@ -87,7 +91,7 @@ impl TestLifecycle {
         self.state.lock().expect("lifecycle lock").generation
     }
 
-    fn session_token(&self) -> Option<infiltrator_contract::session::SessionToken> {
+    fn session_token(&self) -> Option<SessionToken> {
         self.state.lock().expect("lifecycle lock").session_token
     }
 
@@ -106,25 +110,23 @@ impl CoreLifecyclePort for TestLifecycle {
         self.generation()
     }
 
-    fn session_token(&self) -> Option<infiltrator_contract::session::SessionToken> {
+    fn session_token(&self) -> Option<SessionToken> {
         TestLifecycle::session_token(self)
     }
 
-    async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+    async fn start(&self) -> Result<u64, PortError> {
         let generation = {
             let mut state = self.state.lock().expect("lifecycle lock");
             state.generation += 1;
             state.lifecycle = CoreLifecycle::Starting;
-            state.session_token = Some(infiltrator_contract::session::SessionToken::new(
-                state.generation as u128,
-            ));
+            state.session_token = Some(SessionToken::new(state.generation as u128));
             state.generation
         };
         CoreProcess::start(self.controller.as_ref()).await?;
         Ok(generation)
     }
 
-    async fn stop(&self) -> Result<(), infiltrator_ports::error::PortError> {
+    async fn stop(&self) -> Result<(), PortError> {
         self.set_status(CoreLifecycle::Stopping);
         if let Err(error) = CoreProcess::stop(self.controller.as_ref()).await {
             self.set_status(CoreLifecycle::Failed);
@@ -135,7 +137,7 @@ impl CoreLifecyclePort for TestLifecycle {
         Ok(())
     }
 
-    async fn restart(&self) -> Result<u64, infiltrator_ports::error::PortError> {
+    async fn restart(&self) -> Result<u64, PortError> {
         if self.status() != CoreLifecycle::Stopped {
             self.stop().await?;
         }
@@ -145,12 +147,12 @@ impl CoreLifecyclePort for TestLifecycle {
     async fn wait_for_ready(
         &self,
         generation: u64,
-        timeout: std::time::Duration,
-    ) -> Result<(), infiltrator_ports::error::PortError> {
-        let deadline = tokio::time::Instant::now() + timeout;
+        timeout: time::Duration,
+    ) -> Result<(), PortError> {
+        let deadline = Instant::now() + timeout;
         loop {
             if self.generation() != generation {
-                return Err(infiltrator_ports::error::PortError::Failed(
+                return Err(PortError::Failed(
                     "stale test lifecycle generation".to_string(),
                 ));
             }
@@ -159,7 +161,7 @@ impl CoreLifecyclePort for TestLifecycle {
                 CoreLifecycle::Running | CoreLifecycle::Ready | CoreLifecycle::Starting
             ) {
                 self.set_status(CoreLifecycle::Failed);
-                return Err(infiltrator_ports::error::PortError::Failed(
+                return Err(PortError::Failed(
                     "test core exited before readiness".to_string(),
                 ));
             }
@@ -169,13 +171,11 @@ impl CoreLifecyclePort for TestLifecycle {
                 self.set_status(CoreLifecycle::Ready);
                 return Ok(());
             }
-            if tokio::time::Instant::now() >= deadline {
+            if Instant::now() >= deadline {
                 self.set_status(CoreLifecycle::Failed);
-                return Err(infiltrator_ports::error::PortError::Network(
-                    "test readiness timed out".to_string(),
-                ));
+                return Err(PortError::Network("test readiness timed out".to_string()));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            sleep(time::Duration::from_millis(1)).await;
         }
     }
 }
@@ -203,11 +203,7 @@ struct MockStore {
 
 #[async_trait]
 impl SecureStore for MockStore {
-    async fn get(
-        &self,
-        service: &str,
-        key: &str,
-    ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+    async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
         Ok(self
             .entries
             .lock()
@@ -216,12 +212,7 @@ impl SecureStore for MockStore {
             .cloned())
     }
 
-    async fn set(
-        &self,
-        service: &str,
-        key: &str,
-        value: &str,
-    ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+    async fn set(&self, service: &str, key: &str, value: &str) -> result::Result<(), PortError> {
         self.entries
             .lock()
             .expect("store lock")
@@ -229,11 +220,7 @@ impl SecureStore for MockStore {
         Ok(())
     }
 
-    async fn delete(
-        &self,
-        service: &str,
-        key: &str,
-    ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+    async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
         self.entries
             .lock()
             .expect("store lock")
@@ -292,22 +279,14 @@ fn params(strategy: ApplyStrategy) -> ApplyParams {
     }
 }
 
-/// DUAL-09-11: the apply transaction publishes a process-wide typed outcome, so
-/// tests that assert on it (or that would publish over it) run one at a time.
-fn apply_lock() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
 async fn file_content(config: &ConfigManager<MockStore>) -> String {
     let _current = config.get_current().await.expect("current");
     let path = config.get_current_path().await.expect("path");
-    tokio::fs::read_to_string(path).await.expect("profile file")
+    read_to_string(path).await.expect("profile file")
 }
 
 #[tokio::test]
 async fn hot_reload_success_keeps_generation_and_updates_file() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -336,7 +315,6 @@ async fn hot_reload_success_keeps_generation_and_updates_file() {
 
 #[tokio::test]
 async fn reload_failure_falls_back_to_restart() {
-    let _guard = apply_lock();
     let f = fixture(0, true).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -365,7 +343,6 @@ async fn reload_failure_falls_back_to_restart() {
 
 #[tokio::test]
 async fn restart_failure_rolls_back_and_recovers() {
-    let _guard = apply_lock();
     let f = fixture(0, true).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -389,7 +366,9 @@ async fn restart_failure_rolls_back_and_recovers() {
     assert_eq!(f.session.status(), CoreLifecycle::Ready);
 
     // DUAL-09-11: the surfaces read this typed record, not a string guess.
-    let record = infiltrator_contract::apply_transaction::last_apply_transaction()
+    let record = f
+        .config
+        .apply_transaction("main")
         .expect("the failed transaction is published");
     assert_eq!(record.profile, "main");
     assert_eq!(record.stage, ApplyTransactionStage::RolledBack);
@@ -399,7 +378,6 @@ async fn restart_failure_rolls_back_and_recovers() {
 
 #[tokio::test]
 async fn stopped_core_starts_with_new_config_without_reload() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
 
     let outcome = apply_current_profile(
@@ -420,7 +398,6 @@ async fn stopped_core_starts_with_new_config_without_reload() {
 
 #[tokio::test]
 async fn successful_apply_stores_snapshot_history() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     let generation = f.session.start().await.expect("start");
     f.session
@@ -435,28 +412,22 @@ async fn successful_apply_stores_snapshot_history() {
         .expect("apply");
 
     // DUAL-09-11: a committed transaction is published with its reload method.
-    let record = infiltrator_contract::apply_transaction::last_apply_transaction()
+    let record = f
+        .config
+        .apply_transaction("main")
         .expect("the committed transaction is published");
     assert_eq!(record.stage, ApplyTransactionStage::Committed);
     assert_eq!(record.method.as_deref(), Some("hot_reload"));
     assert!(!record.is_failure());
 
     let config_dir = f._dir.path().join("configs");
-    let snapshots = crate::history::list_snapshots(&config_dir, "main")
-        .await
-        .expect("list");
+    let snapshots = list_snapshots(&config_dir, "main").await.expect("list");
     assert_eq!(snapshots.len(), 1);
-    assert_eq!(
-        crate::history::read_snapshot(&snapshots[0].path)
-            .await
-            .unwrap(),
-        NEW
-    );
+    assert_eq!(read_snapshot(&snapshots[0].path).await.unwrap(), NEW);
 }
 
 #[tokio::test]
 async fn invalid_content_aborts_before_any_write() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
 
     let err = apply_current_profile(
@@ -476,7 +447,6 @@ async fn invalid_content_aborts_before_any_write() {
 
 #[tokio::test]
 async fn busy_transition_rejects_apply() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.session.start().await.expect("start");
 
@@ -493,7 +463,7 @@ async fn busy_transition_rejects_apply() {
     assert_eq!(
         err,
         ApplyError::Busy {
-            status: infiltrator_contract::snapshot::CoreLifecycle::Starting
+            status: CoreLifecycle::Starting
         }
     );
     assert_eq!(file_content(&f.config).await, OLD);
@@ -531,7 +501,6 @@ proxy-groups:
 
 #[tokio::test]
 async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -559,7 +528,6 @@ async fn fidelity_apply_current_profile_doc_preserves_100_percent() {
 
 #[tokio::test]
 async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -601,7 +569,6 @@ async fn fidelity_scalar_override_preserves_all_comments_and_anchors() {
 
 #[tokio::test]
 async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -647,7 +614,6 @@ async fn fidelity_append_and_remove_rules_preserves_comments_and_anchors() {
 
 #[tokio::test]
 async fn fidelity_rewrite_anchors_preserves_comments() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
@@ -684,17 +650,16 @@ async fn fidelity_rewrite_anchors_preserves_comments() {
 
 #[tokio::test]
 async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
-    let _guard = apply_lock();
     let f = fixture(0, false).await;
     f.config
         .save("main", COMPLEX_YAML_WITH_COMMENTS_AND_ANCHORS)
         .await
         .unwrap();
 
-    let mixin = infiltrator_domain::mixin::MixinConfig {
+    let mixin = MixinConfig {
         mode: Some("direct".to_string()),
         mixed_port: Some(9999),
-        rules: Some(infiltrator_domain::mixin::RuleMixin {
+        rules: Some(RuleMixin {
             append: vec!["DOMAIN,custom-mixin.com,DIRECT".to_string()],
             ..Default::default()
         }),
@@ -721,4 +686,103 @@ async fn fidelity_mixin_apply_preserves_comments_and_anchors() {
     assert!(disk.contains("&catchall"));
     assert!(disk.contains("&hk_01"));
     assert!(disk.contains("*hk_01"));
+}
+
+#[tokio::test]
+async fn confirmed_profile_rejects_switched_profile_and_changed_document_before_io() {
+    let f = fixture(0, false).await;
+    let expected = identify_rules_document("main".into(), OLD);
+    f.config.save("other", OLD).await.expect("other profile");
+    f.config.set_current("other").await.expect("profile switch");
+    assert_eq!(
+        apply_confirmed_profile(
+            &f.session,
+            &f.config,
+            &f.reloader,
+            NEW,
+            params(ApplyStrategy::PreferReload),
+            &expected
+        )
+        .await
+        .expect_err("different profile"),
+        ApplyError::SourceChanged
+    );
+    assert_eq!(f.config.load("main").await.unwrap(), OLD);
+    assert_eq!(f.config.load("other").await.unwrap(), OLD);
+    f.config.set_current("main").await.unwrap();
+    let changed = format!("{OLD}# concurrent document edit\n");
+    f.config.save("main", &changed).await.unwrap();
+    assert_eq!(
+        apply_confirmed_profile(
+            &f.session,
+            &f.config,
+            &f.reloader,
+            NEW,
+            params(ApplyStrategy::PreferReload),
+            &expected
+        )
+        .await
+        .expect_err("different bytes"),
+        ApplyError::SourceChanged
+    );
+    assert_eq!(file_content(&f.config).await, changed);
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(f.session.lifecycle(), CoreLifecycle::Stopped);
+    assert!(!f.controller.running.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn confirmed_profile_commits_only_exact_observed_source_and_rolls_back_to_it() {
+    let f = fixture(0, false).await;
+    let generation = f.session.start().await.unwrap();
+    f.session
+        .wait_for_ready(generation, Duration::from_secs(5))
+        .await
+        .unwrap();
+    let expected = identify_rules_document("main".into(), OLD);
+    let outcome = apply_confirmed_profile(
+        &f.session,
+        &f.config,
+        &f.reloader,
+        NEW,
+        params(ApplyStrategy::PreferReload),
+        &expected,
+    )
+    .await
+    .expect("confirmed apply");
+    assert_eq!(file_content(&f.config).await, NEW);
+    assert_eq!(outcome.method, ApplyMethod::HotReload);
+    assert_eq!(f.reloader.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(f.session.generation(), generation);
+
+    let failing = fixture(0, true).await;
+    let observed = "port: 7892\n# confirmed annotation\n";
+    failing.config.save("main", observed).await.unwrap();
+    assert_eq!(
+        failing.config.load_backup("main").await.unwrap().as_deref(),
+        Some(OLD)
+    );
+    let generation = failing.session.start().await.unwrap();
+    failing
+        .session
+        .wait_for_ready(generation, Duration::from_secs(5))
+        .await
+        .unwrap();
+    failing
+        .controller
+        .fail_starts_left
+        .store(1, Ordering::SeqCst);
+    let expected = identify_rules_document("main".into(), observed);
+    let result = apply_confirmed_profile(
+        &failing.session,
+        &failing.config,
+        &failing.reloader,
+        NEW,
+        params(ApplyStrategy::PreferReload),
+        &expected,
+    )
+    .await;
+    assert!(matches!(result, Err(ApplyError::RolledBack { .. })));
+    assert_eq!(file_content(&failing.config).await, observed);
+    assert_eq!(failing.session.lifecycle(), CoreLifecycle::Ready);
 }

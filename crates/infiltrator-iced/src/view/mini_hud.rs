@@ -6,15 +6,20 @@
 //! system-toggle snapshot. Dragging the card moves the HUD window and persists
 //! the placement through the shared application facade.
 
+use crate::accessibility::labelled;
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::utils::format_bytes;
+use infiltrator_application::byte_format::format_bytes;
+use infiltrator_application::system_toggle_projection::compact_status_line;
+
 use crate::view::components::{BadgeKind, badge, icon_button};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
 use crate::view::waveform::{StripInk, hud_waveform};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, mouse_area, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleState};
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -58,8 +63,8 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     .align_y(Alignment::Center);
 
     // Top title row: logo + real mode chip + pin/expand buttons
-    let header_title = crate::accessibility::labelled(
-        infiltrator_contract::a11y::ShellA11yNode::MiniHudCard,
+    let header_title = labelled(
+        ShellA11yNode::MiniHudCard,
         &state.shell.lang,
         text(lang.tr("mini_hud_title").to_string())
             .size(11)
@@ -131,25 +136,17 @@ pub fn mini_hud_view<'a>(state: &'a AppState) -> Element<'a, Message> {
     };
 
     footer_row = footer_row
-        .push(crate::accessibility::labelled(
-            infiltrator_contract::a11y::ShellA11yNode::MiniHudSystemProxySwitch,
+        .push(labelled(
+            ShellA11yNode::MiniHudSystemProxySwitch,
             &state.shell.lang,
             proxy_button.into(),
         ))
         .push(Space::new().width(theme::SP_XS));
 
-    // The compact state letters are the shared contract vocabulary; the
-    // surrounding labels are localized, so both ends read the same states.
-    let state_text = format!(
-        "{} {} · {} {}",
-        lang.tr("mini_hud_system_proxy_short"),
-        proxy_state.compact_label(),
-        lang.tr("mini_hud_tun_short"),
-        tun_state.compact_label()
-    );
+    let state_text = compact_status_line(&proxy_state, &tun_state, lang.0);
     footer_row = footer_row
-        .push(crate::accessibility::labelled(
-            infiltrator_contract::a11y::ShellA11yNode::MiniHudTunSwitch,
+        .push(labelled(
+            ShellA11yNode::MiniHudTunSwitch,
             &state.shell.lang,
             tun_button.into(),
         ))

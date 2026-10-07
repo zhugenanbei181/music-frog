@@ -6,14 +6,16 @@
 
 use crate::types::app::Route;
 use crate::types::message::Message;
-use iced::widget::{Space, button, canvas, column, container, row, scrollable, text};
+use crate::view::component_card::card;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::Tokens;
+use crate::view::{svg_icons, theme};
+use canvas::gradient::Linear;
+use iced::widget::{Scrollable, Space, button, canvas, column, container, row, scrollable, text};
 use iced::{
     Border, Color, Element, Length, Point, Rectangle, Renderer, Shadow, Size, Theme, Vector,
     border, mouse,
 };
-
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, Tokens};
 
 // ---------------------------------------------------------------------------
 // Legacy palette constants (pre-token pages still import these).
@@ -28,9 +30,7 @@ pub const SCROLLBAR_GUTTER: f32 = 16.0;
 // Scrollable
 // ---------------------------------------------------------------------------
 
-pub fn modern_scrollable<'a, T: 'a>(
-    content: impl Into<Element<'a, T>>,
-) -> iced::widget::Scrollable<'a, T> {
+pub fn modern_scrollable<'a, T: 'a>(content: impl Into<Element<'a, T>>) -> Scrollable<'a, T> {
     let safe_content = container(content).padding(iced::Padding {
         top: 0.0,
         right: SCROLLBAR_GUTTER,
@@ -150,36 +150,6 @@ pub fn floating_key_surface(t: &Theme) -> container::Style {
         shadow: tk.floating_dual_shadow.key,
         ..Default::default()
     }
-}
-
-/// The canonical card with hardware scissor clipping enabled (`clip(true)`),
-/// preventing overflowing child elements from piercing the rounded card boundary.
-pub fn card<'a, Message: 'a>(
-    title: Option<String>,
-    content: impl Into<Element<'a, Message>>,
-) -> Element<'a, Message> {
-    let content = content.into();
-    let body = match title {
-        Some(title) => {
-            let header = text(title)
-                .size(14)
-                .font(theme::FONT_SEMIBOLD)
-                .style(|t: &Theme| text::Style {
-                    color: Some(theme::tokens(t).text_primary),
-                });
-            column![header, content]
-                .spacing(theme::SP_MD)
-                .width(Length::Fill)
-                .into()
-        }
-        None => content,
-    };
-    container(body)
-        .width(Length::Fill)
-        .padding(theme::SP_XXL)
-        .style(card_surface)
-        .clip(true)
-        .into()
 }
 
 /// Explicit scissor-clipped card container wrapper.
@@ -428,7 +398,7 @@ impl<Message> canvas::Program<Message> for ShimmerSkeleton {
                 ..Color::WHITE
             };
 
-            let gradient = canvas::gradient::Linear::new(start, end)
+            let gradient = Linear::new(start, end)
                 .add_stop(0.0, transparent)
                 .add_stop(0.5, highlight)
                 .add_stop(1.0, transparent);
@@ -551,23 +521,6 @@ pub fn kbd_badge<'a, Message: 'a>(key: impl Into<String>) -> Element<'a, Message
     .into()
 }
 
-/// Colored latency numeral: green <=200 ms, orange <=500 ms, red above,
-/// gray/em-dash when untested. Rendered with the bundled JetBrains Mono so
-/// live updates do not jitter.
-pub fn latency_badge<'a, Message: 'a>(ms: Option<u32>) -> Element<'a, Message> {
-    let label = match ms {
-        Some(ms) => format!("{ms} ms"),
-        None => "—".to_string(),
-    };
-    text(label)
-        .size(12)
-        .font(theme::MONO)
-        .style(move |t: &Theme| text::Style {
-            color: Some(theme::latency_color(theme::tokens(t), ms)),
-        })
-        .into()
-}
-
 /// Small round status indicator.
 pub fn status_dot<'a>(active: bool) -> Element<'a, Message> {
     let color = move |t: &Theme| {
@@ -684,13 +637,20 @@ pub fn toggle_switch<'a, Message: 'a + Clone>(
     value: bool,
     on_change: impl Fn(bool) -> Message + 'a,
 ) -> Element<'a, Message> {
+    toggle_switch_with_actions(value, move |value| Some(on_change(value)))
+}
+
+pub fn toggle_switch_with_actions<'a, Message: 'a + Clone>(
+    value: bool,
+    on_change: impl Fn(bool) -> Option<Message> + 'a,
+) -> Element<'a, Message> {
     button(canvas::Canvas::new(Switch { value }).width(44).height(26))
         .padding(0)
         .style(|_t: &Theme, _status| button::Style {
             background: None,
             ..Default::default()
         })
-        .on_press(on_change(!value))
+        .on_press_maybe(on_change(!value))
         .into()
 }
 
@@ -700,6 +660,14 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
     options: &[String],
     selected: usize,
     on_change: impl Fn(usize) -> Message + 'a,
+) -> Element<'a, Message> {
+    segmented_control_with_actions(options, selected, move |index| Some(on_change(index)))
+}
+
+pub fn segmented_control_with_actions<'a, Message: 'a + Clone>(
+    options: &[String],
+    selected: usize,
+    on_change: impl Fn(usize) -> Option<Message> + 'a,
 ) -> Element<'a, Message> {
     let on_change = &on_change;
     let segments: Vec<Element<'a, Message>> = options
@@ -722,34 +690,38 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
                     }),
                 });
 
-            button(container(label).padding([5, 14]).style(move |t: &Theme| {
-                let tk = theme::tokens(t);
-                container::Style {
-                    background: if is_active {
-                        Some(tk.accent.into())
-                    } else {
-                        None
-                    },
-                    border: Border {
-                        radius: border::Radius::from(theme::R_CONTROL),
-                        ..Default::default()
-                    },
-                    shadow: if is_active {
-                        Shadow {
-                            color: Color {
-                                a: 0.18,
-                                ..tk.accent
+            button(
+                container(label)
+                    .padding([5.0, theme::SP_XS])
+                    .style(move |t: &Theme| {
+                        let tk = theme::tokens(t);
+                        container::Style {
+                            background: if is_active {
+                                Some(tk.accent.into())
+                            } else {
+                                None
                             },
-                            offset: Vector::new(0.0, 1.0),
-                            blur_radius: 3.0,
+                            border: Border {
+                                radius: border::Radius::from(theme::R_CONTROL),
+                                ..Default::default()
+                            },
+                            shadow: if is_active {
+                                Shadow {
+                                    color: Color {
+                                        a: 0.18,
+                                        ..tk.accent
+                                    },
+                                    offset: Vector::new(0.0, 1.0),
+                                    blur_radius: 3.0,
+                                }
+                            } else {
+                                Shadow::default()
+                            },
+                            text_color: None,
+                            snap: false,
                         }
-                    } else {
-                        Shadow::default()
-                    },
-                    text_color: None,
-                    snap: false,
-                }
-            }))
+                    }),
+            )
             .padding(0)
             .style(move |t: &Theme, status| {
                 let mut style = button::Style {
@@ -765,7 +737,7 @@ pub fn segmented_control<'a, Message: 'a + Clone>(
                 }
                 style
             })
-            .on_press(on_change(index))
+            .on_press_maybe(on_change(index))
             .into()
         })
         .collect();

@@ -11,12 +11,12 @@
 1. **一个事实，一个权威源。** profile、配置与运行态各有且只有一个 canonical owner，其余都是可失效的投影或缓存；同一份真相不允许在多个前端各存一份。
 2. **诚实的完成度。** 不支持就明确 `unsupported`，没验证过就不写「已验证」。不用空列表、默认值或藏起来的入口假装功能已经做完；成功、失败、超时、取消、无权限、版本不兼容都必须可区分。
 3. **求同存异，不伪造平价。** 「相同」指用户意图、数据语义、失败语义与可达性；像素、布局、手势可以是差异。但每个差异都要挂在同一个共享意图上，并显式记成 `accepted difference` 或 `unsupported`。
-4. **对等双主干。** 桌面主客户端与战略统一端不是「先后跟随」，而是严格同步演进，共用同一套 contract 与语义。
+4. **同权双端产品。** Iced 和 Bevy UI 各自独立发行，共用 contract 与业务语义，并承诺等价的操作深度。当前仍有交互与视觉验收缺口。
 
 ## 它长什么样
 
-- **桌面主客户端**：原生 Rust + Iced，系统托盘、密集多栏操作与高保真运行态。
-- **战略统一端**：Bevy UI，面向桌面 + 移动 + iOS 的统一 surface。
+- **Iced 产品**：原生 Rust + Iced，系统托盘、密集多栏操作与高保真运行态。
+- **Bevy UI 产品**：Bevy UI，面向桌面 + 移动 + iOS 的统一 surface。
 - **移动伴侣**：Android（Compose + UniFFI），承接 VPN/TUN、分应用路由与移动生命周期。
 
 > 早期的 Tauri + Vue Web 客户端已于 `0.20` 退役，内嵌 admin server 保留 API-only 的诊断用途。台账见 [docs/TAURI_WEBUI_RETIREMENT_LEDGER.md](docs/TAURI_WEBUI_RETIREMENT_LEDGER.md)。

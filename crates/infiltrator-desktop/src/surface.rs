@@ -4,8 +4,20 @@
 //! desktop storage/controller adapters into the runtime-neutral
 //! `ApplicationSurfaceReader` and `SurfacePump` consumed by Iced or Bevy.
 
+use crate::mtu::DesktopMtuProbe;
+use crate::offline_startup::offline_startup_port;
+use crate::pac_service::DesktopPacServicePort;
+use crate::rule_provider_cache::DesktopRuleProviderCache;
+use crate::service_mode::DesktopServiceMode;
+use crate::storage::{app_routing_store, endpoint_source, port_conflict, settings_store, version};
+use crate::system_proxy::DesktopSystemProxy;
+use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
 use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::dns_cache_application::DnsCacheApplication;
+use infiltrator_application::dns_latency_application::DnsLatencyApplication;
+use infiltrator_application::dns_leak_application::DnsLeakApplication;
+use infiltrator_application::dns_query_application::DnsQueryApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::mtu_application::MtuApplication;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
@@ -13,12 +25,18 @@ use infiltrator_application::offline_startup_application::OfflineStartupApplicat
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::port_conflict_application::PortConflictApplication;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
 use infiltrator_application::resource_application::ResourceApplication;
 use infiltrator_application::routing_application::RoutingApplication;
+use infiltrator_application::rule_list_application::RuleListApplication;
+use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::service_mode_application::ServiceModeApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::snapshot_application::SnapshotApplication;
 use infiltrator_application::speedtest_application::SpeedtestApplication;
+use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::surface_reader::ApplicationSurfaceReader;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
@@ -27,9 +45,13 @@ use infiltrator_application::version_application::VersionApplication;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot::SurfaceSnapshot;
+use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -77,18 +99,27 @@ pub fn desktop_capabilities() -> CapabilitySnapshot {
 /// Shared application engines handed from the desktop runtime to the surface
 /// reader, so UI intents and surface projections observe one instance each.
 pub struct SurfaceEngines {
+    pub profiles: ProfileApplication,
+    pub configuration: ConfigurationApplication,
+    pub snapshots: SnapshotApplication,
+    pub scripts: ScriptApplication,
+    pub script_exports: ScriptExportApplication,
+    pub doctor: DoctorApplication,
+    pub proxy_preferences: ProxyPreferencesApplication,
     pub speedtest: SpeedtestApplication,
-    pub rule_tracer: infiltrator_application::rule_tracer_application::RuleTracerApplication,
-    pub dns_cache: infiltrator_application::dns_cache_application::DnsCacheApplication,
+    pub rule_tracer: RuleTracerApplication,
+    pub rule_list: RuleListApplication,
+    pub dns_cache: DnsCacheApplication,
+    pub dns_query: DnsQueryApplication,
     /// DUAL-14-10/13: the shared per-nameserver prober whose last report
     /// drives the latency row and the DNS self-heal snapshot.
-    pub dns_latency: infiltrator_application::dns_latency_application::DnsLatencyApplication,
+    pub dns_latency: DnsLatencyApplication,
     /// DUAL-14-08: the shared cross-source leak prober whose last report the
     /// DNS page publishes.
-    pub dns_leak: infiltrator_application::dns_leak_application::DnsLeakApplication,
+    pub dns_leak: DnsLeakApplication,
     /// DUAL-14-09 (re-scoped): the shared STUN UDP-egress prober whose last
     /// report the DNS privacy area publishes.
-    pub stun_probe: infiltrator_application::stun_probe_application::StunProbeApplication,
+    pub stun_probe: StunProbeApplication,
 }
 
 /// Assemble all currently available desktop application facades into one
@@ -97,54 +128,33 @@ pub async fn application_surface_reader(
     core: Arc<CoreApplication>,
     gateway: Arc<dyn RuntimeGateway>,
     surface: SurfaceKind,
-    binary_path: std::path::PathBuf,
+    binary_path: PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
     engines: SurfaceEngines,
 ) -> anyhow::Result<ApplicationSurfaceReader> {
-    let profile_store = crate::storage::profile_store().await?;
-    let configuration_store = Arc::clone(&profile_store);
-    let snapshot_profile_store = Arc::clone(&profile_store);
-    let config_dir = profile_store.config_dir();
-    let profile = ProfileApplication::new(profile_store);
-    let configuration = ConfigurationApplication::new(configuration_store);
-    let settings_store = crate::storage::settings_store().await?;
+    let profile = engines.profiles;
+    let config_dir = profile.config_dir();
+    let configuration = engines.configuration;
+    let settings_store = settings_store().await?;
     let settings = SettingsApplication::new(settings_store);
-    let doctor = DoctorApplication::new(Arc::new(crate::storage::doctor()?));
-    let routing = RoutingApplication::new(Arc::new(crate::storage::app_routing_store()?));
-    let snapshots = SnapshotApplication::new(
-        snapshot_profile_store,
-        Arc::new(crate::storage::snapshot_store().await?),
-    );
-    let versions = VersionApplication::new(Arc::new(crate::storage::version()?));
-    let endpoint_source = Arc::new(crate::storage::endpoint_source().await?);
-    let port_conflicts = PortConflictApplication::new(Arc::new(crate::storage::port_conflict()?));
+    let routing = RoutingApplication::new(Arc::new(app_routing_store()?));
+    let versions = VersionApplication::new(Arc::new(version()?));
+    let endpoint_source = Arc::new(endpoint_source().await?);
+    let port_conflicts = PortConflictApplication::new(Arc::new(port_conflict()?));
     let resources = ResourceApplication::new(gateway.clone());
-    let config_path = infiltrator_core::settings_io::app_config_manager()
-        .await?
-        .get_current_path()
-        .await?;
-    let offline_startup = OfflineStartupApplication::new(Arc::new(
-        crate::offline_startup::offline_startup_port(&config_path, &binary_path),
-    ));
-    let mtu = MtuApplication::new(Arc::new(crate::mtu::DesktopMtuProbe::new()));
-    let system_proxy =
-        SystemProxyApplication::new(Arc::new(crate::system_proxy::DesktopSystemProxy::new()));
-    let uwp_loopback =
-        UwpLoopbackApplication::new(Arc::new(crate::uwp_loopback_port::DesktopUwpLoopbackPort));
-    let pac = PacApplication::new(
-        gateway.clone(),
-        Arc::new(crate::pac_service::DesktopPacServicePort::shared()),
-    );
+    let config_path = app_config_manager().await?.get_current_path().await?;
+    let offline_startup =
+        OfflineStartupApplication::new(Arc::new(offline_startup_port(&config_path, &binary_path)));
+    let mtu = MtuApplication::new(Arc::new(DesktopMtuProbe::new()));
+    let system_proxy = SystemProxyApplication::new(Arc::new(DesktopSystemProxy::new()));
+    let uwp_loopback = UwpLoopbackApplication::new(Arc::new(DesktopUwpLoopbackPort));
+    let pac = PacApplication::new(gateway.clone(), Arc::new(DesktopPacServicePort::shared()));
     let network_roaming =
         NetworkRoamingApplication::new(network_roaming_port, Some(gateway.clone()));
-    let service_mode = ServiceModeApplication::new(Arc::new(
-        crate::service_mode::DesktopServiceMode::new(binary_path),
-    ));
+    let service_mode = ServiceModeApplication::new(Arc::new(DesktopServiceMode::new(binary_path)));
     // DUAL-11-07: the published cache fact comes from the same host directory
     // the desktop command handler purges.
-    let rule_provider_cache = std::sync::Arc::new(
-        crate::rule_provider_cache::DesktopRuleProviderCache::new(config_dir.clone()),
-    );
+    let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(config_dir.clone()));
 
     Ok(
         ApplicationSurfaceReader::new(core, surface, HostKind::Desktop)
@@ -158,20 +168,23 @@ pub async fn application_surface_reader(
             .with_pac(pac)
             .with_network_roaming(network_roaming)
             .with_profiles(profile)
+            .with_proxy_preferences(engines.proxy_preferences)
             .with_configuration(configuration)
-            .with_doctor(doctor)
+            .with_doctor(engines.doctor)
             .with_routing(routing)
             .with_settings(settings)
-            .with_snapshots(snapshots)
+            .with_snapshots(engines.snapshots)
             .with_versions(versions)
             .with_endpoint_source(endpoint_source)
             .with_service_mode(service_mode)
             .with_speedtest(engines.speedtest)
             .with_rule_tracer(engines.rule_tracer)
+            .with_dns_query(engines.dns_query)
             .with_dns_cache(engines.dns_cache)
             .with_dns_latency(engines.dns_latency)
             .with_dns_leak(engines.dns_leak)
             .with_stun_probe(engines.stun_probe)
+            .with_scripts(engines.scripts, engines.script_exports)
             .with_rule_provider_cache(rule_provider_cache)
             .with_port_conflicts(port_conflicts),
     )
@@ -183,7 +196,7 @@ pub async fn surface_pump(
     gateway: Arc<dyn RuntimeGateway>,
     surface: SurfaceKind,
     sample_interval: Duration,
-    binary_path: std::path::PathBuf,
+    binary_path: PathBuf,
     network_roaming_port: Arc<dyn NetworkRoamingPort>,
     engines: SurfaceEngines,
 ) -> anyhow::Result<SurfacePump> {
@@ -198,11 +211,11 @@ pub async fn surface_pump(
     .await?;
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
-    let initial = infiltrator_contract::surface_snapshot::SurfaceSnapshot::unavailable(
+    let initial = SurfaceSnapshot::unavailable(
         surface,
         HostKind::Desktop,
-        infiltrator_contract::error::Failure::new(
-            infiltrator_contract::error::ErrorCode::NotReady,
+        Failure::new(
+            ErrorCode::NotReady,
             "waiting for the first desktop surface snapshot",
             true,
         ),

@@ -50,16 +50,6 @@ impl SystemToggleState {
     pub fn can_toggle(&self) -> bool {
         matches!(self, Self::Enabled | Self::Disabled)
     }
-
-    /// Short, toolkit-neutral status copy used by compact switch controls.
-    pub fn compact_label(&self) -> &'static str {
-        match self {
-            Self::Enabled => "开",
-            Self::Disabled => "关",
-            Self::Pending { .. } => "…",
-            Self::Unknown | Self::Unsupported { .. } | Self::Failed { .. } => "—",
-        }
-    }
 }
 
 /// One shared projection for the two system-level sidebar switches.
@@ -132,7 +122,6 @@ mod tests {
         assert!(state.is_enabled());
         assert!(state.is_pending());
         assert!(!state.can_toggle());
-        assert_eq!(state.compact_label(), "…");
     }
 
     #[test]
@@ -145,6 +134,6 @@ mod tests {
         };
         assert!(!snapshot.system_proxy.is_enabled());
         assert!(!snapshot.system_proxy.can_toggle());
-        assert_eq!(snapshot.tun.compact_label(), "—");
+        assert_eq!(snapshot.tun, SystemToggleState::Unknown);
     }
 }

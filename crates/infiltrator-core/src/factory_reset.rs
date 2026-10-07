@@ -22,6 +22,8 @@
 //!   失败只记入 [`ResetReport::warnings`]，不中断其余目标；
 //! * 不存在的目标静默跳过并记入 [`ResetReport::skipped`]。
 
+use std::fs::{remove_dir_all, remove_file};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 /// 恢复出厂清理的结果报告。
@@ -71,12 +73,12 @@ pub fn execute(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<ResetR
 
 /// settings / config 指针文件：删除失败即 `Err`。
 fn remove_file_hard(path: &Path, report: &mut ResetReport) -> anyhow::Result<()> {
-    match std::fs::remove_file(path) {
+    match remove_file(path) {
         Ok(()) => {
             report.removed.push(path.to_path_buf());
             Ok(())
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error) if error.kind() == ErrorKind::NotFound => {
             report.skipped.push(path.to_path_buf());
             Ok(())
         }
@@ -86,9 +88,9 @@ fn remove_file_hard(path: &Path, report: &mut ResetReport) -> anyhow::Result<()>
 
 /// 崩溃/启动日志等普通文件：删除失败只记 warning。
 fn remove_file_soft(path: &Path, report: &mut ResetReport) {
-    match std::fs::remove_file(path) {
+    match remove_file(path) {
         Ok(()) => report.removed.push(path.to_path_buf()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error) if error.kind() == ErrorKind::NotFound => {
             report.skipped.push(path.to_path_buf());
         }
         Err(error) => report
@@ -103,7 +105,7 @@ fn remove_dir_soft(path: &Path, report: &mut ResetReport) {
         report.skipped.push(path.to_path_buf());
         return;
     }
-    match std::fs::remove_dir_all(path) {
+    match remove_dir_all(path) {
         Ok(()) => report.removed.push(path.to_path_buf()),
         Err(error) => report
             .warnings
@@ -135,13 +137,17 @@ fn remove_configs_dir(configs_dir: Option<&Path>, home: &Path, report: &mut Rese
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::fs::create_dir_all;
+    #[cfg(test)]
+    use std::fs::write;
 
     /// 建文件（自动建父目录）。
     fn touch(path: &Path) {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
+            create_dir_all(parent).unwrap();
         }
-        std::fs::write(path, b"x").unwrap();
+        write(path, b"x").unwrap();
     }
 
     #[test]
@@ -210,8 +216,8 @@ mod tests {
         touch(&home.join("logs"));
         touch(&home.join("configs_dir_target"));
         // 文件目标建成目录：remove_file 必失败（非 NotFound）。
-        std::fs::create_dir_all(home.join("infiltrator_crash.log")).unwrap();
-        std::fs::create_dir_all(home.join("startup_critical.log")).unwrap();
+        create_dir_all(home.join("infiltrator_crash.log")).unwrap();
+        create_dir_all(home.join("startup_critical.log")).unwrap();
         let configs = home.join("configs_dir_target");
 
         let report = execute(home, Some(&configs)).unwrap();

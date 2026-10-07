@@ -1,14 +1,15 @@
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     banner_alert, form_field_label, form_input_style, form_toggle_row, row_card_surface,
     style_accent, style_ghost, text_btn,
 };
-use crate::view::components::{
-    BadgeKind, badge, card, modern_scrollable, section_header, status_dot,
-};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};
+use crate::view::components::{BadgeKind, badge, modern_scrollable, section_header, status_dot};
+use crate::view::svg_icons::Icon;
+use crate::view::sync_diff::diff_panel;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, SP_LG, SP_MD, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, progress_bar, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -258,7 +259,7 @@ fn build_conflicts_card<'a>(
     ]
     .spacing(theme::SP_SM);
 
-    if let Some(diff_panel) = crate::view::sync_diff::diff_panel(state) {
+    if let Some(diff_panel) = diff_panel(state) {
         card_content = card_content
             .push(Space::new().height(theme::SP_SM))
             .push(diff_panel);

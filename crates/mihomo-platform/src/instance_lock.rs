@@ -22,7 +22,15 @@
 //! of a "pid file with a staleness check", which would require fragile
 //! cleanup logic and could deadlock the user out of the app after a crash.
 
+#[cfg(not(any(unix, windows)))]
+use mihomo_api::error::MihomoError;
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::io;
 use std::path::Path;
+#[cfg(windows)]
+use std::ptr::null;
 
 use mihomo_api::error::Result;
 
@@ -36,7 +44,7 @@ pub struct InstanceLockGuard {
     /// Unix: owning the `File` keeps the fd open; closing it (on drop or
     /// process exit) releases the `flock`.
     #[cfg(unix)]
-    _file: std::fs::File,
+    _file: fs::File,
     /// Windows: raw handle to the `Global\...` named mutex, released in
     /// [`InstanceLockGuard::Drop`]. `HANDLE` is `*mut c_void`, so the guard
     /// is `!Send`/`!Sync` by construction, matching the owning-thread rule.
@@ -69,7 +77,7 @@ pub fn try_acquire_instance_lock(lock_path: &Path) -> Result<Option<InstanceLock
     #[cfg(not(any(unix, windows)))]
     {
         let _ = lock_path;
-        Err(mihomo_api::error::MihomoError::Service(
+        Err(MihomoError::Service(
             "instance lock: unsupported platform".to_string(),
         ))
     }
@@ -104,7 +112,7 @@ fn unix_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
     use std::os::unix::fs::OpenOptionsExt;
 
     // Owner-only permissions: the file is a coordination artifact, not data.
-    let file = std::fs::OpenOptions::new()
+    let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
@@ -119,7 +127,7 @@ fn unix_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
         return Ok(Some(InstanceLockGuard { _file: file }));
     }
 
-    let err = std::io::Error::last_os_error();
+    let err = io::Error::last_os_error();
     // EWOULDBLOCK == EAGAIN on every supported unix target (Linux, macOS,
     // Android), so matching both would trip `unreachable_patterns`.
     if err.kind() == ErrorKind::WouldBlock || err.raw_os_error() == Some(libc::EWOULDBLOCK) {
@@ -144,9 +152,9 @@ fn windows_try_acquire(lock_path: &Path) -> Result<Option<InstanceLockGuard>> {
     // caller distinguishes the two cases via GetLastError. With
     // bInitialOwner = TRUE the first process owns it immediately, so the
     // mutex being held is equivalent to "another instance is running".
-    let handle = unsafe { Threading::CreateMutexW(std::ptr::null(), TRUE, wide_name.as_ptr()) };
+    let handle = unsafe { Threading::CreateMutexW(null(), TRUE, wide_name.as_ptr()) };
     if handle.is_null() {
-        return Err(std::io::Error::last_os_error().into());
+        return Err(io::Error::last_os_error().into());
     }
 
     let already_exists = unsafe { Foundation::GetLastError() } == Foundation::ERROR_ALREADY_EXISTS;
@@ -230,7 +238,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let lock_path = dir.path().join("instance.lock");
         let _guard = try_acquire_instance_lock(&lock_path).unwrap().unwrap();
-        let mode = std::fs::metadata(&lock_path).unwrap().permissions().mode();
+        let mode = fs::metadata(&lock_path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600, "lock file must be owner-only");
     }
 

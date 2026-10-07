@@ -4,6 +4,7 @@
 //! generation, standalone setup scripts, and systemd service unit generation.
 
 use serde::{Deserialize, Serialize};
+use std::env::{split_paths, var};
 use std::fmt;
 use std::path::Path;
 use std::process::Command;
@@ -73,8 +74,8 @@ pub struct LinuxPrivilegeWizard;
 impl LinuxPrivilegeWizard {
     /// Checks if a binary command exists in system PATH.
     pub fn is_command_in_path(cmd: &str) -> bool {
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path_var) {
+        if let Ok(path_var) = var("PATH") {
+            for dir in split_paths(&path_var) {
                 let full = dir.join(cmd);
                 if full.is_file() {
                     return true;

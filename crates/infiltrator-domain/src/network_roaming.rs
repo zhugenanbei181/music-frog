@@ -69,7 +69,7 @@ pub fn decide(
             || active_address_changed);
     let route_repair_required = changed
         && selected.is_some()
-        && tun.is_some_and(|tun| tun.enable && tun.auto_route)
+        && tun.is_some_and(|tun| tun.enable == Some(true) && tun.auto_route == Some(true))
         && tun_interface.is_some();
 
     let reason = if previous.is_none() {
@@ -124,10 +124,10 @@ mod tests {
 
     fn tun() -> TunSnapshot {
         TunSnapshot {
-            enable: true,
-            stack: "gvisor".to_owned(),
-            auto_route: true,
-            strict_route: true,
+            enable: Some(true),
+            stack: Some("gvisor".to_owned()),
+            auto_route: Some(true),
+            strict_route: Some(true),
             mtu: Some(1420),
         }
     }
@@ -190,7 +190,7 @@ mod tests {
             observed_at_epoch_ms: Some(2),
         };
         let tun = TunSnapshot {
-            enable: false,
+            enable: Some(false),
             ..tun()
         };
         let decision = decide(Some(&previous), &current, Some(&tun), Some("Meta"));

@@ -2,11 +2,14 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::utils::format_bytes;
+use infiltrator_application::byte_format::format_bytes;
+
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_danger, style_ghost};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};

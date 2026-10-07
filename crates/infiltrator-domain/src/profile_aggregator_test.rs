@@ -5,6 +5,8 @@ use crate::profile_aggregator::{
     AggregationPlan, MASTER_SELECT_GROUP, ProfileAggregator, REGION_GROUP_SUFFIX,
 };
 use crate::profile_converter::{AggregationOptions, SourceSubscription};
+use infiltrator_contract::aggregator::{AggregationCustomGroup, AggregationRenameRule};
+use std::slice::from_ref;
 
 fn hk_jp_source() -> SourceSubscription {
     SourceSubscription::with_prefix(
@@ -174,7 +176,7 @@ proxies:
 #[test]
 fn plan_applies_regex_rename_rules_before_clustering() {
     let renamed = AggregationOptions {
-        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+        rename_rules: vec![AggregationRenameRule {
             pattern: "-Pro$".to_string(),
             replacement: String::new(),
         }],
@@ -194,7 +196,7 @@ fn plan_applies_regex_rename_rules_before_clustering() {
     assert!(!plan.yaml.contains("-Pro"));
 
     let broken = AggregationOptions {
-        rename_rules: vec![infiltrator_contract::aggregator::AggregationRenameRule {
+        rename_rules: vec![AggregationRenameRule {
             pattern: "(unclosed".to_string(),
             replacement: "x".to_string(),
         }],
@@ -237,7 +239,7 @@ proxies:
         availability_precheck: true,
         ..options()
     };
-    let plan = ProfileAggregator::plan(std::slice::from_ref(&mixed), &prechecked).unwrap();
+    let plan = ProfileAggregator::plan(from_ref(&mixed), &prechecked).unwrap();
     assert_eq!(plan.input_nodes, 3);
     assert_eq!(plan.total_nodes, 1);
     assert_eq!(plan.invalid_nodes_removed, 2);
@@ -291,12 +293,12 @@ proxies:
 fn plan_synthesizes_custom_groups_with_keyword_members() {
     let custom = AggregationOptions {
         custom_groups: vec![
-            infiltrator_contract::aggregator::AggregationCustomGroup {
+            AggregationCustomGroup {
                 name: "流媒体专用".to_string(),
                 group_type: "select".to_string(),
                 member_keywords: vec!["west".to_string()],
             },
-            infiltrator_contract::aggregator::AggregationCustomGroup {
+            AggregationCustomGroup {
                 name: "游戏专用".to_string(),
                 group_type: "url-test".to_string(),
                 member_keywords: Vec::new(),
@@ -340,7 +342,7 @@ fn plan_synthesizes_custom_groups_with_keyword_members() {
     assert!(plan.yaml.contains("流媒体专用"));
 
     let colliding = AggregationOptions {
-        custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+        custom_groups: vec![AggregationCustomGroup {
             name: MASTER_SELECT_GROUP.to_string(),
             group_type: "select".to_string(),
             member_keywords: Vec::new(),
@@ -351,7 +353,7 @@ fn plan_synthesizes_custom_groups_with_keyword_members() {
     assert!(failure.to_string().contains("collides"));
 
     let unknown_type = AggregationOptions {
-        custom_groups: vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+        custom_groups: vec![AggregationCustomGroup {
             name: "自定义".to_string(),
             group_type: "load-balance".to_string(),
             member_keywords: Vec::new(),

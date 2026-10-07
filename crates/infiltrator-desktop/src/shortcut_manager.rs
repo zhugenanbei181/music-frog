@@ -1,8 +1,7 @@
-use std::fmt;
-use std::str::FromStr;
-
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use std::{error, fmt};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ActionIntent {
@@ -19,8 +18,6 @@ pub enum ActionIntent {
     FlushDnsCache,
     Custom(String),
 }
-
-pub type KeyAction = ActionIntent;
 
 impl ActionIntent {
     pub fn as_intent_str(&self) -> &str {
@@ -137,7 +134,7 @@ impl fmt::Display for ShortcutCollision {
     }
 }
 
-impl std::error::Error for ShortcutCollision {}
+impl error::Error for ShortcutCollision {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ConflictReport {

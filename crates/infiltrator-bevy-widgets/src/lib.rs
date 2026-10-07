@@ -13,9 +13,17 @@
 //! future extraction shared with taskmanager's bevy frontend is a
 //! lift-and-shift.
 
+use bevy::input::mouse::MouseScrollPixelsPerLine;
+use bevy::ui_widgets::{Button, ScrollAreaPlugin};
+use chart::donut::sync_donut_charts;
+use chart::histogram::sync_histogram_charts;
+use chart::ring_buffer::{TelemetryCadenceManager, update_telemetry_cadence};
+use chart::texture::release_retired;
+use chart::topology::{advance_topology_flow, sync_topology_charts};
 pub mod abi;
 pub mod accordion;
 pub mod adaptive_modal;
+mod asset_setup;
 pub mod auto_heal;
 pub mod bidi;
 pub mod boot_cache;
@@ -43,11 +51,13 @@ pub mod i18n;
 pub mod icon;
 pub mod icon_tile;
 pub mod list;
+pub mod localization;
 pub mod master_detail;
 pub mod menu;
 pub mod mobile_view;
 pub mod modal;
 pub mod motion;
+pub mod multiline_editor;
 pub mod nav;
 pub mod palette;
 pub mod particle;
@@ -59,6 +69,7 @@ pub mod responsive;
 pub mod sandbox;
 pub mod scrollarea;
 pub mod selection;
+mod shader_assets;
 pub mod shader_fx;
 pub mod signal_dag;
 pub mod slider;
@@ -66,10 +77,12 @@ pub mod smart_truncate;
 pub mod splitter;
 pub mod stat_chip;
 pub mod surface;
+pub mod surface_shader;
 pub mod switch;
 pub mod tabs;
 pub mod text;
 pub mod text_input;
+pub mod text_runs;
 pub mod theme;
 pub mod theme_export;
 pub mod toast;
@@ -77,12 +90,19 @@ pub mod tooltip;
 pub mod tsdb;
 pub mod windowing;
 
-use bevy::app::{App, Plugin, Update};
-use bevy::ecs::schedule::IntoScheduleConfigs;
-
+use crate::button::ButtonDisabled;
+use crate::localization::WidgetLocalizationPlugin;
 use crate::palette::UiPalette;
 use crate::responsive::{Density, ResponsiveContext};
+use crate::text_input::native::NativeTextFieldPlugin;
+use crate::text_input::render::{
+    sync_field_borders, sync_field_carets, sync_ime_cursor_areas, sync_text_fields,
+};
+use crate::text_runs::TextRunsPlugin;
 use crate::theme::Breakpoint;
+use bevy::app::{App, Plugin, PostUpdate, PreStartup, Update};
+use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
+use bevy::ui::UiSystems;
 
 /// Installs the resolved palette resource, the embedded font sources, the
 /// icon plate store, the typography/theme observers and the per-control
@@ -101,45 +121,36 @@ impl WidgetsPlugin {
 
 impl Plugin for WidgetsPlugin {
     fn build(&self, app: &mut App) {
+        // Native required components attach at spawn, before any navigation can retire a control.
+        app.register_required_components::<Button, responsive::TouchHitbox>()
+            .register_required_components::<Button, ButtonDisabled>();
+        if !app.is_plugin_added::<WidgetLocalizationPlugin>() {
+            app.add_plugins(WidgetLocalizationPlugin);
+        }
+        app.add_plugins((NativeTextFieldPlugin, TextRunsPlugin));
+        app.init_resource::<MouseScrollPixelsPerLine>();
+        if !app.is_plugin_added::<ScrollAreaPlugin>() {
+            app.add_plugins(ScrollAreaPlugin);
+        }
+
         app.insert_resource(self.palette);
         app.init_resource::<ResponsiveContext>();
         app.init_resource::<Density>();
         app.init_resource::<Breakpoint>();
         app.init_resource::<master_detail::MasterDetailState>();
         app.init_resource::<adaptive_modal::ModalState>();
-        app.init_resource::<chart::ring_buffer::TelemetryCadenceManager>();
+        app.init_resource::<TelemetryCadenceManager>();
         app.init_resource::<toast::ToastQueue>();
 
-        // Embedded faces ride the Assets<Font> store every bevy_ui app
-        // already carries; a composition without one falls back to the
-        // default handles (system faces) instead of failing.
-        let fonts = app
-            .world_mut()
-            .get_resource_mut::<bevy::asset::Assets<bevy::text::Font>>()
-            .map(|mut fonts| fonts::FontSources::embedded(&mut fonts));
-        if let Some(sources) = fonts {
-            app.insert_resource(sources);
-        } else {
-            app.init_resource::<fonts::FontSources>();
-        }
-
-        // Icon plates load through the host's asset server — only when the
-        // host actually carries an image store (every render-backed
-        // composition does); anything leaner renders icons as invisible
-        // squares (never panics).
-        let server = app.world().contains_resource::<bevy::asset::AssetServer>();
-        let images = app
-            .world()
-            .contains_resource::<bevy::asset::Assets<bevy::image::Image>>();
-        if server && images {
-            let sources =
-                icon::IconSources::load(app.world().resource::<bevy::asset::AssetServer>());
-            app.insert_resource(sources);
-        } else {
-            app.init_resource::<icon::IconSources>();
-        }
+        app.init_resource::<fonts::FontSources>();
+        app.init_resource::<icon::IconSources>();
+        app.add_systems(
+            PreStartup,
+            (asset_setup::initialize_fonts, asset_setup::initialize_icons),
+        );
 
         app.add_observer(text::style_text_roles);
+        app.add_observer(button::insert_button_disabled);
         app.add_observer(switch::apply_theme);
         app.add_observer(icon::stamp_icon_plate);
         app.add_observer(responsive::on_density_switch);
@@ -179,12 +190,25 @@ impl Plugin for WidgetsPlugin {
                 radio::sync_radio_visuals,
                 slider::sync_slider_visuals,
                 slider::sync_range_slider_visuals,
-                text_input::sync_text_fields,
-                text_input::sync_field_borders,
-                text_input::sync_field_carets,
-                text_input::sync_ime_cursor_areas,
+                sync_text_fields,
+                sync_field_borders,
+                sync_field_carets,
+                sync_ime_cursor_areas,
                 icon::sync_icon_tints,
             ),
+        );
+
+        // Page projection and retirement queues finish in Update. Sync SDK
+        // state from surviving controls, then commit before UI preparation.
+        app.add_systems(
+            PostUpdate,
+            (
+                button::sync_button_disabled,
+                interaction_block::sync_inputs,
+                ApplyDeferred,
+            )
+                .chain()
+                .before(UiSystems::Prepare),
         );
 
         app.add_systems(
@@ -201,20 +225,17 @@ impl Plugin for WidgetsPlugin {
                 list::sync_list_selection.before(nav::sync_nav_visuals),
                 chart::sync_chart_crosshair_tracking,
                 chart::sync_charts,
-                chart::donut::sync_donut_charts,
-                chart::histogram::sync_histogram_charts,
+                release_retired,
+                sync_donut_charts,
+                sync_histogram_charts,
             ),
         );
 
         app.add_systems(
             Update,
             (
-                (
-                    chart::topology::advance_topology_flow,
-                    chart::topology::sync_topology_charts,
-                )
-                    .chain(),
-                chart::ring_buffer::update_telemetry_cadence,
+                (advance_topology_flow, sync_topology_charts).chain(),
+                update_telemetry_cadence,
                 scrollarea::focus_avoidance_auto_scroll_system,
                 responsive::sync_responsive_context_from_window,
                 fluid_grid::sync_fluid_grid_layout,
@@ -223,7 +244,6 @@ impl Plugin for WidgetsPlugin {
                 adaptive_modal::sync_adaptive_modal_morphology,
                 density::sync_adaptive_density_styles,
                 responsive::sync_touch_hitboxes,
-                responsive::auto_insert_touch_hitboxes,
             ),
         );
 
@@ -256,3 +276,5 @@ impl Plugin for WidgetsPlugin {
         app.add_plugins(motion::SpringAnimationPlugin);
     }
 }
+
+pub mod interaction_block;

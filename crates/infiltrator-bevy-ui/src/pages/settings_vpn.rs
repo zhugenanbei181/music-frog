@@ -1,9 +1,13 @@
 //! Bevy Settings projection for Android VpnService lifecycle.
 
+use super::LastSettingsProjection;
+use super::settings_core::SettingsProjection;
+use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
+use bevy::ecs::query::{Has, Or, QueryData, QueryFilter};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
@@ -12,15 +16,15 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::host_network_projection::vpn;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::SettingsProjection;
-use crate::command::{CommandSinkHandle, UiCommand};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VpnStartButton;
@@ -30,21 +34,14 @@ pub struct VpnStopButton;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VpnStatusLine;
+#[derive(Component, Clone, Copy, Default)]
+pub struct VpnStartLabel;
+#[derive(Component, Clone, Copy, Default)]
+pub struct VpnStopLabel;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
-    let snapshot = &projection.vpn;
-    let start_label = match snapshot.state {
-        VpnSessionState::Running | VpnSessionState::Starting => "VPN 已启动",
-        _ => "启动 VPN",
-    };
-    let stop_label = if matches!(
-        snapshot.state,
-        VpnSessionState::Running | VpnSessionState::Starting | VpnSessionState::Stopping
-    ) {
-        "停止 VPN"
-    } else {
-        "已停止"
-    };
+    let locale = UiLocale::default();
+    let view = vpn(&projection.vpn, locale.code());
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -53,7 +50,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         row_gap: Val::Px(space::S6),
                     }
                     Children [
-                        Text({ "Android VpnService 与前台保活 (VPN)".to_owned() }) TextRole(Role::BodyStrong)
+                        LocalizedText::plain("settings_android_vpn_title") TextRole(Role::BodyStrong)
                         --
                         Node {
                             width: percent(100),
@@ -64,7 +61,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         }
                         BackgroundColor({ palette.surface_elevated })
                         Children [
-                            Text(format_status(snapshot)) VpnStatusLine TextRole(Role::Mono)
+                            Text({format!("{} · {}",view.status,view.details)}) VpnStatusLine TextRole(Role::Mono)
                             --
                             Node {
                                 align_items: AlignItems::Center,
@@ -82,7 +79,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 VpnStartButton
                                 Button
                                 Children [
-                                    Text({ start_label.to_owned() }) TextRole(Role::BodyStrong)
+                                    Text({Lang(locale.code()).tr(view.start_key).into_owned()}) VpnStartLabel TextRole(Role::BodyStrong)
                                 ]
                                 --
                                 Node {
@@ -96,7 +93,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                                 VpnStopButton
                                 Button
                                 Children [
-                                    Text({ stop_label.to_owned() }) TextRole(Role::Body)
+                                    Text({Lang(locale.code()).tr(view.stop_key).into_owned()}) VpnStopLabel TextRole(Role::Body)
                                 ]
                             ]
                         ]
@@ -108,49 +105,93 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
 
 pub(super) fn on_action_activated(
     activate: On<Activate>,
-    start_buttons: Query<(), With<VpnStartButton>>,
-    stop_buttons: Query<(), With<VpnStopButton>>,
+    start_buttons: Query<&ButtonDisabled, With<VpnStartButton>>,
+    stop_buttons: Query<&ButtonDisabled, With<VpnStopButton>>,
+    blocked: Query<(), With<InteractionBlocked>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
         return;
     };
-    if start_buttons.contains(activate.entity) {
+    if blocked.contains(activate.entity) {
+        return;
+    }
+    if start_buttons
+        .get(activate.entity)
+        .is_ok_and(|disabled| !disabled.0)
+    {
         handle.submit(UiCommand::StartVpn);
-    } else if stop_buttons.contains(activate.entity) {
+    } else if stop_buttons
+        .get(activate.entity)
+        .is_ok_and(|disabled| !disabled.0)
+    {
         handle.submit(UiCommand::StopVpn);
     }
 }
-
-pub(super) fn apply_projection(
-    update: On<SettingsProjectionUpdated>,
-    mut status_lines: Query<&mut Text, With<VpnStatusLine>>,
-) {
-    let status = format_status(&update.0.vpn);
-    for mut line in &mut status_lines {
-        line.0 = status.clone();
-    }
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct VpnText {
+    text: &'static mut Text,
+    status: Has<VpnStatusLine>,
+    start: Has<VpnStartLabel>,
+    stop: Has<VpnStopLabel>,
 }
-
-pub(super) fn format_status(snapshot: &VpnSessionSnapshot) -> String {
-    match &snapshot.state {
-        VpnSessionState::Idle => "未启动".to_owned(),
-        VpnSessionState::PermissionRequired => "等待 Android VPN 用户授权".to_owned(),
-        VpnSessionState::Starting => format!(
-            "启动中 · foreground={} · routes={}",
-            snapshot.foreground, snapshot.route_count
-        ),
-        VpnSessionState::Running => format!(
-            "运行中 · foreground={} · MTU={} · routes={} · IPv6={}",
-            snapshot.foreground,
-            snapshot.mtu.unwrap_or_default(),
-            snapshot.route_count,
-            snapshot.ipv6
-        ),
-        VpnSessionState::Stopping => "停止中".to_owned(),
-        VpnSessionState::Stopped => "已停止".to_owned(),
-        VpnSessionState::Revoked => "系统已撤销 VPN 授权".to_owned(),
-        VpnSessionState::Unsupported { reason } => format!("宿主不支持 · {reason}"),
-        VpnSessionState::Failed { failure } => format!("失败 · {}", failure.message),
+#[derive(QueryFilter)]
+pub struct VpnTextFilter {
+    lines: Or<(With<VpnStatusLine>, With<VpnStartLabel>, With<VpnStopLabel>)>,
+}
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct VpnButton {
+    disabled: &'static mut ButtonDisabled,
+    start: Has<VpnStartButton>,
+    stop: Has<VpnStopButton>,
+}
+#[derive(QueryFilter)]
+pub struct VpnButtonFilter {
+    buttons: Or<(With<VpnStartButton>, With<VpnStopButton>)>,
+}
+pub(super) fn replay(
+    last: Res<LastSettingsProjection>,
+    locale: Res<UiLocale>,
+    mut lines: Query<VpnText, VpnTextFilter>,
+    mut buttons: Query<VpnButton, VpnButtonFilter>,
+    handle: Option<Res<CommandSinkHandle>>,
+) {
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
+    let view = vpn(&projection.vpn, locale.code());
+    for parts in &mut lines {
+        let VpnTextItem {
+            mut text,
+            status,
+            start,
+            stop,
+        } = parts;
+        let next = if status {
+            format!("{} · {}", view.status, view.details)
+        } else if start {
+            Lang(locale.code()).tr(view.start_key).into_owned()
+        } else if stop {
+            Lang(locale.code()).tr(view.stop_key).into_owned()
+        } else {
+            continue;
+        };
+        if text.0 != next {
+            text.0 = next;
+        }
+    }
+    for parts in &mut buttons {
+        let VpnButtonItem {
+            mut disabled,
+            start,
+            stop,
+        } = parts;
+        let enabled =
+            handle.is_some() && ((start && view.start_enabled) || (stop && view.stop_enabled));
+        if disabled.0 == enabled {
+            disabled.0 = !enabled;
+        }
     }
 }

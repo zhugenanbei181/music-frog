@@ -6,10 +6,17 @@
 //! mirror, and releasing runs the shared clamp/edge-snap pass through
 //! `infiltrator_application::mini_hud_application`.
 
+use crate::mini_hud_store::{place, set_pinned};
+use crate::mini_hud_window::{
+    IcedMiniHudWindowHandle, enter, exit, host_requests_task, move_to, set_level,
+};
 use crate::state::AppState;
+use crate::state::shell::MiniHudDragAnchor;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
+use iced::window::monitor_size;
+use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudPlacement};
 
 impl AppState {
     /// Handlers for the Mini HUD messages. Returns `None` when the message is
@@ -23,18 +30,16 @@ impl AppState {
                     let placement = self.shell.mini_hud_placement;
                     self.shell.always_on_top = placement.pinned;
                     Task::batch([
-                        crate::mini_hud_window::enter(self.shell.window_id, placement),
+                        enter(self.shell.window_id, placement),
                         // Resolve the live monitor rectangle for clamp/snap.
                         match self.shell.window_id {
-                            Some(id) => {
-                                iced::window::monitor_size(id).map(Message::MiniHudDisplayKnown)
-                            }
+                            Some(id) => monitor_size(id).map(Message::MiniHudDisplayKnown),
                             None => Task::none(),
                         },
                     ])
                 } else {
                     self.shell.always_on_top = false;
-                    crate::mini_hud_window::exit(self.shell.window_id)
+                    exit(self.shell.window_id)
                 }
             }
             Message::SetAlwaysOnTop(v) => {
@@ -45,10 +50,10 @@ impl AppState {
                 let current = self.shell.mini_hud_placement;
                 let in_hud_mode = self.shell.mini_hud_mode;
                 Task::batch([
-                    crate::mini_hud_window::set_level(self.shell.window_id, v && in_hud_mode),
+                    set_level(self.shell.window_id, v && in_hud_mode),
                     Task::perform(
                         async move {
-                            crate::mini_hud_store::set_pinned(current, v)
+                            set_pinned(current, v)
                                 .await
                                 .map_err(|error| error.to_string())
                         },
@@ -61,21 +66,21 @@ impl AppState {
                 // the placement captured at drag start moves the HUD mirror,
                 // and the host window follows. Snapping/persisting happens on
                 // release so a drag does not write the settings file per pixel.
-                let anchor =
-                    self.shell
-                        .mini_hud_drag_anchor
-                        .unwrap_or(crate::state::MiniHudDragAnchor {
-                            origin: (x, y),
-                            placement: self.shell.mini_hud_placement,
-                        });
+                let anchor = self
+                    .shell
+                    .mini_hud_drag_anchor
+                    .unwrap_or(MiniHudDragAnchor {
+                        origin: (x, y),
+                        placement: self.shell.mini_hud_placement,
+                    });
                 self.shell.mini_hud_drag_anchor = Some(anchor);
-                let placement = infiltrator_contract::mini_hud::MiniHudPlacement {
+                let placement = MiniHudPlacement {
                     x: anchor.placement.x + (x - anchor.origin.0).round() as i32,
                     y: anchor.placement.y + (y - anchor.origin.1).round() as i32,
                     ..anchor.placement
                 };
                 self.shell.mini_hud_placement = placement;
-                crate::mini_hud_window::move_to(self.shell.window_id, placement)
+                move_to(self.shell.window_id, placement)
             }
             Message::MiniHudDragReleased => {
                 self.shell.mini_hud_drag_anchor = None;
@@ -86,7 +91,7 @@ impl AppState {
                         // The host monitor rectangle is the real geometry; a
                         // host without one persists raw coordinates instead of
                         // inventing a display.
-                        crate::mini_hud_store::place(placement, placement.x, placement.y, display)
+                        place(placement, placement.x, placement.y, display)
                             .await
                             .map_err(|error| error.to_string())
                     },
@@ -100,19 +105,13 @@ impl AppState {
                     // The desktop host port accepted (or refused) the placement
                     // while persisting; accepted requests become the real
                     // window tasks here, on the update path.
-                    crate::mini_hud_window::host_requests_task(self.shell.window_id)
+                    host_requests_task(self.shell.window_id)
                 }
                 Err(error) => self.push_toast(error, ToastStatus::Error),
             },
             Message::MiniHudDisplayKnown(size) => {
-                self.shell.mini_hud_display = size.map(|size| {
-                    infiltrator_contract::mini_hud::MiniHudDisplay::new(
-                        0,
-                        0,
-                        size.width as u32,
-                        size.height as u32,
-                    )
-                });
+                self.shell.mini_hud_display = size
+                    .map(|size| MiniHudDisplay::new(0, 0, size.width as u32, size.height as u32));
                 Task::none()
             }
             Message::WindowIdResolved(id) => {
@@ -120,7 +119,7 @@ impl AppState {
                 // The shared application's host port only accepts placement
                 // requests while the host window is alive; the desktop adapter
                 // answers typed unsupported until then.
-                crate::mini_hud_window::IcedMiniHudWindowHandle::host().mark_live(id.is_some());
+                IcedMiniHudWindowHandle::host().mark_live(id.is_some());
                 Task::none()
             }
 

@@ -8,10 +8,11 @@
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::provider_cache::{
     ProviderCacheFingerprint, ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint,
+    RuleProviderCacheSnapshot,
 };
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::rules::provider_store::{
-    RuleProviderDeclaration, deconstruct_provider_payload,
+    RuleProviderDeclaration, deconstruct_provider_payload, unpack_provider_rules_with_behavior,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::RuleProviderCachePort;
@@ -153,19 +154,15 @@ impl RuleProviderApplication {
     }
 
     /// Observed cache location fact for the shared read model.
-    pub async fn snapshot(
-        &self,
-    ) -> infiltrator_contract::provider_cache::RuleProviderCacheSnapshot {
+    pub async fn snapshot(&self) -> RuleProviderCacheSnapshot {
         let Some(cache) = self.cache.as_ref() else {
-            return infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::unsupported(
+            return RuleProviderCacheSnapshot::unsupported(
                 "this host does not expose a rule-provider cache location",
             );
         };
         match cache.snapshot().await {
             Ok(snapshot) => snapshot,
-            Err(error) => infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::failed(
-                error.to_string(),
-            ),
+            Err(error) => RuleProviderCacheSnapshot::failed(error.to_string()),
         }
     }
 
@@ -221,11 +218,7 @@ fn deconstruct_lines(
     origin: ProviderContentOrigin,
 ) -> Result<ProviderUnpackPlan, Failure> {
     let (entries, skipped) =
-        infiltrator_domain::rules::provider_store::unpack_provider_rules_with_behavior(
-            lines,
-            declaration.behavior,
-            target,
-        );
+        unpack_provider_rules_with_behavior(lines, declaration.behavior, target);
     if entries.is_empty() {
         return Err(Failure::new(
             ErrorCode::InvalidInput,
@@ -252,8 +245,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
-    use infiltrator_ports::rule_provider_cache::ProviderCacheEntry;
-    use infiltrator_ports::rule_provider_cache::ProviderFileFact;
+    use infiltrator_ports::rule_provider_cache::{ProviderCacheEntry, ProviderFileFact};
     use serde_json::json;
     use std::path::PathBuf;
 

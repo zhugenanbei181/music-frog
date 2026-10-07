@@ -7,25 +7,35 @@
 //! multiplexing (05-11) and the codec audit (05-14) all render from that
 //! single shared source.
 
-use std::sync::Arc;
-
 use bevy::app::App;
+use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ui::widget;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
+use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
+use infiltrator_bevy_ui::command_events::CommandExecutedEvent;
+use infiltrator_bevy_ui::pages::business_panel::{OpenBusinessPanel, PanelKind};
 use infiltrator_bevy_ui::pages::proxies::{ProxiesProjection, ProxiesProjectionUpdated};
 use infiltrator_bevy_ui::pages::proxies_custom::{
-    CustomNodeCaField, CustomNodeDialerField, CustomNodeSlot, CustomNodeText, CustomNodeUriField,
-    ImportUriButton, SaveCustomNodeButton, ScanDialerChainsButton, VerifyCustomNodeCaButton,
+    CustomNodeCaField, CustomNodeDialerField, CustomNodeText, CustomNodeUriField, ImportUriButton,
+    SaveCustomNodeButton, ScanDialerChainsButton, VerifyCustomNodeCaButton,
 };
+use infiltrator_bevy_ui::pages::proxies_form::{CustomNodeForm, PendingProtocolImport};
 use infiltrator_bevy_ui::projection::DemoOverviewSource;
 use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
-use infiltrator_contract::protocol_fidelity::ProtocolDraft;
+use infiltrator_contract::command::RequestId;
+use infiltrator_contract::command_output::CommandOutput;
+use infiltrator_contract::protocol_fidelity::{
+    NodeCodecFormat, ProtocolDraft, ProtocolStudioSnapshot,
+};
+use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use std::sync::Arc;
 
 use crate::support::*;
 
@@ -54,7 +64,19 @@ fn navigate_to_proxies(app: &mut App) -> Entity {
     root
 }
 
-fn button_entity<T: bevy::ecs::component::Component>(app: &mut App) -> Entity {
+fn open_custom_node(app: &mut App) {
+    let entity = app
+        .world_mut()
+        .query::<(Entity, &OpenBusinessPanel)>()
+        .iter(app.world())
+        .find(|(_, open)| open.0 == PanelKind::CustomNode)
+        .map(|(e, _)| e)
+        .unwrap();
+    app.world_mut().commands().trigger(Activate { entity });
+    app.update();
+}
+
+fn button_entity<T: Component>(app: &mut App) -> Entity {
     let mut query = app.world_mut().query::<(Entity, &T)>();
     query
         .iter(app.world())
@@ -63,10 +85,8 @@ fn button_entity<T: bevy::ecs::component::Component>(app: &mut App) -> Entity {
         .expect("marker component entity")
 }
 
-fn text_for_slot(app: &mut App, slot: CustomNodeSlot) -> String {
-    let mut query = app
-        .world_mut()
-        .query::<(&bevy::ui::widget::Text, &CustomNodeText)>();
+fn text_for_slot(app: &mut App, slot: ProtocolStudioSlot) -> String {
+    let mut query = app.world_mut().query::<(&widget::Text, &CustomNodeText)>();
     let mut found = None;
     for (text, marker) in query.iter(app.world()) {
         if marker.0 == slot {
@@ -82,6 +102,7 @@ fn custom_node_import_button_submits_the_typed_uri() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
+    open_custom_node(&mut app);
 
     let field = {
         let mut fields = app.world_mut().query::<(&CustomNodeUriField, &Children)>();
@@ -116,6 +137,7 @@ fn custom_node_import_button_submits_the_typed_uri() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
+    open_custom_node(&mut app);
     let import = button_entity::<ImportUriButton>(&mut app);
     app.world_mut()
         .commands()
@@ -130,6 +152,7 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
+    open_custom_node(&mut app);
 
     let save = button_entity::<SaveCustomNodeButton>(&mut app);
     app.world_mut()
@@ -138,29 +161,57 @@ fn custom_node_save_refuses_without_a_shared_draft_and_submits_the_shared_one() 
     app.update();
     assert!(
         sink.submitted().is_empty(),
-        "no shared draft means no save command"
+        "the initial incomplete draft cannot produce a save command"
     );
 
     // Publish a real draft through the shared application and re-project.
-    let draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    let mut draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
+    // The original rendering fixture deliberately contains an invalid 41-character key.
+    // Committing now correctly requires a valid protocol draft.
+    draft.reality.public_key = "D".repeat(43);
+    assert!(draft.report().is_valid());
     let preview = ProtocolCodecApplication::uri_from_draft(&draft).ok();
     let studio = ProtocolCodecApplication::publish_draft(draft.clone(), preview);
     let projection = ProxiesProjection {
+        name_runs: Default::default(),
+        search_query: String::new(),
         groups: Vec::new(),
         testing: false,
+        filter_alive: false,
+        compact_view: false,
         active_exit: "—".to_owned(),
         custom_node: studio,
     };
     let save = button_entity::<SaveCustomNodeButton>(&mut app);
+    app.world_mut().resource_mut::<CustomNodeForm>().importing = Some(PendingProtocolImport {
+        request_id: RequestId(999),
+        uri: VLESS_URI.into(),
+    });
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(projection));
+    app.world_mut().commands().trigger(CommandExecutedEvent {
+        request_id: RequestId(999),
+        command: UiCommand::ImportCustomNodeUri {
+            uri: VLESS_URI.into(),
+        },
+        result: Ok(CommandOutput::Unit),
+    });
     app.update();
     app.world_mut()
         .commands()
         .trigger(Activate { entity: save });
     app.update();
 
+    assert!(
+        app.world()
+            .resource::<CustomNodeForm>()
+            .studio
+            .last_error
+            .is_none(),
+        "{:?}",
+        app.world().resource::<CustomNodeForm>()
+    );
     match sink.submitted().last() {
         Some(UiCommand::SaveCustomNodeDraft { draft: submitted }) => {
             assert_eq!(submitted.as_ref(), &draft);
@@ -180,11 +231,11 @@ fn custom_node_slots_render_the_shared_studio_facts() {
 
     // Honest empty state first.
     assert_eq!(
-        text_for_slot(&mut app, CustomNodeSlot::Chips),
+        text_for_slot(&mut app, ProtocolStudioSlot::Chips),
         "尚无节点草稿"
     );
     assert_eq!(
-        text_for_slot(&mut app, CustomNodeSlot::Gaps),
+        text_for_slot(&mut app, ProtocolStudioSlot::Gaps),
         "分享链接可完整表达当前草稿"
     );
 
@@ -202,25 +253,29 @@ fn custom_node_slots_render_the_shared_studio_facts() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
 
-    let chips = text_for_slot(&mut app, CustomNodeSlot::Chips);
+    let chips = text_for_slot(&mut app, ProtocolStudioSlot::Chips);
     assert!(chips.contains("Shadowsocks"), "{chips}");
     assert!(chips.contains("2022 · AES-256-GCM"), "{chips}");
     assert!(chips.contains("PSK 32B"), "{chips}");
     assert!(chips.contains("mux:yamux"), "{chips}");
     assert!(chips.contains("mc:8"), "{chips}");
     assert_eq!(
-        text_for_slot(&mut app, CustomNodeSlot::Issues),
+        text_for_slot(&mut app, ProtocolStudioSlot::Issues),
         "协议校验通过"
     );
     // 05-11 is YAML-only; the shared application measured the gap itself.
-    let gaps = text_for_slot(&mut app, CustomNodeSlot::Gaps);
+    let gaps = text_for_slot(&mut app, ProtocolStudioSlot::Gaps);
     assert!(gaps.contains("smux"), "{gaps}");
 
     // 05-02: a REALITY + Vision VLESS draft renders its typed chips.
@@ -230,21 +285,25 @@ fn custom_node_slots_render_the_shared_studio_facts() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
 
-    let chips = text_for_slot(&mut app, CustomNodeSlot::Chips);
+    let chips = text_for_slot(&mut app, ProtocolStudioSlot::Chips);
     assert!(chips.contains("VLESS"), "{chips}");
     assert!(chips.contains("Vision 流控"), "{chips}");
     assert!(chips.contains("Reality"), "{chips}");
     assert!(chips.contains("sid:abcd1234"), "{chips}");
     assert!(chips.contains("fp:chrome"), "{chips}");
 
-    let preview = text_for_slot(&mut app, CustomNodeSlot::UriPreview);
+    let preview = text_for_slot(&mut app, ProtocolStudioSlot::UriPreview);
     assert!(preview.starts_with("vless://"), "{preview}");
     assert!(preview.contains("flow=xtls-rprx-vision"), "{preview}");
 
@@ -264,19 +323,23 @@ fn custom_node_slots_render_the_shared_studio_facts() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
 
-    let chips = text_for_slot(&mut app, CustomNodeSlot::Chips);
+    let chips = text_for_slot(&mut app, ProtocolStudioSlot::Chips);
     assert!(chips.contains("wg:key"), "{chips}");
     assert!(chips.contains("wg:reserved(list)"), "{chips}");
     assert!(chips.contains("mtu:1420"), "{chips}");
     assert!(chips.contains("awg:jc=4"), "{chips}");
-    let notes = text_for_slot(&mut app, CustomNodeSlot::Notes);
+    let notes = text_for_slot(&mut app, ProtocolStudioSlot::Notes);
     assert!(notes.contains("无跨版本提示"), "{notes}");
 }
 
@@ -300,21 +363,25 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
 
-    let notes = text_for_slot(&mut app, CustomNodeSlot::Notes);
+    let notes = text_for_slot(&mut app, ProtocolStudioSlot::Notes);
     assert!(notes.contains("v1.19.18"), "{notes}");
     assert!(notes.contains("TCP"), "{notes}");
 }
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
-    let report = infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix();
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",
@@ -340,8 +407,8 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     let profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 443\n    cipher: aes-128-gcm\n    password: pw\n    future-flag: 7\nmode: rule\n";
     let (_output, audit) = ProtocolCodecApplication::audit_conversion(
         profile,
-        infiltrator_contract::protocol_fidelity::NodeCodecFormat::ClashYaml,
-        infiltrator_contract::protocol_fidelity::NodeCodecFormat::ClashYaml,
+        NodeCodecFormat::ClashYaml,
+        NodeCodecFormat::ClashYaml,
     )
     .unwrap();
     assert!(
@@ -349,21 +416,25 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
         "a profile with `mode:` is not section-preserving"
     );
 
-    let live = infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot {
+    let live = ProtocolStudioSnapshot {
         audit: Some(audit),
         ..Default::default()
     };
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: live,
         }));
     app.update();
 
-    let audit_line = text_for_slot(&mut app, CustomNodeSlot::Audit);
+    let audit_line = text_for_slot(&mut app, ProtocolStudioSlot::Audit);
     assert!(audit_line.contains("结构有损"), "{audit_line}");
     assert!(audit_line.contains("1 节点"), "{audit_line}");
     assert!(audit_line.contains("未知字段 1"), "{audit_line}");
@@ -378,11 +449,11 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
 
     // Honest empty states before anything is published.
     assert_eq!(
-        text_for_slot(&mut app, CustomNodeSlot::Chain),
+        text_for_slot(&mut app, ProtocolStudioSlot::Chain),
         "无前置跳板链路"
     );
     assert_eq!(
-        text_for_slot(&mut app, CustomNodeSlot::CaTrust),
+        text_for_slot(&mut app, ProtocolStudioSlot::CaTrust),
         "未配置自定义证书信任"
     );
 
@@ -397,14 +468,18 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
 
-    let chain = text_for_slot(&mut app, CustomNodeSlot::Chain);
+    let chain = text_for_slot(&mut app, ProtocolStudioSlot::Chain);
     assert!(chain.contains("nas(Shadowsocks)"), "{chain}");
     assert!(chain.contains("gateway(VLESS)"), "{chain}");
     assert!(chain.contains("链路完整"), "{chain}");
@@ -419,13 +494,17 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
-    let chain = text_for_slot(&mut app, CustomNodeSlot::Chain);
+    let chain = text_for_slot(&mut app, ProtocolStudioSlot::Chain);
     assert!(chain.contains("环路"), "{chain}");
     assert!(
         chain.contains("⛔") || chain.contains("该链路不可用"),
@@ -442,20 +521,24 @@ fn custom_node_dialer_and_ca_slots_render_the_shared_facts() {
         None,
     );
     assert!(report.is_unsupported());
-    let studio = infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot {
+    let studio = ProtocolStudioSnapshot {
         ca_trust: report,
         ..studio
     };
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
     app.update();
-    let ca = text_for_slot(&mut app, CustomNodeSlot::CaTrust);
+    let ca = text_for_slot(&mut app, ProtocolStudioSlot::CaTrust);
     assert!(ca.contains("宿主不支持"), "{ca}");
     assert!(
         ca.contains("未加载") || ca.contains("was not loaded"),
@@ -470,6 +553,7 @@ fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_app(Arc::clone(&sink));
     navigate_to_proxies(&mut app);
+    open_custom_node(&mut app);
 
     // Publish a draft and project it, so the card has typed facts to edit.
     let draft = ProtocolCodecApplication::draft_from_uri(VLESS_URI).unwrap();
@@ -477,8 +561,12 @@ fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
     app.world_mut()
         .commands()
         .trigger(ProxiesProjectionUpdated(ProxiesProjection {
+            name_runs: Default::default(),
+            search_query: String::new(),
             groups: Vec::new(),
             testing: false,
+            filter_alive: false,
+            compact_view: false,
             active_exit: "—".to_owned(),
             custom_node: studio,
         }));
@@ -532,8 +620,7 @@ fn custom_node_scan_and_ca_buttons_submit_the_shared_commands() {
     assert!(
         sink.submitted().iter().any(|command| matches!(
             command,
-            UiCommand::UpdateCustomNodeDraftField { field, value }
-                if field == "dialer-proxy" && value == "gateway"
+            UiCommand::PrepareCustomNodeDraft { draft } if draft.dialer_proxy == "gateway"
         )),
         "{:?}",
         sink.submitted()

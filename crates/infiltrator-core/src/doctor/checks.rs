@@ -1,16 +1,17 @@
 //! The nine doctor checks. Each function turns filesystem / process / API
 //! state into one [`DoctorCheckResult`] and never mutates anything.
 
-use std::path::Path;
-
-use mihomo_api::client::MihomoClient;
-use mihomo_api::error::MihomoError;
-use tokio::fs;
-use yaml_rust2::YamlLoader;
-
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
 use super::{DoctorCheckResult, DoctorEnv, DoctorStatus};
 use infiltrator_domain::settings::AppSettings;
+use mihomo_api::client::MihomoClient;
+use mihomo_api::error::MihomoError;
+#[cfg(unix)]
+use std::fs::metadata;
+use std::io::ErrorKind;
+use std::path::Path;
+use tokio::fs;
+use yaml_rust2::YamlLoader;
 
 const FIX_CONFIGS_DIR: &str = "Run doctor fix --only config.configs_dir to create it.";
 const FIX_CURRENT_YAML: &str =
@@ -88,7 +89,7 @@ pub(super) async fn check_configs_dir(env: &DoctorEnv) -> DoctorCheckResult {
             ),
             None,
         ),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => warn(
+        Err(err) if err.kind() == ErrorKind::NotFound => warn(
             "config.configs_dir",
             "config",
             format!("Configs directory '{}' does not exist yet", dir.display()),
@@ -482,7 +483,7 @@ pub(super) async fn check_api_reachable(env: &DoctorEnv) -> DoctorCheckResult {
 #[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(path).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0)
+    metadata(path).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0)
 }
 
 #[cfg(not(unix))]

@@ -8,9 +8,9 @@
 
 use crate::error::PortError;
 use async_trait::async_trait;
-use infiltrator_contract::provider_cache::ProviderCachePurge;
-use infiltrator_contract::provider_cache::ProviderContentOrigin;
-use infiltrator_contract::provider_cache::RuleProviderCacheSnapshot;
+use infiltrator_contract::provider_cache::{
+    ProviderCachePurge, ProviderContentOrigin, ProviderFileFingerprint, RuleProviderCacheSnapshot,
+};
 use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
 use std::path::PathBuf;
 
@@ -26,7 +26,7 @@ pub struct ProviderCacheEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderFileFact {
     pub path: PathBuf,
-    pub fingerprint: infiltrator_contract::provider_cache::ProviderFileFingerprint,
+    pub fingerprint: ProviderFileFingerprint,
 }
 
 /// Read + purge access to the kernel's cached rule-provider files.

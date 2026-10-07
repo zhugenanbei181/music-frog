@@ -5,8 +5,12 @@
 
 use super::*;
 use crate::dns_wire;
-use infiltrator_contract::dns_latency::{DnsLatencyProbeRequest, DnsProbeTarget};
+use infiltrator_contract::dns_latency::{
+    DEFAULT_PROBE_QUESTION, DnsLatencyProbeRequest, DnsProbeTarget, MAX_REPORTED_RTT_MS,
+};
 use std::net::SocketAddr;
+use std::time;
+use std::time::Instant;
 
 /// Independent decode of the query the prober sent, used by the loopback
 /// nameserver to answer the exact id/question it received.
@@ -117,11 +121,11 @@ async fn a_silent_nameserver_times_out_without_a_number() {
 
     let prober = HttpDnsLatencyProber::new();
     let probe = request(&[&address.to_string()], 150);
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let result = prober.probe_target(&probe.targets[0], &probe).await;
 
     assert_eq!(result.outcome, DnsProbeOutcome::TimedOut);
-    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert!(started.elapsed() < time::Duration::from_secs(5));
 }
 
 #[tokio::test]
@@ -256,10 +260,7 @@ async fn the_port_probes_every_configured_nameserver_and_refuses_an_empty_list()
         .expect("probe");
 
     assert!(report.status.is_ready());
-    assert_eq!(
-        report.question,
-        infiltrator_contract::dns_latency::DEFAULT_PROBE_QUESTION
-    );
+    assert_eq!(report.question, DEFAULT_PROBE_QUESTION);
     assert_eq!(report.results.len(), 2);
     assert_eq!(report.measured_count(), 1);
     assert!(report.latency_of(&address.to_string()).is_some());
@@ -321,10 +322,7 @@ enum ProbePlanKind {
 #[test]
 fn the_measured_round_trip_is_clamped_into_the_shared_range() {
     assert_eq!(clamp_rtt(Duration::from_millis(7)), 7);
-    assert_eq!(
-        clamp_rtt(Duration::from_secs(120)),
-        infiltrator_contract::dns_latency::MAX_REPORTED_RTT_MS
-    );
+    assert_eq!(clamp_rtt(Duration::from_secs(120)), MAX_REPORTED_RTT_MS);
     // Two probes never share a transaction id.
     let first = next_query_id();
     let second = next_query_id();

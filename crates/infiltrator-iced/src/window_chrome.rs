@@ -7,10 +7,12 @@
 //! availability) is owned by `infiltrator_contract::window_chrome`; this
 //! module is the honest host report behind it.
 
+use crate::types::message::Message;
 use iced::window;
 use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChromeSupport};
 
-use crate::types::message::Message;
+/// Both launchers permit the standard 720×480 compact acceptance viewport.
+pub const MIN_WINDOW_SIZE: (f32, f32) = (360.0, 320.0);
 
 /// The host window op a chrome message asks for.
 ///
@@ -40,9 +42,9 @@ impl ChromeRequest {
     /// The real iced task for this request on a resolved window.
     pub fn task(self, id: window::Id) -> iced::Task<Message> {
         match self {
-            Self::Drag => iced::window::drag(id),
-            Self::ToggleMaximize => iced::window::toggle_maximize(id),
-            Self::Minimize => iced::window::minimize(id, true),
+            Self::Drag => window::drag(id),
+            Self::ToggleMaximize => window::toggle_maximize(id),
+            Self::Minimize => window::minimize(id, true),
             // Closing goes through the orderly exit path in the update chain.
             Self::Close => iced::Task::none(),
         }

@@ -4,20 +4,60 @@
 //! **Update seam**: mutable nodes carry typed markers ([`RulesLine`],
 //! [`RuleHitText`], [`RuleProxyText`], [`RulePayloadText`], [`RuleTypeText`],
 //! [`ProviderNameText`], [`ProviderCountText`], [`ProviderUpdatedText`]).
-//! The page self-registers [`apply_rules_projection`] and action observers
-//! once per world via [`RulesPageRoot`]. When [`RulesProjectionUpdated`]
+//! [`RulesPagePlugin`] registers [`apply_rules_projection`] and action observers
+//! once at product assembly. When [`RulesProjectionUpdated`]
 //! fires, texts and hit counts restamp in place without tree rebuilds.
 
+use crate::a11y::button_semantic_node;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_field_scene;
+use crate::pages::rules_builder::{
+    RulesBuilderState, on_rules_builder_activated, rules_builder_scene,
+};
+use crate::pages::rules_draft;
+use crate::pages::rules_draft::{RuleDraftMutationButton, RulesDraftState};
+use crate::pages::rules_edit::{
+    RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton, on_rules_row_edit_activated,
+};
+use crate::pages::rules_fact_copy;
+use crate::pages::rules_json::{
+    RulesJsonState, on_rules_json_action_activated, rules_json_scene, sync_rules_json,
+};
+use crate::pages::rules_mrs::{
+    RulesMrsState, apply_mrs_projection, apply_provider_cache_projection,
+    on_rules_mrs_action_activated, rules_mrs_scene,
+};
+use crate::pages::rules_projection::{
+    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RuleIndexText,
+    RulePayloadText, RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind,
+    apply_rules_projection, refresh_hit_copy, rule_type_chip_fill,
+};
+use crate::pages::rules_statistics::{RulesStatisticsPlugin, statistics_scene};
+use crate::pages::rules_subrule_copy;
+use crate::pages::rules_subrules::{
+    RulesSubRuleState, on_rules_subrules_activated, rules_subrules_scene,
+};
+use crate::pages::rules_tabs::{
+    RulesTabState, on_rules_tab_activated, rules_tabs_scene, tab_body_scene,
+};
+use crate::pages::rules_tracer::{
+    RulesTraceState, apply_tracer_projection, on_tracer_action_activated,
+    on_tracer_override_activated, rules_tracer_scene,
+};
+use crate::pages::rules_view::{
+    RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
+    RulesPagePrevButton, RulesViewState, RulesWindowRows, on_rules_paging_activated,
+};
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
@@ -25,31 +65,36 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_application::rule_provider_projection::{
+    default_action, etag_support_line, provider_count, provider_fingerprint_line,
+    provider_lifecycle_line, published_truncation, rules_summary,
+};
+use infiltrator_application::rule_row_projection::row_hits_key;
+use infiltrator_application::rule_statistics_projection::project_statistics;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::rules_edit::{RuleMoveDownButton, RuleMoveUpButton, RuleToggleButton};
-use crate::pages::rules_projection::{
-    ProviderCountText, ProviderNameText, ProviderUpdatedText, RuleHitText, RulePayloadText,
-    RuleProxyText, RuleTypeBadge, RuleTypeText, RulesLine, RulesLineKind, truncation_label,
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::provider_cache::{
+    KernelEtagSupportSnapshot, ProviderCacheFingerprint, RuleProviderCacheSnapshot,
 };
-use crate::pages::rules_view::{
-    RuleRow, RuleSearchField, RulesListScrollArea, RulesPageIndicator, RulesPageNextButton,
-    RulesPagePrevButton, RulesViewState, RulesWindowRows,
-};
-use crate::route::{PageRoot, Route};
-use infiltrator_contract::provider_cache::ProviderFingerprintChange;
+use infiltrator_contract::rule_document::RuleRowId;
+use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
+use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
+use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesTab};
+use infiltrator_domain::rules::matrix::matrix_label;
+use infiltrator_domain::rules::view::{RULE_DEFAULT_VIEWPORT_PX, rule_window};
+use infiltrator_shared::locales::Lang;
 
 /// Root marker on the Rules page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_rules_page)]
 pub struct RulesPageRoot;
 
 /// Marker for the "Refresh Rule Providers" button.
@@ -61,13 +106,18 @@ pub struct RefreshRuleProvidersButton;
 pub struct ClearRuleHitCountersButton;
 
 /// A single rule entry.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct RuleItem {
+    pub edit_id: Option<RuleRowId>,
+    pub raw: String,
+    pub source_ip: bool,
+    pub no_resolve: bool,
+    pub failure: Option<Failure>,
     pub id: usize,
     pub rule_type: String,
     pub payload: String,
     pub proxy: String,
-    pub hit_count: u64,
+    pub hit_count: Option<u64>,
     /// DUAL-11-09: shared persisted enabled flag (`#`-prefixed when disabled).
     pub is_enabled: bool,
     /// Last observed hit time (epoch seconds), if any.
@@ -94,7 +144,7 @@ pub struct RuleProviderItem {
     /// DUAL-11-05: the client's local cache-file fingerprint observation
     /// (size + SHA-256 + last-modified, compared with the previous observation).
     /// `None` means no local file was observed; this is never an HTTP validator.
-    pub cache_fingerprint: Option<infiltrator_contract::provider_cache::ProviderCacheFingerprint>,
+    pub cache_fingerprint: Option<ProviderCacheFingerprint>,
 }
 
 /// Snapshot of the Rules domain.
@@ -105,25 +155,25 @@ pub struct RulesProjection {
     pub providers: Vec<RuleProviderItem>,
     pub rules: Vec<RuleItem>,
     /// Shared live rule tracer read model published by the surface reader.
-    pub tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot,
+    pub tracer: RuleTracerSnapshot,
     /// Shared rule hit-audit read model (hits, dead/shadowed rules, CIDR overlaps).
-    pub hit_audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
+    pub hit_audit: Option<RuleHitAuditSnapshot>,
     /// DUAL-11-03: shared MRS binary acceleration read model.
-    pub mrs_acceleration: infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
+    pub mrs_acceleration: MrsAccelerationSnapshot,
     /// DUAL-11-08: rules the publisher dropped from `rules`, when the published
     /// list is a truncated view of the profile list. `None` means complete.
     pub truncated_rule_count: Option<usize>,
     /// DUAL-11-08: publish cap the reader applied to `rules` (0 = uncapped).
     pub rule_publish_limit: usize,
     /// DUAL-11-07: the observed kernel rule-provider cache location.
-    pub provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
+    pub provider_cache: RuleProviderCacheSnapshot,
     /// DUAL-11-05: the kernel's real `etag-support` capability declared by the
     /// active profile (a top-level key; mihomo defaults it to `true`). The
     /// provider card renders the declaration, never a `304` outcome.
-    pub etag_support: infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
+    pub etag_support: KernelEtagSupportSnapshot,
     /// DUAL-11-14: the rules-workspace JSON documents published by the shared
     /// reader (the same text the Iced JSON editors load).
-    pub json_documents: Vec<infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot>,
+    pub json_documents: Vec<RulesJsonDocumentSnapshot>,
 }
 
 /// The typed event dispatched when rules data updates.
@@ -137,16 +187,14 @@ pub struct LastRulesProjection(pub Option<RulesProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!(
-        "分流规则 · 共 {} 条规则 ({} 个规则集 / 命中统计开启)",
-        projection.total_rules,
-        projection.providers.len()
-    );
-    let default_action = format!("最终匹配目标: {}", projection.default_action);
-    let hit_audit_line = hit_audit_label(&projection.hit_audit);
-    let truncation_line = truncation_label(
+    let summary = rules_summary(projection.total_rules, projection.providers.len(), "en-US");
+    let default_action = default_action(&projection.default_action, "en-US");
+    let audit_copy = project_statistics(projection.hit_audit.as_ref(), "en-US");
+    let hit_audit_line = LocalizedText::new(audit_copy.key, audit_copy.params);
+    let truncation_line = published_truncation(
         projection.truncated_rule_count,
         projection.rule_publish_limit,
+        "en-US",
     );
 
     let provider_scenes: Vec<Box<dyn Scene>> = projection
@@ -159,11 +207,7 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
     // DUAL-11-08: the first paint mounts the shared render window at offset 0
     // instead of one row per published rule. Every later scroll/search mounts
     // the next window through `rules_view::sync_rules_window`.
-    let initial_window = infiltrator_domain::rules::view::rule_window(
-        0.0,
-        infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX,
-        projection.rules.len(),
-    );
+    let initial_window = rule_window(0.0, RULE_DEFAULT_VIEWPORT_PX, projection.rules.len());
     let rule_scenes: Vec<Box<dyn Scene>> = (initial_window.start..initial_window.end)
         .filter_map(|source_index| {
             projection
@@ -194,29 +238,29 @@ pub fn rules_page(projection: &RulesProjection, palette: &UiPalette) -> impl Sce
                 --
                 @{ header_card_scene(summary, default_action, hit_audit_line, truncation_line, palette) }
                 --
-                @{ crate::pages::rules_tabs::rules_tabs_scene(palette) }
+                @{ rules_tabs_scene(palette) }
                 --
-                @{ crate::pages::rules_tabs::tab_body_scene(
-                        infiltrator_contract::rules_workspace::RulesTab::List,
+                @{ tab_body_scene(
+                        RulesTab::List,
                         Box::new(rules_list_partition(rule_scenes, palette)),
                 ) }
                 --
-                @{ crate::pages::rules_tabs::tab_body_scene(
-                        infiltrator_contract::rules_workspace::RulesTab::Providers,
+                @{ tab_body_scene(
+                        RulesTab::Providers,
                         Box::new(providers_partition(provider_scenes, palette, &projection.mrs_acceleration, &projection.provider_cache, &projection.etag_support)),
                 ) }
                 --
-                @{ crate::pages::rules_tabs::tab_body_scene(
-                        infiltrator_contract::rules_workspace::RulesTab::JsonEditors,
-                        Box::new(crate::pages::rules_json::rules_json_scene(
+                @{ tab_body_scene(
+                        RulesTab::JsonEditors,
+                        Box::new(rules_json_scene(
                                 palette,
-                                &crate::pages::rules_json::RulesJsonState::default(),
+                                &RulesJsonState::default(),
                         )),
                 ) }
                 --
-                @{ crate::pages::rules_tabs::tab_body_scene(
-                        infiltrator_contract::rules_workspace::RulesTab::Tracer,
-                        Box::new(crate::pages::rules_tracer::rules_tracer_scene(palette, &projection.tracer)),
+                @{ tab_body_scene(
+                        RulesTab::Tracer,
+                        Box::new(rules_tracer_scene(palette, &projection.tracer)),
                 ) }
             ]
     }
@@ -236,14 +280,18 @@ fn rules_list_partition(
                 row_gap: Val::Px(space::S16),
             }
             Children [
-                @{ crate::pages::rules_builder::rules_builder_scene(palette) }
-                --
-                @{ crate::pages::rules_subrules::rules_subrules_scene(
-                        palette,
-                        &crate::pages::rules_subrules::RulesSubRuleState::default(),
-                ) }
+                @{ rules_draft::scene(palette) }
                 --
                 @{ rules_table_scene(rule_scenes, palette) }
+                --
+                @{ statistics_scene(palette) }
+                --
+                @{ rules_builder_scene(palette) }
+                --
+                @{ rules_subrules_scene(
+                        palette,
+                        &RulesSubRuleState::default(),
+                ) }
             ]
     }
 }
@@ -253,9 +301,9 @@ fn rules_list_partition(
 fn providers_partition(
     provider_scenes: Vec<Box<dyn Scene>>,
     palette: &UiPalette,
-    mrs: &infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot,
-    provider_cache: &infiltrator_contract::provider_cache::RuleProviderCacheSnapshot,
-    etag_support: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
+    mrs: &MrsAccelerationSnapshot,
+    provider_cache: &RuleProviderCacheSnapshot,
+    etag_support: &KernelEtagSupportSnapshot,
 ) -> impl Scene + use<> {
     bsn! {
             Node {
@@ -264,7 +312,7 @@ fn providers_partition(
                 row_gap: Val::Px(space::S16),
             }
             Children [
-                @{ crate::pages::rules_mrs::rules_mrs_scene(palette, mrs, provider_cache) }
+                @{ rules_mrs_scene(palette, mrs, provider_cache) }
                 --
                 @{ providers_card_scene(provider_scenes, etag_support, palette) }
             ]
@@ -274,12 +322,12 @@ fn providers_partition(
 fn header_card_scene(
     summary: String,
     default_action: String,
-    hit_audit_line: String,
+    hit_audit_line: LocalizedText,
     truncation_line: String,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("分流规则概览");
+    header_a11y.set_label("Rules");
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -289,7 +337,7 @@ fn header_card_scene(
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: Val::Px(space::S16),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) LocalizedLabel::plain("rules_title")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -307,7 +355,7 @@ fn header_card_scene(
                                 --
                                 Text(default_action) RulesLine(RulesLineKind::DefaultAction) TextRole(Role::Caption)
                                 --
-                                Text(hit_audit_line) RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption)
+                                LocalizedText { .. { hit_audit_line } } RulesLine(RulesLineKind::HitAudit) TextRole(Role::Caption)
                                 --
                                 Text(truncation_line) RulesLine(RulesLineKind::Truncation) TextRole(Role::Caption)
                             ]
@@ -329,7 +377,7 @@ fn header_card_scene(
                             Button
                             RefreshRuleProvidersButton
                             Children [
-                                Text({ "刷新规则集".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("rules_refresh_providers_action") TextRole(Role::Body)
                             ]
                             --
                             Node {
@@ -341,9 +389,9 @@ fn header_card_scene(
                             }
                             BackgroundColor({ palette.surface_elevated })
                             Button
-                            ClearRuleHitCountersButton
+                            ClearRuleHitCountersButton ButtonDisabled(true)
                             Children [
-                                Text({ "清空命中计数".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("rule_hit_btn_clear") TextRole(Role::Body)
                             ]
                         ]
                     ]
@@ -354,10 +402,10 @@ fn header_card_scene(
 
 fn providers_card_scene(
     provider_scenes: Vec<Box<dyn Scene>>,
-    etag_support: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
+    etag_support: &KernelEtagSupportSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let etag_line = etag_support_label(etag_support);
+    let etag_line = etag_support_line(etag_support, &Lang("en-US"));
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -368,9 +416,9 @@ fn providers_card_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "外部规则集 (Rule Providers)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("rules_providers_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ "MRS / GeoSite 二进制加速".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("rules_providers_hint") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -403,8 +451,23 @@ fn provider_item_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let name = provider.name.clone();
-    let count_info = format!("{} 条 ({})", provider.rule_count, provider.behavior);
-    let updated = provider_updated_label(provider);
+    let count_info = provider_count(provider.rule_count, &provider.behavior, "en-US");
+    let updated = provider_lifecycle_line(
+        &provider.updated_at,
+        provider.source_url.as_deref(),
+        provider.refresh_interval_secs,
+        &Lang("en-US"),
+    );
+    let updated = provider
+        .cache_fingerprint
+        .as_ref()
+        .map(|observation| {
+            format!(
+                "{updated} · {}",
+                provider_fingerprint_line(observation, &Lang("en-US"))
+            )
+        })
+        .unwrap_or(updated);
 
     bsn! {
             Node {
@@ -442,9 +505,9 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "规则匹配序列表 (Rules Flow)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("rules_flow_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ "自上而下第一命中即生效".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("rules_flow_hint") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -461,9 +524,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 }
                                 RuleSearchField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(
-                                            String::new(),
-                                            "按匹配表达式/类型/目标即时搜索规则".to_owned(),
+                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_rules_search"),
                                             palette,
                                     ) }
                                 ]
@@ -479,10 +540,10 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 Button
                                 RulesPagePrevButton
                                 Children [
-                                    Text({ "上一页".to_owned() }) TextRole(Role::Caption)
+                                    LocalizedText::plain("common_previous_page") TextRole(Role::Caption)
                                 ]
                                 --
-                                Text({ "第 1/1 页 · 共 0 条".to_owned() }) RulesPageIndicator TextRole(Role::Caption)
+                                LocalizedText::plain("rules_empty_pagination") RulesPageIndicator TextRole(Role::Caption)
                                 --
                                 Node {
                                     min_height: px(palette.control_height_px),
@@ -495,7 +556,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 Button
                                 RulesPageNextButton
                                 Children [
-                                    Text({ "下一页".to_owned() }) TextRole(Role::Caption)
+                                    LocalizedText::plain("common_next_page") TextRole(Role::Caption)
                                 ]
                             ]
             }),
@@ -505,7 +566,7 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
                                 // DUAL-11-08: the fixed-height list viewport. Only the
                                 // shared render window is mounted inside it; the spacers
                                 // keep the scrollable range the full list height.
-                                height: px(infiltrator_domain::rules::view::RULE_DEFAULT_VIEWPORT_PX),
+                                height: px(RULE_DEFAULT_VIEWPORT_PX),
                                 flex_direction: FlexDirection::Column,
                                 overflow: Overflow::scroll_y(),
                             }
@@ -527,107 +588,24 @@ fn rules_table_scene(rule_scenes: Vec<Box<dyn Scene>>, palette: &UiPalette) -> i
     )
 }
 
-/// Header summary of the shared hit-audit read model.
-pub(crate) fn hit_audit_label(
-    audit: &infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
-) -> String {
-    let latency = audit
-        .avg_match_latency_us
-        .map(|avg| format!("{avg:.1}µs"))
-        .unwrap_or_else(|| "—".to_owned());
-    format!(
-        "命中 {} · 冷门/被遮蔽 {} · CIDR 重叠 {} · 匹配 {}",
-        audit.total_hits,
-        audit.dead_rules.len(),
-        audit.cidr_overlaps.len(),
-        latency
-    )
-}
-
-/// Live hit label for one rule, flagging disabled, zero-hit and shadowed rules
-/// from the shared audit rather than showing a bare count.
-pub(crate) fn rule_hit_label(rule: &RuleItem) -> String {
-    if !rule.is_enabled {
-        format!("{} 次命中 · 已停用", rule.hit_count)
-    } else if rule.is_shadowed {
-        format!("{} 次命中 · 被遮蔽", rule.hit_count)
-    } else if rule.hit_count == 0 {
-        format!("{} 次命中 · 冷门", rule.hit_count)
-    } else {
-        format!("{} 次命中", rule.hit_count)
-    }
-}
-
-/// DUAL-11-05: the kernel's real `etag-support` capability as declared by the
-/// active profile. mihomo reads a top-level `etag-support` boolean (default
-/// `true`) to gate its `ETag`/`If-None-Match` cache; the card renders the
-/// declaration and never the per-request `304` outcome, which it cannot see.
-pub(crate) fn etag_support_label(
-    snapshot: &infiltrator_contract::provider_cache::KernelEtagSupportSnapshot,
-) -> String {
-    use infiltrator_contract::provider_cache::KernelEtagSupportState;
-    let state = match snapshot.state {
-        KernelEtagSupportState::Enabled => "内核已启用",
-        KernelEtagSupportState::Disabled => "内核未启用",
-        KernelEtagSupportState::NotDeclared => "未声明",
-    };
-    format!("ETag 缓存: {state}")
-}
-
-/// DUAL-11-04/11-05: one provider's lifecycle line: update time, the declared
-/// source URL, the declared automatic-refresh schedule and — when this client
-/// read a local cache file — the local content fingerprint. The schedule is
-/// executed by the kernel, which also owns the `ETag`/`304` conditional cache;
-/// the fingerprint is explicitly labelled as a local file fact so nothing here
-/// claims a kernel download was skipped.
-pub(crate) fn provider_updated_label(provider: &RuleProviderItem) -> String {
-    let source = match provider.source_url.as_deref() {
-        Some(url) if !url.is_empty() => format!("来源: {url}"),
-        _ => "来源: 未声明".to_owned(),
-    };
-    let schedule = match provider.refresh_interval_secs {
-        Some(secs) => format!(
-            "自动刷新: {} (内核调度)",
-            infiltrator_domain::rules::view::format_refresh_interval(secs)
-        ),
-        None => "自动刷新: 未声明".to_owned(),
-    };
-    let fingerprint = match provider.cache_fingerprint.as_ref() {
-        Some(observation) => {
-            let change = match observation.change {
-                ProviderFingerprintChange::FirstSeen => "首次观测",
-                ProviderFingerprintChange::Unchanged => "较上次观测未变化",
-                ProviderFingerprintChange::Changed => "较上次观测已变化",
-            };
-            let body = infiltrator_domain::rules::view::format_content_fingerprint(
-                &observation.current.sha256,
-                observation.current.size_bytes,
-                observation.current.modified_unix_secs,
-            );
-            format!(" · 本地缓存内容指纹（非 HTTP ETag）: {body} · {change}")
-        }
-        None => String::new(),
-    };
-    format!(
-        "更新: {} · {source} · {schedule}{fingerprint}",
-        provider.updated_at
-    )
-}
-
 pub(crate) fn rule_row_scene(
     idx: usize,
     rule: &RuleItem,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let idx_str = format!("#{}", rule.id);
-    let type_str = format!(
-        "[{}]",
-        infiltrator_domain::rules::matrix::matrix_label(&rule.rule_type)
-    );
     let type_chip = rule_type_chip_scene(idx, &rule.rule_type, palette);
     let payload = rule.payload.clone();
     let proxy = rule.proxy.clone();
-    let hits = rule_hit_label(rule);
+    let hits = LocalizedText::new(
+        row_hits_key(rule.hit_count, rule.is_enabled, rule.is_shadowed),
+        vec![(
+            "count",
+            rule.hit_count
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+        )],
+    );
 
     bsn! {
             Node {
@@ -644,29 +622,41 @@ pub(crate) fn rule_row_scene(
             RuleRow(idx)
             Children [
                 Node {
+                    min_width: px(0.0),
+                    flex_basis: px(0.0),
+                    flex_grow: 1.0,
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S12),
                 }
                 Children [
-                    Text(idx_str) TextRole(Role::Caption)
+                    Node { flex_shrink: 0.0 }
+                    Children [
+                        Text(idx_str) RuleIndexText(idx) TextRole(Role::Caption)
+                    ]
                     --
                     @type_chip
                     --
-                    Text(type_str) RuleTypeText(idx) TextRole(Role::BodyStrong)
-                    --
-                    Text(payload) RulePayloadText(idx) TextRole(Role::Body)
+                    Node {
+                        min_width: px(0.0),
+                        flex_basis: px(0.0),
+                        flex_grow: 1.0,
+                    }
+                    Children [
+                        Text(payload) RulePayloadText(idx) TextRole(Role::Body)
+                    ]
                 ]
                 --
                 Node {
+                    flex_shrink: 0.0,
                     align_items: AlignItems::Center,
                     column_gap: Val::Px(space::S12),
                 }
                 Children [
                     Text(proxy) RuleProxyText(idx) TextRole(Role::Body)
                     --
-                    Text(hits) RuleHitText(idx) TextRole(Role::Caption)
+                    LocalizedText { .. { hits } } RuleHitText(idx) TextRole(Role::Caption)
                     --
-                    @{ rule_row_controls_scene(idx, palette) }
+                    @{ rule_row_controls_scene(rule.edit_id, palette) }
                 ]
             ]
     }
@@ -675,10 +665,11 @@ pub(crate) fn rule_row_scene(
 /// DUAL-11-01: one rule row's type chip, filled from the shared type family.
 /// The label and the fill both restamp in place from the shared catalogue.
 fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> impl Scene + use<> {
-    let label = infiltrator_domain::rules::matrix::matrix_label(rule_type);
-    let fill = crate::pages::rules_projection::rule_type_chip_fill(rule_type, palette);
+    let label = matrix_label(rule_type);
+    let fill = rule_type_chip_fill(rule_type, palette);
     bsn! {
             Node {
+                flex_shrink: 0.0,
                 min_width: px(8.0),
                 min_height: px(18.0),
                 padding: UiRect::horizontal(Val::Px(space::S6)),
@@ -689,7 +680,7 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
             BackgroundColor({ fill })
             RuleTypeBadge(idx)
             Children [
-                Text(label) TextRole(Role::Caption)
+                Text(label) RuleTypeText(idx) TextRole(Role::Caption)
             ]
     }
 }
@@ -697,7 +688,10 @@ fn rule_type_chip_scene(idx: usize, rule_type: &str, palette: &UiPalette) -> imp
 /// DUAL-11-09/10: one row's enable/disable switch plus reorder handles. Every
 /// control forwards the same typed intent for the row index to the shared
 /// application, which applies `infiltrator_domain::rules::edit`.
-fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<> {
+fn rule_row_controls_scene(id: Option<RuleRowId>, palette: &UiPalette) -> impl Scene + use<> {
+    let toggle_node = button_semantic_node("");
+    let up_node = button_semantic_node("");
+    let down_node = button_semantic_node("");
     bsn! {
             Node {
                 align_items: AlignItems::Center,
@@ -713,9 +707,10 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 }
                 BackgroundColor({ palette.surface_elevated })
                 Button
-                RuleToggleButton(idx)
+                RuleToggleButton(id) RuleDraftMutationButton ButtonDisabled(true)
+                toggle_node LocalizedLabel::plain("rules_toggle_row")
                 Children [
-                    Text({ "启停".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("rules_toggle_row") TextRole(Role::Caption)
                 ]
                 --
                 Node {
@@ -727,9 +722,10 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 }
                 BackgroundColor({ palette.border })
                 Button
-                RuleMoveUpButton(idx)
+                RuleMoveUpButton(id) RuleDraftMutationButton ButtonDisabled(true)
+                up_node LocalizedLabel::plain("rules_move_up")
                 Children [
-                    Text({ "↑".to_owned() }) TextRole(Role::Caption)
+                    @{ icon_tile_scene(IconId::ArrowUp, 14.0, palette) }
                 ]
                 --
                 Node {
@@ -741,69 +737,69 @@ fn rule_row_controls_scene(idx: usize, palette: &UiPalette) -> impl Scene + use<
                 }
                 BackgroundColor({ palette.border })
                 Button
-                RuleMoveDownButton(idx)
+                RuleMoveDownButton(id) RuleDraftMutationButton ButtonDisabled(true)
+                down_node LocalizedLabel::plain("rules_move_down")
                 Children [
-                    Text({ "↓".to_owned() }) TextRole(Role::Caption)
+                    @{ icon_tile_scene(IconId::ArrowDown, 14.0, palette) }
                 ]
             ]
     }
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_rules_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    // The projection observer owns the once-per-world bind guard; every other
-    // rules observer registers behind the same gate.
-    let first_bind = crate::pages::rules_projection::bind_rules_projection(&mut world);
-    let mut commands = world.commands();
-    // DUAL-11-02: the sub-rule builder scene is rebuilt from the shared default
-    // draft on every mount, so its state is re-seeded with the same default —
-    // the mounted card and the draft never disagree after a route change.
-    commands.insert_resource(crate::pages::rules_subrules::RulesSubRuleState::default());
-    // DUAL-11-06: the unpack target follows the shared MRS projection.
-    commands.insert_resource(crate::pages::rules_mrs::RulesMrsState::default());
-    // DUAL-11-14: every mount starts from the shared default partition and a
-    // fresh (unfocused) JSON partition whose buffers are seeded from the read
-    // model by the projection observer.
-    commands.insert_resource(crate::pages::rules_tabs::RulesTabState::default());
-    commands.insert_resource(rules_json_seed());
-    if !first_bind {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct RulesPagePlugin;
+
+impl Plugin for RulesPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(RulesStatisticsPlugin);
+        app.init_resource::<LastRulesProjection>();
+        app.add_systems(
+            Update,
+            (
+                refresh_hit_copy,
+                rules_fact_copy::sync,
+                rules_subrule_copy::sync,
+            ),
+        );
+        app.init_resource::<RulesTraceState>();
+        app.init_resource::<RulesBuilderState>();
+        app.init_resource::<RulesDraftState>();
+        app.add_observer(apply_rules_projection);
+        // Resources outlive route entities; remounts preserve unsaved inputs.
+        app.init_resource::<RulesSubRuleState>();
+        // DUAL-11-06: the unpack target follows the shared MRS projection.
+        app.init_resource::<RulesMrsState>();
+        // The first real projection seeds JSON; subsequent mounts keep the draft.
+        app.init_resource::<RulesTabState>();
+        app.init_resource::<RulesJsonState>();
+        // DUAL-11-13: the shared page cursor for the keyword search + pagination.
+        app.init_resource::<RulesViewState>();
+        // DUAL-11-11: the shared wizard type selection for the add-rule form.
+        app.add_observer(on_rules_row_edit_activated);
+        app.add_observer(on_rules_builder_activated);
+        app.add_observer(on_rules_paging_activated);
+        app.add_observer(on_rules_subrules_activated);
+        app.add_observer(apply_mrs_projection);
+        app.add_observer(apply_provider_cache_projection);
+        app.add_observer(on_rules_mrs_action_activated);
+        app.add_observer(apply_tracer_projection);
+        app.add_observer(on_tracer_action_activated);
+        app.add_observer(on_tracer_override_activated);
+        // DUAL-11-14: the partition bar, the JSON editor partition and its
+        // projection adoption.
+        app.add_observer(on_rules_tab_activated);
+        app.add_observer(on_rules_json_action_activated);
+        app.add_observer(sync_rules_json);
+        app.add_observer(on_rules_action_activated);
     }
-    // DUAL-11-13: the shared page cursor for the keyword search + pagination.
-    commands.insert_resource(RulesViewState::default());
-    // DUAL-11-11: the shared wizard type selection for the add-rule form.
-    commands.insert_resource(crate::pages::rules_builder::RulesBuilderState::default());
-    commands.add_observer(crate::pages::rules_edit::on_rules_row_edit_activated);
-    commands.add_observer(crate::pages::rules_builder::on_rules_builder_activated);
-    commands.add_observer(crate::pages::rules_view::on_rules_paging_activated);
-    commands.add_observer(crate::pages::rules_subrules::on_rules_subrules_activated);
-    commands.add_observer(crate::pages::rules_mrs::apply_mrs_projection);
-    commands.add_observer(crate::pages::rules_mrs::apply_provider_cache_projection);
-    commands.add_observer(crate::pages::rules_mrs::on_rules_mrs_action_activated);
-    commands.add_observer(crate::pages::rules_tracer::apply_tracer_projection);
-    commands.add_observer(crate::pages::rules_tracer::on_tracer_action_activated);
-    commands.add_observer(crate::pages::rules_tracer::on_tracer_override_activated);
-    // DUAL-11-14: the partition bar, the JSON editor partition and its
-    // projection adoption.
-    commands.add_observer(crate::pages::rules_tabs::on_rules_tab_activated);
-    commands.add_observer(crate::pages::rules_json::on_rules_json_action_activated);
-    commands.add_observer(crate::pages::rules_json::sync_rules_json);
-    commands.add_observer(on_rules_action_activated);
-}
-
-/// DUAL-11-14: an empty JSON partition; the projection observer fills the
-/// buffers from the shared read model on the first update.
-fn rules_json_seed() -> crate::pages::rules_json::RulesJsonState {
-    let mut state = crate::pages::rules_json::RulesJsonState::default();
-    state.adopt(&[]);
-    state
 }
 
 pub(crate) fn on_rules_action_activated(
     activate: On<Activate>,
     buttons: Query<(), With<RefreshRuleProvidersButton>>,
-    clear_buttons: Query<(), With<ClearRuleHitCountersButton>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -811,8 +807,6 @@ pub(crate) fn on_rules_action_activated(
     };
     if buttons.contains(activate.entity) {
         handle.submit(UiCommand::RefreshRuleProviders);
-    } else if clear_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::ClearRuleHitCounters);
     }
 }
 
@@ -824,13 +818,13 @@ mod tests {
     fn demo_rules_fixture() {
         let proj = RulesProjection::demo();
         assert_eq!(proj.total_rules, 2842);
-        assert_eq!(proj.default_action, "DIRECT (漏网之鱼直连)");
+        assert_eq!(proj.default_action, "DIRECT");
         assert_eq!(proj.providers.len(), 3);
         assert_eq!(proj.providers[0].name, "geosite-geolocation-!cn");
         assert_eq!(proj.providers[0].rule_count, 1420);
         assert_eq!(proj.rules.len(), 5);
         assert_eq!(proj.rules[0].rule_type, "DOMAIN-SUFFIX");
         assert_eq!(proj.rules[0].payload, "google.com");
-        assert_eq!(proj.rules[0].proxy, "国外媒体 (GLOBAL-MEDIA)");
+        assert_eq!(proj.rules[0].proxy, "STREAMING");
     }
 }

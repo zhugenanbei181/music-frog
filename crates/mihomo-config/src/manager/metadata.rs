@@ -1,18 +1,16 @@
 //! Mapping between the `profiles` table of the settings TOML and
 //! [`Profile`] metadata fields, plus small typed TOML value setters.
 
+use super::subscription_store::{load_subscription_url, store_subscription_url, subscription_key};
+use crate::profile::Profile;
 use chrono::{DateTime, Utc};
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
+use toml::map::Map;
 
-use super::subscription_store::{load_subscription_url, store_subscription_url, subscription_key};
-use crate::profile::Profile;
-
-pub(super) fn ensure_table(
-    value: &mut toml::Value,
-) -> Result<&mut toml::map::Map<String, toml::Value>> {
+pub(super) fn ensure_table(value: &mut toml::Value) -> Result<&mut Map<String, toml::Value>> {
     if !matches!(value, toml::Value::Table(_)) {
-        *value = toml::Value::Table(toml::map::Map::new());
+        *value = toml::Value::Table(Map::new());
     }
     match value {
         toml::Value::Table(table) => Ok(table),
@@ -23,7 +21,7 @@ pub(super) fn ensure_table(
 pub(super) async fn apply_profile_metadata<S: SecureStore>(
     credential_store: &S,
     profile: &mut Profile,
-    table: &toml::map::Map<String, toml::Value>,
+    table: &Map<String, toml::Value>,
 ) {
     let fallback_url = table
         .get("subscription_url")
@@ -110,7 +108,7 @@ fn parse_datetime(value: Option<&toml::Value>) -> Option<DateTime<Utc>> {
 }
 
 pub(super) fn set_optional_string(
-    table: &mut toml::map::Map<String, toml::Value>,
+    table: &mut Map<String, toml::Value>,
     key: &str,
     value: Option<String>,
 ) {
@@ -125,7 +123,7 @@ pub(super) fn set_optional_string(
 }
 
 pub(super) fn set_optional_u32(
-    table: &mut toml::map::Map<String, toml::Value>,
+    table: &mut Map<String, toml::Value>,
     key: &str,
     value: Option<u32>,
 ) {
@@ -140,7 +138,7 @@ pub(super) fn set_optional_u32(
 }
 
 pub(super) fn set_optional_u64(
-    table: &mut toml::map::Map<String, toml::Value>,
+    table: &mut Map<String, toml::Value>,
     key: &str,
     value: Option<u64>,
 ) {
@@ -156,7 +154,7 @@ pub(super) fn set_optional_u64(
 }
 
 pub(super) fn set_optional_i64(
-    table: &mut toml::map::Map<String, toml::Value>,
+    table: &mut Map<String, toml::Value>,
     key: &str,
     value: Option<i64>,
 ) {
@@ -170,12 +168,12 @@ pub(super) fn set_optional_i64(
     }
 }
 
-pub(super) fn set_bool(table: &mut toml::map::Map<String, toml::Value>, key: &str, value: bool) {
+pub(super) fn set_bool(table: &mut Map<String, toml::Value>, key: &str, value: bool) {
     table.insert(key.to_string(), toml::Value::Boolean(value));
 }
 
 pub(super) fn set_optional_datetime(
-    table: &mut toml::map::Map<String, toml::Value>,
+    table: &mut Map<String, toml::Value>,
     key: &str,
     value: Option<DateTime<Utc>>,
 ) {

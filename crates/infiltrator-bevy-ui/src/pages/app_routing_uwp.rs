@@ -1,9 +1,16 @@
 //! Projection-driven Windows UWP loopback controls for App Routing.
 
+#[path = "app_routing_uwp_query_access.rs"]
+pub mod query_access;
+use self::query_access::{
+    ApplyProjectionNamesFilter, ApplyProjectionStatesFilter, ApplyProjectionStatusLinesFilter,
+};
+
+use super::app_routing::{AppRoutingProjection, AppRoutingProjectionUpdated};
+use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -13,17 +20,16 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::routing_projection::{uwp_empty, uwp_state_key, uwp_summary};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
-
-use super::app_routing::AppRoutingProjection;
-use super::app_routing::AppRoutingProjectionUpdated;
-use crate::command::{CommandSinkHandle, UiCommand};
+use infiltrator_contract::uwp::UwpPackageSnapshot;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Marker for the UWP exemption card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -32,6 +38,9 @@ pub struct UwpExemptionRoot;
 /// Marker for the live UWP status line.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UwpStatusLine;
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct UwpEmptyLine;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum UwpAction {
@@ -78,13 +87,21 @@ pub fn uwp_exemption_scene(
                         padding: UiRect::vertical(Val::Px(space::S4)),
                     }
                     Children [
-                        Text({ empty_packages_text(&projection.uwp_loopback) }) TextRole(Role::Caption)
+                        Text({ uwp_empty(&projection.uwp_loopback.availability, "en-US") }) UwpEmptyLine TextRole(Role::Caption)
                     ]
         }) as Box<dyn Scene>]
     } else {
         app_rows
     };
-    let status = format_status(&projection.uwp_loopback);
+    let status = uwp_summary(
+        &projection.uwp_loopback.availability,
+        projection
+            .uwp_loopback
+            .packages
+            .iter()
+            .map(|package| package.loopback_exempt),
+        "en-US",
+    );
 
     surface_scene(
         vec![
@@ -112,7 +129,7 @@ pub fn uwp_exemption_scene(
                                     Children [
                                         @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                         --
-                                        Text({ "Windows UWP 回环隔离豁免工具 (UWP Loopback Exemption)".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("settings_uwp_loopback_title") TextRole(Role::BodyStrong)
                                     ]
                                     --
                                     Node {
@@ -120,11 +137,11 @@ pub fn uwp_exemption_scene(
                                         column_gap: Val::Px(space::S4),
                                     }
                                     Children [
-                                        @{ action_button("扫描", UwpAction::Scan, palette) }
+                                        @{ action_button("uwp_btn_scan", UwpAction::Scan, palette) }
                                         --
-                                        @{ action_button("一键豁免全部 UWP 应用", UwpAction::ExemptAll, palette) }
+                                        @{ action_button("uwp_btn_exempt_all", UwpAction::ExemptAll, palette) }
                                         --
-                                        @{ action_button("清除全部 UWP 豁免", UwpAction::ClearAll, palette) }
+                                        @{ action_button("uwp_btn_clear_all", UwpAction::ClearAll, palette) }
                                     ]
                                 ]
                                 --
@@ -150,7 +167,7 @@ pub fn uwp_exemption_scene(
                                 padding: UiRect::top(Val::Px(space::S4)),
                             }
                             Children [
-                                Text({ "仅 Windows AppContainer 需要解除回环隔离；其他宿主保持 typed unsupported".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("settings_uwp_loopback_hint") TextRole(Role::Caption)
                             ]
             }),
         ],
@@ -158,7 +175,11 @@ pub fn uwp_exemption_scene(
     )
 }
 
-fn action_button(label: &str, action: UwpAction, palette: &UiPalette) -> impl Scene + use<> {
+fn action_button(
+    label: &'static str,
+    action: UwpAction,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     bsn! {
             Node {
                 min_height: px(palette.control_height_px),
@@ -171,7 +192,7 @@ fn action_button(label: &str, action: UwpAction, palette: &UiPalette) -> impl Sc
             UwpActionButton(action)
             Button
             Children [
-                Text({ label.to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain(label) TextRole(Role::Caption)
             ]
     }
 }
@@ -181,11 +202,9 @@ fn package_row_scene(
     package: &UwpPackageSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let state = if package.loopback_exempt {
-        "Exempted"
-    } else {
-        "Isolated"
-    };
+    let state = Lang("en-US")
+        .tr(uwp_state_key(package.loopback_exempt))
+        .into_owned();
     let color = if package.loopback_exempt {
         palette.success
     } else {
@@ -245,28 +264,24 @@ pub(super) fn on_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity)]
 pub(super) fn apply_projection(
     update: On<AppRoutingProjectionUpdated>,
-    mut status_lines: Query<
-        &mut Text,
-        (
-            With<UwpStatusLine>,
-            Without<UwpPackageName>,
-            Without<UwpPackageState>,
-        ),
-    >,
-    mut names: Query<
-        (&mut Text, &UwpPackageName),
-        (Without<UwpStatusLine>, Without<UwpPackageState>),
-    >,
-    mut states: Query<
-        (&mut Text, &UwpPackageState),
-        (Without<UwpStatusLine>, Without<UwpPackageName>),
-    >,
+    locale: Res<UiLocale>,
+    mut status_lines: Query<&mut Text, ApplyProjectionStatusLinesFilter>,
+    mut names: Query<(&mut Text, &UwpPackageName), ApplyProjectionNamesFilter>,
+    mut states: Query<(&mut Text, &UwpPackageState), ApplyProjectionStatesFilter>,
     mut buttons: Query<&mut ToggleUwpButton>,
 ) {
-    let status = format_status(&update.0.uwp_loopback);
+    let status = uwp_summary(
+        &update.0.uwp_loopback.availability,
+        update
+            .0
+            .uwp_loopback
+            .packages
+            .iter()
+            .map(|package| package.loopback_exempt),
+        locale.code(),
+    );
     for mut line in &mut status_lines {
         line.0 = status.clone();
     }
@@ -286,11 +301,9 @@ pub(super) fn apply_projection(
             .packages
             .get(marker.0)
             .map(|package| {
-                if package.loopback_exempt {
-                    "Exempted".to_owned()
-                } else {
-                    "Isolated".to_owned()
-                }
+                Lang(locale.code())
+                    .tr(uwp_state_key(package.loopback_exempt))
+                    .into_owned()
             })
             .unwrap_or_else(|| "Unavailable".to_owned());
     }
@@ -304,32 +317,5 @@ pub(super) fn apply_projection(
         {
             button.exempt = package.loopback_exempt;
         }
-    }
-}
-
-fn format_status(snapshot: &UwpLoopbackSnapshot) -> String {
-    match &snapshot.availability {
-        UwpLoopbackAvailability::Supported => {
-            let exempt = snapshot
-                .packages
-                .iter()
-                .filter(|package| package.loopback_exempt)
-                .count();
-            format!(
-                "已扫描 {} 个 UWP AppContainer · 已豁免 {} 个",
-                snapshot.packages.len(),
-                exempt
-            )
-        }
-        UwpLoopbackAvailability::Unsupported { reason }
-        | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
-    }
-}
-
-fn empty_packages_text(snapshot: &UwpLoopbackSnapshot) -> String {
-    if snapshot.is_supported() {
-        "当前未发现 AppContainer；可点击扫描刷新".to_owned()
-    } else {
-        format_status(snapshot)
     }
 }

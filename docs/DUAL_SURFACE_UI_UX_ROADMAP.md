@@ -33,6 +33,8 @@
 - **渲染基石**：WGSL 硬件着色器加速、苹果级超椭圆连续曲率圆角、物理阻尼弹簧微动效、全链路触控手势闭环。
 - **组件分工**：底层纯 UI 原语完全收敛于业务无关的 `crates/infiltrator-bevy-widgets/`，业务外壳与路由装配由 `crates/infiltrator-bevy-ui/` 承担。
 
+Android 的保留扩展、原生输入、列表回收、渲染/观察节能与设备验收遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)。二维波形、拓扑与既有交互继续保留；GPU/Bloom 和地球增强按需推进，不能用高级动效替代基础宿主、输入或资源闸门。
+
 ### 1.3 严格单一业务事实源（SSOT）与事务总线
 - 业务逻辑与状态推导完全下沉于 `crates/infiltrator-contract/` 与 `crates/infiltrator-application/`。双端仅消费不可变状态快照（`ResponsiveViewportSnapshot`、`TrafficWaveformSnapshot`、`CoreLifecycleSnapshot` 等）。
 - 双端所有写操作统一封装为 `UiCommand` 事务总线，确保在 Overview、Proxies、Subscriptions、Rules、Connections、Logs、DNS、Doctor、App Routing、Cloud Sync、Settings 等 11 个业务路由下交互语义 100% 对齐。

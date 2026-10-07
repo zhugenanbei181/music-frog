@@ -6,6 +6,7 @@
 //! (via the shared `infiltrator_domain::redact` engine) and the shared
 //! dedup/capacity policy from `infiltrator_contract::toast`.
 
+use crate::a11y::semantic_node;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
@@ -18,10 +19,11 @@ use bevy::scene::CommandsSceneExt;
 use bevy::time::{Time, Virtual};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::toast::{
-    ToastContainer, ToastKind, ToastQueue, ToastSpawnEvent, toast_stack_scene,
+    ToastContainer, ToastKind, ToastQueue, ToastSpawnEvent, advance_toasts, toast_stack_scene,
 };
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::toast::{ToastAdmission, ToastGate};
+use infiltrator_contract::toast::{ToastAdmission, ToastGate, ToastSeverity};
+use infiltrator_domain::redact::redact_line;
 
 /// The shared dedup gate plus the shell's toast clock.
 #[derive(Resource, Clone, Debug, Default)]
@@ -44,12 +46,12 @@ impl ToastPolicyGate {
         duration_secs: f32,
         now_ms: u64,
     ) -> bool {
-        let redacted = infiltrator_domain::redact::redact_line(text, &[]);
+        let redacted = redact_line(text, &[]);
         let severity = match kind {
-            ToastKind::Info => infiltrator_contract::toast::ToastSeverity::Info,
-            ToastKind::Success => infiltrator_contract::toast::ToastSeverity::Success,
-            ToastKind::Warning => infiltrator_contract::toast::ToastSeverity::Warning,
-            ToastKind::Danger => infiltrator_contract::toast::ToastSeverity::Error,
+            ToastKind::Info => ToastSeverity::Info,
+            ToastKind::Success => ToastSeverity::Success,
+            ToastKind::Warning => ToastSeverity::Warning,
+            ToastKind::Danger => ToastSeverity::Error,
         };
         if self.gate.admit(severity, &redacted, now_ms) == ToastAdmission::Coalesced {
             return false;
@@ -159,14 +161,8 @@ impl Plugin for ShellToastPlugin {
         app.init_resource::<ToastPolicyGate>();
         app.init_resource::<ToastStackVersion>();
         app.add_message::<ShellToast>();
-        app.add_systems(
-            Update,
-            on_shell_toast.before(infiltrator_bevy_widgets::toast::advance_toasts),
-        );
-        app.add_systems(
-            Update,
-            sync_toast_stack.after(infiltrator_bevy_widgets::toast::advance_toasts),
-        );
+        app.add_systems(Update, on_shell_toast.before(advance_toasts));
+        app.add_systems(Update, sync_toast_stack.after(advance_toasts));
         // DUAL-15-10: the mounted stack root is a live region in the shared
         // grammar; the widget scene stays business-agnostic, so the semantic
         // node is attached here, where the product vocabulary lives.
@@ -182,7 +178,7 @@ fn sync_toast_semantics(
     for entity in &roots {
         commands
             .entity(entity)
-            .insert(crate::a11y::semantic_node(ShellA11yNode::ToastRegion));
+            .insert(semantic_node(ShellA11yNode::ToastRegion));
     }
 }
 

@@ -7,11 +7,14 @@ use crate::types::message::Message;
 use crate::view::component_forms::row_card_surface;
 use crate::view::components::{BadgeKind, badge, card_surface};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_SEMIBOLD, R_CHIP, R_CONTROL, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, R_CHIP, R_CONTROL, tokens};
 use crate::view::topology::topology_flow_canvas;
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
+use infiltrator_application::traffic_topology_projection::status_label;
+use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TrafficTopologySnapshot, TrafficTopologyStage, TrafficTopologyStatus,
 };
@@ -193,25 +196,15 @@ fn topology_stage_node<'a>(
 
 pub fn topology_route_for_stage(stage: TrafficTopologyStage) -> Option<Route> {
     match TrafficTopologyNavigationApplication::page_for_stage(stage)? {
-        infiltrator_contract::surface_snapshot::PageId::Settings => Some(Route::Settings),
-        infiltrator_contract::surface_snapshot::PageId::Rules => Some(Route::Rules),
-        infiltrator_contract::surface_snapshot::PageId::Proxies => Some(Route::Proxies),
+        PageId::Settings => Some(Route::Settings),
+        PageId::Rules => Some(Route::Rules),
+        PageId::Proxies => Some(Route::Proxies),
         _ => None,
     }
 }
 
 pub fn topology_badge(snapshot: &TrafficTopologySnapshot, lang: &Lang<'_>) -> String {
-    match snapshot.status {
-        TrafficTopologyStatus::Ready => format!(
-            "{} {} · flowing",
-            snapshot.active_connections,
-            lang.tr("overview_conn_unit")
-        ),
-        TrafficTopologyStatus::Empty => format!("0 {} · idle", lang.tr("overview_conn_unit")),
-        TrafficTopologyStatus::Unknown => "topology pending".to_owned(),
-        TrafficTopologyStatus::Unsupported => "topology unavailable".to_owned(),
-        TrafficTopologyStatus::Failed => "topology read failed".to_owned(),
-    }
+    status_label(snapshot, lang.0)
 }
 
 pub fn topology_badge_kind(snapshot: &TrafficTopologySnapshot) -> BadgeKind {

@@ -1,22 +1,27 @@
 //! Application service for concurrent speedtesting, jitter analysis, and stability evaluation.
 
-use futures_util::stream::{self, StreamExt};
+use crate::proxy_probe_options_projection::validate_options;
+use futures_util::stream;
+use futures_util::stream::StreamExt;
+use infiltrator_contract::capability::Availability;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::proxy_probe_options::{
+    DEFAULT_PROBE_TIMEOUT_MS, DEFAULT_PROBE_URL, ProxyProbeOptions,
+};
 use infiltrator_contract::speedtest::{
     HistoricalSpeedtestRecord, JitterCalculation, NodeSpeedtestResult, PacketLossRating,
     SpeedtestPhase, SpeedtestProgress, SpeedtestScope, SpeedtestSnapshot, SpeedtestTargetConfig,
 };
+use infiltrator_domain::diagnostics::SpeedtestCalculator;
 use infiltrator_domain::filter::extract_country_code;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
-const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
 const DEFAULT_CONCURRENCY_LIMIT: usize = 30;
 const MAX_HISTORY_ENTRIES: usize = 3;
 
@@ -37,7 +42,10 @@ impl SpeedtestApplication {
     pub fn new(gateway: Arc<dyn RuntimeGateway>) -> Self {
         Self {
             gateway,
-            state: Arc::new(Mutex::new(SpeedtestSnapshot::default())),
+            state: Arc::new(Mutex::new(SpeedtestSnapshot {
+                availability: Some(Availability::Supported),
+                ..SpeedtestSnapshot::default()
+            })),
             cancel_token: Arc::new(AtomicBool::new(false)),
             concurrency_limit: Arc::new(AtomicUsize::new(DEFAULT_CONCURRENCY_LIMIT)),
             history_store: None,
@@ -108,11 +116,16 @@ impl SpeedtestApplication {
         custom_url: Option<String>,
         custom_timeout_ms: Option<u32>,
     ) -> Result<SpeedtestSnapshot, Failure> {
+        let test_url = custom_url.unwrap_or_else(|| DEFAULT_PROBE_URL.to_string());
+        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_PROBE_TIMEOUT_MS);
+        let options = validate_options(ProxyProbeOptions {
+            test_url,
+            timeout_ms,
+        })?;
+        let test_url = options.test_url;
+        let timeout_ms = options.timeout_ms;
+
         self.cancel_token.store(false, Ordering::SeqCst);
-
-        let test_url = custom_url.unwrap_or_else(|| DEFAULT_DELAY_TEST_URL.to_string());
-        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_DELAY_TIMEOUT_MS);
-
         let proxies = self.gateway.get_proxies().await.map_err(Failure::from)?;
         let candidates = resolve_candidates(&proxies, &scope)?;
 
@@ -151,7 +164,7 @@ impl SpeedtestApplication {
         let state_arc = Arc::clone(&self.state);
         let cancel_token = Arc::clone(&self.cancel_token);
         let gateway = Arc::clone(&self.gateway);
-        let completed_counter = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let completed_counter = Arc::new(AtomicUsize::new(0));
 
         let results_stream = stream::iter(candidates.into_iter().map(|candidate| {
             let gateway = Arc::clone(&gateway);
@@ -255,15 +268,21 @@ impl SpeedtestApplication {
         custom_timeout_ms: Option<u32>,
     ) -> Result<JitterCalculation, Failure> {
         let rounds = rounds.max(1);
-        let test_url = custom_url.unwrap_or_else(|| DEFAULT_DELAY_TEST_URL.to_string());
-        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_DELAY_TIMEOUT_MS);
+        let test_url = custom_url.unwrap_or_else(|| DEFAULT_PROBE_URL.to_string());
+        let timeout_ms = custom_timeout_ms.unwrap_or(DEFAULT_PROBE_TIMEOUT_MS);
+        let options = validate_options(ProxyProbeOptions {
+            test_url,
+            timeout_ms,
+        })?;
+        let test_url = options.test_url;
+        let timeout_ms = options.timeout_ms;
 
         let mut samples = Vec::with_capacity(rounds);
 
         for _ in 0..rounds {
             if self.cancel_token.load(Ordering::Relaxed) {
                 return Err(Failure::new(
-                    infiltrator_contract::error::ErrorCode::Canceled,
+                    ErrorCode::Canceled,
                     "jitter probe cancelled",
                     false,
                 ));
@@ -318,11 +337,7 @@ impl SpeedtestApplication {
         total_bytes: u64,
         duration_ms: u64,
     ) -> Result<f64, Failure> {
-        let bandwidth_mbps =
-            infiltrator_domain::diagnostics::SpeedtestCalculator::calculate_bandwidth(
-                total_bytes,
-                duration_ms,
-            );
+        let bandwidth_mbps = SpeedtestCalculator::calculate_bandwidth(total_bytes, duration_ms);
 
         let mut state = self.state.lock().unwrap();
         if let Some(entry) = state.node_results.get_mut(node) {
@@ -429,7 +444,7 @@ struct CandidateNode {
 }
 
 fn resolve_candidates(
-    proxies: &std::collections::HashMap<String, Proxy>,
+    proxies: &HashMap<String, Proxy>,
     scope: &SpeedtestScope,
 ) -> Result<Vec<CandidateNode>, Failure> {
     match scope {

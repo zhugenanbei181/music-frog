@@ -13,8 +13,9 @@ use infiltrator_bevy_ui::cadence::{
 };
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
 use infiltrator_contract::cadence::RenderCadence;
+use std::time;
 
-fn reactive_wait(mode: UpdateMode) -> std::time::Duration {
+fn reactive_wait(mode: UpdateMode) -> time::Duration {
     match mode {
         UpdateMode::Reactive { wait, .. } => wait,
         other => panic!("expected a reactive mode, got {other:?}"),
@@ -42,13 +43,13 @@ fn the_winit_modes_follow_the_shared_cadence() {
     assert_eq!(active.focused_mode, UpdateMode::Continuous);
     assert_eq!(
         reactive_wait(active.unfocused_mode),
-        std::time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS)
+        time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS)
     );
 
     let background = winit_settings_for(RenderCadence::Background);
     assert_eq!(
         reactive_wait(background.focused_mode),
-        std::time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS),
+        time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS),
         "a backgrounded window runs at the shared 2 FPS rate"
     );
     assert_eq!(
@@ -59,7 +60,7 @@ fn the_winit_modes_follow_the_shared_cadence() {
     let suspended = winit_settings_for(RenderCadence::Suspended);
     assert_eq!(reactive_wait(suspended.focused_mode), SUSPENDED_WAIT);
     assert_eq!(reactive_wait(suspended.unfocused_mode), SUSPENDED_WAIT);
-    assert!(SUSPENDED_WAIT >= std::time::Duration::from_secs(60));
+    assert!(SUSPENDED_WAIT >= time::Duration::from_secs(60));
 }
 
 #[test]
@@ -98,7 +99,7 @@ fn focus_and_occlusion_events_reselect_the_winit_cadence() {
     );
     assert_eq!(
         reactive_wait(app.world().resource::<WinitSettings>().focused_mode),
-        std::time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS)
+        time::Duration::from_millis(RenderCadence::BACKGROUND_FRAME_TIME_MS)
     );
 
     // Occlusion is the host's hard-suspend fact.
@@ -134,8 +135,8 @@ fn focus_and_occlusion_events_reselect_the_winit_cadence() {
 fn an_unchanged_cadence_does_not_rewrite_the_winit_settings() {
     let mut app = cadence_app();
     let custom = WinitSettings {
-        focused_mode: UpdateMode::reactive(std::time::Duration::from_secs(3)),
-        unfocused_mode: UpdateMode::reactive(std::time::Duration::from_secs(9)),
+        focused_mode: UpdateMode::reactive(time::Duration::from_secs(3)),
+        unfocused_mode: UpdateMode::reactive(time::Duration::from_secs(9)),
     };
     app.insert_resource(custom.clone());
     app.update();

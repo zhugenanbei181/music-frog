@@ -1,14 +1,18 @@
 //! Runtime controller operations exposed as a transport-neutral port.
 
 use crate::error::PortError;
+use crate::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
 use infiltrator_contract::capability::Capability;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::proxy::Proxy;
 use infiltrator_domain::rules::RuleEntry;
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use std::collections::HashMap;
 
@@ -18,8 +22,8 @@ pub enum RuntimeStreamEvent<T> {
     Connecting,
     Connected,
     Item(T),
-    Reconnecting(String),
-    Failed(String),
+    Reconnecting(Failure),
+    Failed(Failure),
 }
 
 pub type RuntimeStream<T> = BoxStream<'static, RuntimeStreamEvent<T>>;
@@ -39,10 +43,7 @@ pub trait RuntimeGateway: Send + Sync {
     async fn get_rules(&self) -> Result<Vec<RuleEntry>, PortError> {
         Ok(Vec::new())
     }
-    async fn set_proxy_mode(
-        &self,
-        mode: infiltrator_contract::command::ProxyMode,
-    ) -> Result<(), PortError>;
+    async fn set_proxy_mode(&self, mode: ProxyMode) -> Result<(), PortError>;
     async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError>;
     async fn switch_proxy(&self, group: &str, proxy: &str) -> Result<(), PortError>;
     async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError>;
@@ -89,12 +90,8 @@ pub trait RuntimeGateway: Send + Sync {
     async fn close_all_connections(&self) -> Result<(), PortError>;
 
     async fn stream_logs(&self, level: Option<String>) -> Result<RuntimeStream<String>, PortError>;
-    async fn stream_traffic(
-        &self,
-    ) -> Result<RuntimeStream<infiltrator_domain::runtime::TrafficData>, PortError>;
-    async fn stream_connections(
-        &self,
-    ) -> Result<RuntimeStream<infiltrator_domain::runtime::ConnectionSnapshot>, PortError>;
+    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError>;
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError>;
 }
 
 /// Additional host-owned operations available when a gateway also owns the
@@ -112,4 +109,15 @@ pub trait ManagedRuntime: RuntimeGateway {
         content: &str,
         strategy: ApplyStrategy,
     ) -> Result<u64, PortError>;
+    async fn apply_profile_workspace(
+        &self,
+        _expected: &ProfileSourceIdentity,
+        _update: &ProfileWorkspaceUpdate,
+        _strategy: ApplyStrategy,
+    ) -> Result<ProfileWorkspace, PortError> {
+        Err(PortError::unsupported(
+            Capability::Profiles,
+            "source-bound profile/options apply is unavailable",
+        ))
+    }
 }

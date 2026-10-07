@@ -4,6 +4,7 @@
 //! module projects that vocabulary onto the widget layer's mirror, follows
 //! the live OS appearance reported by winit, and repaints on switch.
 
+use crate::app::ThemeToggle;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
@@ -12,9 +13,8 @@ use bevy::ui_widgets::Activate;
 use bevy::window::{Window, WindowTheme};
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::ThemeSkin;
+use infiltrator_contract::theme;
 use infiltrator_contract::theme::ThemePreference;
-
-use crate::app::ThemeToggle;
 
 /// The shell's appearance preference (shared contract: a pinned skin or
 /// "follow the OS"). The painted token set is always resolved through
@@ -29,23 +29,23 @@ pub struct ThemeMode(pub ThemePreference);
 pub struct SystemAppearance(pub Option<bool>);
 
 /// Project the shared skin vocabulary onto the widget layer's mirror.
-pub fn skin_from_contract(skin: infiltrator_contract::theme::ThemeSkin) -> ThemeSkin {
+pub fn skin_from_contract(skin: theme::ThemeSkin) -> ThemeSkin {
     match skin {
-        infiltrator_contract::theme::ThemeSkin::Dark => ThemeSkin::Dark,
-        infiltrator_contract::theme::ThemeSkin::Light => ThemeSkin::Light,
-        infiltrator_contract::theme::ThemeSkin::Forest => ThemeSkin::Forest,
-        infiltrator_contract::theme::ThemeSkin::Amoled => ThemeSkin::Amoled,
+        theme::ThemeSkin::Dark => ThemeSkin::Dark,
+        theme::ThemeSkin::Light => ThemeSkin::Light,
+        theme::ThemeSkin::Forest => ThemeSkin::Forest,
+        theme::ThemeSkin::Amoled => ThemeSkin::Amoled,
     }
 }
 
 /// Project the widget layer's skin mirror back onto the shared vocabulary
 /// (used by the capture/env knobs, which speak widget-layer skins).
-pub fn contract_skin_from_widget(skin: ThemeSkin) -> infiltrator_contract::theme::ThemeSkin {
+pub fn contract_skin_from_widget(skin: ThemeSkin) -> theme::ThemeSkin {
     match skin {
-        ThemeSkin::Dark => infiltrator_contract::theme::ThemeSkin::Dark,
-        ThemeSkin::Light => infiltrator_contract::theme::ThemeSkin::Light,
-        ThemeSkin::Forest => infiltrator_contract::theme::ThemeSkin::Forest,
-        ThemeSkin::Amoled => infiltrator_contract::theme::ThemeSkin::Amoled,
+        ThemeSkin::Dark => theme::ThemeSkin::Dark,
+        ThemeSkin::Light => theme::ThemeSkin::Light,
+        ThemeSkin::Forest => theme::ThemeSkin::Forest,
+        ThemeSkin::Amoled => theme::ThemeSkin::Amoled,
     }
 }
 

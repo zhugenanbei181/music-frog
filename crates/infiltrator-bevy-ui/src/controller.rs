@@ -6,22 +6,36 @@
 //! neutral snapshot into a Bevy-facing projection and drains it once per
 //! frame.
 
-use bevy::app::{Plugin, Update};
-use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res, ResMut};
-use infiltrator_application::overview::{OverviewConfig, OverviewPump};
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
-use std::time::{Duration, Instant};
-
 use crate::history::TrafficHistory;
 use crate::pages::overview::OverviewProjectionUpdated;
 use crate::projection::{
     OverviewOrigin, OverviewProjection, OverviewSource, OverviewState, SourceKind,
 };
+use crate::surface::surface_demo::snapshot_from_overview;
+use crate::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
+use bevy::app;
+use bevy::app::{Plugin, Update};
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Res, ResMut};
+use infiltrator_application::overview;
+use infiltrator_application::overview::{OverviewConfig, OverviewPump};
+use infiltrator_application::shell_readout_application::ShellReadoutApplication;
+use infiltrator_application::traffic_scale_application::TrafficScaleApplication;
+use infiltrator_application::traffic_waveform_application::TrafficWaveformApplication;
+use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
+use infiltrator_contract::public_ip::PublicIpProbeSnapshot;
+use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot;
+use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+use infiltrator_contract::traffic_topology::TrafficTopologySnapshot;
+use std::env::var;
+use std::sync::Arc;
+use std::sync::mpsc::{Sender, channel};
+use std::thread::spawn;
+use std::time::{Duration, Instant};
 
 /// The application pump's default sampling interval (the charter's ≤1s
 /// budget). Kept in the Bevy config for capture/test compatibility.
@@ -67,13 +81,15 @@ pub fn controller_config_from_raw(
 }
 
 pub fn controller_config_from_env() -> Option<ControllerConfig> {
-    let controller = std::env::var("INFILTRATOR_BEVY_CONTROLLER").ok();
-    let secret = std::env::var("INFILTRATOR_BEVY_SECRET").ok();
+    let controller = var("INFILTRATOR_BEVY_CONTROLLER").ok();
+    let secret = var("INFILTRATOR_BEVY_SECRET").ok();
     controller_config_from_raw(controller.as_deref(), secret.as_deref())
 }
 
 struct SourceShared {
     pump: OverviewPump,
+    readout: ShellReadoutApplication,
+    waveform: TrafficWaveformApplication,
 }
 
 /// Live Overview source presented to the Bevy page layer. The source contains
@@ -91,7 +107,11 @@ impl MihomoOverviewSource {
             sample_interval: config.sample_interval,
         });
         Self {
-            shared: Arc::new(SourceShared { pump }),
+            shared: Arc::new(SourceShared {
+                pump,
+                readout: Default::default(),
+                waveform: Default::default(),
+            }),
         }
     }
 
@@ -102,32 +122,42 @@ impl MihomoOverviewSource {
     pub fn bridge(&self) -> OverviewPumpBridge {
         OverviewPumpBridge {
             application: self.shared.pump.bridge(),
+            readout: self.shared.readout.clone(),
+            waveform: self.shared.waveform.clone(),
         }
     }
 }
 
 impl OverviewSource for MihomoOverviewSource {
     fn current(&self) -> OverviewProjection {
-        projection_from_snapshot(self.application_snapshot())
+        projection_from_snapshot(
+            self.application_snapshot(),
+            &self.shared.readout,
+            &self.shared.waveform,
+        )
     }
 
     fn kind(&self) -> SourceKind {
         SourceKind::LiveCore
     }
 
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<(), String>>) {
-        let (application_tx, application_rx) = std::sync::mpsc::channel();
+    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
+        let (application_tx, application_rx) = channel();
         self.shared.pump.request_mode(mode, application_tx);
         // The application worker owns the async operation. This small bridge
         // only converts its neutral failure into the Bevy page's text receipt.
-        std::thread::spawn(move || {
+        spawn(move || {
             let result = application_rx
                 .recv()
-                .map_err(|error| format!("mode command channel closed: {error}"))?
-                .map(|_| ())
-                .map_err(|failure: Failure| failure.message);
+                .map_err(|error| {
+                    Failure::new(
+                        ErrorCode::NotReady,
+                        format!("Mode command channel closed: {error}"),
+                        true,
+                    )
+                })
+                .and_then(|result| result);
             let _ = ack.send(result);
-            Ok::<(), String>(())
         });
     }
 }
@@ -136,7 +166,9 @@ impl OverviewSource for MihomoOverviewSource {
 /// the underlying pump bridge exists.
 #[derive(Resource)]
 pub struct OverviewPumpBridge {
-    application: infiltrator_application::overview::OverviewPumpBridge,
+    application: overview::OverviewPumpBridge,
+    readout: ShellReadoutApplication,
+    waveform: TrafficWaveformApplication,
 }
 
 impl OverviewPumpBridge {
@@ -144,7 +176,7 @@ impl OverviewPumpBridge {
         self.application
             .drain()
             .into_iter()
-            .map(projection_from_snapshot)
+            .map(|snapshot| projection_from_snapshot(snapshot, &self.readout, &self.waveform))
             .collect()
     }
 }
@@ -200,9 +232,11 @@ impl PumpDrainPlugin {
 }
 
 impl Plugin for PumpDrainPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
+    fn build(&self, app: &mut app::App) {
         app.insert_resource(OverviewPumpBridge {
             application: self.bridge.application.clone(),
+            readout: self.bridge.readout.clone(),
+            waveform: self.bridge.waveform.clone(),
         });
         app.init_resource::<PumpSnapshotSeen>();
         app.init_resource::<FailureDwell>();
@@ -216,6 +250,7 @@ fn drain_overview_pump(
     seen: Option<ResMut<PumpSnapshotSeen>>,
     mut dwell: ResMut<FailureDwell>,
     mut history: Option<ResMut<TrafficHistory>>,
+    latest: Option<Res<LatestSurfaceSnapshot>>,
     mut commands: Commands,
 ) {
     let newest = bridge.drain().into_iter().last();
@@ -236,13 +271,29 @@ fn drain_overview_pump(
     if let Some(mut seen) = seen {
         seen.0 = true;
     }
-    if let Some(history) = history.as_deref_mut() {
+    if let Some(history) = history.as_deref_mut()
+        && projection.readout.upload_bps.current
+        && projection.readout.download_bps.current
+    {
         history.push(projection.upload_bps, projection.download_bps);
     }
-    commands.trigger(OverviewProjectionUpdated(projection));
+    if let Some(latest) = latest {
+        let mut snapshot =
+            snapshot_from_overview(&projection, projection.origin == OverviewOrigin::Demo);
+        snapshot.revision = latest.0.revision + 1;
+        commands.trigger(SurfaceSnapshotUpdated(snapshot));
+    } else {
+        commands.trigger(OverviewProjectionUpdated(projection));
+    }
 }
 
-fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
+fn projection_from_snapshot(
+    snapshot: CoreSnapshot,
+    readout: &ShellReadoutApplication,
+    history: &TrafficWaveformApplication,
+) -> OverviewProjection {
+    let waveform = history.record(&snapshot);
+    let scale = TrafficScaleApplication.compute(&waveform);
     let state = match snapshot.lifecycle {
         CoreLifecycle::Running | CoreLifecycle::Ready => OverviewState::Running,
         CoreLifecycle::Stopped => OverviewState::Stopped,
@@ -256,8 +307,9 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         .map(Duration::from_millis)
         .unwrap_or(Duration::ZERO);
     OverviewProjection {
+        lifecycle: snapshot.lifecycle.clone(),
+        readout: readout.project_core_rates(&snapshot, None),
         state,
-        mode: snapshot.proxy_mode.unwrap_or_default(),
         upload_bps: snapshot.upload_bps,
         download_bps: snapshot.download_bps,
         active_connections: snapshot.active_connections,
@@ -266,42 +318,40 @@ fn projection_from_snapshot(snapshot: CoreSnapshot) -> OverviewProjection {
         failure: snapshot.failure.map(|failure| failure.message),
         origin: OverviewOrigin::LiveCore,
         core_version: snapshot.core_version,
-        traffic_waveform: Default::default(),
-        traffic_scale: Default::default(),
-        traffic_topology:
-            infiltrator_contract::traffic_topology::TrafficTopologySnapshot::unsupported(
-                snapshot.generation,
-                snapshot.revision.max(1),
-                "overview-only controller source does not include topology facts",
-            ),
+        traffic_waveform: waveform,
+        traffic_scale: scale,
+        traffic_topology: TrafficTopologySnapshot::unsupported(
+            snapshot.generation,
+            snapshot.revision.max(1),
+            "overview-only controller source does not include topology facts",
+        ),
         layout: Default::default(),
         reconnect_mask: Default::default(),
         viewport: Default::default(),
-        public_ip: infiltrator_contract::public_ip::PublicIpProbeSnapshot::unsupported(
+        public_ip: PublicIpProbeSnapshot::unsupported(
             snapshot.generation,
             snapshot.revision.max(1),
             "overview-only controller source does not include public IP probe facts",
         ),
-        active_exit: infiltrator_contract::active_exit::ActiveExitSnapshot::unsupported(
+        active_exit: ActiveExitSnapshot::unsupported(
             snapshot.generation,
             snapshot.revision.max(1),
             "overview-only controller source does not include proxy facts",
         ),
-        subscription_quota:
-            infiltrator_contract::subscription_quota::SubscriptionQuotaSnapshot::unsupported(
-                snapshot.generation,
-                snapshot.revision.max(1),
-                "overview-only controller source does not include profile quota facts",
-            ),
-        system_toggles: infiltrator_contract::system_toggle::SystemToggleSnapshot::from_legacy(
-            false,
-            None,
+        subscription_quota: SubscriptionQuotaSnapshot::unsupported(
+            snapshot.generation,
             snapshot.revision.max(1),
+            "overview-only controller source does not include profile quota facts",
         ),
-        proxy_mode: infiltrator_contract::proxy_mode::ProxyModeSnapshot {
-            current: snapshot.proxy_mode.unwrap_or_default(),
-            script_available: false,
-            status: infiltrator_contract::proxy_mode::ProxyModeStatus::Ready,
+        system_toggles: SystemToggleSnapshot::from_legacy(false, None, snapshot.revision.max(1)),
+        proxy_mode: ProxyModeSnapshot {
+            current: snapshot.proxy_mode,
+            script_available: None,
+            status: if snapshot.proxy_mode.is_some() {
+                ProxyModeStatus::Ready
+            } else {
+                ProxyModeStatus::Unobserved
+            },
             failure: None,
         },
         speedtest: Default::default(),

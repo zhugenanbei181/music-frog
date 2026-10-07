@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::linux::gnome::UnsupportedDesktopError;
 use anyhow::anyhow;
 use std::collections::HashMap;
 

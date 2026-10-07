@@ -5,6 +5,9 @@
 //! question. Everything else is rejected, so a stray datagram can never be
 //! timed as if it were the answer to this probe.
 
+use std::fmt::{Display, Formatter};
+use std::net::IpAddr;
+use std::{error, fmt};
 /// Fixed DNS header length (RFC 1035 §4.1.1).
 pub const HEADER_LEN: usize = 12;
 
@@ -72,8 +75,8 @@ pub enum DnsWireError {
     InvalidQname { qname: String },
 }
 
-impl std::fmt::Display for DnsWireError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DnsWireError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::TooShort { len } => {
                 write!(formatter, "answer is {len} bytes, shorter than a header")
@@ -91,7 +94,7 @@ impl std::fmt::Display for DnsWireError {
     }
 }
 
-impl std::error::Error for DnsWireError {}
+impl error::Error for DnsWireError {}
 
 /// Encode a single-question query with recursion desired.
 pub fn encode_query(question: &DnsQuestion) -> Result<Vec<u8>, DnsWireError> {
@@ -167,7 +170,7 @@ pub fn response_rcode(bytes: &[u8]) -> Option<u8> {
 pub fn extract_a_record(
     bytes: &[u8],
     question: &DnsQuestion,
-) -> Result<Option<std::net::IpAddr>, DnsWireError> {
+) -> Result<Option<IpAddr>, DnsWireError> {
     validate_response(bytes, question)?;
     let qname = encode_qname(&question.qname)?;
     // ANCOUNT lives at offset 6; offset 4 is QDCOUNT (the question section
@@ -188,7 +191,7 @@ pub fn extract_a_record(
             let octets = bytes
                 .get(offset..offset + 4)
                 .ok_or(DnsWireError::TooShort { len: bytes.len() })?;
-            return Ok(Some(std::net::IpAddr::from([
+            return Ok(Some(IpAddr::from([
                 octets[0], octets[1], octets[2], octets[3],
             ])));
         }
@@ -487,7 +490,7 @@ mod tests {
         assert_eq!(response_rcode(&answer), Some(0));
         assert_eq!(
             extract_a_record(&answer, &question),
-            Ok(Some(std::net::IpAddr::from([203, 0, 113, 9])))
+            Ok(Some(IpAddr::from([203, 0, 113, 9])))
         );
     }
 

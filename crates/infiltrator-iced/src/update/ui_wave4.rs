@@ -4,18 +4,26 @@
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::utils::sanitize_ui_text;
 use iced::Task;
 use infiltrator_application::network_roaming_application::NetworkRoamingApplication;
 use infiltrator_application::pac_application::PacApplication;
 use infiltrator_application::vpn_application::VpnServiceApplication;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkRoamingEvent, NetworkRoamingSnapshot,
     NetworkRoamingStatus,
 };
 use infiltrator_contract::pac::{PacRequest, PacServiceState, PacSnapshot};
+use infiltrator_contract::snapshot::CoreWatchdogState;
 use infiltrator_contract::vpn::{VpnSessionSnapshot, VpnSessionState};
+use infiltrator_domain::pac_generator::{PacGenerator, validate_pac_script};
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
+use std::fs::write;
+use std::sync::Arc;
 
 fn split_pac_domains(value: &str) -> Vec<String> {
     value
@@ -72,11 +80,16 @@ fn demo_network_roaming_snapshot() -> NetworkRoamingSnapshot {
 
 impl AppState {
     fn apply_pac(&mut self) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         let Some(runtime) = self.runtime.runtime.clone() else {
-            return self.runtime_unavailable("应用 PAC 本地服务");
+            return self.runtime_unavailable(Lang(&copy_locale).tr("runtime_action_pac").as_ref());
         };
         let Some(service) = runtime.pac_service_port() else {
-            let error = InfiltratorError::Internal("当前宿主未提供 PAC 本地服务能力".to_owned());
+            let error = InfiltratorError::Internal(
+                Lang(&copy_locale)
+                    .tr("pac_service_unavailable")
+                    .into_owned(),
+            );
             self.set_error(&error);
             return Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error));
         };
@@ -86,7 +99,7 @@ impl AppState {
             bypass_lan: true,
             minify: false,
         };
-        let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+        let gateway: Arc<dyn RuntimeGateway> = runtime;
         Task::perform(
             async move {
                 PacApplication::new(gateway, service)
@@ -99,9 +112,9 @@ impl AppState {
     }
 
     fn apply_demo_pac(&mut self) -> Task<Message> {
-        let config = infiltrator_domain::pac_generator::PacGenerator::new("PROXY 127.0.0.1:7890");
-        let script = config.compile_pac_script(&self.editor.rules);
-        if infiltrator_domain::pac_generator::validate_pac_script(&script).is_ok() {
+        let config = PacGenerator::new("PROXY 127.0.0.1:7890");
+        let script = config.compile_pac_script(&self.editor.rule_list.draft);
+        if validate_pac_script(&script).is_ok() {
             self.runtime.pac_manager.last_compile_status = Some("Valid PAC compiled".into());
             Task::done(Message::ShowToast(
                 "PAC script compiled successfully".into(),
@@ -133,6 +146,7 @@ impl AppState {
     }
 
     fn apply_vpn(&mut self, start: bool) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         if self.shell.demo {
             let snapshot = VpnSessionSnapshot::unsupported(
                 self.runtime.vpn.revision.saturating_add(1),
@@ -141,15 +155,19 @@ impl AppState {
             return Task::done(Message::VpnSessionUpdated(Ok(snapshot)));
         }
         let Some(runtime) = self.runtime.runtime.clone() else {
-            return self.runtime_unavailable(if start {
-                "申请 Android VPN 服务"
+            let operation = Lang(&copy_locale).tr(if start {
+                "runtime_action_vpn_start"
             } else {
-                "停止 Android VPN 服务"
+                "runtime_action_vpn_stop"
             });
+            return self.runtime_unavailable(operation.as_ref());
         };
         let Some(port) = runtime.vpn_service_port() else {
-            let error =
-                InfiltratorError::Internal("当前宿主未提供 Android VpnService 能力".to_owned());
+            let error = InfiltratorError::Internal(
+                Lang(&copy_locale)
+                    .tr("vpn_service_unavailable")
+                    .into_owned(),
+            );
             return Task::done(Message::VpnSessionUpdated(Err(error)));
         };
         let application = VpnServiceApplication::new(port);
@@ -172,6 +190,7 @@ impl AppState {
     }
 
     pub(super) fn update_ui_wave4(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::PollNetworkInterfaces => {
                 if self.shell.demo {
@@ -180,17 +199,23 @@ impl AppState {
                     return Task::done(Message::NetworkInterfacesPolled(snapshot));
                 }
                 let Some(runtime) = self.runtime.runtime.clone() else {
-                    return self.runtime_unavailable("探测物理网卡与默认网关");
+                    return self.runtime_unavailable(
+                        Lang(&copy_locale)
+                            .tr("runtime_action_network_probe")
+                            .as_ref(),
+                    );
                 };
                 let Some(port) = runtime.network_roaming_port() else {
                     let snapshot = NetworkRoamingSnapshot::unsupported(
                         self.runtime.network_roaming.revision.saturating_add(1),
-                        "当前宿主未提供物理网卡漫游能力",
+                        Lang(&copy_locale)
+                            .tr("network_roaming_unavailable")
+                            .as_ref(),
                     );
                     return Task::done(Message::NetworkInterfacesPolled(snapshot));
                 };
                 let baseline = self.runtime.network_roaming.clone();
-                let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+                let gateway: Arc<dyn RuntimeGateway> = runtime;
                 Task::perform(
                     async move {
                         NetworkRoamingApplication::new(port, Some(gateway))
@@ -221,14 +246,21 @@ impl AppState {
                     return Task::done(Message::NetworkRoamingRepaired(Ok(snapshot)));
                 }
                 let Some(runtime) = self.runtime.runtime.clone() else {
-                    return self.runtime_unavailable("修复 TUN 默认网关路由");
+                    return self.runtime_unavailable(
+                        Lang(&copy_locale)
+                            .tr("runtime_action_gateway_repair")
+                            .as_ref(),
+                    );
                 };
                 let Some(port) = runtime.network_roaming_port() else {
-                    let error =
-                        InfiltratorError::Internal("当前宿主未提供网卡漫游路由修复能力".to_owned());
+                    let error = InfiltratorError::Internal(
+                        Lang(&copy_locale)
+                            .tr("network_route_repair_unavailable")
+                            .into_owned(),
+                    );
                     return Task::done(Message::NetworkRoamingRepaired(Err(error)));
                 };
-                let gateway: std::sync::Arc<dyn RuntimeGateway> = runtime;
+                let gateway: Arc<dyn RuntimeGateway> = runtime;
                 Task::perform(
                     async move {
                         NetworkRoamingApplication::new(port, Some(gateway))
@@ -256,25 +288,34 @@ impl AppState {
                 let state = snapshot.state.clone();
                 self.runtime.vpn = snapshot;
                 let (message, status) = match state {
-                    VpnSessionState::PermissionRequired => {
-                        ("等待 Android VPN 用户授权".to_owned(), ToastStatus::Info)
-                    }
+                    VpnSessionState::PermissionRequired => (
+                        Lang(&copy_locale).tr("vpn_waiting_permission").into_owned(),
+                        ToastStatus::Info,
+                    ),
                     VpnSessionState::Starting => (
-                        "Android VPN 前台服务已启动，等待隧道 FD".to_owned(),
+                        Lang(&copy_locale).tr("vpn_service_starting").into_owned(),
                         ToastStatus::Info,
                     ),
                     VpnSessionState::Running => (
-                        "Android VPN 隧道已启动并完成前台 readback".to_owned(),
+                        Lang(&copy_locale).tr("vpn_running_verified").into_owned(),
                         ToastStatus::Success,
                     ),
-                    VpnSessionState::Stopped | VpnSessionState::Revoked => {
-                        ("Android VPN 已停止".to_owned(), ToastStatus::Info)
-                    }
-                    VpnSessionState::Unsupported { reason } => (
-                        format!("当前宿主不支持 Android VPN: {reason}"),
+                    VpnSessionState::Stopped | VpnSessionState::Revoked => (
+                        Lang(&copy_locale).tr("vpn_stopped_notice").into_owned(),
                         ToastStatus::Info,
                     ),
-                    _ => ("Android VPN 状态已更新".to_owned(), ToastStatus::Info),
+                    VpnSessionState::Unsupported { reason } => (
+                        localize(
+                            &copy_locale,
+                            "vpn_unsupported_reason",
+                            &[("reason", reason)],
+                        ),
+                        ToastStatus::Info,
+                    ),
+                    _ => (
+                        Lang(&copy_locale).tr("vpn_status_updated").into_owned(),
+                        ToastStatus::Info,
+                    ),
                 };
                 Task::done(Message::ShowToast(message, status))
             }
@@ -287,25 +328,25 @@ impl AppState {
                 self.diag.crash_watchdog.last_crash_summary = watchdog
                     .last_error
                     .as_ref()
-                    .map(|failure| crate::utils::sanitize_ui_text(&failure.message))
+                    .map(|failure| sanitize_ui_text(&failure.message))
                     .or_else(|| Some("No crashes detected in current session".into()));
                 self.diag.crash_watchdog.recovery_status = Some(match &watchdog.state {
-                    infiltrator_contract::snapshot::CoreWatchdogState::Idle => {
+                    CoreWatchdogState::Idle => {
                         "Watchdog is monitoring the active core session".into()
                     }
-                    infiltrator_contract::snapshot::CoreWatchdogState::Waiting {
+                    CoreWatchdogState::Waiting {
                         attempt,
                         retry_in_ms,
                     } => format!(
                         "Automatic restart attempt {attempt} is scheduled in {retry_in_ms} ms"
                     ),
-                    infiltrator_contract::snapshot::CoreWatchdogState::Restarting { attempt } => {
+                    CoreWatchdogState::Restarting { attempt } => {
                         format!("Automatic restart attempt {attempt} is in progress")
                     }
-                    infiltrator_contract::snapshot::CoreWatchdogState::Recovered { attempts } => {
+                    CoreWatchdogState::Recovered { attempts } => {
                         format!("Core recovered after {attempts} restart attempt(s)")
                     }
-                    infiltrator_contract::snapshot::CoreWatchdogState::Tripped { attempts } => {
+                    CoreWatchdogState::Tripped { attempts } => {
                         format!(
                             "Automatic recovery is suspended after {attempts} failed attempt(s)"
                         )
@@ -325,7 +366,7 @@ impl AppState {
                 let path = "/tmp/infiltrator_crash_diagnostics.json".to_string();
                 let payload = serde_json::to_string_pretty(&self.diag.crash_watchdog.shared)
                     .unwrap_or_else(|_| "{}".to_string());
-                let _ = std::fs::write(&path, payload);
+                let _ = write(&path, payload);
                 self.diag.crash_watchdog.exported_log_path = Some(path.clone());
                 Task::done(Message::ShowToast(
                     format!("Exported diagnostics: {path}"),
@@ -351,36 +392,27 @@ impl AppState {
                 ))
             }
             Message::UpdateLogRegexFilter(q) => {
+                self.diag.log_search.edit_query(&q);
                 self.diag.log_filter.regex_query = q;
                 Task::none()
             }
             Message::SetLogLevelFilter(lvl) => {
-                self.diag.log_filter.level_filter = lvl;
-                Task::none()
-            }
-            Message::ExportRedactedLogs => {
-                let path = "/tmp/infiltrator_redacted_logs.log".to_string();
-                let mut out = String::new();
-                for line in &self.diag.logs {
-                    out.push_str(&crate::utils::sanitize_ui_text(line));
-                    out.push('\n');
+                if let Some(application) = self.commands.clone() {
+                    let generation = self.runtime.core_lifecycle.generation;
+                    let level = (!lvl.trim().is_empty()).then_some(lvl);
+                    return Task::perform(
+                        async move {
+                            application
+                                .execute(CommandIntent::SetLogLevelFilter { level })
+                                .await
+                                .into_unit()
+                                .map(|_| ())
+                        },
+                        move |result| Message::LogsCommandFinished { generation, result },
+                    );
                 }
-                let _ = std::fs::write(&path, out);
-                self.diag.log_filter.exported_redacted_path = Some(path.clone());
-                Task::done(Message::ShowToast(
-                    format!("Redacted logs exported to {path}"),
-                    ToastStatus::Success,
-                ))
-            }
-            Message::EvaluateSubscriptionQuota => {
-                self.profile.quota_schedule.used_bytes = 1024 * 1024 * 1024 * 45;
-                self.profile.quota_schedule.total_bytes = 1024 * 1024 * 1024 * 100;
-                self.profile.quota_schedule.remaining_percent = 55.0;
-                self.profile.quota_schedule.warning_tier = "Normal".into();
-                Task::none()
-            }
-            Message::UpdateCronScheduleHours(h) => {
-                self.profile.quota_schedule.cron_interval_hours = h;
+
+                self.diag.log_filter.level_filter = lvl;
                 Task::none()
             }
             Message::UpdatePacBypassSubnets(subnets) => {
@@ -414,7 +446,7 @@ impl AppState {
                 self.runtime.pac_manager.last_compile_status =
                     Some("PAC script compiled and service state read back".to_owned());
                 Task::done(Message::ShowToast(
-                    "PAC 脚本已生成，本地服务状态已回读".to_owned(),
+                    Lang(&copy_locale).tr("pac_service_verified").into_owned(),
                     ToastStatus::Success,
                 ))
             }

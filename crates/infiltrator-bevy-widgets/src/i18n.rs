@@ -1,7 +1,8 @@
 //! Internationalization, locale formatting, and RTL mirroring support.
 
 use bevy::ecs::resource::Resource;
-use std::collections::HashMap;
+use infiltrator_shared::locales::{Lang, Localizer};
+use std::borrow::Cow;
 
 /// Standard supported locales.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
@@ -58,55 +59,49 @@ pub enum LocaleKey {
 }
 
 impl LocaleKey {
-    pub fn fallback_str(&self) -> &'static str {
+    pub const fn key(self) -> &'static str {
         match self {
-            LocaleKey::Overview => "核心概览",
-            LocaleKey::Proxies => "节点策略",
-            LocaleKey::Profiles => "配置订阅",
-            LocaleKey::Rules => "分流规则",
-            LocaleKey::Dns => "DNS 拓扑",
-            LocaleKey::Connections => "连接审计",
-            LocaleKey::Logs => "运行日志",
-            LocaleKey::Doctor => "智能体检",
-            LocaleKey::Settings => "系统设置",
-            LocaleKey::Sync => "数据同步",
-            LocaleKey::AppRouting => "应用分流",
-            LocaleKey::ModeRule => "规则模式",
-            LocaleKey::ModeGlobal => "全局模式",
-            LocaleKey::ModeDirect => "直连模式",
-            LocaleKey::StatusRunning => "运行中",
-            LocaleKey::StatusStopped => "已停止",
-            LocaleKey::StatusUnavailable => "不可用",
-            LocaleKey::ActionSave => "保存",
-            LocaleKey::ActionCancel => "取消",
-            LocaleKey::ActionDelete => "删除",
-            LocaleKey::ActionConfirm => "确认",
-            LocaleKey::ActionUpdate => "更新",
+            Self::Overview => "nav_overview",
+            Self::Proxies => "nav_proxies",
+            Self::Profiles => "nav_profiles",
+            Self::Rules => "nav_rules",
+            Self::Dns => "nav_dns",
+            Self::Connections => "nav_connections",
+            Self::Logs => "nav_logs",
+            Self::Doctor => "nav_doctor",
+            Self::Settings => "nav_settings",
+            Self::Sync => "nav_sync",
+            Self::AppRouting => "nav_app_routing",
+            Self::ModeRule => "mode_rule",
+            Self::ModeGlobal => "mode_global",
+            Self::ModeDirect => "mode_direct",
+            Self::StatusRunning => "status_running",
+            Self::StatusStopped => "status_stopped",
+            Self::StatusUnavailable => "common_unavailable",
+            Self::ActionSave => "btn_save",
+            Self::ActionCancel => "btn_cancel",
+            Self::ActionDelete => "delete",
+            Self::ActionConfirm => "common_confirm",
+            Self::ActionUpdate => "btn_update",
         }
     }
 }
 
-/// Global translation repository resource.
+/// Locale adapter over the sole shared resource catalogue; no widget-owned copy table.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct TranslationRepo {
     pub current_locale: Locale,
-    pub strings: HashMap<(Locale, LocaleKey), String>,
 }
 
 impl TranslationRepo {
     pub fn new(locale: Locale) -> Self {
         Self {
             current_locale: locale,
-            strings: HashMap::new(),
         }
     }
 
-    pub fn translate(&self, key: LocaleKey) -> &str {
-        if let Some(s) = self.strings.get(&(self.current_locale, key)) {
-            s.as_str()
-        } else {
-            key.fallback_str()
-        }
+    pub fn translate(&self, key: LocaleKey) -> Cow<'static, str> {
+        Lang(self.current_locale.code()).tr(key.key())
     }
 }
 

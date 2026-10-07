@@ -2,9 +2,15 @@
 
 任何共享功能必须按一个 `DUAL-组号-项号` 交付。这个模板是完成定义，不是建议清单。
 
+交付必须同时满足 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 的 L1/L2/L3。登记 `FeatureId`、两端精确 nextest ID、适用状态机分支和标准/紧凑像素回执；只拥有 headless 测试或源码名称不能关闭条目。
+
 ## 功能登记
 
 - ID：`DUAL-__-__`
+- 场景身份：`FeatureId` / Token
+- 两端 `feature_evidence.tsv` 精确测试 ID：
+- 成功 / 取消 / 关闭 / 错误 / 重试 / 空态 / typed 不支持分支：
+- 两端 1180×780 与 720×480 新鲜像素回执：
 - 用户意图：
 - Mihomo 配置/API 边界：
 - `shared/application` owner：

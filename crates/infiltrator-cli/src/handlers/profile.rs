@@ -1,9 +1,12 @@
 use anyhow::anyhow;
-use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
+#[cfg(test)]
+use std::path;
 
 use crate::commands::{ConfigsDirAction, ProfileAction};
 use crate::context::Runtime;
-use crate::output::{self, print_info, print_success, print_table};
+use crate::output;
+use crate::output::{print_info, print_success, print_table};
 
 pub(crate) async fn handle(action: ProfileAction) -> anyhow::Result<()> {
     let runtime = Runtime::detect().await?;
@@ -102,7 +105,7 @@ async fn show(runtime: &Runtime, name: Option<String>) -> anyhow::Result<()> {
 /// Import a subscription into a new profile through the shared application
 /// use-case and the host HTTP adapter.
 async fn import(runtime: &Runtime, name: &str, url: &str) -> anyhow::Result<()> {
-    let profile_name = infiltrator_domain::profiles::sanitize_profile_name(name)?;
+    let profile_name = sanitize_profile_name(name)?;
     let source = runtime.subscription_source();
     runtime
         .profile_application()?
@@ -152,7 +155,7 @@ fn validate_override(path: &str) -> anyhow::Result<()> {
 /// offline settings tests.
 #[cfg(test)]
 pub(crate) async fn apply_configs_dir_override(
-    home: &std::path::Path,
+    home: &path::Path,
     override_dir: Option<String>,
 ) -> anyhow::Result<()> {
     let runtime = Runtime::with_home(home.to_path_buf()).await?;

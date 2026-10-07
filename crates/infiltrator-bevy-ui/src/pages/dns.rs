@@ -3,61 +3,79 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`DnsLine`],
 //! [`DnsServerAddress`], [`DnsServerProto`], [`DnsServerLatency`],
-//! [`DnsSwitchTrack`], [`DnsBorder`], [`DnsSwitchKnob`]). The page
-//! self-registers [`apply_dns_projection`] and action observers once per world
-//! via [`DnsPageRoot`]. When [`DnsProjectionUpdated`] fires, texts, latency
+//! [`DnsSwitchTrack`], [`DnsBorder`], [`DnsSwitchKnob`]). [`DnsPagePlugin`]
+//! registers [`apply_dns_projection`] and action observers once at product
+//! assembly. When [`DnsProjectionUpdated`] fires, texts, latency
 //! inks, switches and segmented pills restamp in place without tree rebuilds.
 
+#[path = "dns_query_access.rs"]
+pub mod query_access;
+use self::query_access::{DnsActionControls, DnsProjectionTargets};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::dns_edit::{
+    DnsFormState, apply_dns_edit_projection, dns_edit_card_scene, on_dns_edit_activated,
+};
+use crate::pages::dns_fakeip::dns_fakeip_pool_card_scene;
+use crate::pages::dns_form::dns_form_card_scene;
+use crate::pages::dns_hosts::dns_hosts_card_scene;
+use crate::pages::dns_leak::{dns_leak_card_scene, tone_color};
+use crate::pages::dns_query::QueryAction;
+use crate::pages::dns_query_scene::query_button;
+use crate::pages::dns_self_heal::{dns_self_heal_card_scene, observation_color};
+use crate::pages::dns_servers::{server_row_scene, servers_card_scene};
+use crate::pages::dns_stun::dns_stun_card_scene;
+use crate::pages::proxies::latency_color;
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
+use bevy::ecs::system::{Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
     UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_application::dns_health_projection::project_dns_health;
+use infiltrator_application::dns_latency_projection::{project_dns_latency, server_tags_text};
+use infiltrator_application::dns_leak_projection::project_leak;
+use infiltrator_application::dns_status_projection::{
+    filter_key, flush_summary, heading, mode_key,
+};
+use infiltrator_application::latency_projection::project_measured_latency;
+use infiltrator_application::stun_projection::project_stun;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::dns::{
-    DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsHostEntry,
-    DnsServerTag, DnsSettingsPatch, DnsSwitchField, FakeIpMappingPool,
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag, DnsSettingsPatch,
+    DnsSwitchField, FakeIpMappingPool,
 };
+use infiltrator_contract::dns_cache::DnsCacheFlushReport;
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_contract::dns_hosts::{DnsHostEntry, DnsHostsProfile};
 use infiltrator_contract::dns_latency::DnsLatencyReport;
 use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::dns_servers::{
-    DnsServerAddress, DnsServerLatency, DnsServerProto, server_row_scene, server_tags_text,
-    servers_card_scene,
-};
-use crate::pages::proxies::{format_latency, latency_color};
-use crate::route::{PageRoot, Route};
+use infiltrator_contract::stun_probe::StunProbeReport;
+use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Root marker on the DNS page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_dns_page)]
 pub struct DnsPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct DnsPageBound;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -91,6 +109,7 @@ pub enum DnsLineKind {
     LatencyResults,
     /// DUAL-14-08: the shared cross-source DNS leak conclusion headline.
     LeakConclusion,
+    LeakSources,
     /// DUAL-14-08: the shared cross-source DNS leak observation listing.
     Leak,
     /// DUAL-14-09 (re-scoped): the STUN UDP-egress conclusion headline.
@@ -99,8 +118,7 @@ pub enum DnsLineKind {
     Stun,
     /// DUAL-14-13: the shared DNS self-heal observation.
     SelfHeal,
-    /// DUAL-14-11: the applied `dns.hosts` row count.
-    HostsSummary,
+    SelfHealOverall,
 }
 
 /// Marker for the "Clear DNS Cache" button.
@@ -113,6 +131,7 @@ pub struct TestDnsLatencyButton;
 
 /// DUAL-14-08: marker for the cross-source DNS leak probe button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[require(Button, ButtonDisabled)]
 pub struct TestDnsLeakButton;
 
 /// DUAL-14-09 (re-scoped): marker for the STUN UDP-egress probe button.
@@ -186,7 +205,7 @@ pub struct DnsProjection {
     pub leak: DnsLeakReport,
     /// DUAL-14-09 (re-scoped): the last real STUN UDP-egress probe of this
     /// host, compared against the expected proxied egress.
-    pub stun: infiltrator_contract::stun_probe::StunProbeReport,
+    pub stun: StunProbeReport,
     /// DUAL-14-13: the shared DNS self-heal observation.
     pub self_heal: DnsSelfHealSnapshot,
     /// DUAL-14-11: the configured `dns.hosts` rows.
@@ -196,7 +215,10 @@ pub struct DnsProjection {
 impl DnsProjection {
     /// Project the shared DNS page read model into the Bevy render values.
     pub fn from_snapshot(
-        snapshot: &infiltrator_contract::surface_snapshot::DnsPageSnapshot,
+        snapshot: &DnsPageSnapshot,
+        leak: &DnsLeakReport,
+        hosts: Option<&DnsHostsProfile>,
+        cache: &DnsCacheFlushReport,
     ) -> Self {
         Self {
             mode: snapshot.enhanced_mode,
@@ -216,13 +238,13 @@ impl DnsProjection {
                 })
                 .collect(),
             form: DnsWorkbenchForm::from_snapshot(snapshot),
-            cache_flush: snapshot.cache_flush.clone(),
+            cache_flush: cache.clone(),
             fake_ip_pool: snapshot.fake_ip_pool.clone(),
             latency: snapshot.latency.clone(),
-            leak: snapshot.leak.clone(),
+            leak: leak.clone(),
             stun: snapshot.stun.clone(),
             self_heal: snapshot.self_heal.clone(),
-            hosts: snapshot.hosts.clone(),
+            hosts: hosts.map(|hosts| hosts.entries.clone()).unwrap_or_default(),
         }
     }
 }
@@ -235,56 +257,23 @@ pub struct DnsProjectionUpdated(pub DnsProjection);
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 pub struct LastDnsProjection(pub Option<DnsProjection>);
 
-pub(crate) fn enhanced_mode_label(mode: DnsEnhancedMode) -> &'static str {
-    match mode {
-        DnsEnhancedMode::FakeIp => "Fake-IP 模式 (增强隐私与速度)",
-        DnsEnhancedMode::RedirHost => "Redir-Host 模式 (真实 IP 解析)",
-        DnsEnhancedMode::Unmapped => "取消映射 (None)",
-    }
+pub(crate) fn enhanced_mode_pill_label(mode: DnsEnhancedMode, code: &str) -> String {
+    Lang(code).tr(mode_key(mode)).into_owned()
 }
-
-pub(crate) fn enhanced_mode_pill_label(mode: DnsEnhancedMode) -> &'static str {
-    match mode {
-        DnsEnhancedMode::FakeIp => "虚拟 IP (Fake-IP)",
-        DnsEnhancedMode::RedirHost => "真实 IP (Redir-Host)",
-        DnsEnhancedMode::Unmapped => "取消映射 (None)",
-    }
+pub(crate) fn filter_mode_label(mode: DnsFakeIpFilterMode, code: &str) -> String {
+    Lang(code).tr(filter_key(mode)).into_owned()
 }
-
-pub(crate) fn filter_mode_label(mode: DnsFakeIpFilterMode) -> &'static str {
-    match mode {
-        DnsFakeIpFilterMode::Blacklist => "黑名单 (Blacklist)",
-        DnsFakeIpFilterMode::Whitelist => "白名单 (Whitelist)",
-        DnsFakeIpFilterMode::Rules => "规则 (Rules)",
-    }
-}
-
-/// Honest cache flush status line (DUAL-14-07).
-pub(crate) fn cache_flush_label(report: &DnsCacheFlushReport) -> String {
-    format!(
-        "Fake-IP 缓存: {} · 系统 DNS 缓存: {}",
-        flush_outcome_label(&report.fake_ip),
-        flush_outcome_label(&report.os_cache)
-    )
-}
-
-fn flush_outcome_label(outcome: &infiltrator_contract::dns::DnsFlushOutcome) -> String {
-    use infiltrator_contract::dns::DnsFlushOutcome;
-    match outcome {
-        DnsFlushOutcome::NotRequested => "尚未执行".to_owned(),
-        DnsFlushOutcome::Flushed => "已清空".to_owned(),
-        DnsFlushOutcome::Unsupported { reason } => format!("宿主不支持 ({reason})"),
-        DnsFlushOutcome::Failed { message } => format!("清理失败 ({message})"),
-    }
+pub(crate) fn cache_flush_label(report: &DnsCacheFlushReport, code: &str) -> String {
+    flush_summary(report, code)
 }
 
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!(
-        "域名解析 · {} (缓存条目: {})",
-        enhanced_mode_label(projection.mode),
-        projection.cache_entries
+    let summary = heading(
+        projection.mode,
+        projection.cache_entries,
+        UiLocale::default().code(),
     );
 
     let server_scenes: Vec<Box<dyn Scene>> = projection
@@ -307,22 +296,25 @@ pub fn dns_page(projection: &DnsProjection, palette: &UiPalette) -> impl Scene +
             }
             PageRoot(Route::Dns)
             DnsPageRoot
+            ScrollArea
             Children [
+                @{ query_button(QueryAction::Open, LocalizedText::plain("dns_query_open"), palette) }
+                --
                 @{ header_card_scene(summary, projection, palette) }
                 --
-                @{ crate::pages::dns_form::dns_form_card_scene(projection, palette) }
+                @{ dns_leak_card_scene(projection, palette) }
                 --
-                @{ crate::pages::dns_edit::dns_edit_card_scene(projection, palette) }
+                @{ dns_form_card_scene(projection, palette) }
                 --
-                @{ crate::pages::dns_hosts::dns_hosts_card_scene(projection, palette) }
+                @{ dns_edit_card_scene(projection, palette) }
                 --
-                @{ crate::pages::dns_fakeip::dns_fakeip_pool_card_scene(projection, palette) }
+                @{ dns_hosts_card_scene(palette) }
                 --
-                @{ crate::pages::dns_leak::dns_leak_card_scene(projection, palette) }
+                @{ dns_fakeip_pool_card_scene(projection, palette) }
                 --
-                @{ crate::pages::dns_stun::dns_stun_card_scene(projection, palette) }
+                @{ dns_stun_card_scene(projection, palette) }
                 --
-                @{ crate::pages::dns_self_heal::dns_self_heal_card_scene(projection, palette) }
+                @{ dns_self_heal_card_scene(projection, palette) }
                 --
                 @{ servers_card_scene(server_scenes, &projection.latency, palette) }
                 --
@@ -337,8 +329,12 @@ fn header_card_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("DNS 解析概览");
-    let flush_label = cache_flush_label(&projection.cache_flush);
+    header_a11y.set_label(
+        Lang(UiLocale::default().code())
+            .tr("dns_overview_label")
+            .into_owned(),
+    );
+    let flush_label = cache_flush_label(&projection.cache_flush, UiLocale::default().code());
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -348,7 +344,7 @@ fn header_card_scene(
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: Val::Px(space::S16),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) LocalizedLabel::plain("dns_overview_label")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -386,21 +382,7 @@ fn header_card_scene(
                             TestDnsLatencyButton
                             Button
                             Children [
-                                Text({ "测速".to_owned() }) TextRole(Role::BodyStrong)
-                            ]
-                            --
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            TestDnsLeakButton
-                            Button
-                            Children [
-                                Text({ "泄漏交叉探测".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("runtime_delay_test_one") TextRole(Role::BodyStrong)
                             ]
                             --
                             Node {
@@ -414,7 +396,7 @@ fn header_card_scene(
                             TestStunProbeButton
                             Button
                             Children [
-                                Text({ "STUN 出网探测".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("dns_stun_egress_action") TextRole(Role::Body)
                             ]
                             --
                             Node {
@@ -428,7 +410,7 @@ fn header_card_scene(
                             ClearDnsCacheButton
                             Button
                             Children [
-                                Text({ "清空 DNS 缓存".to_owned() }) TextRole(Role::Body)
+                                LocalizedText::plain("dns_clear_cache_action") TextRole(Role::Body)
                             ]
                         ]
                     ]
@@ -438,7 +420,11 @@ fn header_card_scene(
 }
 
 fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + use<> {
-    let range_str = format!("分配网段: {fake_ip_range}");
+    let range_str = localize(
+        UiLocale::default().code(),
+        "dns_allocation_range",
+        &[("range", fake_ip_range.into())],
+    );
 
     surface_scene(
         vec![
@@ -448,7 +434,7 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "Fake-IP 高级设置 (Fake-IP Filter & Pool)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("dns_fake_ip_advanced_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -463,7 +449,7 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
                             Children [
                                 Text(range_str) DnsLine(DnsLineKind::FakeIpRange) TextRole(Role::Body)
                                 --
-                                Text({ "过滤域名: *.lan, localhost".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("dns_fake_ip_filter_hint") TextRole(Role::Caption)
                             ]
             }),
         ],
@@ -471,48 +457,41 @@ fn fake_ip_card_scene(fake_ip_range: &str, palette: &UiPalette) -> impl Scene + 
     )
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_dns_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<DnsPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct DnsPagePlugin;
+
+impl Plugin for DnsPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<DnsFormState>();
+        app.add_observer(apply_dns_projection);
+        app.add_observer(on_dns_action_activated);
+        app.add_observer(apply_dns_edit_projection);
+        app.add_observer(on_dns_edit_activated);
     }
-    let mut commands = world.commands();
-    commands.insert_resource(DnsPageBound);
-    commands.add_observer(apply_dns_projection);
-    commands.add_observer(on_dns_action_activated);
-    commands.add_observer(crate::pages::dns_edit::apply_dns_edit_projection);
-    commands.add_observer(crate::pages::dns_edit::on_dns_edit_activated);
-    commands.add_observer(crate::pages::dns_hosts::apply_dns_hosts_projection);
-    commands.add_observer(crate::pages::dns_hosts::on_dns_hosts_activated);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn on_dns_action_activated(
     activate: On<Activate>,
-    clear_buttons: Query<(), With<ClearDnsCacheButton>>,
-    test_buttons: Query<(), With<TestDnsLatencyButton>>,
-    leak_buttons: Query<(), With<TestDnsLeakButton>>,
-    stun_buttons: Query<(), With<TestStunProbeButton>>,
-    switch_buttons: Query<&DnsSwitchButton>,
-    enhanced_pills: Query<&DnsEnhancedModePill>,
-    filter_pills: Query<&DnsFilterModePill>,
     handle: Option<Res<CommandSinkHandle>>,
     last: Option<Res<LastDnsProjection>>,
+    targets: DnsActionControls,
 ) {
+    let DnsActionControls {
+        test_buttons,
+        stun_buttons,
+        switch_buttons,
+        enhanced_pills,
+        filter_pills,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
-    if clear_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::ClearDnsCache);
-        return;
-    }
     if test_buttons.contains(activate.entity) {
         handle.submit(UiCommand::TestDnsLatency);
-        return;
-    }
-    if leak_buttons.contains(activate.entity) {
-        handle.submit(UiCommand::TestDnsLeak);
         return;
     }
     if stun_buttons.contains(activate.entity) {
@@ -553,163 +532,88 @@ pub(crate) fn on_dns_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(crate) fn apply_dns_projection(
     update: On<DnsProjectionUpdated>,
     palette: Res<UiPalette>,
+    locale: Res<UiLocale>,
     mut last: Option<ResMut<LastDnsProjection>>,
-    mut lines: Query<
-        (&mut Text, &mut TextColor, &DnsLine),
-        (
-            With<DnsLine>,
-            Without<DnsServerAddress>,
-            Without<DnsServerProto>,
-            Without<DnsServerLatency>,
-        ),
-    >,
-    mut addresses: Query<
-        (&mut Text, &DnsServerAddress),
-        (
-            With<DnsServerAddress>,
-            Without<DnsLine>,
-            Without<DnsServerProto>,
-            Without<DnsServerLatency>,
-        ),
-    >,
-    mut protocols: Query<
-        (&mut Text, &DnsServerProto),
-        (
-            With<DnsServerProto>,
-            Without<DnsLine>,
-            Without<DnsServerAddress>,
-            Without<DnsServerLatency>,
-        ),
-    >,
-    mut latencies: Query<
-        (&mut Text, &mut TextColor, &DnsServerLatency),
-        (
-            With<DnsServerLatency>,
-            Without<DnsLine>,
-            Without<DnsServerAddress>,
-            Without<DnsServerProto>,
-        ),
-    >,
-    mut switch_tracks: Query<
-        (
-            &mut BackgroundColor,
-            &mut BorderColor,
-            &mut DnsSwitchButton,
-            &DnsSwitchTrack,
-        ),
-        (
-            With<DnsSwitchTrack>,
-            Without<DnsSwitchKnob>,
-            Without<DnsEnhancedModePill>,
-            Without<DnsFilterModePill>,
-        ),
-    >,
-    mut switch_knobs: Query<
-        (&mut BackgroundColor, &mut Node, &DnsSwitchKnob),
-        (
-            With<DnsSwitchKnob>,
-            Without<DnsSwitchTrack>,
-            Without<DnsEnhancedModePill>,
-            Without<DnsFilterModePill>,
-        ),
-    >,
-    mut enhanced_pills: Query<
-        (&mut BackgroundColor, &DnsEnhancedModePill),
-        (
-            With<DnsEnhancedModePill>,
-            Without<DnsSwitchTrack>,
-            Without<DnsSwitchKnob>,
-            Without<DnsFilterModePill>,
-        ),
-    >,
-    mut filter_pills: Query<
-        (&mut BackgroundColor, &DnsFilterModePill),
-        (
-            With<DnsFilterModePill>,
-            Without<DnsSwitchTrack>,
-            Without<DnsSwitchKnob>,
-            Without<DnsEnhancedModePill>,
-        ),
-    >,
+    targets: DnsProjectionTargets,
 ) {
+    let DnsProjectionTargets {
+        mut lines,
+        mut addresses,
+        mut protocols,
+        mut latencies,
+        mut switch_tracks,
+        mut switch_knobs,
+        mut enhanced_pills,
+        mut filter_pills,
+    } = targets;
+
     let projection = &update.0;
 
+    let leak = project_leak(&projection.leak, locale.code());
+    let latency = project_dns_latency(&projection.latency, locale.code());
+    let health = project_dns_health(&projection.self_heal, locale.code());
+    let stun = project_stun(&projection.stun, locale.code());
     for (mut text, mut color, line) in &mut lines {
         match line.0 {
             DnsLineKind::Summary => {
-                text.0 = format!(
-                    "域名解析 · {} (缓存条目: {})",
-                    enhanced_mode_label(projection.mode),
-                    projection.cache_entries
-                );
+                text.0 = heading(projection.mode, projection.cache_entries, locale.code());
             }
             DnsLineKind::FakeIpRange => {
-                text.0 = format!("分配网段: {}", projection.fake_ip_range);
+                text.0 = localize(
+                    locale.code(),
+                    "dns_allocation_range",
+                    &[("range", projection.fake_ip_range.clone())],
+                );
             }
             DnsLineKind::CacheFlush => {
-                text.0 = cache_flush_label(&projection.cache_flush);
+                text.0 = cache_flush_label(&projection.cache_flush, locale.code());
             }
-            DnsLineKind::FakeIpMapping => {
-                text.0 =
-                    crate::pages::dns_fakeip::fake_ip_mapping_listing(&projection.fake_ip_pool, "");
-            }
-            DnsLineKind::FakeIpMappingCount => {
-                text.0 =
-                    crate::pages::dns_fakeip::fake_ip_mapping_count(&projection.fake_ip_pool, "");
-            }
+            // The filter system owns these texts, preserving the current input.
+            DnsLineKind::FakeIpMapping | DnsLineKind::FakeIpMappingCount => {}
             DnsLineKind::LatencyPolicy => {
-                text.0 = crate::pages::dns_fakeip::latency_policy_label(&projection.latency);
-                color.0 = match &projection.latency.status {
-                    infiltrator_contract::dns_latency::DnsLatencyStatus::Ready => palette.success,
-                    infiltrator_contract::dns_latency::DnsLatencyStatus::Unsupported { .. } => {
-                        palette.ink_dim
-                    }
-                };
+                text.0 = latency.summary.clone();
+                color.0 = observation_color(latency.tone, &palette);
             }
             DnsLineKind::LatencyResults => {
-                text.0 = crate::pages::dns_fakeip::latency_result_listing(&projection.latency);
+                text.0 = latency.listing();
             }
             DnsLineKind::LeakConclusion => {
-                text.0 = crate::pages::dns_leak::leak_conclusion_label(&projection.leak);
-                color.0 = crate::pages::dns_leak::leak_conclusion_color(&projection.leak, &palette);
+                text.0 = leak.conclusion.clone();
+                color.0 = tone_color(leak.tone, &palette);
             }
             DnsLineKind::Leak => {
-                text.0 = crate::pages::dns_leak::leak_observation_listing(&projection.leak);
+                text.0 = leak.listing();
+            }
+            DnsLineKind::LeakSources => {
+                text.0 = leak.sources.clone();
             }
             DnsLineKind::StunConclusion => {
-                text.0 = crate::pages::dns_stun::stun_conclusion_label(&projection.stun);
-                color.0 = crate::pages::dns_stun::stun_conclusion_color(&projection.stun, &palette);
+                text.0 = stun.status.clone();
+                color.0 = observation_color(stun.tone, &palette);
             }
             DnsLineKind::Stun => {
-                text.0 = crate::pages::dns_stun::stun_mapping_listing(&projection.stun);
+                text.0 = stun.listing();
             }
             DnsLineKind::SelfHeal => {
-                text.0 = crate::pages::dns_fakeip::self_heal_listing(&projection.self_heal);
-                color.0 = match projection.self_heal.overall_state() {
-                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Healthy => {
-                        palette.success
-                    }
-                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Warning => {
-                        palette.warning
-                    }
-                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Critical => {
-                        palette.danger
-                    }
-                    infiltrator_contract::dns_self_heal::DnsSelfHealState::Unknown => {
-                        palette.ink_dim
-                    }
-                };
+                text.0 = health.listing();
+                color.0 = observation_color(health.tone, &palette);
             }
-            DnsLineKind::HostsSummary => {
-                text.0 = crate::pages::dns_hosts::hosts_summary_label(&projection.hosts);
+            DnsLineKind::SelfHealOverall => {
+                text.0 = health.overall.clone();
+                color.0 = observation_color(health.tone, &palette);
             }
             DnsLineKind::SwitchStatus(field) => {
                 let enabled = projection.switches.value(field);
-                text.0 = if enabled { "已开启" } else { "已关闭" }.to_owned();
+                text.0 = Lang(locale.code())
+                    .tr(if enabled {
+                        "dns_switch_enabled"
+                    } else {
+                        "dns_switch_disabled"
+                    })
+                    .into_owned();
                 color.0 = if enabled {
                     palette.success
                 } else {
@@ -718,11 +622,11 @@ pub(crate) fn apply_dns_projection(
             }
             DnsLineKind::ServerTags(idx) => {
                 if let Some(server) = projection.servers.get(idx) {
-                    text.0 = server_tags_text(&server.tags);
+                    text.0 = server_tags_text(&server.tags, locale.code());
                 }
             }
             DnsLineKind::EnhancedModeLabel(mode) => {
-                text.0 = enhanced_mode_pill_label(mode).to_owned();
+                text.0 = enhanced_mode_pill_label(mode, locale.code());
                 color.0 = if mode == projection.mode {
                     palette.on_accent
                 } else {
@@ -730,7 +634,7 @@ pub(crate) fn apply_dns_projection(
                 };
             }
             DnsLineKind::FilterModeLabel(mode) => {
-                text.0 = filter_mode_label(mode).to_owned();
+                text.0 = filter_mode_label(mode, locale.code());
                 color.0 = if mode == projection.filter_mode {
                     palette.on_accent
                 } else {
@@ -757,11 +661,12 @@ pub(crate) fn apply_dns_projection(
         }
     }
 
-    for (mut text, mut color, marker) in &mut latencies {
+    for (mut text, mut color, marker, mut copy) in &mut latencies {
         if let Some(server) = projection.servers.get(marker.0) {
-            let (str_val, tier) = format_latency(server.latency_ms);
-            text.0 = str_val;
-            color.0 = latency_color(tier, &palette);
+            let latency = project_measured_latency(server.latency_ms);
+            *copy = LocalizedText::new(latency.key, latency.params);
+            text.0 = copy.render(&locale);
+            color.0 = latency_color(latency.band, &palette);
         }
     }
 

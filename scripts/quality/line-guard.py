@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Source line-budget guard for MusicFrog Rust business code.
+"""Line-budget guard for every MusicFrog Rust source and test file.
 
-Rule: one `.rs` business file carries at most `--budget` (default 800)
+Rule: one `.rs` file carries at most 800 (or a stricter `--budget`)
 non-comment, non-blank lines. Comment lines (`//`, including `///` and
 `//!`) and block comments (`/* ... */`) are free, as are blank lines —
 a file that explains itself is never penalized for its comments.
 
-Scanned roots are the Rust source trees of the workspace (`crates/*/src`).
-Dedicated test trees (`tests/` directories) are
-excluded: test size is governed by review, not by this budget, and test
-layout is enforced by `test-layout-guard.py`.
+Production, integration tests, path-mounted tests and examples share the same
+budget. There is no test exemption. Source-text include! concatenation is banned.
 
 Usage:
     python3 scripts/quality/line-guard.py [--mode report|enforce] [--budget N]
@@ -24,6 +22,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+from rust_syntax import mask_comments
 
 DEFAULT_BUDGET = 800
 
@@ -31,58 +30,19 @@ SCAN_ROOTS = ("crates",)
 
 
 def non_comment_lines(text: str) -> int:
-    """Count non-comment, non-blank lines with a small block-comment scanner.
-
-    Line comments run from `//` to end of line; block comments span from
-    `/*` to the matching `*/` and nest is NOT supported (matching rustc's
-    actual behavior would need nesting — kept simple because the codebase
-    does not use nested block comments; both forms inside string literals
-    are counted as code, the accepted false-positive cost of a scanner that
-    does not tokenize Rust).
-    """
-    count = 0
-    in_block = False
-    for raw in text.splitlines():
-        stripped = raw.strip()
-        if in_block:
-            if "*/" in stripped:
-                in_block = False
-            continue
-        if not stripped:
-            continue
-        if stripped.startswith("//"):
-            continue
-        if stripped.startswith("/*"):
-            if "*/" in stripped:
-                # `/* c */ code` — the trailing code after the closed block
-                # still counts. A trailing `/*` opened after code on the same
-                # line is not tracked (no tokenizing); the codebase does not
-                # use that shape.
-                if stripped.split("*/", 1)[1].strip():
-                    count += 1
-            else:
-                in_block = True
-            continue
-        count += 1
-    return count
+    """Count code and literal lines; tokenize nested comments without hiding code."""
+    return sum(bool(line.strip()) for line in mask_comments(text).splitlines())
 
 
 def rs_business_files(repo_root: pathlib.Path) -> list[pathlib.Path]:
-    """Every `.rs` business file under the scan roots.
-
-    Excluded: dedicated test trees (`tests/` directories) and test modules
-    mounted into `src/` by the repo's `#[path]` convention (filenames
-    `*_test.rs` / `*_tests.rs`) — those are test code, not business code.
-    """
+    """Every checked-in or new Rust file; only build outputs are excluded."""
     files: list[pathlib.Path] = []
     for root in SCAN_ROOTS:
         base = repo_root / root
         if not base.is_dir():
             continue
         for path in base.rglob("*.rs"):
-            if "target" in path.parts or "tests" in path.parts:
-                continue
-            if path.stem.endswith(("_test", "_tests")):
+            if "target" in path.parts:
                 continue
             files.append(path)
     return sorted(files)
@@ -109,10 +69,10 @@ def self_test() -> int:
     assert non_comment_lines("/* block\n still block */\nlet a = 1;") == 1
     assert non_comment_lines("/* one-line */ let a = 1;") == 1
     assert non_comment_lines("/* whole line is a comment */") == 0
-    # Documented limitation: a `/*` opened after code on the same line is
-    # not tracked, so its continuation lines count as code (over-counts,
-    # i.e. fails safe for a size guard).
-    assert non_comment_lines("let a = 1; /* trailing open\nstill block */") == 2
+    assert non_comment_lines("let a = 1; /* trailing open\nstill block */") == 1
+    assert non_comment_lines("/* start\n*/ let a = 1;") == 1
+    assert non_comment_lines("/* outer /* inner */\nouter */ let a = 1;") == 1
+    assert non_comment_lines('let s = r#"/* data\n// data */"#;') == 2
     assert non_comment_lines("let url = \"https://not-a-comment\";") == 1
     assert non_comment_lines("let s = \"// not a comment\";") == 1
     print("self-test OK")
@@ -125,6 +85,8 @@ def main() -> int:
     parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
+    if not 0 < args.budget <= DEFAULT_BUDGET:
+        parser.error(f"budget must be between 1 and {DEFAULT_BUDGET}; raising the repository ceiling is forbidden")
 
     if args.self_test:
         return self_test()

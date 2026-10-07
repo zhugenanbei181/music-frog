@@ -2,15 +2,21 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::capability::Capability;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::speedtest::EgressCountryMatch;
 use infiltrator_domain::proxy::{ProxyBase, ProxyGroup, Shadowsocks, Vmess};
 use infiltrator_domain::runtime::{
-    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider,
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
 };
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::runtime_gateway::RuntimeStream;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::thread::sleep;
+use std::time;
 
 type DelayFn = dyn Fn(&str, &str, u32) -> Result<u32, PortError> + Send + Sync;
 
@@ -50,10 +56,7 @@ impl RuntimeGateway for TestGateway {
     async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
         Ok(())
     }
-    async fn set_proxy_mode(
-        &self,
-        _mode: infiltrator_contract::command::ProxyMode,
-    ) -> Result<(), PortError> {
+    async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
         Ok(())
     }
     async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
@@ -112,33 +115,21 @@ impl RuntimeGateway for TestGateway {
     async fn stream_logs(
         &self,
         _level: Option<String>,
-    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+    ) -> Result<RuntimeStream<String>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "not supported",
         ))
     }
-    async fn stream_traffic(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
-        PortError,
-    > {
+    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "not supported",
         ))
     }
-    async fn stream_connections(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<
-            infiltrator_domain::runtime::ConnectionSnapshot,
-        >,
-        PortError,
-    > {
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::CoreLifecycle,
+            Capability::CoreLifecycle,
             "not supported",
         ))
     }
@@ -250,7 +241,7 @@ async fn test_concurrency_limiting_semaphore_30() {
 
     let gateway = Arc::new(
         TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-            std::thread::sleep(std::time::Duration::from_millis(15));
+            sleep(time::Duration::from_millis(15));
             Ok(50)
         }),
     );
@@ -286,7 +277,7 @@ async fn test_runtime_set_concurrency_updates_config_and_effective_bound() {
 
     let gateway = Arc::new(
         TestGateway::new(map).with_delay_fn(|_name, _url, _timeout| {
-            std::thread::sleep(std::time::Duration::from_millis(15));
+            sleep(time::Duration::from_millis(15));
             Ok(50)
         }),
     );
@@ -316,7 +307,7 @@ async fn test_runtime_set_concurrency_updates_config_and_effective_bound() {
 #[tokio::test]
 async fn test_dynamic_custom_url_and_timeout_propagation() {
     let observed_url = Arc::new(Mutex::new(String::new()));
-    let observed_timeout = Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let observed_timeout = Arc::new(AtomicU32::new(0));
 
     let u_clone = Arc::clone(&observed_url);
     let t_clone = Arc::clone(&observed_timeout);
@@ -426,7 +417,7 @@ async fn test_history_caching_last_3_runs() {
 
     let history = app.get_history();
     assert_eq!(history.len(), 3);
-    assert_eq!(history[0].target_url, DEFAULT_DELAY_TEST_URL);
+    assert_eq!(history[0].target_url, DEFAULT_PROBE_URL);
 }
 
 #[tokio::test]
@@ -483,10 +474,7 @@ async fn test_record_outbound_ip_populates_and_compares_label_country() {
     let err = app
         .record_outbound_ip("HK-Node-1", "   ", Some("HK"))
         .expect_err("empty ip rejected");
-    assert_eq!(
-        err.code,
-        infiltrator_contract::error::ErrorCode::InvalidInput
-    );
+    assert_eq!(err.code, ErrorCode::InvalidInput);
 
     // A probe with no geolocation is honest `Unlabelled`, never a guessed CC.
     app.record_outbound_ip("HK-Node-1", "1.2.3.4", None)

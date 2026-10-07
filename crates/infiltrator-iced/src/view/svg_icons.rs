@@ -8,11 +8,10 @@
 //! `text` block: Usage in a page view:
 //! `icon(Icon::Search, 16.0, theme::tokens(theme).text_secondary)`.
 
-use std::collections::HashMap;
-use std::sync::LazyLock;
-
 use iced::widget::svg;
 use iced::{Color, Element};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 /// Every icon available in the set. Variants map 1:1 to
 /// `assets/icons/<kebab-case>.svg`.

@@ -14,11 +14,10 @@
 //! renders with the cosmic-text system fallback — a degradation, never a
 //! panic.
 
+use crate::text::Role;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::resource::Resource;
 use bevy::text::Font;
-
-use crate::text::Role;
 
 /// Inter SemiBold — headings.
 const HEADING_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");

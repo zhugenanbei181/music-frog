@@ -7,13 +7,17 @@
 use super::{CoreApplication, CoreState};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
-use infiltrator_domain::watchdog::{WatchdogConfig, WatchdogMachine};
+use infiltrator_domain::core_state::CoreEvent;
+use infiltrator_domain::watchdog::{WatchdogConfig, WatchdogDecision, WatchdogMachine};
 use infiltrator_ports::core_watchdog::{CoreWatchdogPort, WatchdogTick};
+use infiltrator_ports::error::PortError;
+use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 #[derive(Default)]
 pub(super) struct WatchdogRuntime {
     pub(super) machine: WatchdogMachine,
-    pub(super) retry_at: Option<std::time::Instant>,
+    pub(super) retry_at: Option<Instant>,
 }
 
 impl CoreApplication {
@@ -69,10 +73,11 @@ impl CoreApplication {
         self.push_event(super::CoreEvent::SnapshotUpdated(snapshot));
     }
 
-    async fn watchdog_tick_locked(
-        &self,
-    ) -> Result<WatchdogTick, infiltrator_ports::error::PortError> {
+    async fn watchdog_tick_locked(&self) -> Result<WatchdogTick, PortError> {
         let _operation = self.inner.operation.lock().await;
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Ok(WatchdogTick::Healthy);
+        }
         let state = self.current_state();
         let Some(current_token) = state_session_token(&state) else {
             let should_reset = self.watchdog_snapshot() != CoreWatchdogSnapshot::default();
@@ -115,7 +120,7 @@ impl CoreApplication {
 
         if let CoreWatchdogState::Waiting { attempt, .. } = &watchdog.state {
             let attempt = *attempt;
-            let now = std::time::Instant::now();
+            let now = Instant::now();
             let retry_at = self
                 .inner
                 .watchdog
@@ -138,9 +143,7 @@ impl CoreApplication {
                 runtime
                     .machine
                     .begin_restart(current_token, attempt)
-                    .map_err(|error| {
-                        infiltrator_ports::error::PortError::Failed(error.to_string())
-                    })?;
+                    .map_err(|error| PortError::Failed(error.to_string()))?;
                 runtime.retry_at = None;
             }
             self.publish_watchdog_snapshot();
@@ -150,7 +153,7 @@ impl CoreApplication {
             match restart {
                 Ok(()) => {
                     let current_session = self.session_token().ok_or_else(|| {
-                        infiltrator_ports::error::PortError::Failed(
+                        PortError::Failed(
                             "watchdog restart completed without a session".to_string(),
                         )
                     })?;
@@ -158,9 +161,7 @@ impl CoreApplication {
                     runtime
                         .machine
                         .restart_succeeded(previous_session, current_session, attempt)
-                        .map_err(|error| {
-                            infiltrator_ports::error::PortError::Failed(error.to_string())
-                        })?;
+                        .map_err(|error| PortError::Failed(error.to_string()))?;
                     runtime.retry_at = None;
                     drop(runtime);
                     self.publish_watchdog_snapshot();
@@ -181,15 +182,10 @@ impl CoreApplication {
                                 attempt,
                                 failure.message.clone(),
                             )
-                            .map_err(|error| {
-                                infiltrator_ports::error::PortError::Failed(error.to_string())
-                            })?;
+                            .map_err(|error| PortError::Failed(error.to_string()))?;
                         runtime.retry_at = match &decision {
-                            infiltrator_domain::watchdog::WatchdogDecision::Retry {
-                                delay, ..
-                            } => Some(std::time::Instant::now() + *delay),
-                            infiltrator_domain::watchdog::WatchdogDecision::Trip { .. }
-                            | infiltrator_domain::watchdog::WatchdogDecision::Ignore => None,
+                            WatchdogDecision::Retry { delay, .. } => Some(Instant::now() + *delay),
+                            WatchdogDecision::Trip { .. } | WatchdogDecision::Ignore => None,
                         };
                         decision
                     };
@@ -208,21 +204,16 @@ impl CoreApplication {
                 | super::CoreLifecycle::Stopping
                 | super::CoreLifecycle::Failed => {
                     let error = "managed mihomo process exited unexpectedly".to_string();
-                    self.apply_domain_event(
-                        infiltrator_domain::core_state::CoreEvent::ProcessExitedUnexpectedly {
-                            session_token: current_token,
-                            error: error.clone(),
-                        },
-                    );
+                    self.apply_domain_event(CoreEvent::ProcessExitedUnexpectedly {
+                        session_token: current_token,
+                        error: error.clone(),
+                    });
                     let decision = {
                         let mut runtime = self.inner.watchdog.lock().expect("core watchdog lock");
                         let decision = runtime.machine.process_exited(current_token, error);
                         runtime.retry_at = match &decision {
-                            infiltrator_domain::watchdog::WatchdogDecision::Retry {
-                                delay, ..
-                            } => Some(std::time::Instant::now() + *delay),
-                            infiltrator_domain::watchdog::WatchdogDecision::Trip { .. }
-                            | infiltrator_domain::watchdog::WatchdogDecision::Ignore => None,
+                            WatchdogDecision::Retry { delay, .. } => Some(Instant::now() + *delay),
+                            WatchdogDecision::Trip { .. } | WatchdogDecision::Ignore => None,
                         };
                         decision
                     };
@@ -234,11 +225,9 @@ impl CoreApplication {
     }
 }
 
-fn decision_to_tick(
-    decision: infiltrator_domain::watchdog::WatchdogDecision,
-) -> Result<WatchdogTick, infiltrator_ports::error::PortError> {
+fn decision_to_tick(decision: WatchdogDecision) -> Result<WatchdogTick, PortError> {
     match decision {
-        infiltrator_domain::watchdog::WatchdogDecision::Retry {
+        WatchdogDecision::Retry {
             session_token,
             attempt,
             delay,
@@ -247,14 +236,14 @@ fn decision_to_tick(
             attempt,
             retry_in_ms: delay.as_millis().try_into().unwrap_or(u64::MAX),
         }),
-        infiltrator_domain::watchdog::WatchdogDecision::Trip {
+        WatchdogDecision::Trip {
             session_token,
             attempts,
         } => Ok(WatchdogTick::Tripped {
             session_token: Some(session_token),
             attempts,
         }),
-        infiltrator_domain::watchdog::WatchdogDecision::Ignore => Ok(WatchdogTick::Healthy),
+        WatchdogDecision::Ignore => Ok(WatchdogTick::Healthy),
     }
 }
 
@@ -275,7 +264,7 @@ impl CoreWatchdogPort for CoreApplication {
         CoreApplication::watchdog_snapshot(self)
     }
 
-    async fn watchdog_tick(&self) -> Result<WatchdogTick, infiltrator_ports::error::PortError> {
+    async fn watchdog_tick(&self) -> Result<WatchdogTick, PortError> {
         self.watchdog_tick_locked().await
     }
 }

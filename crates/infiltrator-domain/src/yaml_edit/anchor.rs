@@ -1,6 +1,7 @@
 //! L3 Anchor and Alias scanning and namespace rewriting.
 
 use super::{SourceDoc, YamlEditError};
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Kind of YAML anchor token.
@@ -263,7 +264,7 @@ impl SourceDoc {
 
         let mut rewritten_count = 0;
         for (line_idx, mut occs) in line_groups {
-            occs.sort_by_key(|o| std::cmp::Reverse(o.col_idx));
+            occs.sort_by_key(|o| Reverse(o.col_idx));
             let mut text = self.lines[line_idx].text.clone();
             for occ in occs {
                 let Some(new_name) = mapping.get(&occ.name) else {

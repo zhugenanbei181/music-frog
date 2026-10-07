@@ -7,27 +7,32 @@
 //! block (05-02) and the multiplexing parameters (05-11); the footer carries
 //! the codec audit and the URI fidelity gaps the application measured.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::business_panel::{BusinessPanelState, PanelKind};
+use crate::pages::proxies::ProxiesProjectionUpdated;
+use crate::pages::proxies_form::{
+    CustomNodeForm, CustomNodeFormError, PendingProtocolImport, PendingProtocolSave,
+    ProtocolFieldNode, ProtocolFormText, ProtocolFormTextKind, ProtocolToggle,
+    protocol_fields_scene, stage_native_fields, text_field_under,
+};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::prelude::*;
+use bevy::ecs::system::SystemParam;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
-    percent, px,
-};
+use bevy::ui::prelude::{BackgroundColor, FlexDirection, FlexWrap, Node, UiRect, percent, px};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::icon::IconId;
-use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
+use infiltrator_application::protocol_form::field_projection;
+use infiltrator_application::protocol_studio_projection::slot_text;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
-use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::proxies::{LastProxiesProjection, ProxiesProjectionUpdated};
+use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
+use std::env;
 
 /// Marker for custom node editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -70,6 +75,7 @@ pub struct CustomNodeActionButton(pub CustomNodeAction);
 pub enum CustomNodeAction {
     #[default]
     ImportUri,
+    ExportUri,
     SaveDraft,
     ScanDialer,
     VerifyCa,
@@ -91,124 +97,16 @@ pub enum CustomNodeInput {
 
 /// DUAL-05: read-only text slots re-covered from the shared studio snapshot.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CustomNodeText(pub CustomNodeSlot);
+pub struct CustomNodeText(pub ProtocolStudioSlot);
 
-/// Which shared fact a text node renders.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum CustomNodeSlot {
-    /// Protocol family + every typed chip (cipher / REALITY / smux / params).
-    #[default]
-    Chips,
-    /// Validation issues from the shared draft report.
-    Issues,
-    /// Codec audit line (`node_count`, unknown keys, lossless verdict).
-    Audit,
-    /// The canonical share link exported from the draft.
-    UriPreview,
-    /// Fields a share link cannot carry (measured by the application).
-    Gaps,
-    /// DUAL-05: non-blocking facts the pinned core ignores or falls back on.
-    Notes,
-    /// DUAL-05-09/10: the resolved dialer chain (never a loop as valid).
-    Chain,
-    /// DUAL-05-13: what the host really did with the CA request.
-    CaTrust,
-}
-
-/// Text slots in render order.
-const SLOTS: [(CustomNodeSlot, &str); 8] = [
-    (CustomNodeSlot::Chips, "协议事实"),
-    (CustomNodeSlot::Issues, "协议校验"),
-    (CustomNodeSlot::Notes, "协议提示"),
-    (CustomNodeSlot::Chain, "跳板链路"),
-    (CustomNodeSlot::CaTrust, "证书信任"),
-    (CustomNodeSlot::Audit, "编解码审计"),
-    (CustomNodeSlot::UriPreview, "分享链接"),
-    (CustomNodeSlot::Gaps, "URI 损失字段"),
-];
-
-fn chain_initial(studio: &ProtocolStudioSnapshot) -> String {
-    let draft_name = studio
-        .draft
-        .as_ref()
-        .map(|draft| draft.name.trim().to_string())
-        .unwrap_or_default();
-    match studio.dialer.chain_for(&draft_name) {
-        Some(chain) => format!("{} · {}", chain.chain_line(), chain.end.label_zh()),
-        None => {
-            let loops = studio.dialer.loop_lines();
-            if loops.is_empty() {
-                "无前置跳板链路".to_owned()
-            } else {
-                loops.join("；")
-            }
-        }
-    }
-}
-
-fn ca_initial(studio: &ProtocolStudioSnapshot) -> String {
-    if studio.ca_trust.resolutions.is_empty() {
-        return "未配置自定义证书信任".to_owned();
-    }
-    studio.ca_trust.lines().join("；")
-}
-
-fn slot_initial(slot: CustomNodeSlot, studio: &ProtocolStudioSnapshot) -> String {
-    let chips = studio
-        .report
-        .as_ref()
-        .map(|report| report.all_chips().join(" · "))
-        .unwrap_or_else(|| "尚无节点草稿".to_owned());
-    match slot {
-        CustomNodeSlot::Chips => chips,
-        CustomNodeSlot::Issues => {
-            let issues = studio.issue_lines();
-            if issues.is_empty() {
-                "协议校验通过".to_owned()
-            } else {
-                issues.join("；")
-            }
-        }
-        CustomNodeSlot::Notes => {
-            let notes: Vec<String> = studio
-                .report
-                .as_ref()
-                .map(|report| report.params.notes.clone())
-                .unwrap_or_default();
-            if notes.is_empty() {
-                "无跨版本提示".to_owned()
-            } else {
-                notes.join("；")
-            }
-        }
-        CustomNodeSlot::Audit => match &studio.audit {
-            Some(audit) => format!(
-                "{} · {} 节点 · 未知字段 {} · {}",
-                audit.detail,
-                audit.node_count,
-                audit.unknown_fields.len(),
-                if audit.lossless {
-                    "结构保真"
-                } else {
-                    "结构有损"
-                }
-            ),
-            None => "尚未执行编解码转换".to_owned(),
-        },
-        CustomNodeSlot::UriPreview => studio
-            .uri_preview
-            .clone()
-            .unwrap_or_else(|| "尚无分享链接预览".to_owned()),
-        CustomNodeSlot::Gaps => {
-            if studio.uri_gaps.is_empty() {
-                "分享链接可完整表达当前草稿".to_owned()
-            } else {
-                format!("分享链接不携带: {}", studio.uri_gaps.join(" / "))
-            }
-        }
-        CustomNodeSlot::Chain => chain_initial(studio),
-        CustomNodeSlot::CaTrust => ca_initial(studio),
-    }
+pub(super) fn slot_initial(slot: ProtocolStudioSlot, studio: &ProtocolStudioSnapshot) -> String {
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    slot_text(
+        slot,
+        studio,
+        |key| Lang(&language).tr(key).into_owned(),
+        !matches!(language.as_str(), "en" | "en-US"),
+    )
 }
 
 /// Custom Node Editor scene.
@@ -216,198 +114,59 @@ pub fn custom_node_scene(
     studio: &ProtocolStudioSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let uri_initial = studio.uri_preview.clone().unwrap_or_default();
-    let dialer_initial = studio
-        .draft
-        .as_ref()
-        .map(|draft| draft.dialer_proxy.clone())
-        .unwrap_or_default();
-    let ca_initial = studio
-        .draft
-        .as_ref()
-        .map(|draft| draft.params.tls_trust.ca_path.clone())
-        .unwrap_or_default();
-    let slots: Vec<Box<dyn Scene>> = SLOTS
-        .iter()
-        .map(|(slot, label)| {
-            let value = slot_initial(*slot, studio);
-            let label = (*label).to_owned();
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                            }
-                            Children [
-                                CustomNodeText({ *slot })
-                                Text({ value })
-                                TextRole(Role::Caption)
-                                --
-                                Text({ label }) TextRole(Role::Caption)
-                            ]
-            }) as Box<dyn Scene>
-        })
-        .collect();
-
-    surface_scene(
-        vec![
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::bottom(Val::Px(space::S8)),
-                            }
-                            CustomNodeEditorRoot
-                            Children [
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
-                                }
-                                Children [
-                                    @{ icon_tile_scene(IconId::Plus, 24.0, palette) }
-                                    --
-                                    Text({ "自定义节点与分享链接 (Custom Node & URI Codec)".to_owned() }) TextRole(Role::BodyStrong)
-                                ]
-                                --
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.accent })
-                                Button
-                                ImportUriButton
-                                CustomNodeActionButton(CustomNodeAction::ImportUri)
-                                Children [
-                                    Text({ "解析分享链接 URI".to_owned() }) TextRole(Role::BodyStrong)
-                                ]
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
-                            }
-                            CustomNodeUriField
-                            CustomNodeInputField(CustomNodeInput::Uri)
-                            Children [
-                                @{ text_field_with_placeholder_scene(
-                                        uri_initial,
-                                        "粘贴 vless:// / ss:// / trojan:// / hysteria2:// / tuic:// / ssh:// / anytls:// 分享链接".to_owned(),
-                                        palette,
-                                ) }
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                align_items: AlignItems::End,
-                                column_gap: Val::Px(space::S8),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
-                            }
-                            Children [
-                                Node {
-                                    flex_grow: 1.0,
-                                    padding: UiRect::vertical(Val::Px(space::S2)),
-                                }
-                                CustomNodeDialerField
-                                CustomNodeInputField(CustomNodeInput::Dialer)
-                                Children [
-                                    @{ text_field_with_placeholder_scene(
-                                            dialer_initial,
-                                            "前置跳板 (dialer-proxy: 节点或策略组名)".to_owned(),
-                                            palette,
-                                    ) }
-                                ]
-                                --
-                                Node {
-                                    flex_grow: 1.0,
-                                    padding: UiRect::vertical(Val::Px(space::S2)),
-                                }
-                                CustomNodeCaField
-                                CustomNodeInputField(CustomNodeInput::Ca)
-                                Children [
-                                    @{ text_field_with_placeholder_scene(
-                                            ca_initial,
-                                            "自定义 CA 路径 (tls.custom-certifactes)".to_owned(),
-                                            palette,
-                                    ) }
-                                ]
-                                --
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.accent })
-                                Button
-                                ScanDialerChainsButton
-                                CustomNodeActionButton(CustomNodeAction::ScanDialer)
-                                Children [
-                                    Text({ "扫描跳板链".to_owned() }) TextRole(Role::BodyStrong)
-                                ]
-                                --
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.success })
-                                Button
-                                VerifyCustomNodeCaButton
-                                CustomNodeActionButton(CustomNodeAction::VerifyCa)
-                                Children [
-                                    Text({ "校验证书信任".to_owned() }) TextRole(Role::BodyStrong)
-                                ]
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                                padding: UiRect::vertical(Val::Px(space::S4)),
-                            }
-                            Children [
-                                { slots }
-                            ]
-            }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::SpaceBetween,
-                                padding: UiRect::top(Val::Px(space::S8)),
-                            }
-                            Children [
-                                Text({ "分享链接不携带多路复用/传输层参数；写入配置时未知字段与其它小节均无损保留".to_owned() }) TextRole(Role::Caption)
-                                --
-                                Node {
-                                    min_height: px(palette.control_height_px),
-                                    padding: UiRect::horizontal(Val::Px(space::S12)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                }
-                                BackgroundColor({ palette.success })
-                                Button
-                                SaveCustomNodeButton
-                                CustomNodeActionButton(CustomNodeAction::SaveDraft)
-                                Children [
-                                    Text({ "保存为自定义节点".to_owned() }) TextRole(Role::BodyStrong)
-                                ]
-                            ]
-            }),
-        ],
-        palette,
-    )
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let lang = Lang(&language);
+    let slots: Vec<Box<dyn Scene>> = ProtocolStudioSlot::ALL.iter().filter(|slot| **slot != ProtocolStudioSlot::UriPreview).map(|slot| {
+        Box::new(bsn! {
+            Node { width: percent(100), flex_shrink: 0.0 }
+            Children [ Text({ slot_initial(*slot, studio) }) CustomNodeText({ *slot }) ProtocolFormText({ ProtocolFormTextKind::Fact(*slot) }) TextRole(Role::Caption) ]
+        }) as Box<dyn Scene>
+    }).collect();
+    bsn! {
+        Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(12.0), flex_shrink: 0.0 }
+        CustomNodeEditorRoot
+        Children [
+            Node { width: percent(100), flex_shrink: 0.0 }
+            Children [ Text({ studio.last_error.clone().unwrap_or_default() }) CustomNodeFormError ProtocolFormText(ProtocolFormTextKind::Error) TextRole(Role::Body) ]
+            --
+            Node { width: percent(100), flex_shrink: 0.0 }
+            CustomNodeUriField CustomNodeInputField(CustomNodeInput::Uri)
+            Children [ @{ text_field_with_placeholder_scene(String::new(), lang.tr("custom_node_uri_placeholder").into_owned(), palette) } ]
+            --
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(8.0), flex_shrink: 0.0 }
+            Children [
+                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                BackgroundColor({ palette.accent }) Button ImportUriButton CustomNodeActionButton(CustomNodeAction::ImportUri)
+                Children [ Text({ lang.tr("custom_node_btn_import_uri").into_owned() }) TextRole(Role::Body) ]
+                --
+                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                BackgroundColor({ palette.surface_elevated }) Button CustomNodeActionButton(CustomNodeAction::ExportUri)
+                Children [ Text({ lang.tr("custom_node_btn_export_uri").into_owned() }) TextRole(Role::Body) ]
+                --
+                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                BackgroundColor({ palette.success }) Button SaveCustomNodeButton CustomNodeActionButton(CustomNodeAction::SaveDraft)
+                Children [ Text({ lang.tr("btn_save").into_owned() }) TextRole(Role::BodyStrong) ]
+            ]
+            --
+            Node { width: percent(100), flex_shrink: 0.0 }
+            Children [ Text({ slot_initial(ProtocolStudioSlot::UriPreview, studio) }) CustomNodeText(ProtocolStudioSlot::UriPreview) ProtocolFormText(ProtocolFormTextKind::Fact(ProtocolStudioSlot::UriPreview)) TextRole(Role::Caption) ]
+            --
+            @{ protocol_fields_scene(studio, palette) }
+            --
+            { slots }
+            --
+            Node { width: percent(100), flex_wrap: FlexWrap::Wrap, column_gap: px(8.0), row_gap: px(8.0), flex_shrink: 0.0 }
+            Children [
+                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                Button ScanDialerChainsButton CustomNodeActionButton(CustomNodeAction::ScanDialer)
+                Children [ Text({ lang.tr("custom_node_dialer_scan").into_owned() }) TextRole(Role::Body) ]
+                --
+                Node { min_height: px(palette.control_height_px), padding: UiRect::all(px(8.0)) }
+                Button VerifyCustomNodeCaButton CustomNodeActionButton(CustomNodeAction::VerifyCa)
+                Children [ Text({ lang.tr("custom_node_ca_verify").into_owned() }) TextRole(Role::Body) ]
+            ]
+        ]
+    }
 }
 
 /// DUAL-05-14: the import button reads the typed URI from the shared field and
@@ -418,28 +177,70 @@ pub fn custom_node_scene(
 /// shared draft (typed field edit) and then runs the shared analyzer; the
 /// verify button applies the CA path field and resolves the trust request
 /// against this host's reader.
+#[derive(SystemParam)]
+pub(crate) struct CustomNodeControls<'w, 's> {
+    buttons: Query<'w, 's, &'static CustomNodeActionButton>,
+    wrappers: Query<'w, 's, (Entity, &'static ProtocolFieldNode)>,
+    fields: Query<'w, 's, (&'static CustomNodeInputField, &'static Children)>,
+    text_fields: Query<'w, 's, &'static TextField>,
+    toggles: Query<'w, 's, &'static ProtocolToggle>,
+    children: Query<'w, 's, &'static Children>,
+}
+
 pub(crate) fn on_custom_node_action_activated(
     activate: On<Activate>,
-    buttons: Query<&CustomNodeActionButton>,
-    fields: Query<(&CustomNodeInputField, &Children)>,
-    text_fields: Query<&TextField>,
-    last: Option<Res<LastProxiesProjection>>,
+    controls: CustomNodeControls,
+    mut form: ResMut<CustomNodeForm>,
+    panel: Res<BusinessPanelState>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
+    if panel.0 != Some(PanelKind::CustomNode) || form.saving.is_some() {
+        return;
+    }
+    if let Ok(toggle) = controls.toggles.get(activate.entity) {
+        if let Some(draft) = &form.studio.draft {
+            let projected = field_projection(toggle.0, draft).expect("toggle field");
+            let raw = if projected.value == "true" {
+                "false"
+            } else {
+                "true"
+            };
+            form.stage(toggle.0, raw.to_owned());
+        }
+        return;
+    }
     let Some(handle) = handle else {
         return;
     };
-    let Some(action) = buttons.get(activate.entity).ok().map(|button| button.0) else {
+    let Some(action) = controls
+        .buttons
+        .get(activate.entity)
+        .ok()
+        .map(|button| button.0)
+    else {
         return;
     };
+    if form.reset_fields && action != CustomNodeAction::ImportUri {
+        return;
+    }
+    if !form.reset_fields {
+        stage_native_fields(
+            &mut form,
+            &controls.wrappers,
+            &controls.children,
+            &controls.text_fields,
+        );
+    }
     let field_text = |wanted: CustomNodeInput| -> String {
-        fields
+        controls
+            .fields
             .iter()
             .find(|(kind, _)| kind.0 == wanted)
             .map(|(_, children)| children)
             .into_iter()
             .flat_map(|children| children.iter())
-            .find_map(|child| text_fields.get(child).ok())
+            .find_map(|child| text_field_under(child, &controls.children, &controls.text_fields))
+            .and_then(|entity| controls.text_fields.get(entity).ok())
             .map(|field| field.0.text())
             .unwrap_or_default()
             .trim()
@@ -448,50 +249,71 @@ pub(crate) fn on_custom_node_action_activated(
     match action {
         CustomNodeAction::ImportUri => {
             let uri = field_text(CustomNodeInput::Uri);
-            if !uri.is_empty() {
-                handle.submit(UiCommand::ImportCustomNodeUri { uri });
+            if !uri.is_empty() && form.importing.is_none() {
+                let command = UiCommand::ImportCustomNodeUri { uri: uri.clone() };
+                if let Some(request_id) = handle.submit_tracked(command) {
+                    form.importing = Some(PendingProtocolImport { request_id, uri });
+                } else {
+                    form.studio.last_error = Some(
+                        Lang(&get_system_language())
+                            .tr("protocol_form_no_feedback")
+                            .into_owned(),
+                    );
+                }
+            }
+        }
+        CustomNodeAction::ExportUri => {
+            if let Some(draft) = &form.studio.draft {
+                match ProtocolCodecApplication::uri_from_draft(draft) {
+                    Ok(uri) => form.studio.uri_preview = Some(uri),
+                    Err(error) => form.studio.last_error = Some(error.message),
+                }
             }
         }
         CustomNodeAction::ScanDialer => {
-            let hop = field_text(CustomNodeInput::Dialer);
-            if !hop.is_empty() {
-                handle.submit(UiCommand::UpdateCustomNodeDraftField {
-                    field: "dialer-proxy".to_owned(),
-                    value: hop,
-                });
-            }
+            let Some(draft) = form.studio.draft.clone() else {
+                return;
+            };
+            handle.submit(UiCommand::PrepareCustomNodeDraft {
+                draft: Box::new(draft),
+            });
             handle.submit(UiCommand::ScanCustomNodeDialer);
         }
         CustomNodeAction::VerifyCa => {
-            let ca_path = field_text(CustomNodeInput::Ca);
-            if !ca_path.is_empty() {
-                handle.submit(UiCommand::UpdateCustomNodeDraftField {
-                    field: "ca-path".to_owned(),
-                    value: ca_path.clone(),
-                });
-            }
-            let mut trust = last
-                .as_ref()
-                .and_then(|last| last.0.as_ref())
-                .and_then(|projection| projection.custom_node.draft.as_ref())
-                .map(|draft| draft.params.tls_trust.clone())
-                .unwrap_or_default();
-            trust.ca_path = ca_path;
+            let Some(draft) = form.studio.draft.as_ref() else {
+                return;
+            };
             handle.submit(UiCommand::VerifyCustomNodeCa {
-                trust: Box::new(trust),
+                trust: Box::new(draft.params.tls_trust.clone()),
             });
         }
         CustomNodeAction::SaveDraft => {
-            let draft = last
-                .as_ref()
-                .and_then(|last| last.0.as_ref())
-                .and_then(|projection| projection.custom_node.draft.clone());
+            if form.saving.is_some() {
+                return;
+            }
+            let draft = form.studio.draft.clone();
             let Some(draft) = draft else {
                 return;
             };
-            handle.submit(UiCommand::SaveCustomNodeDraft {
-                draft: Box::new(draft),
-            });
+            if !form.inputs.errors.is_empty() {
+                return;
+            }
+            if !draft.report().is_valid() {
+                form.studio.last_error = Some(draft.report().issue_lines().join("; "));
+                return;
+            }
+            let command = UiCommand::SaveCustomNodeDraft {
+                draft: Box::new(draft.clone()),
+            };
+            if let Some(request_id) = handle.submit_tracked(command) {
+                form.saving = Some(PendingProtocolSave { request_id, draft });
+            } else {
+                form.studio.last_error = Some(
+                    Lang(&get_system_language())
+                        .tr("protocol_form_no_feedback")
+                        .into_owned(),
+                );
+            }
         }
     }
 }
@@ -502,8 +324,16 @@ pub(crate) fn on_custom_node_action_activated(
 pub(crate) fn sync_custom_node_studio(
     update: On<ProxiesProjectionUpdated>,
     mut texts: Query<(&mut Text, &CustomNodeText)>,
+    mut form: ResMut<CustomNodeForm>,
+    panel: Res<BusinessPanelState>,
 ) {
     let studio = &update.0.custom_node;
+    if panel.0 != Some(PanelKind::CustomNode) {
+        form.load(studio.clone());
+    } else {
+        form.studio.dialer = studio.dialer.clone();
+        form.studio.ca_trust = studio.ca_trust.clone();
+    }
     for (mut text, slot) in &mut texts {
         text.0 = slot_initial(slot.0, studio);
     }
@@ -516,17 +346,20 @@ mod tests {
     #[test]
     fn slot_initial_reports_shared_facts_and_honest_empty_states() {
         let empty = ProtocolStudioSnapshot::default();
-        assert_eq!(slot_initial(CustomNodeSlot::Chips, &empty), "尚无节点草稿");
         assert_eq!(
-            slot_initial(CustomNodeSlot::UriPreview, &empty),
+            slot_initial(ProtocolStudioSlot::Chips, &empty),
+            "尚无节点草稿"
+        );
+        assert_eq!(
+            slot_initial(ProtocolStudioSlot::UriPreview, &empty),
             "尚无分享链接预览"
         );
         assert_eq!(
-            slot_initial(CustomNodeSlot::Audit, &empty),
+            slot_initial(ProtocolStudioSlot::Audit, &empty),
             "尚未执行编解码转换"
         );
         assert_eq!(
-            slot_initial(CustomNodeSlot::Gaps, &empty),
+            slot_initial(ProtocolStudioSlot::Gaps, &empty),
             "分享链接可完整表达当前草稿"
         );
     }

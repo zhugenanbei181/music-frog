@@ -5,14 +5,38 @@
 //! reconnects, clears) dispatch through typed commands into a centralized
 //! command sink handle. No direct blocking calls in UI systems.
 
-use bevy::app::{App, Plugin};
+use crate::command_events::CommandExecutedEvent;
+use crate::command_execution::{ApplicationCommandSink, drain_command_results};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::resource::Resource;
 use infiltrator_application::core_application::CoreApplication;
-use std::sync::{Arc, Mutex};
-
-use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode};
+use infiltrator_contract::aggregator::AggregationDraft;
+use infiltrator_contract::command::{CommandIntent, CoreLogLevel, ProxyMode, RequestId};
+use infiltrator_contract::dns::DnsSettingsPatch;
+use infiltrator_contract::dns_cache::DnsCacheOperationId;
+use infiltrator_contract::dns_query::{DnsQueryOperationId, DnsQueryRequest};
 use infiltrator_contract::lan::LanCredentials;
+use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::log_export::LogExportIdentity;
+use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::protocol_fidelity::ProtocolDraft;
+use infiltrator_contract::protocol_trust::TlsTrustParams;
+use infiltrator_contract::proxies::ProxySortOrder;
+use infiltrator_contract::proxy_probe_options::ProxyProbeOptions;
+use infiltrator_contract::rule_document::RuleListCommit;
+use infiltrator_contract::rule_source::RuleSourceIdentity;
+use infiltrator_contract::rule_trace_run::{RuleTraceOperationId, RuleTraceRequest};
+use infiltrator_contract::rule_tracer::TracerRuleOverride;
+use infiltrator_contract::rules_workspace::RulesJsonSection;
+use infiltrator_contract::script_export_review::{ScriptExportDraft, ScriptExportIdentity};
+use infiltrator_contract::script_run::{ScriptOperationId, ScriptRunRequest};
+use infiltrator_contract::subscription_import::{
+    SubscriptionFilterDraft, SubscriptionImportChannel, SubscriptionScheduleDraft,
+};
 use infiltrator_contract::tun::TunStack;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// All user action commands emitted from Bevy UI pages and controls.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,9 +63,9 @@ pub enum UiCommand {
     /// Probe the physical link and negotiate the virtual TUN MTU.
     ProbeTunMtu,
     RefreshPublicIpProbe,
-    ReorderOverviewCards { order: Vec<infiltrator_contract::overview_layout::OverviewCardKind> },
-    MoveOverviewCardUp(infiltrator_contract::overview_layout::OverviewCardKind),
-    MoveOverviewCardDown(infiltrator_contract::overview_layout::OverviewCardKind),
+    ReorderOverviewCards { order: Vec<OverviewCardKind> },
+    MoveOverviewCardUp(OverviewCardKind),
+    MoveOverviewCardDown(OverviewCardKind),
     ResetOverviewCardOrder,
     /// Switch core proxy mode (Rule / Global / Direct).
     SetProxyMode(ProxyMode),
@@ -58,10 +82,13 @@ pub enum UiCommand {
     CancelSpeedtest,
     /// Run latency benchmark for a specific proxy group.
     TestProxyGroup { group: String },
+    TestProxyNode { node: String },
     /// Toggle expand/fold of a proxy group card.
     ToggleProxyGroupExpand { group: String },
     /// Change the proxy node sorting order.
-    SetProxySortOrder(infiltrator_contract::proxies::ProxySortOrder),
+    SetProxySortOrder(ProxySortOrder),
+    SetProxySearchQuery { query: String },
+    SetProxyProbeOptions { options: ProxyProbeOptions },
     /// Toggle Filter Alive (只看可用) mode.
     ToggleFilterAlive(bool),
     /// Toggle favorite status of a proxy node.
@@ -88,7 +115,7 @@ pub enum UiCommand {
     /// through the shared schedule application.
     UpdateSubscriptionSchedule {
         profile_id: String,
-        draft: infiltrator_contract::subscription_import::SubscriptionScheduleDraft,
+        draft: SubscriptionScheduleDraft,
     },
     /// Persist a profile's subscription fetch options.
     SaveSubscriptionFetchSettings {
@@ -99,13 +126,13 @@ pub enum UiCommand {
     /// DUAL-07-08: apply a profile's node-keyword filter through the shared
     /// pipeline.
     SaveSubscriptionFilter {
-        profile_id: String,
-        filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+        source: ProfileSourceIdentity,
+        filter: SubscriptionFilterDraft,
     },
     /// DUAL-07-01: import a profile through the shared multi-channel path.
     ImportSubscription {
         profile_id: String,
-        channel: infiltrator_contract::subscription_import::SubscriptionImportChannel,
+        channel: SubscriptionImportChannel,
         source: String,
     },
     /// Delete a subscription profile.
@@ -113,16 +140,16 @@ pub enum UiCommand {
     /// DUAL-08-01/08-11: persist the aggregation draft and recompute the
     /// shared preview from the real source contents.
     PreviewProfileAggregation {
-        draft: infiltrator_contract::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-06: materialise the aggregation draft into a new profile.
     CreateAggregatedProfile {
-        draft: infiltrator_contract::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-13: upsert the draft as a reusable aggregation template.
     SaveAggregationTemplate {
         name: String,
-        draft: infiltrator_contract::aggregator::AggregationDraft,
+        draft: AggregationDraft,
     },
     /// DUAL-08-13: delete a saved aggregation template.
     DeleteAggregationTemplate {
@@ -136,10 +163,11 @@ pub enum UiCommand {
     /// publish the typed draft (cipher family / REALITY / smux) for both
     /// surfaces. Never writes a profile.
     ImportCustomNodeUri { uri: String },
+    PrepareCustomNodeDraft { draft: Box<ProtocolDraft> },
     /// DUAL-05-14: commit the shared draft into the active profile with the
     /// lossless section splice.
     SaveCustomNodeDraft {
-        draft: Box<infiltrator_contract::protocol_fidelity::ProtocolDraft>,
+        draft: Box<ProtocolDraft>,
     },
     /// DUAL-05-09/13: edit one whitelisted field of the published shared draft
     /// (the dialer hop or a certificate-trust carrier). Unknown field names are
@@ -151,12 +179,12 @@ pub enum UiCommand {
     /// DUAL-05-13: resolve a certificate-trust request against the host reader
     /// and publish the typed outcome.
     VerifyCustomNodeCa {
-        trust: Box<infiltrator_contract::protocol_trust::TlsTrustParams>,
+        trust: Box<TlsTrustParams>,
     },
     /// Trigger a remote update for all rule providers.
     RefreshRuleProviders,
     /// Reset every accumulated rule hit counter.
-    ClearRuleHitCounters,
+    ClearRuleHitCounters { expected_source: RuleSourceIdentity },
     /// DUAL-11-06: unpack one declared rule provider's real rules into the
     /// active profile's custom rule list.
     UnpackRuleProvider(String),
@@ -164,6 +192,7 @@ pub enum UiCommand {
     PurgeRuleProviderCache,
     /// DUAL-11-09: invert the enabled flag of one rule in the active profile.
     ToggleRuleEnabled(usize),
+    CommitRuleList { request: RuleListCommit },
     /// DUAL-11-10: move one rule a single step up in the active profile.
     MoveRuleUp(usize),
     /// DUAL-11-10: move one rule a single step down in the active profile.
@@ -179,24 +208,33 @@ pub enum UiCommand {
     /// DUAL-11-14: trigger the kernel's GeoIP/GeoSite database upgrade.
     UpgradeGeoDatabases,
     /// DUAL-11-14: replace one rules-workspace JSON document.
-    ApplyRulesJsonDocument { section: infiltrator_contract::rules_workspace::RulesJsonSection, json: String },
+    ApplyRulesJsonDocument { section: RulesJsonSection, json: String },
     /// DUAL-12-10: set the simulated sandbox source IP the tracer replays.
-    SetRuleTracerContext { src_ip: Option<String> },
+
     /// Re-run the shared rule tracer for a target query.
-    SimulateRuleTrace { query: String },
+    SimulateRuleTrace { operation: RuleTraceOperationId, request: RuleTraceRequest },
     /// DUAL-12-08: rewrite the traced rule's outbound and apply the config.
-    ApplyTracerRuleOverride { rule_index: usize, new_target: String },
+    ApplyTracerRuleOverride { request: TracerRuleOverride },
     /// Terminate a single active connection by ID.
     CloseConnection { id: String },
     /// Terminate all active connections.
     CloseAllConnections,
     /// Clear the in-memory log buffer.
     ClearLogs,
+    RunScriptSandbox { request: ScriptRunRequest },
+    ClearScriptSandbox { operation: ScriptOperationId },
+    PrepareScriptExport { operation: u64, draft: ScriptExportDraft },
+    SaveScriptExport { operation: u64, identity: ScriptExportIdentity },
+    CancelScriptExport { operation: u64, identity: ScriptExportIdentity },
+    PrepareLogExport { operation: u64 },
+    SaveLogExport { operation: u64, identity: LogExportIdentity },
+    CancelLogExport { operation: u64, identity: LogExportIdentity },
     /// Filter logs by severity level string.
     SetLogLevelFilter { level: Option<String> },
     /// Flush the DNS cache and Fake-IP table.
-    ClearDnsCache,
+    ClearDnsCache { operation: DnsCacheOperationId },
     /// Test DNS server latency.
+    QueryDns { operation: DnsQueryOperationId, request: DnsQueryRequest },
     TestDnsLatency,
     /// DUAL-14-08: run the shared DNS leak cross-source probe.
     TestDnsLeak,
@@ -205,7 +243,7 @@ pub enum UiCommand {
     RunStunProbe,
     /// DUAL-14-01/02/03: apply the shared DNS workbench patch.
     ApplyDnsSettings {
-        patch: infiltrator_contract::dns::DnsSettingsPatch,
+        patch: DnsSettingsPatch,
     },
     /// Toggle the host-owned TUN/VPN capability.
     ToggleTun { enabled: bool },
@@ -252,6 +290,7 @@ pub enum UiCommand {
     RepairNetworkRoutes,
     /// Run full system doctor diagnostics.
     RunDoctorDiagnostics,
+    BootstrapDoctor,
     /// Repair a specific doctor issue by check ID.
     RepairDoctorIssue { check_id: String },
     /// Repair all detected doctor issues.
@@ -273,7 +312,7 @@ pub enum UiCommand {
     /// Resolve conflict by taking remote.
     ResolveConflictTakeRemote,
     /// Restore a specific snapshot.
-    RestoreSnapshot { id: String },
+    SnapshotRestore { intent: CommandIntent },
     /// DUAL-09-08: compute the snapshot-vs-current diff through the shared
     /// snapshot application. `snapshot_id = None` diffs the newest snapshot.
     LoadSnapshotDiff { snapshot_id: Option<String> },
@@ -285,368 +324,37 @@ pub enum UiCommand {
     LoadProfileDocument { profile: Option<String> },
     /// DUAL-09-14: commit the editor buffer through the shared guarded write.
     SaveProfileDocument {
-        profile: String,
+        source: ProfileSourceIdentity,
         content: String,
         allow_protected: bool,
     },
     /// DUAL-09-14: load a profile's Mixin/filter sidecar for the editor panes.
     LoadProfileOptions { profile: Option<String> },
     /// DUAL-09-14: commit an edited Mixin overlay through the shared use-case.
-    SaveMixinOverlay { profile: String, mixin_yaml: String },
+    SaveMixinOverlay { source: ProfileSourceIdentity, mixin_yaml: String },
     /// Select the last installed, locally recorded core version.
     RollbackCore,
     /// Update a core or UI setting.
+    SetLanguage { preference: LanguagePreference },
     UpdateSetting { key: String, value: String },
     /// Check for a new core release.
     CheckUpdates,
 }
 
-impl UiCommand {
-    /// Convert a business command to the shared application contract. Local
-    /// presentation actions intentionally return `None`.
-    pub fn to_intent(&self) -> Option<CommandIntent> {
-        match self {
-            Self::StartCore => Some(CommandIntent::StartCore),
-            Self::StopCore => Some(CommandIntent::StopCore),
-            Self::RestartCore => Some(CommandIntent::RestartCore),
-            Self::PrepareServiceMode => Some(CommandIntent::PrepareServiceMode),
-            Self::RepairPortConflicts => Some(CommandIntent::RepairPortConflicts),
-            Self::SetCoreLogLevel(level) => Some(CommandIntent::SetCoreLogLevel { level: *level }),
-            Self::SetTunStack(stack) => Some(CommandIntent::SetTunStack { stack: *stack }),
-            Self::SetTunAutoRoute(enabled) => {
-                Some(CommandIntent::SetTunAutoRoute { enabled: *enabled })
-            }
-            Self::SetTunStrictRoute(enabled) => {
-                Some(CommandIntent::SetTunStrictRoute { enabled: *enabled })
-            }
-            Self::ProbeTunMtu => Some(CommandIntent::ProbeTunMtu),
-            Self::RefreshPublicIpProbe => Some(CommandIntent::RefreshPublicIpProbe),
-            Self::ReorderOverviewCards { order } => Some(CommandIntent::ReorderOverviewCards {
-                order: order.clone(),
-            }),
-            Self::ResetOverviewCardOrder => Some(CommandIntent::ResetOverviewCardOrder),
-            Self::MoveOverviewCardUp(_) | Self::MoveOverviewCardDown(_) => None,
-            Self::SetProxyMode(mode) => Some(CommandIntent::SetProxyMode { mode: *mode }),
-            Self::SelectProxyNode { group, node } => Some(CommandIntent::SelectProxyNode {
-                group: group.clone(),
-                node: node.clone(),
-            }),
-            Self::CancelSpeedtest => Some(CommandIntent::CancelSpeedtest),
-            Self::SetSpeedtestConcurrency { limit } => {
-                Some(CommandIntent::SetSpeedtestConcurrency { limit: *limit })
-            }
-            Self::TestAllProxyGroups => Some(CommandIntent::TestDelay {
-                group: None,
-                url: None,
-                timeout_ms: None,
-            }),
-            Self::TestAllProxyGroupsWithUrl { url } => Some(CommandIntent::TestDelay {
-                group: None,
-                url: Some(url.clone()),
-                timeout_ms: None,
-            }),
-            Self::TestProxyGroup { group } => Some(CommandIntent::TestDelay {
-                group: Some(group.clone()),
-                url: None,
-                timeout_ms: None,
-            }),
-            Self::ToggleProxyGroupExpand { group } => Some(CommandIntent::ToggleProxyGroupExpand {
-                group: group.clone(),
-            }),
-            Self::SetProxySortOrder(order) => {
-                Some(CommandIntent::SetProxySortOrder { order: *order })
-            }
-            Self::ToggleFilterAlive(enabled) => {
-                Some(CommandIntent::ToggleFilterAlive { enabled: *enabled })
-            }
-            Self::ToggleFavoriteProxy(proxy) => Some(CommandIntent::ToggleFavoriteProxy {
-                proxy: proxy.clone(),
-            }),
-            Self::SetProxyCompactView(compact) => {
-                Some(CommandIntent::SetProxyCompactView { compact: *compact })
-            }
-            Self::ReorderProxyGroups { group_names } => Some(CommandIntent::ReorderProxyGroups {
-                group_names: group_names.clone(),
-            }),
-            Self::ResetProxyGroupOrder => Some(CommandIntent::ResetProxyGroupOrder),
-            Self::ActivateProfile { id } => Some(CommandIntent::SwitchProfile {
-                profile_id: id.clone(),
-            }),
-            Self::UpdateProfile { id } => Some(CommandIntent::UpdateProfile {
-                profile_id: id.clone(),
-            }),
-            Self::UpdateAllSubscriptions => Some(CommandIntent::UpdateAllSubscriptions),
-            Self::RestoreSubscriptionBackup { id } => {
-                Some(CommandIntent::RestoreSubscriptionBackup {
-                    profile_id: id.clone(),
-                })
-            }
-            Self::SaveSubscriptionFetchSettings {
-                profile_id,
-                user_agent,
-                insecure_skip_verify,
-            } => Some(CommandIntent::UpdateSubscriptionFetchSettings {
-                profile_id: profile_id.clone(),
-                user_agent: user_agent.clone(),
-                insecure_skip_verify: *insecure_skip_verify,
-            }),
-            Self::SaveSubscriptionFilter { profile_id, filter } => {
-                Some(CommandIntent::SaveSubscriptionFilter {
-                    profile_id: profile_id.clone(),
-                    filter: filter.clone(),
-                })
-            }
-            Self::ImportSubscription {
-                profile_id,
-                channel,
-                source,
-            } => Some(CommandIntent::ImportSubscription {
-                profile_id: profile_id.clone(),
-                channel: *channel,
-                source: source.clone(),
-            }),
-            Self::DeleteProfile { id } => Some(CommandIntent::DeleteProfile {
-                profile_id: id.clone(),
-            }),
-            Self::PreviewProfileAggregation { draft } => {
-                Some(CommandIntent::PreviewProfileAggregation {
-                    draft: draft.clone(),
-                })
-            }
-            Self::CreateAggregatedProfile { draft } => {
-                Some(CommandIntent::CreateAggregatedProfile {
-                    draft: draft.clone(),
-                })
-            }
-            Self::SaveAggregationTemplate { name, draft } => {
-                Some(CommandIntent::SaveAggregationTemplate {
-                    name: name.clone(),
-                    draft: draft.clone(),
-                })
-            }
-            Self::DeleteAggregationTemplate { name } => {
-                Some(CommandIntent::DeleteAggregationTemplate { name: name.clone() })
-            }
-            Self::ImportCustomNodeUri { uri } => {
-                Some(CommandIntent::ImportCustomNodeUri { uri: uri.clone() })
-            }
-            Self::SaveCustomNodeDraft { draft } => Some(CommandIntent::SaveCustomNodeDraft {
-                draft: draft.clone(),
-            }),
-            Self::UpdateCustomNodeDraftField { field, value } => {
-                Some(CommandIntent::UpdateCustomNodeDraftField {
-                    field: field.clone(),
-                    value: value.clone(),
-                })
-            }
-            Self::ScanCustomNodeDialer => Some(CommandIntent::ScanDialerChains),
-            Self::VerifyCustomNodeCa { trust } => {
-                Some(CommandIntent::ResolveCertificateAuthority {
-                    trust: trust.clone(),
-                })
-            }
-            Self::ReAggregateProfile { template_name } => Some(CommandIntent::ReAggregateProfile {
-                template_name: template_name.clone(),
-            }),
-            Self::SetSubscriptionAutoReload {
-                profile_id,
-                enabled,
-            } => Some(CommandIntent::SetSubscriptionAutoReload {
-                profile_id: profile_id.clone(),
-                enabled: *enabled,
-            }),
-            Self::UpdateSubscriptionSchedule { profile_id, draft } => {
-                Some(CommandIntent::UpdateSubscriptionSchedule {
-                    profile_id: profile_id.clone(),
-                    draft: draft.clone(),
-                })
-            }
-            Self::RefreshRuleProviders => Some(CommandIntent::RefreshRuleProviders),
-            Self::ClearRuleHitCounters => Some(CommandIntent::ResetRuleHitCounters),
-            Self::UnpackRuleProvider(provider) => Some(CommandIntent::UnpackRuleProvider {
-                provider_name: provider.clone(),
-            }),
-            Self::PurgeRuleProviderCache => Some(CommandIntent::PurgeRuleProviderCache),
-            Self::ToggleRuleEnabled(index) => {
-                Some(CommandIntent::ToggleRuleEnabled { index: *index })
-            }
-            Self::MoveRuleUp(index) => Some(CommandIntent::MoveRule {
-                index: *index,
-                direction: infiltrator_contract::rule_edit::RuleMoveDirection::Up,
-            }),
-            Self::MoveRuleDown(index) => Some(CommandIntent::MoveRule {
-                index: *index,
-                direction: infiltrator_contract::rule_edit::RuleMoveDirection::Down,
-            }),
-            Self::AddCustomRule {
-                rule_type,
-                payload,
-                target,
-            } => Some(CommandIntent::AddCustomRule {
-                rule_type: rule_type.clone(),
-                payload: payload.clone(),
-                target: target.clone(),
-            }),
-            Self::ApplyGameRoutingPresets { target } => {
-                Some(CommandIntent::ApplyGameRoutingPresets {
-                    target: target.clone(),
-                })
-            }
-            Self::UpgradeGeoDatabases => Some(CommandIntent::UpgradeGeoDatabases),
-            Self::ApplyRulesJsonDocument { section, json } => {
-                Some(CommandIntent::ApplyRulesJsonDocument {
-                    section: *section,
-                    json: json.clone(),
-                })
-            }
-            Self::SetRuleTracerContext { src_ip } => Some(CommandIntent::SetRuleTracerContext {
-                src_ip: src_ip.clone(),
-            }),
-            Self::SimulateRuleTrace { query } => Some(CommandIntent::SimulateRuleTrace {
-                query: query.clone(),
-            }),
-            Self::ApplyTracerRuleOverride {
-                rule_index,
-                new_target,
-            } => Some(CommandIntent::ApplyTracerRuleOverride {
-                request: infiltrator_contract::rule_tracer::TracerRuleOverride {
-                    rule_index: *rule_index,
-                    new_target: new_target.clone(),
-                },
-            }),
-            Self::CloseConnection { id } => Some(CommandIntent::CloseConnection { id: id.clone() }),
-            Self::CloseAllConnections => Some(CommandIntent::CloseAllConnections),
-            Self::ClearLogs => Some(CommandIntent::ClearLogs),
-            Self::SetLogLevelFilter { level } => Some(CommandIntent::SetLogLevelFilter {
-                level: level.clone(),
-            }),
-            Self::ClearDnsCache => Some(CommandIntent::ClearDnsCache),
-            Self::TestDnsLatency => Some(CommandIntent::TestDnsLatency),
-            Self::TestDnsLeak => Some(CommandIntent::TestDnsLeak),
-            Self::RunStunProbe => Some(CommandIntent::RunStunProbe),
-            Self::ApplyDnsSettings { patch } => Some(CommandIntent::ApplyDnsSettings {
-                patch: patch.clone(),
-            }),
-            Self::ToggleTun { enabled } => Some(CommandIntent::ToggleTun { enabled: *enabled }),
-            Self::StartVpn => Some(CommandIntent::StartVpn),
-            Self::StopVpn => Some(CommandIntent::StopVpn),
-            Self::RunPrivilegedNetworkRegression => {
-                Some(CommandIntent::RunPrivilegedNetworkRegression)
-            }
-            Self::SetSystemProxy { enabled } => {
-                Some(CommandIntent::SetSystemProxy { enabled: *enabled })
-            }
-            Self::SetLanSharing {
-                enabled,
-                mixed_port,
-                bind_address,
-            } => Some(CommandIntent::SetLanSharing {
-                enabled: *enabled,
-                mixed_port: *mixed_port,
-                bind_address: bind_address.clone(),
-            }),
-            Self::SetLanSecurity {
-                allowed_ips,
-                disallowed_ips,
-                skip_auth_prefixes,
-                authentication_enabled,
-                credentials,
-            } => Some(CommandIntent::SetLanSecurity {
-                allowed_ips: allowed_ips.clone(),
-                disallowed_ips: disallowed_ips.clone(),
-                skip_auth_prefixes: skip_auth_prefixes.clone(),
-                authentication_enabled: *authentication_enabled,
-                credentials: credentials.clone(),
-            }),
-            Self::SetIpv6Routing { enabled } => {
-                Some(CommandIntent::SetIpv6Routing { enabled: *enabled })
-            }
-            Self::ScanUwpApps => Some(CommandIntent::ScanUwpApps),
-            Self::SetUwpAppExemption { sid, exempt } => Some(CommandIntent::SetUwpAppExemption {
-                sid: sid.clone(),
-                exempt: *exempt,
-            }),
-            Self::SetAllUwpExemptions { exempt } => {
-                Some(CommandIntent::SetAllUwpExemptions { exempt: *exempt })
-            }
-            Self::ApplyPac {
-                enabled,
-                bypass_domains,
-                bypass_lan,
-                minify,
-            } => Some(CommandIntent::ApplyPac {
-                enabled: *enabled,
-                bypass_domains: bypass_domains.clone(),
-                bypass_lan: *bypass_lan,
-                minify: *minify,
-            }),
-            Self::RefreshNetworkRoaming => Some(CommandIntent::RefreshNetworkRoaming),
-            Self::RepairNetworkRoutes => Some(CommandIntent::RepairNetworkRoutes),
-            Self::RunDoctorDiagnostics => Some(CommandIntent::RunDoctorDiagnostics),
-            Self::RepairDoctorIssue { check_id } => Some(CommandIntent::RepairDoctorIssue {
-                check_id: check_id.clone(),
-            }),
-            Self::RepairAllDoctorIssues => Some(CommandIntent::RepairAllDoctorIssues),
-            Self::ToggleAppRouting { app_id, enabled } => Some(CommandIntent::ToggleAppRouting {
-                app_id: app_id.clone(),
-                enabled: *enabled,
-            }),
-            Self::SetAppRoutingMode { mode } => {
-                Some(CommandIntent::SetAppRoutingMode { mode: mode.clone() })
-            }
-            Self::ToggleIncludeSystemApps { include } => {
-                Some(CommandIntent::ToggleIncludeSystemApps { include: *include })
-            }
-            Self::SetAppRule { app_id, rule } => Some(CommandIntent::SetAppRule {
-                app_id: app_id.clone(),
-                rule: rule.clone(),
-            }),
-            Self::SyncNow => Some(CommandIntent::SyncNow),
-            Self::CreateBackupSnapshot => Some(CommandIntent::CreateBackupSnapshot),
-            Self::ResolveConflictKeepLocal => Some(CommandIntent::ResolveConflictKeepLocal),
-            Self::ResolveConflictTakeRemote => Some(CommandIntent::ResolveConflictTakeRemote),
-            Self::RestoreSnapshot { id } => Some(CommandIntent::RestoreSnapshot { id: id.clone() }),
-            Self::LoadSnapshotDiff { snapshot_id } => Some(CommandIntent::LoadSnapshotDiff {
-                snapshot_id: snapshot_id.clone(),
-            }),
-            Self::LoadSnapshotHistory => Some(CommandIntent::LoadSnapshotHistory),
-            Self::PruneSnapshots { keep } => Some(CommandIntent::PruneSnapshots { keep: *keep }),
-            Self::LoadProfileDocument { profile } => Some(CommandIntent::LoadProfileDocument {
-                profile: profile.clone(),
-            }),
-            Self::SaveProfileDocument {
-                profile,
-                content,
-                allow_protected,
-            } => Some(CommandIntent::SaveProfileDocument {
-                profile: profile.clone(),
-                content: content.clone(),
-                allow_protected: *allow_protected,
-            }),
-            Self::LoadProfileOptions { profile } => Some(CommandIntent::LoadProfileOptions {
-                profile: profile.clone(),
-            }),
-            Self::SaveMixinOverlay {
-                profile,
-                mixin_yaml,
-            } => Some(CommandIntent::SaveMixinOverlay {
-                profile: profile.clone(),
-                mixin_yaml: mixin_yaml.clone(),
-            }),
-            Self::RollbackCore => Some(CommandIntent::RollbackCore),
-            Self::UpdateSetting { key, value } => Some(CommandIntent::UpdateSetting {
-                key: key.clone(),
-                value: value.clone(),
-            }),
-            Self::CheckUpdates => Some(CommandIntent::CheckUpdates),
-        }
-    }
-}
+mod intent;
 
 /// Abstract sink consuming typed UI commands.
 pub trait UiCommandSink: Send + Sync {
     /// Submit a command for background processing.
     fn submit(&self, command: UiCommand);
+    /// A host without exact terminal feedback refuses tracked editing operations.
+    fn submit_tracked(&self, _command: UiCommand) -> Option<RequestId> {
+        None
+    }
+    /// Terminal feedback; recording-only test sinks have no background executor.
+    fn drain_results(&self) -> Vec<CommandExecutedEvent> {
+        Vec::new()
+    }
 }
 
 /// ECS resource handle wrapping a thread-safe UI command sink.
@@ -658,11 +366,15 @@ impl CommandSinkHandle {
     pub fn submit(&self, command: UiCommand) {
         self.0.submit(command);
     }
+    pub fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
+        self.0.submit_tracked(command)
+    }
 }
 
 /// Demo/in-memory command sink recording submitted commands for testing and mock runs.
 #[derive(Clone, Debug, Default)]
 pub struct DemoCommandSink {
+    next_request: Arc<AtomicU64>,
     history: Arc<Mutex<Vec<UiCommand>>>,
 }
 
@@ -671,6 +383,7 @@ impl DemoCommandSink {
     pub fn accepting() -> Self {
         Self {
             history: Arc::new(Mutex::new(Vec::new())),
+            next_request: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -686,34 +399,13 @@ impl DemoCommandSink {
 }
 
 impl UiCommandSink for DemoCommandSink {
+    fn submit_tracked(&self, command: UiCommand) -> Option<RequestId> {
+        let id = RequestId(self.next_request.fetch_add(1, Ordering::Relaxed) + 1);
+        self.submit(command);
+        Some(id)
+    }
     fn submit(&self, command: UiCommand) {
         self.history.lock().expect("sink poisoned").push(command);
-    }
-}
-
-/// Production sink that hands business commands to the shared application
-/// service. Presentation-only commands are intentionally ignored here; their
-/// state belongs to the Bevy scene rather than the core.
-#[derive(Clone)]
-pub struct ApplicationCommandSink {
-    application: Arc<CoreApplication>,
-}
-
-impl ApplicationCommandSink {
-    pub fn new(application: Arc<CoreApplication>) -> Self {
-        Self { application }
-    }
-
-    pub fn application(&self) -> &Arc<CoreApplication> {
-        &self.application
-    }
-}
-
-impl UiCommandSink for ApplicationCommandSink {
-    fn submit(&self, command: UiCommand) {
-        if let Some(intent) = command.to_intent() {
-            self.application.dispatch(intent);
-        }
     }
 }
 
@@ -747,6 +439,7 @@ impl Default for CommandPumpPlugin {
 impl Plugin for CommandPumpPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CommandSinkHandle(Arc::clone(&self.sink)));
+        app.add_systems(Update, drain_command_results);
     }
 }
 
@@ -789,12 +482,9 @@ mod tests {
             })
         );
         assert_eq!(
-            UiCommand::SetProxySortOrder(
-                infiltrator_contract::proxies::ProxySortOrder::LatencyDesc
-            )
-            .to_intent(),
+            UiCommand::SetProxySortOrder(ProxySortOrder::LatencyDesc).to_intent(),
             Some(CommandIntent::SetProxySortOrder {
-                order: infiltrator_contract::proxies::ProxySortOrder::LatencyDesc,
+                order: ProxySortOrder::LatencyDesc,
             })
         );
         assert_eq!(

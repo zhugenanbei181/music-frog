@@ -1,9 +1,8 @@
 //! Host port for Android VpnService permission, foreground and tunnel state.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::vpn::{VpnConfiguration, VpnSessionSnapshot, VpnStartRequest};
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait VpnServicePort: Send + Sync {

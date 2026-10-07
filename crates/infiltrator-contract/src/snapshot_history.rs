@@ -83,13 +83,12 @@ pub enum SnapshotPruneSource {
     Manual,
 }
 
-impl SnapshotPruneSource {
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::Apply => "应用成功后自动修剪",
-            Self::Manual => "手动修剪",
-        }
-    }
+/// Receipt of a successful snapshot storage write, before any optional history refresh.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotCreatedReceipt {
+    pub profile: String,
+    pub id: String,
+    pub sha256: String,
 }
 
 /// Outcome of one prune pass.
@@ -98,6 +97,12 @@ pub struct SnapshotPruneReport {
     pub removed: usize,
     pub keep_limit: usize,
     pub source: SnapshotPruneSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotPrunedReceipt {
+    pub profile: String,
+    pub report: SnapshotPruneReport,
 }
 
 /// The current profile's snapshot history plus the shared prune view.
@@ -130,20 +135,6 @@ impl SnapshotHistorySnapshot {
 
     pub fn newest(&self) -> Option<&SnapshotEntry> {
         self.entries.first()
-    }
-
-    /// Honest one-line summary both surfaces can render.
-    pub fn summary_zh(&self) -> String {
-        if self.entries.is_empty() {
-            return format!("{} 暂无历史快照", self.profile);
-        }
-        format!(
-            "{} · {} 份快照（上限 {}）· 待修剪 {} 份",
-            self.profile,
-            self.entries.len(),
-            self.keep_limit,
-            self.pending_prune
-        )
     }
 
     /// Clamp a requested retention into the supported range.

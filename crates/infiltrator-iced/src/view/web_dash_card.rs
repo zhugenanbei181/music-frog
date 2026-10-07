@@ -2,10 +2,11 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::card;
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};

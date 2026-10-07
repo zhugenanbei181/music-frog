@@ -2,6 +2,8 @@
 //! host did not perform, and the profile carrier is written losslessly.
 
 use super::*;
+use infiltrator_domain::tls_trust::sha256_fingerprint;
+use infiltrator_ports::certificate_authority::CaFile;
 use infiltrator_ports::error::PortError;
 
 const TEST_PEM: &str = "\
@@ -24,11 +26,8 @@ struct StaticCaReader {
 }
 
 impl CertificateAuthorityPort for StaticCaReader {
-    fn read_ca_file(
-        &self,
-        path: &str,
-    ) -> Result<infiltrator_ports::certificate_authority::CaFile, PortError> {
-        Ok(infiltrator_ports::certificate_authority::CaFile {
+    fn read_ca_file(&self, path: &str) -> Result<CaFile, PortError> {
+        Ok(CaFile {
             path: path.to_string(),
             pem: self.pem.clone(),
         })
@@ -39,10 +38,7 @@ impl CertificateAuthorityPort for StaticCaReader {
 struct FailingCaReader;
 
 impl CertificateAuthorityPort for FailingCaReader {
-    fn read_ca_file(
-        &self,
-        path: &str,
-    ) -> Result<infiltrator_ports::certificate_authority::CaFile, PortError> {
+    fn read_ca_file(&self, path: &str) -> Result<CaFile, PortError> {
         Err(PortError::Io(format!("`{path}`: permission denied")))
     }
 }
@@ -79,10 +75,7 @@ fn a_real_reader_loads_the_bundle_and_computes_the_fingerprint() {
     let resolution = &report.resolutions[0];
     assert_eq!(resolution.certificate_count, Some(1));
     let fingerprint = resolution.fingerprint.clone().expect("fingerprint");
-    assert_eq!(
-        fingerprint,
-        infiltrator_domain::tls_trust::sha256_fingerprint(TEST_PEM)
-    );
+    assert_eq!(fingerprint, sha256_fingerprint(TEST_PEM));
 
     // A matching whitelist pin stays loaded...
     let matching = TlsTrustParams {
@@ -208,7 +201,7 @@ fn trust_is_only_claimed_when_every_resolution_loaded() {
     };
     let matching = TlsTrustParams {
         ca_path: "/etc/ssl/ca.pem".to_string(),
-        fingerprint: infiltrator_domain::tls_trust::sha256_fingerprint(TEST_PEM),
+        fingerprint: sha256_fingerprint(TEST_PEM),
         ..TlsTrustParams::default()
     };
     assert!(CertificateAuthorityApplication::resolve(&matching, Some(&reader)).is_trusted());

@@ -1,13 +1,12 @@
 //! Runtime log surface: an in-memory ring buffer of parsed mihomo log
 //! lines plus streaming start/stop and buffered retrieval for Kotlin.
 
-use std::sync::{Mutex, OnceLock};
-
-use futures_util::StreamExt;
-use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
-
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_runtime_query_application, get_runtime, map_application_failure};
+use futures_util::StreamExt;
+use infiltrator_ports::runtime_gateway::RuntimeStreamEvent;
+use std::sync::{Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // --- Log Buffer ---
 
@@ -147,8 +146,8 @@ pub async fn logs_start_streaming() -> FfiStatus {
                         let entry = LogEntry {
                             level: parse_log_level(level_str),
                             message: msg,
-                            timestamp: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
+                            timestamp: SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
                                 .map(|d| d.as_secs())
                                 .unwrap_or(0),
                         };

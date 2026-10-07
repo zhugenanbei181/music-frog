@@ -5,18 +5,16 @@
 //! density modes (Compact/Comfortable), orientations, adaptive sidebar/nav modes,
 //! master-detail coordination models, and modal-to-actionsheet transformations.
 
+use crate::theme::Breakpoint;
+use crate::theme::metrics::{CONTROL_HEIGHT_COMFORTABLE, CONTROL_HEIGHT_COMPACT, MIN_TOUCH_TARGET};
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui::prelude::{Node, UiRect, Val};
-use bevy::ui_widgets::Button;
 use bevy::window::{PrimaryWindow, Window};
-
-use crate::theme::Breakpoint;
 
 /// Layout density setting for scaling spacing, padding, row heights, and control sizes.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -74,8 +72,8 @@ impl Density {
     /// Control height for current density (28.0 px Compact, 36.0 px Comfortable).
     pub fn control_height(&self) -> f32 {
         match self {
-            Density::Compact => crate::theme::metrics::CONTROL_HEIGHT_COMPACT,
-            Density::Comfortable => crate::theme::metrics::CONTROL_HEIGHT_COMFORTABLE,
+            Density::Compact => CONTROL_HEIGHT_COMPACT,
+            Density::Comfortable => CONTROL_HEIGHT_COMFORTABLE,
         }
     }
 }
@@ -473,7 +471,7 @@ pub struct TouchHitbox {
 impl Default for TouchHitbox {
     fn default() -> Self {
         Self {
-            min_target_px: crate::theme::metrics::MIN_TOUCH_TARGET,
+            min_target_px: MIN_TOUCH_TARGET,
             original_min_width: None,
             original_min_height: None,
             original_height: None,
@@ -553,15 +551,5 @@ pub fn sync_touch_hitboxes(
             }
             hitbox.is_expanded = false;
         }
-    }
-}
-
-/// Auto-mount [`TouchHitbox`] on all entities with `Button` that do not already have one.
-pub fn auto_insert_touch_hitboxes(
-    mut commands: Commands,
-    buttons: Query<Entity, (With<Button>, Without<TouchHitbox>)>,
-) {
-    for entity in &buttons {
-        commands.entity(entity).insert(TouchHitbox::default());
     }
 }

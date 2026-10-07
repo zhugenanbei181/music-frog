@@ -1,12 +1,20 @@
+use crate::types::script::ScriptAction;
+use crate::types::snapshot_restore::RestoreAction;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::overview_layout::OverviewCardKind;
+use infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot;
 pub mod aggregator;
 mod chrome;
 pub mod core;
+mod log_export;
 mod mini_hud;
 pub mod profile;
 pub mod protocol_codec;
-mod script_export;
+mod rule_statistics;
+mod script_workbench;
 pub mod shell;
 mod snapshot_diff;
+mod snapshot_restore;
 mod system_proxy;
 pub mod ui;
 mod ui_wave3;
@@ -19,6 +27,65 @@ use iced::Task;
 
 impl AppState {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        if let Message::SnapshotRestore(action) = message {
+            return self.update_snapshot_restore(action);
+        }
+        if self.editor.snapshot_restore.visible {
+            if matches!(
+                message,
+                Message::EditorAction(_)
+                    | Message::MixinEditorAction(_)
+                    | Message::InsertYamlSnippet(_)
+                    | Message::FormatYamlEditor
+                    | Message::SaveProfile
+                    | Message::DiscardProfileDraft
+            ) {
+                return Task::none();
+            }
+            if let Message::KeyboardChord { key, .. } = &message {
+                return if key.eq_ignore_ascii_case("escape") {
+                    self.update_snapshot_restore(RestoreAction::Cancel)
+                } else {
+                    Task::none()
+                };
+            }
+            if matches!(
+                message,
+                Message::Navigate(_) | Message::NavigateBack | Message::NavigateForward
+            ) {
+                return self.update_snapshot_restore(RestoreAction::Cancel);
+            }
+        }
+        if self.editor.script_sandbox.export_visible {
+            if let Message::KeyboardChord { key, .. } = &message {
+                return if key.eq_ignore_ascii_case("escape") {
+                    self.update_script_workbench(Message::Script(ScriptAction::CancelExport))
+                } else {
+                    Task::none()
+                };
+            }
+            if matches!(
+                message,
+                Message::Navigate(_) | Message::NavigateBack | Message::NavigateForward
+            ) {
+                return Task::none();
+            }
+        }
+        if self.diag.log_export.open {
+            if let Message::KeyboardChord { key, .. } = &message {
+                return if key.eq_ignore_ascii_case("escape") {
+                    self.update_log_export(Message::CancelLogExport)
+                } else {
+                    Task::none()
+                };
+            }
+            if matches!(
+                message,
+                Message::Navigate(_) | Message::NavigateBack | Message::NavigateForward
+            ) {
+                return Task::none();
+            }
+        }
         // demo-mode: every message that would reach the network, spawn a
         // process/server, write a settings/profile/rules file, touch the
         // system proxy / autostart / registry or open an external app is a
@@ -27,6 +94,12 @@ impl AppState {
         // because the demo keeps `AppState::runtime` unset).
         if self.shell.demo {
             match message {
+                Message::SetProxyMode(_) if self.commands.is_none() => return Task::none(),
+                Message::SaveProfileFilter | Message::LoadProfileFilter
+                    if self.commands.is_none() =>
+                {
+                    return Task::none();
+                }
                 Message::SetAppRoutingMode(mode) => {
                     self.app_routing.mode = mode;
                     return Task::none();
@@ -47,7 +120,6 @@ impl AppState {
                 | Message::ServiceModePrepared(_)
                 | Message::RepairPortConflicts
                 | Message::PortConflictsRepaired(_)
-                | Message::SetProxyMode(_)
                 | Message::SetIpv6Routing(_)
                 | Message::SetTunEnabled(_)
                 | Message::SetTunStack(_)
@@ -71,14 +143,13 @@ impl AppState {
                 | Message::SetActiveProfile(_)
                 | Message::ClearProfiles
                 | Message::SaveProfile
+                | Message::DiscardProfileDraft
                 | Message::RestoreProfileSnapshot(_)
                 | Message::SaveMixin
+                | Message::DiscardMixinDraft
                 | Message::LoadSyncDiff(_)
                 | Message::ApplySyncDiffMerge
-                | Message::SaveProfileFilter
-                | Message::LoadProfileFilter
                 | Message::ScanMrsProviders
-                | Message::SaveRules
                 | Message::AddCustomRule
                 | Message::SaveDns
                 | Message::SaveFakeIpConfig
@@ -101,37 +172,101 @@ impl AppState {
                 | Message::RequestAdminPrivilege
                 | Message::InstallTunService
                 | Message::RefreshTunServiceStatus
-                | Message::FlushFakeIpCache
                 | Message::RunDnsLatencyProbe
-                | Message::RunDnsLeakProbe
                 | Message::DnsLeakProbed(_)
                 | Message::RunStunProbe
                 | Message::StunProbed(_)
-                // Doctor 面板走 loopback HTTP；demo 会话没有内嵌 admin server。
+                | Message::RunPrivilegedNetworkRegression
+                | Message::PrivilegedNetworkRegressionUpdated(_) => return Task::none(),
+                Message::SaveRules
+                | Message::RunDnsLeakProbe
+                | Message::RetryDnsLeakProbe
                 | Message::RunDoctor
                 | Message::RunDoctorFix
                 | Message::RunBootstrap
-                | Message::RunPrivilegedNetworkRegression
-                | Message::PrivilegedNetworkRegressionUpdated(_) => return Task::none(),
+                | Message::RepairDoctorIssue(_)
+                | Message::RetryDoctorCommand
+                    if self.commands.is_none() =>
+                {
+                    return Task::none();
+                }
                 _ => {}
             }
         }
 
         match message {
+            Message::ExportRedactedLogs
+            | Message::ConfirmLogExport
+            | Message::CancelLogExport
+            | Message::RetryLogExport
+            | Message::LogExportFinished { .. } => self.update_log_export(message),
+            Message::LanguageChoiceApplied { token, result } => {
+                self.finish_language_choice(token, result);
+                Task::none()
+            }
+            Message::RetryLanguageChoice => self
+                .shell
+                .language_choice
+                .requested
+                .map(|preference| self.set_language_choice(preference.as_setting().into()))
+                .unwrap_or_else(Task::none),
+            Message::OpenProxyGroupOrder => self.open_group_order(None),
+            Message::ApplyProxyGroupOrder => self.apply_group_order(),
+            Message::CancelProxyGroupOrder => {
+                if self.runtime.group_order_editor.pending.is_none() {
+                    self.runtime.group_order_editor.cancel();
+                    self.runtime.group_order_open = false;
+                }
+                Task::none()
+            }
+            Message::ProxyGroupOrderApplied { token, result } => {
+                let success = result.is_ok();
+                if self.runtime.group_order_editor.finish(token, result) && success {
+                    self.runtime.group_order_open = false;
+                }
+                Task::none()
+            }
+            Message::OpenProxyProbeOptions => {
+                self.runtime.probe_options_open = true;
+                Task::none()
+            }
+            Message::ApplyProxyProbeOptions => self.apply_probe_options(),
+            Message::CancelProxyProbeOptions => {
+                if self.runtime.probe_options_editor.pending.is_some() {
+                    return Task::none();
+                }
+                self.runtime.probe_options_open = false;
+                self.runtime.probe_options_editor.cancel();
+                self.sync_probe_draft_fields();
+                Task::none()
+            }
+            Message::ProxyProbeOptionsApplied { token, result } => {
+                let succeeded = result.is_ok();
+                if self.runtime.probe_options_editor.finish(token, result) && succeeded {
+                    self.runtime.probe_options_open = false;
+                }
+                self.sync_probe_draft_fields();
+                Task::none()
+            }
+            Message::ProxyPreferenceFinished { token, result } => {
+                self.finish_proxy_preference(token, result)
+            }
+            Message::ProxySearchFinished {
+                token,
+                query,
+                result,
+            } => self.finish_proxy_search(token, query, result),
             Message::SurfaceSnapshotUpdated(snapshot) => {
                 self.apply_shared_surface_snapshot(*snapshot);
                 // DUAL-15-02: a live traffic sample may have arrived; push the
                 // shared rate badge (throttled + deduped inside).
                 self.refresh_tray_rates();
-                Task::none()
+                self.sync_logs_viewport_task()
             }
             // Window geometry is local shell state, but the derived layout tier
             // is the shared contract so both surfaces classify widths identically.
             Message::WindowResized(width, height) => {
-                self.shell.viewport =
-                    infiltrator_contract::responsive_viewport::ResponsiveViewportSnapshot::from_dimensions(
-                        width, height,
-                    );
+                self.shell.viewport = ResponsiveViewportSnapshot::from_dimensions(width, height);
                 // Paginated lists derive their page budget from the tier so a
                 // short/narrow window builds fewer heavy rows. Keeping it on the
                 // stored field means view and paging logic share one source.
@@ -166,8 +301,7 @@ impl AppState {
                 Task::none()
             }
             Message::ResetOverviewCardOrder => {
-                self.diag.overview_card_order =
-                    infiltrator_contract::overview_layout::OverviewCardKind::DEFAULT_ORDER.to_vec();
+                self.diag.overview_card_order = OverviewCardKind::DEFAULT_ORDER.to_vec();
                 Task::none()
             }
             // DUAL-08 multi-subscription aggregator: the modal state, the real
@@ -209,6 +343,8 @@ impl AppState {
             | Message::SelectNextCommand
             | Message::SelectPrevCommand
             | Message::ExecuteCommand(_)
+            | Message::ExecuteSelectedCommand
+            | Message::CopyConnectionHost
             | Message::InspectConnection(_)
             | Message::CloseSingleConnection(_)
             | Message::FormatYamlEditor
@@ -234,18 +370,14 @@ impl AppState {
             | Message::WindowChromeToggleMaximize
             | Message::WindowChromeMinimize
             | Message::WindowChromeClose
-            | Message::RunScriptSandboxTest
-            | Message::SelectScriptPreset(_)
-            | Message::UpdateScriptSandboxCode(_)
-            | Message::UpdateScriptSandboxInputYaml(_)
-            | Message::ClearScriptSandbox
-            | Message::ExportScriptDraft(_)
-            | Message::ScriptExportFinished(_)
+            | Message::Script(_)
+            | Message::SnapshotRestore(_)
             | Message::OpenCustomNodeModal
             | Message::CloseCustomNodeModal
             | Message::UpdateCustomNodeUriInput(_)
             | Message::ParseAndImportCustomUri
             | Message::UpdateCustomNodeDraft(_)
+            | Message::UpdateCustomNodeField(_, _)
             | Message::ExportCustomNodeUri
             | Message::SaveCustomNodeForm
             | Message::CustomNodeSaved(_)
@@ -259,8 +391,6 @@ impl AppState {
             | Message::SnapshotDiffLoaded(_)
             | Message::SetSnapshotDiffMode(_)
             | Message::RefreshSnapshotDiff
-            | Message::ArmSnapshotRollback
-            | Message::CancelSnapshotRollback
             | Message::RollbackToSnapshot(_)
             | Message::SetProfileProtectionOverride(_)
             | Message::ToggleHotkeyEnabled(_)
@@ -303,25 +433,17 @@ impl AppState {
             | Message::LaunchWebDashboard(_)
             | Message::UpdateLogRegexFilter(_)
             | Message::SetLogLevelFilter(_)
-            | Message::ExportRedactedLogs
-            | Message::EvaluateSubscriptionQuota
-            | Message::UpdateCronScheduleHours(_)
             | Message::UpdatePacBypassSubnets(_)
             | Message::CompileAndValidatePac
             | Message::PacApplied(_)
             | Message::TogglePacMode(_)
-            | Message::AuditStaleRules
-            | Message::DisableZeroHitRules
-            | Message::SelectRadarNode(_)
-            | Message::RecordRadarLatencySample { .. }
+            | Message::RuleStatistics(_)
             | Message::SelectTunStack(_)
             | Message::ProbeOptimalMtu
             | Message::MtuProbed(_)
             | Message::MtuProbeFinished(_)
             | Message::UnpackRuleProviderToCustom(_)
             | Message::PurgeRuleProviderCache
-            | Message::TriggerAtomicConfigApply
-            | Message::ApplyTransactionStageChanged(_)
             | Message::ToggleLanSharing(_)
             | Message::UpdateLanSharingPort(_)
             | Message::UpdateLanBindAddress(_)
@@ -349,6 +471,8 @@ impl AppState {
             | Message::ResetHotkey(_)
             | Message::ShortcutsUpdated(_)
             | Message::TickFrame(_)
+            | Message::CaptureRegionMeasured(_)
+            | Message::CaptureFrameRendered { .. }
             | Message::WindowClosed(_)
             | Message::HideWindow
             | Message::ShowWindow
@@ -422,26 +546,29 @@ impl AppState {
             | Message::ArmRestoreProfileSnapshot(_)
             | Message::CancelRestoreProfileSnapshot
             | Message::RestoreProfileSnapshot(_)
-            | Message::ProfileSnapshotRestored(_)
             | Message::EditorAction(_)
             | Message::InsertYamlSnippet(_)
             | Message::SaveProfile
+            | Message::DiscardProfileDraft
             | Message::ProfileSaved(_)
             | Message::SetEditorPane(_)
             | Message::MixinEditorAction(_)
             | Message::MixinLoaded(_)
             | Message::SaveMixin
+            | Message::DiscardMixinDraft
             | Message::MixinSaved(_)
             | Message::ToggleMixinPreset(_, _)
             | Message::LoadProfileFilter
-            | Message::ProfileFilterLoaded(_)
+            | Message::ProfileFilterLoaded { .. }
             | Message::UpdateFilterInclude(_)
             | Message::UpdateFilterExclude(_)
             | Message::UpdateFilterExcludeTypes(_)
             | Message::UpdateFilterRenames(_)
+            | Message::UpdateFilterAdvancedPolicy(_)
             | Message::UpdateFilterDedup(_)
             | Message::SaveProfileFilter
-            | Message::ProfileFilterSaved(_)
+            | Message::ProfileFilterSaved { .. }
+            | Message::DiscardProfileFilter
             | Message::UpdateWebDavUrl(_)
             | Message::UpdateWebDavUser(_)
             | Message::UpdateWebDavPass(_)
@@ -480,26 +607,30 @@ impl AppState {
 
             // Core & Network
             Message::ToggleProxyGroupExpanded(group) => {
-                // ui-wave2-p：None 表示初始状态（默认展开第一组）；首次交互时以当前
-                // 过滤结果的第一组为基线，之后完全由用户点击决定展开集合。
-                let mut ids = self
-                    .runtime
-                    .proxy_groups_expanded
-                    .take()
-                    .unwrap_or_else(|| {
-                        self.runtime
-                            .filtered_groups
-                            .first()
-                            .map(|(name, _)| vec![name.clone()])
-                            .unwrap_or_default()
-                    });
-                match ids.iter().position(|g| g == &group) {
-                    Some(index) => {
-                        ids.remove(index);
+                if self.commands.is_some() {
+                    if !self
+                        .runtime
+                        .proxy_groups
+                        .iter()
+                        .any(|entry| entry.name == group)
+                    {
+                        return Task::none();
                     }
-                    None => ids.push(group),
+                    return self
+                        .submit_proxy_preference(CommandIntent::ToggleProxyGroupExpand { group });
                 }
-                self.runtime.proxy_groups_expanded = Some(ids);
+                if !self
+                    .runtime
+                    .proxies
+                    .get(&group)
+                    .is_some_and(|proxy| proxy.is_group())
+                {
+                    return Task::none();
+                }
+                self.runtime
+                    .proxy_ui_preferences
+                    .toggle_group_expand(&group);
+                self.recompute_filtered_groups();
                 Task::none()
             }
             _ => self.update_core(message),

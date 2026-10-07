@@ -2,10 +2,10 @@
 //! unambiguous (missing artifact or provably stale record) and never
 //! overwrites existing content.
 
-use tokio::fs;
-
 use super::pidfile::remove_stale_pid_file;
 use super::{DoctorEnv, DoctorFixAction};
+use std::io::ErrorKind;
+use tokio::fs;
 
 pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
     let dir = env.configs_dir().await?;
@@ -17,7 +17,7 @@ pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<Do
                 dir.display()
             );
         }
-        Err(err) if err.kind() != std::io::ErrorKind::NotFound => {
+        Err(err) if err.kind() != ErrorKind::NotFound => {
             return Err(err.into());
         }
         Err(_) => {}
@@ -51,13 +51,9 @@ pub(super) async fn fix_external_controller(
     let profile_path = manager.get_current_path().await?;
     // A write happened iff the profile content changed; the resolved URL can
     // stay identical even when the key is newly written out.
-    let before = tokio::fs::read_to_string(&profile_path).await.ok();
+    let before = fs::read_to_string(&profile_path).await.ok();
     let url = manager.ensure_external_controller().await?;
-    let wrote = tokio::fs::read_to_string(&profile_path)
-        .await
-        .ok()
-        .as_deref()
-        != before.as_deref();
+    let wrote = fs::read_to_string(&profile_path).await.ok().as_deref() != before.as_deref();
     if !wrote {
         return Ok(None);
     }

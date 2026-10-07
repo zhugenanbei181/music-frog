@@ -19,14 +19,17 @@ use infiltrator_domain::rules::provider_store::{
     MAX_PROVIDER_FILE_BYTES, PROVIDER_CACHE_DIR_NAME, ProviderSourceKind, RuleProviderDeclaration,
     provider_source_candidates,
 };
+use infiltrator_domain::snapshots::content_hash;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::rule_provider_cache::{
     ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
 };
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
+use tokio::fs::{metadata, read, read_dir, remove_file};
 
 /// Digest memo entry: `(size, modified_unix_nanos, sha256)` per file path.
 ///
@@ -78,13 +81,13 @@ impl DesktopRuleProviderCache {
             return Ok(digest);
         }
         let digest = {
-            let bytes = tokio::fs::read(path).await.map_err(|error| {
+            let bytes = read(path).await.map_err(|error| {
                 PortError::Io(format!(
                     "cannot read provider file {}: {error}",
                     path.display()
                 ))
             })?;
-            infiltrator_domain::snapshots::content_hash(&bytes)
+            content_hash(&bytes)
         };
         if let Some(modified) = modified_unix_nanos {
             self.digests
@@ -97,9 +100,9 @@ impl DesktopRuleProviderCache {
 
     async fn scan_cache(&self) -> Result<Vec<(PathBuf, u64)>, PortError> {
         let dir = self.cache_dir();
-        let mut entries = match tokio::fs::read_dir(&dir).await {
+        let mut entries = match read_dir(&dir).await {
             Ok(entries) => entries,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) => {
                 return Err(PortError::Io(format!(
                     "cannot list rule-provider cache {}: {error}",
@@ -134,9 +137,9 @@ impl RuleProviderCachePort for DesktopRuleProviderCache {
         declaration: &RuleProviderDeclaration,
     ) -> Result<Option<ProviderCacheEntry>, PortError> {
         for candidate in provider_source_candidates(declaration, &self.home) {
-            let metadata = match tokio::fs::metadata(&candidate.path).await {
+            let metadata = match metadata(&candidate.path).await {
                 Ok(metadata) => metadata,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
                 Err(error) => {
                     return Err(PortError::Io(format!(
                         "cannot stat provider file {}: {error}",
@@ -155,7 +158,7 @@ impl RuleProviderCachePort for DesktopRuleProviderCache {
                     MAX_PROVIDER_FILE_BYTES
                 )));
             }
-            let bytes = tokio::fs::read(&candidate.path).await.map_err(|error| {
+            let bytes = read(&candidate.path).await.map_err(|error| {
                 PortError::Io(format!(
                     "cannot read provider file {}: {error}",
                     candidate.path.display()
@@ -190,9 +193,9 @@ impl RuleProviderCachePort for DesktopRuleProviderCache {
             return Ok(None);
         };
         let path = candidate.path;
-        let metadata = match tokio::fs::metadata(&path).await {
+        let metadata = match metadata(&path).await {
             Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => {
                 return Err(PortError::Io(format!(
                     "cannot stat provider file {}: {error}",
@@ -239,12 +242,12 @@ impl RuleProviderCachePort for DesktopRuleProviderCache {
         let mut files_removed = 0usize;
         let mut bytes_freed = 0u64;
         for (path, len) in self.scan_cache().await? {
-            match tokio::fs::remove_file(&path).await {
+            match remove_file(&path).await {
                 Ok(()) => {
                     files_removed += 1;
                     bytes_freed += len;
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(PortError::PermissionDenied(format!(
                         "cannot remove cached provider {}: {error}",
@@ -288,7 +291,13 @@ pub fn missing_home_error() -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_domain::rules::provider_store::provider_cache_file_name;
     use serde_json::json;
+    #[cfg(test)]
+    use tokio::fs::create_dir_all;
+    #[cfg(test)]
+    use tokio::fs::write;
 
     fn declaration(value: serde_json::Value) -> RuleProviderDeclaration {
         RuleProviderDeclaration::from_value("ads", &value)
@@ -299,19 +308,15 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path();
         let rules = home.join("rules");
-        tokio::fs::create_dir_all(&rules).await.unwrap();
-        tokio::fs::write(rules.join("aaa"), b"one").await.unwrap();
-        tokio::fs::write(rules.join("bbb"), b"two-two")
-            .await
-            .unwrap();
-        tokio::fs::create_dir_all(rules.join("nested"))
-            .await
-            .unwrap();
-        tokio::fs::write(rules.join("nested").join("keep"), b"nested")
+        create_dir_all(&rules).await.unwrap();
+        write(rules.join("aaa"), b"one").await.unwrap();
+        write(rules.join("bbb"), b"two-two").await.unwrap();
+        create_dir_all(rules.join("nested")).await.unwrap();
+        write(rules.join("nested").join("keep"), b"nested")
             .await
             .unwrap();
         // A sibling profile must survive a purge untouched.
-        tokio::fs::write(home.join("default.yaml"), b"rules: []")
+        write(home.join("default.yaml"), b"rules: []")
             .await
             .unwrap();
 
@@ -353,12 +358,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path();
         let rules = home.join("rules");
-        tokio::fs::create_dir_all(&rules).await.unwrap();
+        create_dir_all(&rules).await.unwrap();
         let url = "https://example.com/ads.txt";
-        let cached =
-            rules.join(infiltrator_domain::rules::provider_store::provider_cache_file_name(url));
-        tokio::fs::write(&cached, b"cached.cn\n").await.unwrap();
-        tokio::fs::write(home.join("local.yaml"), b"payload:\n  - DOMAIN,local.com\n")
+        let cached = rules.join(provider_cache_file_name(url));
+        write(&cached, b"cached.cn\n").await.unwrap();
+        write(home.join("local.yaml"), b"payload:\n  - DOMAIN,local.com\n")
             .await
             .unwrap();
 
@@ -404,11 +408,10 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path();
         let rules = home.join("rules");
-        tokio::fs::create_dir_all(&rules).await.unwrap();
+        create_dir_all(&rules).await.unwrap();
         let url = "https://example.com/ads.txt";
-        let cached =
-            rules.join(infiltrator_domain::rules::provider_store::provider_cache_file_name(url));
-        tokio::fs::write(&cached, b"cached.cn\n").await.unwrap();
+        let cached = rules.join(provider_cache_file_name(url));
+        write(&cached, b"cached.cn\n").await.unwrap();
 
         let port = DesktopRuleProviderCache::new(home.to_path_buf());
         let remote = declaration(json!({
@@ -435,7 +438,7 @@ mod tests {
         );
 
         // Rewriting the cache file changes the observed digest.
-        tokio::fs::write(&cached, b"payload-a\n").await.unwrap();
+        write(&cached, b"payload-a\n").await.unwrap();
         let rewritten = port
             .fingerprint(&remote)
             .await
@@ -475,7 +478,7 @@ mod tests {
     async fn digest_memo_only_reuses_a_digest_for_identical_size_and_mtime() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("provider");
-        tokio::fs::write(&path, b"payload-a\n").await.unwrap();
+        write(&path, b"payload-a\n").await.unwrap();
         let port = DesktopRuleProviderCache::new(dir.path().to_path_buf());
 
         let first = port
@@ -493,7 +496,7 @@ mod tests {
             .unwrap();
         assert_eq!(repeated, first);
         // A changed cheap fact forces a real re-read of the new bytes.
-        tokio::fs::write(&path, b"payload-b\n").await.unwrap();
+        write(&path, b"payload-b\n").await.unwrap();
         let changed = port
             .digest_for(&path, 10, Some(1_700_000_000_000_000_001))
             .await
@@ -505,7 +508,7 @@ mod tests {
         assert_ne!(changed, first);
         // Without a readable mtime the host hashes every time instead of
         // guessing that an unchanged file is unchanged.
-        tokio::fs::write(&path, b"payload-a\n").await.unwrap();
+        write(&path, b"payload-a\n").await.unwrap();
         let without_mtime = port.digest_for(&path, 10, None).await.unwrap();
         assert_eq!(without_mtime, first);
     }

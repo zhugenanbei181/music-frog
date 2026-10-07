@@ -3,23 +3,35 @@
 use crate::state::AppState;
 use crate::types::message::Message;
 use crate::types::rules::RuleBadgeKind;
+use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_accent};
-use crate::view::components::{BadgeKind, badge, card, icon_button, kbd_badge};
+use crate::view::components::{BadgeKind, badge, icon_button, kbd_badge};
+use crate::view::rule_trace_sandbox::sandbox_view;
 use crate::view::rules::{display_rule_type, semantic_badge_kind};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
+use crate::view_root::interaction_regions::InteractionRegion;
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::rule_trace_projection::{
+    present_chain, stage_text, trace_provenance, trace_status,
+};
+use infiltrator_contract::rule_tracer::{
+    DecisionChainSnapshot, DecisionNodeStatus, RuleTracerSnapshot,
+};
 use infiltrator_shared::locales::{Lang, Localizer};
 
+pub const TRACER_SCROLL_ID: &str = "rules-tracer-scroll";
+
 /// Quick preset test button for Rule Tracer.
-fn quick_test_btn<'a>(sample: &'static str) -> Element<'a, Message> {
-    button(text(sample).size(11).font(MONO))
+fn quick_test_btn<'a>(label: String, query: String, enabled: bool) -> Element<'a, Message> {
+    button(text(label).size(11).font(MONO))
         .padding([4, 8])
         .style(|t: &Theme, status| {
             let tk = tokens(t);
             let bg = match status {
-                iced::widget::button::Status::Hovered => Color {
+                button::Status::Hovered => Color {
                     a: 0.15,
                     ..tk.accent
                 },
@@ -41,38 +53,26 @@ fn quick_test_btn<'a>(sample: &'static str) -> Element<'a, Message> {
                 ..Default::default()
             }
         })
-        .on_press(Message::UpdateRulesTracerInput(sample.to_string()))
+        .on_press_maybe(enabled.then_some(Message::UpdateRulesTracerInput(query)))
         .into()
 }
 
 /// Color for a decision-chain node status.
-fn decision_status_color(
-    status: infiltrator_contract::rule_tracer::DecisionNodeStatus,
-) -> fn(&Theme) -> Color {
+fn decision_status_color(status: DecisionNodeStatus) -> fn(&Theme) -> Color {
     match status {
-        infiltrator_contract::rule_tracer::DecisionNodeStatus::Matched
-        | infiltrator_contract::rule_tracer::DecisionNodeStatus::Passed => {
-            |t: &Theme| tokens(t).success
-        }
-        infiltrator_contract::rule_tracer::DecisionNodeStatus::Failed => {
-            |t: &Theme| tokens(t).danger
-        }
-        infiltrator_contract::rule_tracer::DecisionNodeStatus::Fallback => {
-            |t: &Theme| tokens(t).warning
-        }
-        infiltrator_contract::rule_tracer::DecisionNodeStatus::Bypassed
-        | infiltrator_contract::rule_tracer::DecisionNodeStatus::Neutral => {
+        DecisionNodeStatus::Matched | DecisionNodeStatus::Passed => |t: &Theme| tokens(t).success,
+        DecisionNodeStatus::Failed => |t: &Theme| tokens(t).danger,
+        DecisionNodeStatus::Fallback => |t: &Theme| tokens(t).warning,
+        DecisionNodeStatus::Bypassed | DecisionNodeStatus::Neutral => {
             |t: &Theme| tokens(t).text_tertiary
         }
     }
 }
 
 /// Compact five-stage replay of the shared decision chain.
-fn decision_chain_rows<'a>(
-    chain: &'a infiltrator_contract::rule_tracer::DecisionChainSnapshot,
-    lang: &Lang<'_>,
-) -> Element<'a, Message> {
-    let rows: Vec<Element<'a, Message>> = chain
+fn decision_chain_rows<'a>(chain: &DecisionChainSnapshot, lang: &Lang<'_>) -> Element<'a, Message> {
+    let display = present_chain(chain, lang.0);
+    let rows: Vec<Element<'a, Message>> = display
         .nodes
         .iter()
         .map(|node| {
@@ -82,18 +82,12 @@ fn decision_chain_rows<'a>(
                     color: Some(status_color(t))
                 }),
                 Space::new().width(theme::SP_XS),
-                text(node.title.clone())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_primary)
-                    }),
-                Space::new().width(Length::Fill),
-                text(node.detail.clone())
+                text(stage_text(node, lang.0))
                     .size(10)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_tertiary)
                     })
-                    .width(Length::FillPortion(3)),
+                    .width(Length::Fill),
             ]
             .align_y(Alignment::Center)
             .spacing(theme::SP_XS)
@@ -115,7 +109,8 @@ fn decision_chain_rows<'a>(
         ]
         .spacing(theme::SP_XS),
     )
-    .padding([10, 14])
+    .id(InteractionRegion::RuleTraceReport.id())
+    .padding([8, 14])
     .width(Length::Fill)
     .style(|t: &Theme| {
         let tk = tokens(t);
@@ -152,17 +147,26 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
             // `can_reverse_apply` fact. A matched, concrete rule can be
             // rewritten; a fallback replay renders no chooser.
             let override_block: Element<'_, Message> = match (
-                state.editor.rules_tracer_can_reverse_apply,
+                state.editor.rules_tracer_can_reverse_apply
+                    && !state.editor.rule_trace.busy()
+                    && state.editor.rule_trace.current_failure().is_none()
+                    && state
+                        .editor
+                        .rule_trace
+                        .snapshot
+                        .report
+                        .as_ref()
+                        .is_some_and(|report| state.editor.rule_trace.draft_matches(report)),
                 chain.hit_rule_index,
             ) {
                 (true, Some(rule_index)) => {
-                    let chip = |label: &'static str| -> Element<'_, Message> {
-                        button(text(label).size(11).font(MONO))
+                    let chip = |label: &str| -> Element<'_, Message> {
+                        button(text(label.to_owned()).size(11).font(MONO))
                             .padding([4, 8])
                             .style(|t: &Theme, status| {
                                 let tk = tokens(t);
                                 let bg = match status {
-                                    iced::widget::button::Status::Hovered => Color {
+                                    button::Status::Hovered => Color {
                                         a: 0.15,
                                         ..tk.accent
                                     },
@@ -210,11 +214,16 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                                 color: Some(tokens(t).text_secondary)
                             }),
                         row![
-                            chip("PROXY"),
-                            Space::new().width(theme::SP_XS),
-                            chip("DIRECT"),
-                            Space::new().width(theme::SP_XS),
-                            chip("REJECT"),
+                            row(state
+                                .editor
+                                .rule_trace
+                                .snapshot
+                                .report
+                                .as_ref()
+                                .into_iter()
+                                .flat_map(|report| report.targets.iter())
+                                .map(|target| chip(target)))
+                            .spacing(theme::SP_XS),
                             Space::new().width(theme::SP_SM),
                             text_input(
                                 lang.tr("tracer_override_placeholder").as_ref(),
@@ -408,7 +417,8 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
         .into(),
     };
 
-    let clear_btn = if state.editor.rules_tracer_input.is_empty() {
+    let pending = state.editor.rule_trace.busy() || state.editor.rule_trace.confirmation.is_some();
+    let clear_btn = if pending || state.editor.rules_tracer_input.is_empty() {
         Element::from(Space::new().width(0))
     } else {
         icon_button(
@@ -431,43 +441,44 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
     )
     .padding([8, 16])
     .style(style_accent)
-    .on_press(Message::RunRulesTracer);
+    .on_press_maybe((!pending).then_some(Message::RunRulesTracer));
 
-    let quick_presets = row![
-        text(lang.tr("rule_tracer_presets").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_tertiary)
-            }),
-        Space::new().width(theme::SP_XS),
-        quick_test_btn("google.com"),
-        Space::new().width(theme::SP_XS),
-        quick_test_btn("1.1.1.1:443"),
-        Space::new().width(theme::SP_XS),
-        quick_test_btn("steamcommunity.com"),
-        Space::new().width(theme::SP_XS),
-        quick_test_btn("netflix.com"),
-        Space::new().width(theme::SP_XS),
-        quick_test_btn("github.com"),
+    let presets = state
+        .editor
+        .rule_trace
+        .snapshot
+        .report
+        .as_ref()
+        .map(|report| report.presets.clone())
+        .filter(|presets| !presets.is_empty())
+        .unwrap_or_else(RuleTracerSnapshot::default_presets);
+    let quick_presets = column![
+        text(lang.tr("rule_tracer_presets").to_string()).size(11),
+        row(presets
+            .into_iter()
+            .map(|preset| quick_test_btn(preset.label, preset.query, !pending)))
+        .spacing(theme::SP_XS)
+        .wrap()
     ]
-    .align_y(Alignment::Center);
+    .spacing(theme::SP_XS);
 
     let main_card = card(
         Some(lang.tr("tracer_title").to_string()),
         column![
-            text(lang.tr("tracer_subtitle").to_string())
+            text(trace_status(&state.editor.rule_trace, lang.0))
                 .size(12)
                 .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary)
                 }),
+            text(trace_provenance(&state.editor.rule_trace, lang.0)).size(11),
             Space::new().height(theme::SP_XS),
             row![
                 text_input(
                     lang.tr("tracer_query_placeholder").as_ref(),
                     &state.editor.rules_tracer_input
                 )
-                .on_input(Message::UpdateRulesTracerInput)
-                .on_submit(Message::RunRulesTracer)
+                .on_input_maybe((!pending).then_some(Message::UpdateRulesTracerInput))
+                .on_submit_maybe((!pending).then_some(Message::RunRulesTracer))
                 .padding([8, 12])
                 .size(12)
                 .font(MONO)
@@ -489,8 +500,8 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
                     lang.tr("tracer_src_ip_placeholder").as_ref(),
                     &state.editor.rules_tracer_src_ip
                 )
-                .on_input(Message::UpdateTracerSourceIp)
-                .on_submit(Message::RunRulesTracer)
+                .on_input_maybe((!pending).then_some(Message::UpdateTracerSourceIp))
+                .on_submit_maybe((!pending).then_some(Message::RunRulesTracer))
                 .padding([8, 12])
                 .size(12)
                 .font(MONO)
@@ -499,6 +510,7 @@ pub fn tracer_view<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Mess
             ]
             .align_y(Alignment::Center),
             quick_presets,
+            sandbox_view(state, lang),
             Space::new().height(theme::SP_SM),
             tracer_result_view,
         ]

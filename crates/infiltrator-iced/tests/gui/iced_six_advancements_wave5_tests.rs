@@ -7,47 +7,53 @@
 
 use crate::state::AppState;
 use crate::types::message::{Message, MtuProbeCompletion};
-use crate::types::runtime::ApplyTransactionStage;
+use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_application::rule_statistics_workbench::StatisticsAction;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::ipv6::Ipv6RoutingSnapshot;
 use infiltrator_contract::lan::{LanSecuritySnapshot, LanSharingSnapshot};
 use infiltrator_contract::mtu::{MtuNegotiationSnapshot, PhysicalMtuSnapshot};
-use infiltrator_contract::rule_tracer::{
-    RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleTracerSnapshot,
-};
+use infiltrator_contract::provider_cache::ProviderCachePurge;
+use infiltrator_contract::rule_hit_audit::{RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot};
+use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
+use infiltrator_contract::runtime_control::{RuntimeControlSnapshot, RuntimeControlStatus};
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot::{PageData, SettingsPageSnapshot, SurfaceSnapshot};
+use infiltrator_contract::surface_snapshot::{
+    PageData, RulesPageSnapshot, SettingsPageSnapshot, SurfaceSnapshot,
+};
 use infiltrator_contract::system_proxy::{
     SystemProxyObservation, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
-    SystemProxyStatus,
+    SystemProxySnapshot, SystemProxyStatus,
 };
 use infiltrator_contract::tun::{TunStack, TunStackAvailability};
 use infiltrator_domain::rules::RuleEntry;
 
-fn rules_page_with_hit_audit(audit: RuleHitAuditSnapshot) -> SurfaceSnapshot {
+fn rules_page_with_hit_audit(
+    mut audit: RuleHitAuditSnapshot,
+    rules: Vec<RuleEntry>,
+) -> SurfaceSnapshot {
     let mut snapshot = SurfaceSnapshot::unavailable(
         SurfaceKind::IcedDesktop,
         HostKind::Desktop,
         Failure::new(ErrorCode::NotReady, "test snapshot", true),
     );
     snapshot.revision = 3;
-    snapshot.pages.rules =
-        PageData::ready(infiltrator_contract::surface_snapshot::RulesPageSnapshot {
-            total_rules: 4,
-            default_action: "Proxy".to_owned(),
-            providers: Vec::new(),
-            rules: Vec::new(),
-            tracer: RuleTracerSnapshot {
-                hit_audit: audit,
-                ..Default::default()
-            },
-            mrs_acceleration: Default::default(),
-            total_hits: 0,
-            rule_publish_limit: 0,
-            provider_cache: Default::default(),
-            etag_support: Default::default(),
-            json_documents: Vec::new(),
-        });
+    let document = list_document(rules);
+    audit.source = Some(document.source.clone());
+    snapshot.pages.rules = PageData::ready(RulesPageSnapshot {
+        document: Some(document),
+        total_rules: 4,
+        default_action: "Proxy".to_owned(),
+        providers: Vec::new(),
+        rules: Vec::new(),
+        tracer: RuleTracerSnapshot::default(),
+        mrs_acceleration: Default::default(),
+        hit_audit: Some(audit),
+        rule_publish_limit: 0,
+        provider_cache: Default::default(),
+        etag_support: Default::default(),
+        json_documents: Vec::new(),
+    });
     snapshot
 }
 
@@ -56,7 +62,7 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     let (mut state, _) = AppState::new();
 
     // Populate test rules
-    state.editor.rules = vec![
+    state.editor.rule_list.draft = vec![
         RuleEntry {
             rule: "DOMAIN-SUFFIX,google.com,Proxy".into(),
             enabled: true,
@@ -76,16 +82,19 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
     ];
 
     // No fabricated audit before the shared projection arrives.
-    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 0);
-    assert!(state.editor.rule_hit_audit.zero_hit_rule_indices.is_empty());
+    assert!(state.editor.rule_hit_audit.audit.is_none());
+    assert!(state.editor.rule_hit_audit.zero_hit_rows.is_empty());
 
     // The application-owned hit audit reaches the Iced projection verbatim.
     let audit = RuleHitAuditSnapshot {
+        revision: 1,
+        source: None,
         total_hits: 42,
         tracked_rules: 2,
         top_hits: Vec::new(),
         dead_rules: vec![
             RuleDeadEntry {
+                rule_index: Some(1),
                 rule_raw: "DOMAIN-SUFFIX,facebook.com,Proxy".into(),
                 hit_count: 0,
                 reason: RuleDeadReason::ZeroHits,
@@ -94,6 +103,7 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
                 last_hit_secs: None,
             },
             RuleDeadEntry {
+                rule_index: Some(3),
                 rule_raw: "IP-CIDR,1.1.1.1/32,DIRECT".into(),
                 hit_count: 0,
                 reason: RuleDeadReason::Shadowed,
@@ -110,28 +120,61 @@ fn test_advancement_w5_1_rule_hit_counter_and_stale_analyzer() {
         avg_match_latency_us: Some(12.5),
         last_match_latency_us: Some(11),
     };
-    assert!(state.apply_shared_surface_snapshot(rules_page_with_hit_audit(audit)));
-    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 42);
+    assert!(
+        state.apply_shared_surface_snapshot(rules_page_with_hit_audit(
+            audit,
+            state.editor.rule_list.draft.clone()
+        ))
+    );
     assert_eq!(
-        state.editor.rule_hit_audit.audit.last_hit_rule.as_deref(),
+        state
+            .editor
+            .rule_hit_audit
+            .audit
+            .as_ref()
+            .unwrap()
+            .total_hits,
+        42
+    );
+    assert_eq!(
+        state
+            .editor
+            .rule_hit_audit
+            .audit
+            .as_ref()
+            .unwrap()
+            .last_hit_rule
+            .as_deref(),
         Some("DOMAIN-SUFFIX,google.com,Proxy")
     );
 
     // Trigger audit: indices are derived from the shared dead-rule projection,
     // not from any `idx % 2` fabrication.
-    let _ = state.update(Message::AuditStaleRules);
+    let _ = state.update(Message::RuleStatistics(StatisticsAction::Inspect));
     assert_eq!(
-        state.editor.rule_hit_audit.zero_hit_rule_indices,
-        vec![1, 3]
+        state.editor.rule_hit_audit.zero_hit_rows,
+        vec![
+            state.editor.rule_list.row_id(1).unwrap(),
+            state.editor.rule_list.row_id(3).unwrap()
+        ]
     );
 
     // Disable stale rules
-    let _ = state.update(Message::DisableZeroHitRules);
-    assert!(state.editor.rules[0].enabled);
-    assert!(!state.editor.rules[1].enabled); // disabled rule 1
-    assert!(state.editor.rules[2].enabled);
-    assert!(!state.editor.rules[3].enabled); // disabled rule 3
-    assert!(state.editor.rules_dirty);
+    let _ = state.update(Message::RuleStatistics(StatisticsAction::PrepareCleanup));
+    let before = state.editor.rule_list.draft.clone();
+    assert!(state.editor.rule_hit_audit.confirmation.is_some());
+    assert_eq!(state.editor.rule_list.draft, before);
+    let _ = state.update(Message::CancelConfirmation);
+    assert_eq!(state.editor.rule_list.draft, before);
+    assert!(state.editor.rule_hit_audit.confirmation.is_none());
+    let _ = state.update(Message::RuleStatistics(StatisticsAction::PrepareCleanup));
+    let _ = state.update(Message::ConfirmAction);
+
+    assert!(state.editor.rule_list.draft[0].enabled);
+    assert!(!state.editor.rule_list.draft[1].enabled); // disabled rule 1
+    assert!(state.editor.rule_list.draft[2].enabled);
+    assert!(!state.editor.rule_list.draft[3].enabled); // disabled rule 3
+    assert!(state.editor.rule_list.dirty());
 }
 
 #[test]
@@ -145,32 +188,76 @@ fn test_clear_rule_hit_counters_without_host_port_is_honest() {
         can_clear: true,
         ..Default::default()
     };
-    assert!(state.apply_shared_surface_snapshot(rules_page_with_hit_audit(audit)));
+    assert!(
+        state.apply_shared_surface_snapshot(rules_page_with_hit_audit(
+            audit,
+            state.editor.rule_list.draft.clone()
+        ))
+    );
 
-    let _ = state.update(Message::ClearRuleHitCounters);
-    assert_eq!(state.editor.rule_hit_audit.audit.total_hits, 7);
+    let _ = state.update(Message::RuleStatistics(StatisticsAction::Reset));
+    assert_eq!(
+        state
+            .editor
+            .rule_hit_audit
+            .audit
+            .as_ref()
+            .unwrap()
+            .total_hits,
+        7
+    );
 }
 
 #[test]
 fn test_advancement_w5_2_latency_time_series_and_stability_radar() {
+    use infiltrator_application::proxy_inspection_fixtures::{INSPECTION_NODE, observed_proxy};
     let (mut state, _) = AppState::new();
-
-    // Select node in radar
-    let _ = state.update(Message::SelectRadarNode("HK-VIP-01".to_string()));
-    assert_eq!(state.runtime.latency_radar.selected_node, "HK-VIP-01");
-    assert_eq!(state.runtime.latency_radar.samples.len(), 6);
-    assert_eq!(state.runtime.latency_radar.stability_score, 5);
-    assert_eq!(state.runtime.latency_radar.min_ms, 38);
-    assert_eq!(state.runtime.latency_radar.max_ms, 45);
-
-    // Record fresh sample (36ms)
-    let _ = state.update(Message::RecordRadarLatencySample {
-        node: "HK-VIP-01".to_string(),
-        latency_ms: 36,
-    });
-    assert_eq!(state.runtime.latency_radar.samples.len(), 7);
-    assert_eq!(state.runtime.latency_radar.min_ms, 36);
-    assert_eq!(state.runtime.latency_radar.max_ms, 45);
+    assert!(state.proxy_inspection(INSPECTION_NODE).is_none());
+    assert_eq!(
+        state
+            .update(Message::InspectProxy(Some(INSPECTION_NODE.into())))
+            .units(),
+        0
+    );
+    assert!(
+        state.runtime.inspecting_proxy.is_none(),
+        "unobserved node selection cannot create latency samples"
+    );
+    state
+        .runtime
+        .proxies
+        .insert(INSPECTION_NODE.into(), observed_proxy());
+    assert_eq!(
+        state
+            .update(Message::InspectProxy(Some(INSPECTION_NODE.into())))
+            .units(),
+        0
+    );
+    assert_eq!(
+        state.runtime.inspecting_proxy.as_deref(),
+        Some(INSPECTION_NODE)
+    );
+    let observation = state.proxy_inspection(INSPECTION_NODE).unwrap();
+    assert_eq!(observation.history_total, 3);
+    assert_eq!(
+        observation
+            .history
+            .iter()
+            .map(|sample| sample.delay_ms)
+            .collect::<Vec<_>>(),
+        vec![18, 0, 42]
+    );
+    assert_eq!(observation.rtt.min_ms, Some(18));
+    assert_eq!(observation.rtt.max_ms, Some(42));
+    assert_eq!(observation.rtt.avg_ms, Some(30));
+    assert_eq!(observation.rtt.valid_count, 2);
+    assert_eq!(state.update(Message::InspectProxy(None)).units(), 0);
+    assert!(state.runtime.inspecting_proxy.is_none());
+    assert_eq!(
+        state.proxy_inspection(INSPECTION_NODE).unwrap(),
+        observation,
+        "opening and cancelling details cannot manufacture a measurement"
+    );
 }
 
 #[test]
@@ -267,21 +354,31 @@ fn test_shared_surface_route_flags_update_the_iced_projection() {
         Failure::new(ErrorCode::NotReady, "test snapshot", true),
     );
     snapshot.revision = 1;
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(true),
+        mixed_port: Some(7890),
+        allow_lan: Some(false),
+        ..Default::default()
+    };
     snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
+        close_to_tray: None,
+        notifications_enabled: None,
+        language: "zh-CN".into(),
         autostart: false,
         system_proxy: false,
-        mixed_port: 7890,
-        allow_lan: false,
-        lan_bind_address: "*".to_owned(),
-        lan_security: Default::default(),
-        ipv6_routing: Ipv6RoutingSnapshot::new(2, false, true),
+        mixed_port: Some(7890),
+        allow_lan: Some(false),
+        lan_bind_address: Some("*".to_owned()),
+        lan_security: Some(Default::default()),
+        ipv6_routing: Some(Ipv6RoutingSnapshot::new(2, false, true)),
         pac: Default::default(),
-        tun_enabled: true,
-        tun_stack: "system".to_owned(),
-        tun_auto_route: true,
-        tun_strict_route: true,
-        controller_port: 9090,
-        log_level: "info".to_owned(),
+        tun_enabled: Some(true),
+        tun_stack: Some("system".to_owned()),
+        tun_auto_route: Some(true),
+        tun_strict_route: Some(true),
+        controller_port: Some(9090),
+        log_level: Some("info".to_owned()),
         core_channel: "stable".to_owned(),
         mini_hud: Default::default(),
     });
@@ -302,15 +399,14 @@ fn test_shared_surface_system_proxy_updates_the_iced_projection() {
         Failure::new(ErrorCode::NotReady, "test snapshot", true),
     );
     snapshot.revision = 1;
-    snapshot.system_proxy =
-        infiltrator_contract::system_proxy::SystemProxySnapshot::from_observation(
-            1,
-            SystemProxyObservation {
-                enabled: true,
-                endpoint: Some("127.0.0.1:7890".to_owned()),
-                bypass: Some("localhost".to_owned()),
-            },
-        );
+    snapshot.system_proxy = SystemProxySnapshot::from_observation(
+        1,
+        SystemProxyObservation {
+            enabled: true,
+            endpoint: Some("127.0.0.1:7890".to_owned()),
+            bypass: Some("localhost".to_owned()),
+        },
+    );
 
     assert!(state.apply_shared_surface_snapshot(snapshot));
     assert!(state.runtime.system_proxy_enabled);
@@ -346,14 +442,14 @@ fn test_system_proxy_recovery_updates_the_iced_projection() {
 fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
     let (mut state, _) = AppState::new();
 
-    let initial_count = state.editor.rules.len();
+    let initial_count = state.editor.rule_list.draft.len();
 
     // No declaration loaded -> no fabricated samples, an honest status line.
     let _ = state.update(Message::UnpackRuleProviderToCustom(
         "Apple-Provider".to_string(),
     ));
-    assert_eq!(state.editor.rules.len(), initial_count);
-    assert!(!state.editor.rules_dirty);
+    assert_eq!(state.editor.rule_list.draft.len(), initial_count);
+    assert!(!state.editor.rule_list.dirty());
     let status = state
         .editor
         .provider_unpack
@@ -365,7 +461,8 @@ fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
     assert!(
         state
             .editor
-            .rules
+            .rule_list
+            .draft
             .iter()
             .all(|entry| !entry.rule.contains("apple.com") && !entry.rule.contains("icloud.com"))
     );
@@ -383,13 +480,11 @@ fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
     );
 
     // The shared application reports the real purge counts it observed.
-    let _ = state.update(Message::RuleProviderCachePurged(Ok(
-        infiltrator_contract::provider_cache::ProviderCachePurge {
-            directory: Some("/kernel/rules".to_owned()),
-            files_removed: 5,
-            bytes_freed: 4096,
-        },
-    )));
+    let _ = state.update(Message::RuleProviderCachePurged(Ok(ProviderCachePurge {
+        directory: Some("/kernel/rules".to_owned()),
+        files_removed: 5,
+        bytes_freed: 4096,
+    })));
     let status = state
         .editor
         .provider_unpack
@@ -402,18 +497,31 @@ fn test_advancement_w5_4_rule_provider_lifecycle_and_unpack() {
 
 #[test]
 fn test_advancement_w5_5_config_apply_atomic_transaction_guard() {
+    use crate::types::app::Route;
+    use crate::view::apply_guard_card::apply_guard_card;
+    use iced::advanced::widget::Tree;
+    use infiltrator_shared::locales::Lang;
     let (mut state, _) = AppState::new();
-
-    // Default stage
-    assert_eq!(state.runtime.apply_guard.stage, ApplyTransactionStage::Idle);
-
-    // Trigger atomic apply transaction
-    let _ = state.update(Message::TriggerAtomicConfigApply);
-    assert!(state.runtime.apply_guard.staging_config_saved);
-    assert!(state.runtime.apply_guard.health_probe_passed);
-    assert_eq!(
-        state.runtime.apply_guard.stage,
-        ApplyTransactionStage::Committed
+    assert!(state.editor.apply_transaction.is_none());
+    assert!(state.shell.toasts.is_empty());
+    let before = state.editor.editor_content.text();
+    let card = apply_guard_card(&state, &Lang("en-US"));
+    let tree = Tree::new(card.as_widget());
+    assert!(
+        !tree.children.is_empty(),
+        "actual read-only receipt and editor launcher are mounted"
+    );
+    drop(card);
+    let _ = state.update(Message::Navigate(Route::Editor));
+    assert_eq!(state.shell.current_route, Route::Editor);
+    assert_eq!(state.editor.editor_content.text(), before);
+    assert!(
+        state.editor.apply_transaction.is_none(),
+        "navigation is not a successful apply receipt"
+    );
+    assert!(
+        state.shell.toasts.is_empty(),
+        "opening an editor cannot report a fake commit"
     );
 }
 
@@ -497,13 +605,23 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
         Failure::new(ErrorCode::NotReady, "test snapshot", true),
     );
     snapshot.revision = 1;
+    snapshot.runtime_control = RuntimeControlSnapshot {
+        status: RuntimeControlStatus::Ready,
+        tun_enabled: Some(false),
+        mixed_port: Some(7890),
+        allow_lan: Some(false),
+        ..Default::default()
+    };
     snapshot.pages.settings = PageData::ready(SettingsPageSnapshot {
+        close_to_tray: None,
+        notifications_enabled: None,
+        language: "zh-CN".into(),
         autostart: false,
         system_proxy: false,
-        mixed_port: 7890,
-        allow_lan: false,
-        lan_bind_address: "*".to_owned(),
-        lan_security: LanSecuritySnapshot::new(
+        mixed_port: Some(7890),
+        allow_lan: Some(false),
+        lan_bind_address: Some("*".to_owned()),
+        lan_security: Some(LanSecuritySnapshot::new(
             8,
             vec!["192.168.0.0/16".to_owned()],
             vec!["192.168.1.10/32".to_owned()],
@@ -511,15 +629,15 @@ fn test_shared_surface_keeps_a_dirty_lan_draft_until_apply_result() {
             true,
             1,
             Some("lan-user".to_owned()),
-        ),
-        ipv6_routing: Default::default(),
+        )),
+        ipv6_routing: Some(Default::default()),
         pac: Default::default(),
-        tun_enabled: false,
-        tun_stack: String::new(),
-        tun_auto_route: false,
-        tun_strict_route: false,
-        controller_port: 9090,
-        log_level: "info".to_owned(),
+        tun_enabled: Some(false),
+        tun_stack: Some(String::new()),
+        tun_auto_route: Some(false),
+        tun_strict_route: Some(false),
+        controller_port: Some(9090),
+        log_level: Some("info".to_owned()),
         core_channel: "stable".to_owned(),
         mini_hud: Default::default(),
     });

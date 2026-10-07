@@ -1,11 +1,32 @@
 //! Local profile import & subscription User-Agent / conditional-fetch
 //! configuration scene component.
 
+#[path = "profiles_import_query_access.rs"]
+pub mod query_access;
+use self::query_access::SubscriptionFetchControls;
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_field_scene;
+use crate::localized_widgets::{localized_checkbox_scene, localized_pill_scene};
+use crate::pages::profiles::{
+    LastProfilesProjection, ProfileItem, ProfilesProjection, ProfilesProjectionUpdated,
+};
+use crate::pages::profiles_filter_dedup;
+use crate::pages::profiles_filter_form::{FilterFormStatus, FilterText};
+use crate::pages::profiles_import_channels::{
+    ImportClipboardSubscriptionButton, ImportLocalPathField, ImportLocalSubscriptionButton,
+    ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
+    SaveSubscriptionFilterButton, SubscriptionFilterExcludeField,
+    SubscriptionFilterExcludeTypesField, SubscriptionFilterIncludeField,
+    SubscriptionFilterRenamesField, SubscriptionFilterStatus, SubscriptionScheduleStatus,
+};
+use crate::pages::profiles_subscription_copy;
+use crate::pages::profiles_subscription_copy::SubscriptionStatusKind;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, With, Without};
+use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
@@ -16,27 +37,18 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button, Checkbox};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
+use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles::{
-    LastProfilesProjection, ProfilesProjection, ProfilesProjectionUpdated,
-};
-use crate::pages::profiles_import_channels::{
-    ImportClipboardSubscriptionButton, ImportLocalPathField, ImportLocalSubscriptionButton,
-    ImportSubscriptionNameField, ImportSubscriptionUrlButton, ImportSubscriptionUrlField,
-    SaveSubscriptionFilterButton, SubscriptionFilterDedupToggle, SubscriptionFilterExcludeField,
-    SubscriptionFilterExcludeTypesField, SubscriptionFilterIncludeField,
-    SubscriptionFilterRenamesField, SubscriptionFilterStatus, SubscriptionScheduleStatus,
-};
+use infiltrator_contract::subscription_filter_form::FilterField;
 
 /// Marker for the profiles import card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -74,9 +86,7 @@ pub struct SubscriptionBackupStatus;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RestoreSubscriptionBackupButton;
 
-pub(super) fn selected_profile(
-    projection: &ProfilesProjection,
-) -> Option<&crate::pages::profiles::ProfileItem> {
+pub(super) fn selected_profile(projection: &ProfilesProjection) -> Option<&ProfileItem> {
     projection
         .profiles
         .iter()
@@ -95,52 +105,18 @@ pub fn profiles_import_card_scene(
     let insecure_skip_verify = selected_profile(projection)
         .map(|profile| profile.insecure_skip_verify)
         .unwrap_or(false);
-    let conditional = selected_profile(projection).and_then(|profile| {
-        profile.etag.as_deref().map(|etag| {
-            format!(
-                "条件请求已缓存 · ETag: {} · Last-Modified: {}",
-                etag,
-                profile.last_modified.as_deref().unwrap_or("-")
-            )
-        })
-    });
+    let profile = selected_profile(projection);
     let conditional =
-        conditional.unwrap_or_else(|| "条件请求：尚无 ETag / Last-Modified 缓存".to_owned());
-    let has_backup = selected_profile(projection).is_some_and(|profile| profile.has_backup);
-    let backup_status = if has_backup {
-        "安全备份已就绪 · 可还原上次写入前的配置".to_owned()
-    } else {
-        "安全备份：暂无（保存订阅配置时自动生成）".to_owned()
-    };
-    let filter = selected_profile(projection)
+        profiles_subscription_copy::projection(SubscriptionStatusKind::Conditional, profile);
+    let backup_status =
+        profiles_subscription_copy::projection(SubscriptionStatusKind::Backup, profile);
+    let filter_status =
+        profiles_subscription_copy::projection(SubscriptionStatusKind::Filter, profile);
+    let schedule_status =
+        profiles_subscription_copy::projection(SubscriptionStatusKind::Schedule, profile);
+    let filter = profile
         .map(|profile| profile.filter.clone())
         .unwrap_or_default();
-    let filter_status = if filter.is_empty() {
-        "清洗管道：未启用".to_owned()
-    } else {
-        format!(
-            "清洗管道：包含 `{}` · 排除 `{}` · 协议排除 `{}` · 重命名 {} · 去重 {}",
-            filter.include,
-            filter.exclude,
-            filter.exclude_types,
-            if filter.renames.trim().is_empty() {
-                "0 条"
-            } else {
-                "已配置"
-            },
-            if filter.dedup_index == 0 {
-                "关"
-            } else {
-                "开"
-            }
-        )
-    };
-    let schedule_status = selected_profile(projection)
-        .map(|profile| match profile.cron_expression.as_deref() {
-            Some(cron) if !cron.trim().is_empty() => format!("定时计划：Cron `{cron}`"),
-            _ => "定时计划：按小时周期 / 手动".to_owned(),
-        })
-        .unwrap_or_else(|| "定时计划：手动".to_owned());
     surface_scene(
         vec![
             // Section 1: "导入本地配置文件 (Import Local Config)" Header
@@ -160,7 +136,7 @@ pub fn profiles_import_card_scene(
                                 Children [
                                     @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                     --
-                                    Text({ "导入本地配置文件 (Import Local Config)".to_owned() }) TextRole(Role::BodyStrong)
+                                    LocalizedText::plain("profiles_local_import_title") TextRole(Role::BodyStrong)
                                 ]
                             ]
             }),
@@ -189,7 +165,7 @@ pub fn profiles_import_card_scene(
                                     left: { palette.border },
                                 }
                                 Children [
-                                    Text({ "选择或输入本地配置文件路径 (*.yaml, *.yml)...".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    LocalizedText::plain("profiles_local_import_path_hint") TextRole(Role::Caption) TextColor({ palette.ink_dim })
                                 ]
                                 --
                                 Node {
@@ -203,7 +179,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ChooseLocalFileButton
                                 Children [
-                                    Text({ "选择文件".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_browse_btn") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -217,7 +193,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportLocalFileButton
                                 Children [
-                                    Text({ "+ 导入本地文件".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_local_import_action") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
                                 ]
                             ]
             }),
@@ -237,7 +213,7 @@ pub fn profiles_import_card_scene(
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text({ "导入后立即激活".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_activate") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -245,7 +221,7 @@ pub fn profiles_import_card_scene(
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text({ "已开启".to_owned() }) TextRole(Role::Caption) TextColor({ palette.success })
+                                    LocalizedText::plain("overview_toggle_enabled") TextRole(Role::Caption) TextColor({ palette.success })
                                     --
                                     Node {
                                         width: px(38.0),
@@ -286,7 +262,7 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                Text({ "订阅请求设置 (Subscription User-Agent)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_request_settings_title") TextRole(Role::BodyStrong)
                             ]
             }),
             // Section 2: Per-profile User-Agent text field + save button
@@ -317,7 +293,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 SaveUserAgentButton
                                 Children [
-                                    Text({ "保存请求设置".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_request_settings_save") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
                                 ]
                             ]
             }),
@@ -336,10 +312,10 @@ pub fn profiles_import_card_scene(
                                 }
                                 SubscriptionInsecureToggle
                                 Children [
-                                    @{ checkbox_scene("跳过 TLS 证书校验 (Insecure)".to_owned(), insecure_skip_verify, palette) }
+                                    @{ localized_checkbox_scene(LocalizedText::plain("profiles_skip_tls_verification"), insecure_skip_verify, palette) }
                                 ]
                                 --
-                                Text({ conditional.clone() }) SubscriptionConditionalStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(conditional.key, conditional.params.clone()) SubscriptionConditionalStatus SubscriptionStatusKind::Conditional TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
             }),
             // Section 2: Safe pre-save backup status + restore action
@@ -351,7 +327,7 @@ pub fn profiles_import_card_scene(
                                 padding: UiRect::vertical(Val::Px(space::S4)),
                             }
                             Children [
-                                Text({ backup_status }) SubscriptionBackupStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(backup_status.key, backup_status.params.clone()) SubscriptionBackupStatus SubscriptionStatusKind::Backup TextRole(Role::Caption) TextColor({ palette.ink_dim })
                                 --
                                 Node {
                                     min_height: px(palette.control_height_px),
@@ -364,7 +340,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 RestoreSubscriptionBackupButton
                                 Children [
-                                    Text({ "还原安全备份".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_restore_backup") TextRole(Role::Body)
                                 ]
                             ]
             }),
@@ -377,7 +353,7 @@ pub fn profiles_import_card_scene(
                                 padding: UiRect::top(Val::Px(space::S2)),
                             }
                             Children [
-                                Text({ "预设 UA:".to_owned() }) TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::plain("profiles_user_agent_presets") TextRole(Role::Caption) TextColor({ palette.ink_dim })
                                 --
                                 Node {
                                     padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S4)),
@@ -418,9 +394,9 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::Settings, 24.0, palette) }
                                 --
-                                Text({ "节点清洗管道 (Filter Pipeline)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_filter_pipeline_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ schedule_status.clone() }) SubscriptionScheduleStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                LocalizedText::new(schedule_status.key, schedule_status.params.clone()) SubscriptionScheduleStatus SubscriptionStatusKind::Schedule TextRole(Role::Caption) TextColor({ palette.ink_dim })
                             ]
             }),
             Box::new(bsn! {
@@ -434,26 +410,35 @@ pub fn profiles_import_card_scene(
                                 Node { width: percent(100) }
                                 SubscriptionFilterIncludeField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(filter.include.clone(), "包含关键字（逗号分隔，支持正则）".to_owned(), palette) }
+                                    @{ localized_field_scene(filter.include.clone(), LocalizedText::plain("field_filter_include"), palette) } FilterText(FilterField::Include) NativeTextField(0)
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 SubscriptionFilterExcludeField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(filter.exclude.clone(), "排除关键字（逗号分隔，支持正则）".to_owned(), palette) }
+                                    @{ localized_field_scene(filter.exclude.clone(), LocalizedText::plain("field_filter_exclude"), palette) } FilterText(FilterField::Exclude) NativeTextField(1)
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 SubscriptionFilterExcludeTypesField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(filter.exclude_types.clone(), "排除协议（ss, vmess, trojan...）".to_owned(), palette) }
+                                    @{ localized_field_scene(filter.exclude_types.clone(), LocalizedText::plain("field_filter_protocols"), palette) } FilterText(FilterField::Protocols) NativeTextField(2)
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 SubscriptionFilterRenamesField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(filter.renames.clone(), "重命名规则（每行 `模式 => 替换`）".to_owned(), palette) }
+                                    @{ localized_field_scene(filter.renames.clone(), LocalizedText::plain("field_filter_renames"), palette) } FilterText(FilterField::Renames) NativeTextField(3)
                                 ]
+                                --
+                                LocalizedText::plain("field_filter_advanced") TextRole(Role::Caption)
+                                --
+                                Node { width: percent(100) }
+                                Children [
+                                    @{ localized_field_scene(filter.advanced_policy.clone().unwrap_or_default(), LocalizedText::plain("filter_advanced_ph"), palette) } FilterText(FilterField::Advanced) NativeTextField(4)
+                                ]
+                                --
+                                LocalizedText::plain("filter_advanced_help") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -464,38 +449,22 @@ pub fn profiles_import_card_scene(
                                 padding: UiRect::vertical(Val::Px(space::S4)),
                             }
                             Children [
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: Val::Px(space::S8),
-                                }
-                                SubscriptionFilterDedupToggle
-                                Children [
-                                    @{ checkbox_scene("跨订阅节点去重（保留首个）".to_owned(), filter.dedup_index != 0, palette) }
-                                ]
+                                @{ profiles_filter_dedup::scene(filter.dedup_index, palette) }
                                 --
                                 Node {
                                     align_items: AlignItems::Center,
                                     column_gap: Val::Px(space::S8),
                                 }
                                 Children [
-                                    Text({ filter_status.clone() }) SubscriptionFilterStatus TextRole(Role::Caption) TextColor({ palette.ink_dim })
+                                    LocalizedText::new(filter_status.key, filter_status.params.clone()) SubscriptionFilterStatus SubscriptionStatusKind::Filter TextRole(Role::Caption) TextColor({ palette.ink_dim })
                                     --
-                                    Node {
-                                        min_height: px(palette.control_height_px),
-                                        padding: UiRect::horizontal(Val::Px(space::S12)),
-                                        align_items: AlignItems::Center,
-                                        justify_content: JustifyContent::Center,
-                                        border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                                    }
-                                    BackgroundColor({ palette.accent })
-                                    Button
+                                    @{ localized_pill_scene(LocalizedText::plain("profiles_filter_pipeline_apply"), true, palette) }
                                     SaveSubscriptionFilterButton
-                                    Children [
-                                        Text({ "应用清洗管道".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
-                                    ]
+                                    ButtonDisabled(false)
                                 ]
                             ]
             }),
+            Box::new(bsn! { FilterFormStatus TextRole(Role::Caption) }),
             // Section 4: DUAL-07-01 multi-channel import workbench.
             Box::new(bsn! {
                             Node {
@@ -507,7 +476,7 @@ pub fn profiles_import_card_scene(
                             Children [
                                 @{ icon_tile_scene(IconId::FileText, 24.0, palette) }
                                 --
-                                Text({ "多渠道导入 (URL / 本地 / 剪贴板)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("profiles_import_channels_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -521,19 +490,19 @@ pub fn profiles_import_card_scene(
                                 Node { width: percent(100) }
                                 ImportSubscriptionNameField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(String::new(), "新配置名称".to_owned(), palette) }
+                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_profile_name"), palette) }
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 ImportSubscriptionUrlField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(String::new(), "订阅 URL".to_owned(), palette) }
+                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_subscription_url"), palette) }
                                 ]
                                 --
                                 Node { width: percent(100) }
                                 ImportLocalPathField
                                 Children [
-                                    @{ text_field_with_placeholder_scene(String::new(), "本地文件路径 (*.yaml / *.json / *.txt)".to_owned(), palette) }
+                                    @{ localized_field_scene(String::new(), LocalizedText::plain("field_profile_file"), palette) }
                                 ]
                             ]
             }),
@@ -556,7 +525,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportSubscriptionUrlButton
                                 Children [
-                                    Text({ "从 URL 导入".to_owned() }) TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
+                                    LocalizedText::plain("profiles_import_url_action") TextRole(Role::BodyStrong) TextColor({ palette.on_accent })
                                 ]
                                 --
                                 Node {
@@ -570,7 +539,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportLocalSubscriptionButton
                                 Children [
-                                    Text({ "从本地文件导入".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_file_action") TextRole(Role::Body)
                                 ]
                                 --
                                 Node {
@@ -584,7 +553,7 @@ pub fn profiles_import_card_scene(
                                 Button
                                 ImportClipboardSubscriptionButton
                                 Children [
-                                    Text({ "从剪贴板导入".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("profiles_import_clipboard_action") TextRole(Role::Body)
                                 ]
                             ]
             }),
@@ -593,45 +562,15 @@ pub fn profiles_import_card_scene(
     )
 }
 
-fn conditional_status(profile: Option<&crate::pages::profiles::ProfileItem>) -> String {
-    match profile.and_then(|profile| {
-        profile.etag.as_deref().map(|etag| {
-            format!(
-                "条件请求已缓存 · ETag: {} · Last-Modified: {}",
-                etag,
-                profile.last_modified.as_deref().unwrap_or("-")
-            )
-        })
-    }) {
-        Some(text) => text,
-        None => "条件请求：尚无 ETag / Last-Modified 缓存".to_owned(),
-    }
-}
-
 /// Restamp the subscription fetch controls in place when the profiles
 /// projection updates: the active profile's User-Agent, insecure-TLS toggle,
 /// and cached conditional-request validators.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn sync_subscription_fetch_controls(
     update: On<ProfilesProjectionUpdated>,
     toggles: Query<&Children, With<SubscriptionInsecureToggle>>,
     checkboxes: Query<(Entity, Has<Checked>), With<Checkbox>>,
     fields: Query<&Children, With<SubscriptionUserAgentField>>,
     mut text_fields: Query<&mut TextField>,
-    mut status_lines: Query<
-        &mut Text,
-        (
-            With<SubscriptionConditionalStatus>,
-            Without<SubscriptionBackupStatus>,
-        ),
-    >,
-    mut backup_lines: Query<
-        &mut Text,
-        (
-            With<SubscriptionBackupStatus>,
-            Without<SubscriptionConditionalStatus>,
-        ),
-    >,
     mut commands: Commands,
 ) {
     let profile = selected_profile(&update.0);
@@ -659,31 +598,9 @@ pub(super) fn sync_subscription_fetch_controls(
             if let Ok(mut field) = text_fields.get_mut(*child)
                 && field.0.text() != user_agent
             {
-                field.0.apply(
-                    infiltrator_bevy_widgets::text_input::state::TextFieldInput::SetText(
-                        user_agent.clone(),
-                    ),
-                );
+                field.0.apply(TextFieldInput::SetText(user_agent.clone()));
             }
         }
-    }
-
-    let status = conditional_status(profile);
-    for mut line in &mut status_lines {
-        line.0 = status.clone();
-    }
-
-    let backup = backup_status(profile);
-    for mut line in &mut backup_lines {
-        line.0 = backup.clone();
-    }
-}
-
-fn backup_status(profile: Option<&crate::pages::profiles::ProfileItem>) -> String {
-    if profile.is_some_and(|profile| profile.has_backup) {
-        "安全备份已就绪 · 可还原上次写入前的配置".to_owned()
-    } else {
-        "安全备份：暂无（保存订阅配置时自动生成）".to_owned()
     }
 }
 
@@ -715,17 +632,20 @@ pub(super) fn on_restore_subscription_backup(
 
 /// Save the selected profile's User-Agent and insecure-TLS preference through
 /// the shared command bus.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn on_save_subscription_fetch_settings(
     activate: On<Activate>,
-    buttons: Query<(), With<SaveUserAgentButton>>,
     last: Option<Res<LastProfilesProjection>>,
-    fields: Query<&Children, With<SubscriptionUserAgentField>>,
-    text_fields: Query<&TextField>,
-    toggles: Query<&Children, With<SubscriptionInsecureToggle>>,
-    checkboxes: Query<&Checked>,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: SubscriptionFetchControls,
 ) {
+    let SubscriptionFetchControls {
+        buttons,
+        fields,
+        text_fields,
+        toggles,
+        checkboxes,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };

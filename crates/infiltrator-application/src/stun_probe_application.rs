@@ -13,9 +13,10 @@
 //! publishes a mapping with an explicit `Unknown` comparison instead of an
 //! implied "no leak".
 
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::stun_probe::{
     DEFAULT_STUN_SERVER, DEFAULT_STUN_TIMEOUT_MS, MAX_STUN_TIMEOUT_MS, StunMappedAddress,
-    StunProbeReport, StunProbeRequest, StunProbeStatus,
+    StunProbeReport, StunProbeRequest, StunProbeStatus, StunProbeTransport,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::stun_probe::{StunEgressProbePort, StunProbePort};
@@ -100,7 +101,7 @@ impl StunProbeApplication {
         report.server = self.server.clone();
         report.expected_egress = self.expected_egress.clone();
         if self.port.is_none() {
-            report.transport = infiltrator_contract::stun_probe::StunProbeTransport::Unsupported {
+            report.transport = StunProbeTransport::Unsupported {
                 reason: NO_STUN_PORT_REASON.to_owned(),
             };
             report.status = StunProbeStatus::unsupported(NO_STUN_PORT_REASON);
@@ -125,10 +126,7 @@ impl StunEgressProbePort for StunProbeApplication {
         let Some(port) = self.port.as_ref() else {
             let report = StunProbeReport::unsupported(NO_STUN_PORT_REASON);
             *self.last.lock().expect("STUN report lock") = report;
-            return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Dns,
-                NO_STUN_PORT_REASON,
-            ));
+            return Err(PortError::unsupported(Capability::Dns, NO_STUN_PORT_REASON));
         };
         self.run_probe(port).await
     }

@@ -1,6 +1,9 @@
 //! Advanced-config (DNS / Fake-IP / TUN / sniffer) form types: page tabs,
 //! form/edit-mode selection, form drafts and validation state.
 
+use infiltrator_domain::dns::DnsConfig;
+use infiltrator_domain::fake_ip::FakeIpConfig;
+use infiltrator_domain::tun::TunConfig;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DnsTab {
     #[default]
@@ -48,9 +51,9 @@ pub struct AdvancedConfigsBundle {
     pub dns_json: String,
     pub fake_ip_json: String,
     pub tun_json: String,
-    pub dns: infiltrator_domain::dns::DnsConfig,
-    pub fake_ip: infiltrator_domain::fake_ip::FakeIpConfig,
-    pub tun: infiltrator_domain::tun::TunConfig,
+    pub dns: DnsConfig,
+    pub fake_ip: FakeIpConfig,
+    pub tun: TunConfig,
 }
 
 /// Configuration and negotiation state for TUN network stacks and MTU probe.

@@ -2,55 +2,55 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{form_input_style, style_ghost, text_btn};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::components::{BadgeKind, badge, toggle_switch_with_actions};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
 use iced::widget::{Space, column, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::settings_status_projection::format_lan_auth;
+use infiltrator_contract::runtime_control::RuntimeControlStatus;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let security = &state.runtime.lan_security;
-    let auth_status = if security.authentication_enabled {
-        format!(
-            "{} · {}",
-            lang.tr("lan_security_enabled"),
-            security.authentication_user_count
-        )
-    } else {
-        lang.tr("lan_security_disabled").to_string()
-    };
+    let observed = &state.runtime.runtime_control;
+    let available = observed.status == RuntimeControlStatus::Ready
+        && observed.lan_security.is_some()
+        && state.runtime.pending_runtime_patch.is_none();
+    let auth_status = format_lan_auth(observed.lan_security.as_ref(), lang.0);
 
     let allowed = text_input("192.168.0.0/16, 10.0.0.0/8", &security.allowed_ips)
-        .on_input(Message::UpdateLanAllowedIps)
+        .on_input_maybe(available.then_some(Message::UpdateLanAllowedIps))
         .padding([6, 10])
         .size(12)
         .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
     let disallowed = text_input("192.168.1.10/32", &security.disallowed_ips)
-        .on_input(Message::UpdateLanDisallowedIps)
+        .on_input_maybe(available.then_some(Message::UpdateLanDisallowedIps))
         .padding([6, 10])
         .size(12)
         .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
     let skip_auth = text_input("127.0.0.0/8, ::1/128", &security.skip_auth_prefixes)
-        .on_input(Message::UpdateLanSkipAuthPrefixes)
+        .on_input_maybe(available.then_some(Message::UpdateLanSkipAuthPrefixes))
         .padding([6, 10])
         .size(12)
         .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
     let username = text_input("musicfrog", &security.auth_username)
-        .on_input(Message::UpdateLanAuthUsername)
+        .on_input_maybe(available.then_some(Message::UpdateLanAuthUsername))
         .padding([6, 10])
         .size(12)
         .font(MONO)
         .width(Length::Fill)
         .style(form_input_style);
     let password = text_input("required when enabled", &security.auth_password)
-        .on_input(Message::UpdateLanAuthPassword)
+        .on_input_maybe(available.then_some(Message::UpdateLanAuthPassword))
         .secure(true)
         .padding([6, 10])
         .size(12)
@@ -84,10 +84,8 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
                     },
                 ),
                 Space::new().width(theme::SP_SM),
-                crate::view::components::toggle_switch(
-                    security.authentication_enabled,
-                    Message::ToggleLanAuthentication,
-                ),
+                toggle_switch_with_actions(security.authentication_enabled, move |value| available
+                    .then_some(Message::ToggleLanAuthentication(value))),
             ]
             .align_y(Alignment::Center),
             security_row(lang.tr("lan_security_username").to_string(), username),
@@ -97,7 +95,7 @@ pub fn lan_security_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a
                 text_btn(
                     lang.tr("lan_security_apply").to_string(),
                     style_ghost,
-                    Some(Message::ApplyLanSecurity),
+                    available.then_some(Message::ApplyLanSecurity),
                 ),
             ]
             .align_y(Alignment::Center),

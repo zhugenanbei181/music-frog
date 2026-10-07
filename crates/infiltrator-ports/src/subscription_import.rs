@@ -8,9 +8,8 @@
 //! without a clipboard (or a sandboxed/mobile shell) returns a typed
 //! unsupported error rather than pretending it read an empty document.
 
-use async_trait::async_trait;
-
 use crate::error::PortError;
+use async_trait::async_trait;
 
 /// Host-provided document sources for local/剪贴板 imports.
 #[async_trait]
@@ -29,6 +28,18 @@ pub trait SubscriptionImportPort: Send + Sync {
 mod tests {
     use super::*;
     use infiltrator_contract::capability::Capability;
+    #[cfg(test)]
+    use std::future::Future;
+    #[cfg(test)]
+    use std::pin::pin;
+    #[cfg(test)]
+    use std::task::Context;
+    #[cfg(test)]
+    use std::task::Poll;
+    #[cfg(test)]
+    use std::task::Waker;
+    #[cfg(test)]
+    use std::thread::yield_now;
 
     struct DesktopLike;
 
@@ -62,14 +73,14 @@ mod tests {
         }
     }
 
-    fn block_on<F: std::future::Future>(future: F) -> F::Output {
-        let waker = std::task::Waker::noop();
-        let mut context = std::task::Context::from_waker(waker);
-        let mut future = std::pin::pin!(future);
+    fn block_on<F: Future>(future: F) -> F::Output {
+        let waker = Waker::noop();
+        let mut context = Context::from_waker(waker);
+        let mut future = pin!(future);
         loop {
             match future.as_mut().poll(&mut context) {
-                std::task::Poll::Ready(value) => return value,
-                std::task::Poll::Pending => std::thread::yield_now(),
+                Poll::Ready(value) => return value,
+                Poll::Pending => yield_now(),
             }
         }
     }

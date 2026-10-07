@@ -1,15 +1,26 @@
 //! Profile YAML editor handlers: load profile content into the editor,
 //! editor actions and saving back to disk.
 
+use crate::snapshot_commands::execute;
 use crate::state::AppState;
-use crate::types::app::ToastStatus;
+use crate::types::app::{Route, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::types::profile_edit::{ProfileDocumentReadReply, ProfileEditReply};
+use crate::types::snapshot_restore::RestoreAction;
+use crate::view::editor_viewport::window_lines_for_window_height;
 use iced::Task;
 use iced::widget::text_editor;
+use infiltrator_application::failure_projection::failure_message;
+use infiltrator_application::profile_document_application::insert_snippet;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command_output::CommandOutput;
 use infiltrator_contract::editor_viewport::EditorViewport;
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason, InfiltratorError};
+use infiltrator_contract::snapshot_history::{SNAPSHOT_DEFAULT_KEEP, SnapshotHistorySnapshot};
+use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
+use infiltrator_contract::yaml_snippets::{byte_offset_of_column, column_of_byte_offset};
+use infiltrator_domain::config::preflight_yaml_syntax;
 
 /// Why the shared editor window is being re-synced (DUAL-09-02/13).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,7 +45,7 @@ impl AppState {
 
     /// The window height the document panes can afford, in lines (DUAL-09-02).
     fn document_window_lines(&self) -> usize {
-        crate::view::editor_viewport::window_lines_for_window_height(self.shell.viewport.height_px)
+        window_lines_for_window_height(self.shell.viewport.height_px)
     }
     /// DUAL-09-02/13: keep the shared window in step with the text widget.
     ///
@@ -94,7 +105,7 @@ impl AppState {
     /// Live shared preflight on the profile buffer (same rule as the save gate).
     fn refresh_profile_preflight(&mut self) {
         let text = self.editor.editor_content.text();
-        match infiltrator_domain::config::preflight_yaml_syntax(&text) {
+        match preflight_yaml_syntax(&text) {
             Ok(()) => {
                 self.editor.syntax_error = None;
                 self.editor.syntax_error_line = None;
@@ -112,6 +123,11 @@ impl AppState {
     /// document, every other pane edits the profile document.
     pub(super) fn insert_yaml_snippet(&mut self, snippet_id: &'static str) -> Task<Message> {
         let pane = self.editor.editor_pane;
+        if (pane == EditorPane::Mixin && !self.editor.mixin_session.can_edit())
+            || (pane != EditorPane::Mixin && !self.editor.document_session.can_edit())
+        {
+            return Task::none();
+        }
         let content = match pane {
             EditorPane::Mixin => self.editor.mixin_content.text(),
             EditorPane::Profile | EditorPane::Filter | EditorPane::Script => {
@@ -128,16 +144,8 @@ impl AppState {
         };
         let caret_line = widget_cursor.position.line;
         let line_text = content.split('\n').nth(caret_line).unwrap_or_default();
-        let caret_column = infiltrator_contract::yaml_snippets::column_of_byte_offset(
-            line_text,
-            widget_cursor.position.column,
-        );
-        match infiltrator_application::profile_document_application::insert_snippet(
-            &content,
-            snippet_id,
-            caret_line + 1,
-            caret_column,
-        ) {
+        let caret_column = column_of_byte_offset(line_text, widget_cursor.position.column);
+        match insert_snippet(&content, snippet_id, caret_line + 1, caret_column) {
             Ok(insertion) => {
                 let inserted_line = insertion
                     .content
@@ -147,10 +155,7 @@ impl AppState {
                 let cursor = text_editor::Cursor {
                     position: text_editor::Position {
                         line: insertion.cursor_line - 1,
-                        column: infiltrator_contract::yaml_snippets::byte_offset_of_column(
-                            inserted_line,
-                            insertion.cursor_column,
-                        ),
+                        column: byte_offset_of_column(inserted_line, insertion.cursor_column),
                     },
                     selection: None,
                 };
@@ -172,15 +177,24 @@ impl AppState {
                 }
                 Task::none()
             }
-            Err(failure) => Task::done(Message::ShowToast(failure.message, ToastStatus::Error)),
+            Err(failure) => Task::done(Message::ShowToast(
+                failure_message(&failure, &self.shell.lang),
+                ToastStatus::Error,
+            )),
         }
     }
 
     /// DUAL-09-11: mirror the host core's typed apply outcome into the editor
     /// banner. The record is the same fact the shared projection carries.
     fn refresh_apply_transaction(&mut self) {
-        self.editor.apply_transaction =
-            infiltrator_contract::apply_transaction::last_apply_transaction();
+        let profile = self.editor_profile_name();
+        self.editor.apply_transaction = self
+            .surface
+            .latest()
+            .and_then(|snapshot| snapshot.pages.profiles.data.as_ref())
+            .and_then(|page| page.apply_transaction.as_ref())
+            .filter(|record| Some(&record.profile) == profile.as_ref())
+            .cloned();
     }
 
     pub(super) fn update_editor(&mut self, message: Message) -> Task<Message> {
@@ -190,46 +204,101 @@ impl AppState {
                 self.update_editor(Message::EditProfile(path))
             }
             Message::EditProfile(path) => {
-                let p = path.clone();
+                let Some(profile) = path
+                    .file_stem()
+                    .and_then(|name| name.to_str())
+                    .map(str::to_owned)
+                else {
+                    return Task::none();
+                };
+                self.editor.next_editor_read = self
+                    .editor
+                    .next_editor_read
+                    .checked_add(1)
+                    .expect("editor read identity exhausted");
+                let ticket = self.editor.next_editor_read;
+                self.editor.document_load = Some((ticket, path.clone()));
+                let commands = self.commands.clone();
                 Task::perform(
                     async move {
-                        let content = tokio::fs::read_to_string(&p)
-                            .await
-                            .map_err(|e| InfiltratorError::Io(e.to_string()))?;
-                        Ok((p, content))
+                        let result = match commands {
+                            Some(commands) => commands
+                                .execute(CommandIntent::LoadProfileDocument {
+                                    profile: Some(profile),
+                                })
+                                .await
+                                .into_output()
+                                .and_then(CommandOutput::into_profile_document),
+                            None => Err(Failure::new(
+                                ErrorCode::NotReady,
+                                "Profile editor command service is unavailable",
+                                true,
+                            )),
+                        };
+                        ProfileDocumentReadReply {
+                            ticket,
+                            path,
+                            result,
+                        }
                     },
                     Message::ProfileContentLoaded,
                 )
             }
-            Message::ProfileContentLoaded(result) => match result {
-                Ok((path, content)) => {
-                    self.editor.editor_path = Some(path);
-                    self.editor.editor_content = text_editor::Content::with_text(&content);
-                    self.reset_document_viewport(EditorPane::Profile);
-                    let mut tasks = vec![
-                        Task::done(Message::Navigate(crate::types::app::Route::Editor)),
-                        Task::done(Message::LoadProfileSnapshots),
-                    ];
-                    // Preselected panes load their overlay document lazily
-                    // now that editor_path is known.
-                    match self.editor.editor_pane {
-                        crate::types::options::EditorPane::Mixin => {
-                            tasks.push(self.ensure_mixin_loaded());
-                        }
-                        crate::types::options::EditorPane::Filter => {
-                            tasks.push(self.ensure_filter_loaded());
-                        }
-                        crate::types::options::EditorPane::Profile
-                        | crate::types::options::EditorPane::Script => {}
+            Message::ProfileContentLoaded(reply) => {
+                if self.editor.document_load.as_ref() != Some(&(reply.ticket, reply.path.clone())) {
+                    return Task::none();
+                }
+                self.editor.document_load = None;
+                let document = match reply.result {
+                    Ok(document) => document,
+                    Err(failure) => {
+                        self.editor.document_session.read_failed(failure);
+                        return Task::none();
                     }
-                    Task::batch(tasks)
+                };
+                let Some(source) = document.source.as_ref() else {
+                    return Task::none();
+                };
+                let adopt = self.editor.document_session.observe(
+                    source,
+                    &document.content,
+                    &self.editor.editor_content.text(),
+                );
+                self.editor.document_session.read_completed(source);
+                self.editor.document_latest = Some((reply.path.clone(), document.clone()));
+                if adopt {
+                    self.editor.editor_path = Some(reply.path);
+                    self.editor.editor_content = text_editor::Content::with_text(&document.content);
+                    self.editor.profile_protection_override = false;
+                    self.reset_document_viewport(EditorPane::Profile);
                 }
-                Err(e) => {
-                    self.set_error(&e);
-                    Task::none()
+                let mut tasks = vec![
+                    Task::done(Message::Navigate(Route::Editor)),
+                    Task::done(Message::LoadProfileSnapshots),
+                ];
+                match self.editor.editor_pane {
+                    EditorPane::Mixin => tasks.push(self.ensure_mixin_loaded()),
+                    EditorPane::Filter => tasks.push(self.ensure_filter_loaded()),
+                    _ => {}
                 }
-            },
+                Task::batch(tasks)
+            }
+            Message::DiscardProfileDraft => {
+                if let Some(content) = self.editor.document_session.discard() {
+                    self.editor.editor_content = text_editor::Content::with_text(&content);
+                    if let Some((path, _)) = &self.editor.document_latest {
+                        self.editor.editor_path = Some(path.clone());
+                    }
+                    self.editor.profile_protection_override = false;
+                    self.reset_document_viewport(EditorPane::Profile);
+                    self.refresh_profile_preflight();
+                }
+                Task::none()
+            }
             Message::EditorAction(action) => {
+                if !self.editor.document_session.can_edit() {
+                    return Task::none();
+                }
                 let scroll_delta = match &action {
                     text_editor::Action::Scroll { lines } => Some(*lines),
                     _ => None,
@@ -253,17 +322,20 @@ impl AppState {
                     self.editor.snapshot_history = None;
                     return Task::none();
                 };
+                let commands = self.commands.clone();
                 self.editor.is_loading_snapshots = true;
                 Task::perform(
                     async move {
-                        crate::snapshot_application::application()
-                            .await?
-                            .history(
-                                &profile,
-                                infiltrator_contract::snapshot_history::SNAPSHOT_DEFAULT_KEEP,
-                            )
-                            .await
-                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                        execute(
+                            commands,
+                            CommandIntent::LoadSnapshotHistory {
+                                profile: Some(profile),
+                                keep: SNAPSHOT_DEFAULT_KEEP,
+                            },
+                        )
+                        .await?
+                        .into_snapshot_history()
+                        .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfileSnapshotsLoaded,
                 )
@@ -285,15 +357,18 @@ impl AppState {
                 let Some(profile) = self.edited_profile() else {
                     return Task::none();
                 };
+                let commands = self.commands.clone();
                 self.editor.is_backing_up_snapshot = true;
                 Task::perform(
                     async move {
-                        crate::snapshot_application::application()
-                            .await?
-                            .create(&profile)
-                            .await
-                            .map(|_| ())
-                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                        execute(
+                            commands,
+                            CommandIntent::CreateBackupSnapshot {
+                                profile: Some(profile),
+                            },
+                        )
+                        .await
+                        .map(|_| ())
                     },
                     Message::ProfileSnapshotBackedUp,
                 )
@@ -316,10 +391,7 @@ impl AppState {
             }
             // DUAL-09-07: the retention selection and the shared prune command.
             Message::SetSnapshotPruneKeep(keep) => {
-                self.editor.snapshot_prune_keep =
-                    infiltrator_contract::snapshot_history::SnapshotHistorySnapshot::clamp_keep(
-                        keep,
-                    );
+                self.editor.snapshot_prune_keep = SnapshotHistorySnapshot::clamp_keep(keep);
                 Task::none()
             }
             Message::PruneProfileSnapshots => {
@@ -330,18 +402,20 @@ impl AppState {
                     return Task::none();
                 };
                 let keep = self.editor.snapshot_prune_keep;
+                let commands = self.commands.clone();
                 self.editor.is_pruning_snapshots = true;
                 Task::perform(
                     async move {
-                        crate::snapshot_application::application()
-                            .await?
-                            .prune(
-                                &profile,
-                                keep,
-                                infiltrator_contract::snapshot_history::SnapshotPruneSource::Manual,
-                            )
-                            .await
-                            .map_err(|failure| InfiltratorError::Config(failure.message))
+                        execute(
+                            commands,
+                            CommandIntent::PruneSnapshots {
+                                profile: Some(profile),
+                                keep: Some(keep),
+                            },
+                        )
+                        .await?
+                        .into_snapshots_pruned()
+                        .map_err(|failure| InfiltratorError::Config(failure.message))
                     },
                     Message::ProfileSnapshotsPruned,
                 )
@@ -362,140 +436,88 @@ impl AppState {
                     }
                 }
             }
-            Message::ArmRestoreProfileSnapshot(path) => {
-                self.editor.pending_restore_snapshot = Some(path);
-                Task::none()
+            Message::ArmRestoreProfileSnapshot(path) | Message::RestoreProfileSnapshot(path) => {
+                let Some(profile) = self.edited_profile() else {
+                    return Task::none();
+                };
+                self.update_snapshot_restore(RestoreAction::Open(SnapshotRestoreTarget {
+                    profile,
+                    snapshot_id: path.to_string_lossy().into_owned(),
+                }))
             }
             Message::CancelRestoreProfileSnapshot => {
-                self.editor.pending_restore_snapshot = None;
-                Task::none()
-            }
-            Message::RestoreProfileSnapshot(path) => {
-                // DUAL-09-09: the first click only arms; the restore executes
-                // once the same snapshot has been confirmed.
-                if self.editor.pending_restore_snapshot.as_deref() != Some(path.as_path()) {
-                    self.editor.pending_restore_snapshot = Some(path);
-                    return Task::none();
-                }
-                self.editor.pending_restore_snapshot = None;
-                if self.editor.is_restoring_snapshot {
-                    return Task::none();
-                }
-                let Some(editor_path) = self.editor.editor_path.clone() else {
-                    return Task::none();
-                };
-                let Some(profile) = editor_path
-                    .file_stem()
-                    .and_then(|name| name.to_str())
-                    .map(str::to_string)
-                else {
-                    return Task::none();
-                };
-                let runtime = self.runtime.runtime.clone();
-                self.editor.is_restoring_snapshot = true;
-                Task::perform(
-                    async move {
-                        crate::snapshot_application::application()
-                            .await?
-                            .restore(runtime, &profile, &path)
-                            .await
-                            .map_err(|failure| InfiltratorError::Config(failure.message))
-                    },
-                    Message::ProfileSnapshotRestored,
-                )
-            }
-            Message::ProfileSnapshotRestored(result) => {
-                self.editor.is_restoring_snapshot = false;
-                match result {
-                    Ok(()) => {
-                        if let Some(runtime) = self.runtime.runtime.clone() {
-                            self.sync_runtime_slot(Some(runtime));
-                        }
-                        let reload_path = self.editor.editor_path.clone();
-                        let mut tasks = vec![Task::done(Message::LoadProfileSnapshots)];
-                        if let Some(path) = reload_path {
-                            tasks.push(Task::done(Message::EditProfile(path)));
-                        }
-                        tasks.push(Task::done(Message::ShowToast(
-                            "Profile snapshot restored".to_string(),
-                            ToastStatus::Success,
-                        )));
-                        Task::batch(tasks)
-                    }
-                    Err(error) => {
-                        self.set_error(&error);
-                        Task::done(Message::ShowToast(error.to_string(), ToastStatus::Error))
-                    }
-                }
+                self.update_snapshot_restore(RestoreAction::Cancel)
             }
             Message::SaveProfile => {
                 if self.profile.is_saving_profile {
                     return Task::none();
                 }
                 let content = self.editor.editor_content.text();
-                if let Err(diag) = infiltrator_domain::config::preflight_yaml_syntax(&content) {
+                if let Err(diag) = preflight_yaml_syntax(&content) {
                     self.editor.syntax_error = Some(diag.message.clone());
                     self.editor.syntax_error_line = Some(diag.line);
                     return Task::done(Message::ShowToast(
-                        format!("YAML Syntax Error (line {}): {}", diag.line, diag.message),
+                        failure_message(
+                            &Failure::new(ErrorCode::Configuration, diag.message, false)
+                                .with_reason(FailureReason::YamlSyntax {
+                                    line: diag.line,
+                                    column: diag.column,
+                                }),
+                            &self.shell.lang,
+                        ),
                         ToastStatus::Error,
                     ));
                 }
-                if let Some(path) = self.editor.editor_path.clone() {
-                    self.profile.is_saving_profile = true;
-                    let runtime = self.runtime.runtime.clone();
-                    // DUAL-09-12: the editor passes its explicit unlock; the
-                    // application re-checks the stored subscription metadata.
-                    let allow_protected = self.editor.profile_protection_override;
-                    Task::perform(
-                        async move {
-                            let profile_name = path
-                                .file_stem()
-                                .and_then(|name| name.to_str())
-                                .ok_or_else(|| {
-                                    InfiltratorError::Config(
-                                        "无法从配置路径确定配置名称".to_string(),
-                                    )
-                                })?
-                                .to_string();
-                            crate::update::core::profile_apply::save_edited_profile_content(
-                                runtime,
-                                profile_name,
-                                content,
-                                ApplyStrategy::PreferReload,
-                                allow_protected,
-                            )
-                            .await
-                        },
-                        Message::ProfileSaved,
-                    )
+                let pending = match self
+                    .editor
+                    .document_session
+                    .begin_document(content, self.editor.profile_protection_override)
+                {
+                    Ok(pending) => pending,
+                    Err(failure) => {
+                        self.editor.document_session.failure = Some(failure);
+                        return Task::none();
+                    }
+                };
+                self.profile.is_saving_profile = true;
+                let commands = self.commands.clone();
+                Task::perform(
+                    async move {
+                        let result = match commands {
+                            Some(commands) => {
+                                commands.execute(pending.intent.clone()).await.into_output()
+                            }
+                            None => Err(Failure::new(
+                                ErrorCode::NotReady,
+                                "Profile editor command service is unavailable",
+                                true,
+                            )),
+                        };
+                        ProfileEditReply { pending, result }
+                    },
+                    Message::ProfileSaved,
+                )
+            }
+            Message::ProfileSaved(reply) => {
+                if !self.editor.document_session.finish(
+                    reply.pending.operation,
+                    &reply.pending.intent,
+                    reply.result.clone(),
+                ) {
+                    return Task::none();
+                }
+                self.profile.is_saving_profile = false;
+                self.refresh_apply_transaction();
+                if let Ok(CommandOutput::ProfileDocumentSaved(saved)) = reply.result {
+                    if let Some((_, document)) = &mut self.editor.document_latest {
+                        *document = saved.document;
+                    }
+                    self.invalidate_rules_dns_views();
+                    Task::done(Message::LoadProfileSnapshots)
                 } else {
                     Task::none()
                 }
             }
-            Message::ProfileSaved(result) => match result {
-                Ok(_) => {
-                    self.profile.is_saving_profile = false;
-                    self.refresh_apply_transaction();
-                    if let Some(runtime) = self.runtime.runtime.clone() {
-                        self.sync_runtime_slot(Some(runtime));
-                    }
-                    self.invalidate_rules_dns_views();
-                    Task::batch(vec![
-                        Task::done(Message::LoadProfileSnapshots),
-                        Task::done(Message::ShowToast(
-                            "Profile saved".to_string(),
-                            ToastStatus::Success,
-                        )),
-                    ])
-                }
-                Err(e) => {
-                    self.profile.is_saving_profile = false;
-                    self.refresh_apply_transaction();
-                    self.set_error(&e);
-                    Task::done(Message::ShowToast(e.to_string(), ToastStatus::Error))
-                }
-            },
             _ => Task::none(),
         }
     }

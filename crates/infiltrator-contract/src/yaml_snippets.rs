@@ -1,7 +1,7 @@
 //! DUAL-09-04: the shared YAML snippet catalogue.
 //!
 //! Both editors insert from this one list: the stable id, the category, the
-//! i18n key (Iced) plus the bare-Chinese label (Bevy) and the exact YAML bytes
+//! shared localization key and the exact YAML bytes
 //! that are spliced at the caret. A surface only decides *where* the caret is
 //! and how it edits its own buffer; it never carries its own copy of a snippet.
 //!
@@ -17,6 +17,7 @@
 //! does not generate values (no random UUID/port). A caret outside the
 //! document is clamped, never silently rejected.
 
+use crate::profile_document::SyntaxDiagnosticSnapshot;
 use std::fmt;
 
 /// Category of a snippet, shared for grouping and for surface copy.
@@ -30,27 +31,13 @@ pub enum YamlSnippetKind {
     Rule,
 }
 
-impl YamlSnippetKind {
-    /// Bare-Chinese category label (Bevy convention); Iced renders
-    /// [`YamlSnippet::label_key`] instead.
-    pub const fn label_zh(self) -> &'static str {
-        match self {
-            Self::ProxyNode => "代理节点",
-            Self::ProxyGroup => "策略组",
-            Self::Rule => "分流规则",
-        }
-    }
-}
-
 /// One catalogue entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct YamlSnippet {
     /// Stable id every surface passes around (Iced `Message`, Bevy component).
     pub id: &'static str,
-    /// Iced locale key for the button copy.
+    /// Shared localization key for the button copy.
     pub label_key: &'static str,
-    /// Bare-Chinese button copy (Bevy convention).
-    pub label_zh: &'static str,
     /// Exact YAML text inserted at the caret, indentation included.
     pub body: &'static str,
     pub kind: YamlSnippetKind,
@@ -74,56 +61,48 @@ pub const YAML_SNIPPETS: &[YamlSnippet] = &[
     YamlSnippet {
         id: "ss",
         label_key: "yaml_snippet_ss",
-        label_zh: "+ Shadowsocks",
         body: "  - name: SS-Node\n    type: ss\n    server: server.example.com\n    port: 8388\n    cipher: aes-256-gcm\n    password: password\n",
         kind: YamlSnippetKind::ProxyNode,
     },
     YamlSnippet {
         id: "vmess",
         label_key: "yaml_snippet_vmess",
-        label_zh: "+ Vmess",
         body: "  - name: Vmess-Node\n    type: vmess\n    server: server.example.com\n    port: 443\n    uuid: a3482e88-7d8f-4a42-9988-1a2b3c4d5e6f\n    alterId: 0\n    cipher: auto\n    tls: true\n",
         kind: YamlSnippetKind::ProxyNode,
     },
     YamlSnippet {
         id: "trojan",
         label_key: "yaml_snippet_trojan",
-        label_zh: "+ Trojan",
         body: "  - name: Trojan-Node\n    type: trojan\n    server: server.example.com\n    port: 443\n    password: password\n    sni: example.com\n",
         kind: YamlSnippetKind::ProxyNode,
     },
     YamlSnippet {
         id: "hy2",
         label_key: "yaml_snippet_hy2",
-        label_zh: "+ Hy2",
         body: "  - name: Hy2-Node\n    type: hysteria2\n    server: server.example.com\n    port: 443\n    password: password\n    sni: example.com\n",
         kind: YamlSnippetKind::ProxyNode,
     },
     YamlSnippet {
         id: "select",
         label_key: "yaml_snippet_select",
-        label_zh: "+ Select",
         body: "  - name: PROXIES\n    type: select\n    proxies:\n      - DIRECT\n",
         kind: YamlSnippetKind::ProxyGroup,
     },
     YamlSnippet {
         id: "url-test",
         label_key: "yaml_snippet_urltest",
-        label_zh: "+ URL-Test",
         body: "  - name: AUTO-TEST\n    type: url-test\n    url: http://www.gstatic.com/generate_204\n    interval: 300\n    proxies:\n      - DIRECT\n",
         kind: YamlSnippetKind::ProxyGroup,
     },
     YamlSnippet {
         id: "rule-domain",
         label_key: "yaml_snippet_rule_domain",
-        label_zh: "+ DOMAIN",
         body: "  - DOMAIN-SUFFIX,google.com,PROXIES\n",
         kind: YamlSnippetKind::Rule,
     },
     YamlSnippet {
         id: "rule-geoip",
         label_key: "yaml_snippet_rule_geoip",
-        label_zh: "+ GEOIP",
         body: "  - GEOIP,CN,DIRECT\n",
         kind: YamlSnippetKind::Rule,
     },
@@ -156,14 +135,11 @@ pub struct SnippetInsertion {
     /// Shared preflight verdict on the spliced document, set by the
     /// application layer (`Some` only when the splice introduced a syntax
     /// error into a previously valid document).
-    pub syntax: Option<crate::profile_document::SyntaxDiagnosticSnapshot>,
+    pub syntax: Option<SyntaxDiagnosticSnapshot>,
 }
 
 impl SnippetInsertion {
-    pub fn with_syntax(
-        mut self,
-        syntax: Option<crate::profile_document::SyntaxDiagnosticSnapshot>,
-    ) -> Self {
+    pub fn with_syntax(mut self, syntax: Option<SyntaxDiagnosticSnapshot>) -> Self {
         self.syntax = syntax;
         self
     }

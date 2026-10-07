@@ -1,10 +1,10 @@
 //! Auxiliary URI parsing implementations for Shadowsocks, VMess, Trojan, and SSH.
 
+use crate::profile_converter::{ProxyNodeItem, decode_base64_flexible};
 use anyhow::{Result, anyhow};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use url::Url;
-
-use crate::profile_converter::{ProxyNodeItem, decode_base64_flexible};
 
 pub(crate) fn parse_vmess_uri(encoded: &str) -> Result<ProxyNodeItem> {
     let json_str = decode_base64_flexible(encoded)?;
@@ -34,7 +34,7 @@ pub(crate) fn parse_vmess_uri(encoded: &str) -> Result<ProxyNodeItem> {
     let client_fingerprint = val["fp"].as_str().map(|s| s.to_string());
     let packet_encoding = val["packetEncoding"].as_str().map(|s| s.to_string());
 
-    let mut extra = std::collections::BTreeMap::new();
+    let mut extra = BTreeMap::new();
     if let Some(aid) = val["aid"].as_u64() {
         extra.insert(
             "alterId".to_string(),
@@ -146,7 +146,7 @@ pub(crate) fn parse_shadowsocks(parsed: &Url) -> Result<ProxyNodeItem> {
         udp_over_tcp,
         uot_version,
         udp: Some(true),
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }
@@ -221,7 +221,7 @@ pub(crate) fn parse_trojan(parsed: &Url) -> Result<ProxyNodeItem> {
         network,
         udp: Some(true),
         ws_opts,
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }
@@ -272,7 +272,7 @@ pub(crate) fn parse_ssh(parsed: &Url) -> Result<ProxyNodeItem> {
         passphrase,
         host_key_algorithms,
         udp: Some(true),
-        extra: std::collections::BTreeMap::new(),
+        extra: BTreeMap::new(),
         ..Default::default()
     })
 }

@@ -1,5 +1,6 @@
-use crate::capability::MihomoCapability;
+use crate::capability::{CapabilitySet, capability_snapshot};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct CapabilityDiff {
@@ -11,12 +12,12 @@ pub struct CapabilityDiff {
 pub struct VersionFixtureGenerator;
 
 impl VersionFixtureGenerator {
-    pub fn generate_fixture_for_version(version_tag: &str) -> MihomoCapability {
-        crate::capability::capability_snapshot(version_tag)
+    pub fn generate_fixture_for_version(version_tag: &str) -> CapabilitySet {
+        capability_snapshot(version_tag)
             .unwrap_or_else(|_| panic!("Failed to generate fixture for version: {}", version_tag))
     }
 
-    pub fn generate_known_version_fixtures() -> Vec<(String, MihomoCapability)> {
+    pub fn generate_known_version_fixtures() -> Vec<(String, CapabilitySet)> {
         vec![
             (
                 "v1.18.0".to_string(),
@@ -37,13 +38,13 @@ impl VersionFixtureGenerator {
         ]
     }
 
-    pub fn diff_capabilities(from: &MihomoCapability, to: &MihomoCapability) -> CapabilityDiff {
-        let from_caps: std::collections::HashSet<_> = from
+    pub fn diff_capabilities(from: &CapabilitySet, to: &CapabilitySet) -> CapabilityDiff {
+        let from_caps: HashSet<_> = from
             .capabilities
             .iter()
             .map(|c| c.name().to_string())
             .collect();
-        let to_caps: std::collections::HashSet<_> = to
+        let to_caps: HashSet<_> = to
             .capabilities
             .iter()
             .map(|c| c.name().to_string())

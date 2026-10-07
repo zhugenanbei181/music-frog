@@ -2,6 +2,11 @@
 //! card, the shared flow graph, the click-through navigation and the
 //! responsive connector visibility.
 
+use crate::app::{LayoutMode, ShellLayoutState};
+use crate::pages::overview::{
+    AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill,
+};
+use crate::route::{Route, RouteChanged};
 use bevy::a11y::AccessibilityNode;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -20,23 +25,20 @@ use bevy::ui::prelude::{
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::traffic_topology_navigation_application::TrafficTopologyNavigationApplication;
+use infiltrator_application::traffic_topology_projection::status_label;
 use infiltrator_bevy_widgets::chart::topology::{
     NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, topology_scene,
 };
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::surface_snapshot::PageId;
 use infiltrator_contract::traffic_topology::{
     TRAFFIC_TOPOLOGY_STAGE_COUNT, TrafficTopologySnapshot, TrafficTopologyStage,
-    TrafficTopologyStatus,
 };
-
-use crate::pages::overview::{
-    AccentContainerFill, LastOverviewProjection, SurfaceElevatedFill, SurfaceFill,
-};
-use crate::route::Route;
 
 /// Explicit fixture adapter retained for deterministic demo/screenshot hosts.
 pub fn topology_chain_scene(palette: &UiPalette) -> impl Scene + use<> {
@@ -50,8 +52,8 @@ pub fn topology_chain_scene_with_snapshot(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Region);
-    header_a11y.set_label("分流网络拓扑");
-    let header = topology_badge(snapshot);
+    header_a11y.set_label(UiLocale::default().text("overview_topology_label"));
+    let header = status_label(snapshot, UiLocale::default().code());
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -60,7 +62,7 @@ pub fn topology_chain_scene_with_snapshot(
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S12),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) LocalizedLabel::plain("overview_topology_label")
                     TopologyChainCard
                     Children [
                         Node {
@@ -76,7 +78,7 @@ pub fn topology_chain_scene_with_snapshot(
                             Children [
                                 @{ icon_scene(IconId::Network, 16.0, palette.accent) }
                                 --
-                                Text({ "分流网络拓扑 (Traffic Topology)".to_owned() }) TextRole(Role::Heading)
+                                LocalizedText::plain("overview_topology_title") TextRole(Role::Heading)
                             ]
                             --
                             Node {
@@ -284,18 +286,6 @@ fn stage_label(stage: TrafficTopologyStage) -> String {
     .to_owned()
 }
 
-fn topology_badge(snapshot: &TrafficTopologySnapshot) -> String {
-    match snapshot.status {
-        TrafficTopologyStatus::Ready => {
-            format!("{} 连接 · flowing", snapshot.active_connections)
-        }
-        TrafficTopologyStatus::Empty => "0 连接 · idle".to_owned(),
-        TrafficTopologyStatus::Unknown => "topology pending".to_owned(),
-        TrafficTopologyStatus::Unsupported => "topology unavailable".to_owned(),
-        TrafficTopologyStatus::Failed => "topology read failed".to_owned(),
-    }
-}
-
 fn topology_arrow_scene(palette: &UiPalette) -> impl Scene + use<> {
     bsn! {
             Node {
@@ -327,7 +317,7 @@ pub struct TopologyArrow;
 /// Marker on mutable topology text projected from the shared snapshot.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TopologyText {
-    pub stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
+    pub stage: TrafficTopologyStage,
     pub kind: TopologyTextKind,
 }
 
@@ -335,7 +325,7 @@ pub struct TopologyText {
 /// the shared snapshot's drawable status in the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TopologyStageButton {
-    pub stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
+    pub stage: TrafficTopologyStage,
     pub enabled: bool,
 }
 
@@ -351,27 +341,12 @@ pub enum TopologyTextKind {
 /// Restamp one topology text from the shared snapshot. The scene remains
 /// mounted while the controller refreshes; only these marked values change.
 pub(crate) fn topology_text_value(
-    snapshot: &infiltrator_contract::traffic_topology::TrafficTopologySnapshot,
+    snapshot: &TrafficTopologySnapshot,
     marker: &TopologyText,
+    locale: &str,
 ) -> String {
     if marker.kind == TopologyTextKind::HeaderBadge {
-        return match snapshot.status {
-            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Ready => {
-                format!("{} 连接 · flowing", snapshot.active_connections)
-            }
-            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Empty => {
-                "0 连接 · idle".to_owned()
-            }
-            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Unknown => {
-                "topology pending".to_owned()
-            }
-            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Unsupported => {
-                "topology unavailable".to_owned()
-            }
-            infiltrator_contract::traffic_topology::TrafficTopologyStatus::Failed => {
-                "topology read failed".to_owned()
-            }
-        };
+        return status_label(snapshot, locale);
     }
 
     let Some(node) = snapshot.node(marker.stage) else {
@@ -389,8 +364,7 @@ pub(crate) fn topology_text_value(
         TopologyTextKind::Label => node.label.clone(),
         TopologyTextKind::Detail => node.detail.clone(),
         TopologyTextKind::Badge => {
-            if marker.stage == infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer
-            {
+            if marker.stage == TrafficTopologyStage::Sniffer {
                 match snapshot.sniffer_enabled {
                     Some(true) => "On".to_owned(),
                     Some(false) => "Off".to_owned(),
@@ -406,15 +380,13 @@ pub(crate) fn topology_text_value(
     }
 }
 
-fn topology_stage_label(
-    stage: infiltrator_contract::traffic_topology::TrafficTopologyStage,
-) -> &'static str {
+fn topology_stage_label(stage: TrafficTopologyStage) -> &'static str {
     match stage {
-        infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound => "Client / Inbound",
-        infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer => "Sniffer",
-        infiltrator_contract::traffic_topology::TrafficTopologyStage::RuleSet => "RuleSet",
-        infiltrator_contract::traffic_topology::TrafficTopologyStage::ProxyGroup => "Proxy Group",
-        infiltrator_contract::traffic_topology::TrafficTopologyStage::Outbound => "Outbound Node",
+        TrafficTopologyStage::Inbound => "Client / Inbound",
+        TrafficTopologyStage::Sniffer => "Sniffer",
+        TrafficTopologyStage::RuleSet => "RuleSet",
+        TrafficTopologyStage::ProxyGroup => "Proxy Group",
+        TrafficTopologyStage::Outbound => "Outbound Node",
     }
 }
 
@@ -492,23 +464,23 @@ pub(crate) fn on_topology_stage_activated(
     }
 
     let route = match page {
-        infiltrator_contract::surface_snapshot::PageId::Settings => Route::Settings,
-        infiltrator_contract::surface_snapshot::PageId::Rules => Route::Rules,
-        infiltrator_contract::surface_snapshot::PageId::Proxies => Route::Proxies,
+        PageId::Settings => Route::Settings,
+        PageId::Rules => Route::Rules,
+        PageId::Proxies => Route::Proxies,
         _ => return,
     };
-    commands.trigger(crate::route::RouteChanged(route));
+    commands.trigger(RouteChanged(route));
 }
 
 /// Sync overview topology chain responsive layout according to layout mode.
 pub fn sync_overview_responsive(
-    layout: Option<Res<crate::app::ShellLayoutState>>,
+    layout: Option<Res<ShellLayoutState>>,
     mut arrows: Query<&mut Node, With<TopologyArrow>>,
 ) {
     let Some(layout) = layout else {
         return;
     };
-    let is_compact = layout.mode == crate::app::LayoutMode::BottomNav;
+    let is_compact = layout.mode == LayoutMode::BottomNav;
     let target_display = if is_compact {
         Display::None
     } else {

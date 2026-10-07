@@ -3,16 +3,16 @@
 //! when faces are unregistered.
 
 use bevy::MinimalPlugins;
-use bevy::app::{App, Startup};
+use bevy::app::{App, PreStartup, Startup};
 use bevy::asset::{AssetPlugin, Assets, Handle};
 use bevy::ecs::system::{Commands, Res};
-use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::scene::{CommandsSceneExt, ScenePlugin, bsn};
 use bevy::text::{Font, FontSize, FontSource, TextColor, TextFont, TextPlugin};
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::button::pill_scene;
 use infiltrator_bevy_widgets::fonts::FontSources;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::text::{Role, role_typography};
+use infiltrator_bevy_widgets::text::{Role, TextRole, role_typography};
 use infiltrator_bevy_widgets::theme::Theme;
 
 fn headless_app() -> App {
@@ -43,6 +43,45 @@ fn embedded_faces_register_exactly_four_font_assets() {
         4,
         "the four OFL faces are the whole embedded store"
     );
+}
+
+#[test]
+fn font_initialization_precedes_startup_and_preserves_preexisting_labels() {
+    let mut app = headless_app();
+    let label = app
+        .world_mut()
+        .commands()
+        .spawn_scene(bsn! { TextRole(Role::Mono) TextFont::default() })
+        .id();
+    app.add_systems(Startup, |sources: Res<FontSources>| {
+        assert!(
+            sources.mono.is_strong(),
+            "assets must be ready before scenes"
+        );
+    });
+    app.update();
+    let source = app.world().resource::<FontSources>().mono.clone();
+    assert_eq!(
+        app.world().get::<TextFont>(label).unwrap().font,
+        FontSource::Handle(source)
+    );
+    app.update();
+    assert_eq!(app.world().resource::<Assets<Font>>().len(), 4);
+    assert!(app.world().get_entity(label).is_ok());
+}
+
+#[test]
+fn asset_plugins_can_be_registered_after_widgets_before_first_update() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
+    app.add_plugins((AssetPlugin::default(), ScenePlugin, TextPlugin));
+    app.add_systems(PreStartup, |mut commands: Commands| {
+        commands.spawn_scene(bsn! { TextRole(Role::Body) TextFont::default() });
+    });
+    app.update();
+    assert_eq!(app.world().resource::<Assets<Font>>().len(), 4);
+    assert!(app.world().resource::<FontSources>().body.is_strong());
 }
 
 #[test]

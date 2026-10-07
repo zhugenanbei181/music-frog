@@ -3,9 +3,10 @@
 use super::integration::secondary_text;
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::card;
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length};
 use infiltrator_shared::locales::{Lang, Localizer};

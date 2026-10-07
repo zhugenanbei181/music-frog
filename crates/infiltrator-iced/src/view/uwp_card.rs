@@ -2,25 +2,26 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{style_accent, style_ghost};
-use crate::view::components::{BadgeKind, badge, card, modern_scrollable};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::components::{BadgeKind, badge, modern_scrollable};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
-use infiltrator_contract::uwp::UwpLoopbackAvailability;
+use infiltrator_application::routing_projection::uwp_summary;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn uwp_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
     let uwp = &state.shell.uwp_loopback;
-    let availability = match &uwp.availability {
-        UwpLoopbackAvailability::Supported => uwp.status_message.clone().unwrap_or_else(|| {
-            lang.tr("uwp_found_count")
-                .replace("{count}", &uwp.apps.len().to_string())
-        }),
-        UwpLoopbackAvailability::Unsupported { reason }
-        | UwpLoopbackAvailability::Unavailable { reason } => reason.clone(),
-    };
+    let availability = uwp.status_message.clone().unwrap_or_else(|| {
+        uwp_summary(
+            &uwp.availability,
+            uwp.apps.iter().map(|app| app.is_exempt),
+            lang.0,
+        )
+    });
 
     let scan_btn = button(
         row![

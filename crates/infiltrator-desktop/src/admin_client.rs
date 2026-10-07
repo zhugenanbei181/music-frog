@@ -3,6 +3,7 @@
 use reqwest::Client;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::time;
 
 pub struct AdminApiClient {
     base_url: String,
@@ -12,7 +13,7 @@ pub struct AdminApiClient {
 impl AdminApiClient {
     pub fn new(base_url: impl Into<String>) -> anyhow::Result<Self> {
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(time::Duration::from_secs(30))
             .build()?;
         Ok(Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),

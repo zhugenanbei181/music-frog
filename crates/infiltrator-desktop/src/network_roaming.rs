@@ -1,18 +1,23 @@
 //! Desktop physical-link observation and safe TUN route-anchor repair.
 
+use crate::mtu::{apply_link_mtu, link_mtu_table};
 use async_trait::async_trait;
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::network_roaming::{
     NetworkInterfaceKind, NetworkInterfaceSnapshot, NetworkObservation,
     NetworkRoamingRepairRequest, NetworkRoamingRepairResult,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::network_roaming::NetworkRoamingPort;
+use mihomo_platform::interface_watcher;
 use mihomo_platform::interface_watcher::{InterfaceType, NetworkInterfaceWatcher};
 use std::net::IpAddr;
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::task::spawn_blocking;
 
 static NEXT_ROUTE_GENERATION: AtomicU64 = AtomicU64::new(1);
 static SHARED_REPAIR_STATE: OnceLock<Arc<Mutex<RepairState>>> = OnceLock::new();
@@ -59,8 +64,8 @@ impl DesktopNetworkRoamingPort {
 
     fn observe_sync() -> Result<NetworkObservation, PortError> {
         let mut interfaces = NetworkInterfaceWatcher::poll_interfaces();
-        let mtus = crate::mtu::link_mtu_table();
-        crate::mtu::apply_link_mtu(&mut interfaces, &mtus);
+        let mtus = link_mtu_table();
+        apply_link_mtu(&mut interfaces, &mtus);
         let routes = default_routes()?;
         apply_default_routes(&mut interfaces, &routes);
 
@@ -123,7 +128,7 @@ impl DesktopNetworkRoamingPort {
 #[async_trait]
 impl NetworkRoamingPort for DesktopNetworkRoamingPort {
     async fn observe(&self) -> Result<NetworkObservation, PortError> {
-        tokio::task::spawn_blocking(Self::observe_sync)
+        spawn_blocking(Self::observe_sync)
             .await
             .map_err(|error| PortError::Io(format!("network observation worker failed: {error}")))?
     }
@@ -133,7 +138,7 @@ impl NetworkRoamingPort for DesktopNetworkRoamingPort {
         request: NetworkRoamingRepairRequest,
     ) -> Result<NetworkRoamingRepairResult, PortError> {
         let port = self.clone();
-        tokio::task::spawn_blocking(move || port.repair_sync(request))
+        spawn_blocking(move || port.repair_sync(request))
             .await
             .map_err(|error| PortError::Io(format!("network repair worker failed: {error}")))?
     }
@@ -174,7 +179,7 @@ fn default_routes() -> Result<Vec<DefaultRoute>, PortError> {
 
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     Err(PortError::unsupported(
-        infiltrator_contract::capability::Capability::NetworkRoaming,
+        Capability::NetworkRoaming,
         "desktop default-route observation is not implemented for this OS",
     ))
 }
@@ -270,7 +275,7 @@ fn parse_windows_default_routes(output: &str) -> Vec<DefaultRoute> {
 }
 
 fn apply_default_routes(
-    interfaces: &mut [mihomo_platform::interface_watcher::NetworkInterfaceSnapshot],
+    interfaces: &mut [interface_watcher::NetworkInterfaceSnapshot],
     routes: &[DefaultRoute],
 ) {
     for route in routes {
@@ -286,7 +291,7 @@ fn apply_default_routes(
 }
 
 fn to_contract_interface(
-    interface: mihomo_platform::interface_watcher::NetworkInterfaceSnapshot,
+    interface: interface_watcher::NetworkInterfaceSnapshot,
 ) -> NetworkInterfaceSnapshot {
     let kind = interface.inferred_type();
     NetworkInterfaceSnapshot {
@@ -455,7 +460,7 @@ fn repair_route_anchor(
     {
         let _ = (request, gateway_ip);
         Err(PortError::unsupported(
-            infiltrator_contract::capability::Capability::NetworkRoaming,
+            Capability::NetworkRoaming,
             "desktop TUN route repair is not implemented for this OS",
         ))
     }

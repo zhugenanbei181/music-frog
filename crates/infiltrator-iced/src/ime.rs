@@ -22,10 +22,9 @@
 //! localized text; see `crate::accessibility`), and a headless test cannot
 //! observe the OS candidate window — it pins the toolkit strategy seam instead.
 
+use crate::types::message::Message;
 use iced::advanced::input_method;
 use infiltrator_contract::ime::{ImeCompositionEvent, ImeCursorSource, ImeCursorSupport};
-
-use crate::types::message::Message;
 
 /// Where this surface gets the caret rectangle the OS IME needs: the toolkit's
 /// own text widget publishes it.

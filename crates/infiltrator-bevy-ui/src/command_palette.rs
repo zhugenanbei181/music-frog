@@ -8,6 +8,7 @@
 //!   registry) the Iced palette renders. This module owns presentation and the
 //!   selection cursor only; dispatch lives in [`crate::command_palette_shell`].
 
+use crate::a11y::semantic_node;
 use bevy::a11y::AccessibilityNode;
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
@@ -17,10 +18,11 @@ use bevy::ecs::resource::Resource;
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, FlexDirection, JustifyContent, Node,
-    PositionType, UiRect, Val, percent, px,
+    Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::Button;
+use bevy::ui_widgets::{Button, ScrollArea};
+use infiltrator_application::command_palette_projection::{filtered_indices, localized_title};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
@@ -29,11 +31,17 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::command_catalogue::{CommandCatalogue, CommandEntry};
 use infiltrator_contract::shortcuts::ShortcutRegistry;
+use infiltrator_shared::fuzzy_search::pinyin_fuzzy_match;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// The palette's pure state: the shared catalogue plus the query/selection
 /// cursor. Arrow navigation wraps; an empty query keeps every row.
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct CommandPaletteScrollArea;
+
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct CommandPaletteState {
+    pub language: String,
     pub is_open: bool,
     pub query: String,
     pub selected_index: usize,
@@ -55,12 +63,18 @@ impl CommandPaletteState {
     pub fn from_catalogue(catalogue: CommandCatalogue) -> Self {
         let filtered_indices = (0..catalogue.len()).collect();
         Self {
+            language: "zh-CN".into(),
             is_open: false,
             query: String::new(),
             selected_index: 0,
             catalogue,
             filtered_indices,
         }
+    }
+
+    pub fn set_language(&mut self, language: impl Into<String>) {
+        self.language = language.into();
+        self.refilter();
     }
 
     /// Swap in a catalogue (the stored profile list changed) while keeping the
@@ -116,29 +130,16 @@ impl CommandPaletteState {
     /// shared pinyin matcher over the bare-Chinese titles (the same matcher
     /// the Iced palette applies), so "ymjx" finds the DNS page on both ends.
     pub fn refilter(&mut self) {
-        let query = self.query.trim();
-        if query.is_empty() {
-            self.filtered_indices = (0..self.catalogue.len()).collect();
-        } else {
-            self.filtered_indices = self
-                .catalogue
-                .entries()
-                .iter()
-                .enumerate()
-                .filter(|(_, entry)| {
-                    entry.matches(query)
-                        || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
-                            &entry.title_zh,
-                            query,
-                        )
-                        || infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(&entry.id, query)
-                })
-                .map(|(index, _)| index)
-                .collect();
-        }
-        if !self.filtered_indices.is_empty() && self.selected_index >= self.filtered_indices.len() {
-            self.selected_index = self.filtered_indices.len() - 1;
-        }
+        let lang = Lang(&self.language);
+        self.filtered_indices = filtered_indices(
+            &self.catalogue,
+            &self.query,
+            &|key| lang.tr(key).into_owned(),
+            &pinyin_fuzzy_match,
+        );
+        self.selected_index = self
+            .selected_index
+            .min(self.filtered_indices.len().saturating_sub(1));
     }
 
     pub fn select_next(&mut self) {
@@ -195,6 +196,12 @@ pub struct ExecutePaletteEntry(pub usize);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CommandPaletteOverlayRoot;
 
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct CommandPaletteCard;
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct CommandPaletteDismissButton;
+
 /// Marker on an individual action row button: the display index within the
 /// filtered list.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -204,14 +211,14 @@ pub struct CommandPaletteRow(pub usize);
 /// grammar row supplies role and label, so the Bevy tree and the Iced labels
 /// stay one vocabulary (DUAL-15-10).
 pub fn command_palette_semantic_node() -> AccessibilityNode {
-    crate::a11y::semantic_node(ShellA11yNode::CommandPaletteDialog)
+    semantic_node(ShellA11yNode::CommandPaletteDialog)
 }
 
 /// Accessibility node constructor for the palette's live query line: a
 /// read-only `Text` row of the shared grammar, mounted on the real query node
 /// so a screen reader hears what is being typed (DUAL-15-10).
 pub fn command_palette_query_semantic_node() -> AccessibilityNode {
-    crate::a11y::semantic_node(ShellA11yNode::CommandPaletteQuery)
+    semantic_node(ShellA11yNode::CommandPaletteQuery)
 }
 
 /// Declarative scene for an individual catalogue row.
@@ -221,6 +228,7 @@ pub fn command_palette_item_scene(
     hint: Option<String>,
     is_selected: bool,
     display_index: usize,
+    language: &str,
 ) -> impl Scene + use<> {
     let bg = if is_selected {
         palette.accent.with_alpha(0.18)
@@ -232,14 +240,17 @@ pub fn command_palette_item_scene(
     } else {
         Color::NONE
     };
-    let title_text = entry.title_zh.clone();
-    let category_text = category_label(entry);
+    let lang = Lang(language);
+    let title_text = localized_title(entry, &|key| lang.tr(key).into_owned());
+    let category_text = lang.tr(entry.category.label_key()).into_owned();
     let hint_text = hint.unwrap_or_default();
 
     bsn! {
             Node {
                 width: percent(100),
                 height: px(40.0),
+                min_height: px(40.0),
+                flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
                 padding: UiRect::axes(Val::Px(space::S12), Val::Px(space::S4)),
@@ -278,29 +289,32 @@ pub fn command_palette_item_scene(
 
 /// Bare-Chinese category label used by the Bevy surface: the shared contract
 /// owns the vocabulary.
-fn category_label(entry: &CommandEntry) -> String {
-    entry.category.label_zh().to_owned()
-}
-
-/// Declarative BSN modal scene for the Command Palette.
 pub fn command_palette_modal_scene(
     palette: &UiPalette,
     state: &CommandPaletteState,
     registry: &ShortcutRegistry,
 ) -> impl Scene + use<> {
+    let language = &state.language;
+    let lang = Lang(language);
+    let hints = format!(
+        "{} · {} · {}",
+        lang.tr("cmd_palette_hint_nav"),
+        lang.tr("cmd_palette_hint_select"),
+        lang.tr("cmd_palette_hint_close")
+    );
     let semantic = command_palette_semantic_node();
     let query_semantic = command_palette_query_semantic_node();
     let query_display = if state.query.is_empty() {
-        "输入关键词检索页面或快捷运维指令...".to_owned()
+        lang.tr("cmd_palette_placeholder").into_owned()
     } else {
         state.query.clone()
     };
     let edge = palette.border;
+    let close_label = lang.tr("modal_close").into_owned();
 
-    let items_boxed: Vec<Box<dyn Scene>> = state
+    let mut items_boxed: Vec<Box<dyn Scene>> = state
         .filtered_indices
         .iter()
-        .take(8)
         .enumerate()
         .filter_map(|(display_index, index)| {
             let entry = state.catalogue.entry(*index)?;
@@ -312,18 +326,27 @@ pub fn command_palette_modal_scene(
                 hint,
                 is_selected,
                 display_index,
+                language,
             )) as Box<dyn Scene>)
         })
         .collect();
+    if items_boxed.is_empty() {
+        items_boxed.push(Box::new(bsn! {
+            Text({ lang.tr("cmd_no_results").into_owned() })
+            TextRole(Role::Caption)
+            CommandPaletteEmptyState
+        }));
+    }
 
     bsn! {
             Node {
                 position_type: PositionType::Absolute,
                 width: percent(100),
                 height: percent(100),
+                min_height: px(0.0), max_height: percent(100),
                 align_items: AlignItems::Center,
-                justify_content: JustifyContent::FlexStart,
-                padding: UiRect::top(Val::Px(80.0)),
+                justify_content: JustifyContent::Center,
+                padding: UiRect::all(px(16.0)),
             }
             BackgroundColor({ palette.scrim })
             CommandPaletteOverlayRoot
@@ -332,12 +355,14 @@ pub fn command_palette_modal_scene(
                 Node {
                     width: px(560.0),
                     max_width: percent(92),
+                    max_height: percent(90), min_height: px(0.0),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(Val::Px(space::S16)),
                     row_gap: Val::Px(space::S12),
                     border: UiRect::all(Val::Px(1.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
                 }
+                CommandPaletteCard
                 BackgroundColor({ palette.surface })
                 BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                 Children [
@@ -360,14 +385,20 @@ pub fn command_palette_modal_scene(
                         TextRole(Role::Body)
                         CommandPaletteQueryLabel
                         query_semantic
+                        --
+                        Node { margin: { UiRect { left: Val::Auto, ..UiRect::default() } }, padding: UiRect::all(px(space::S4)) }
+                        Button CommandPaletteDismissButton
+                        Children [ Text(close_label) TextRole(Role::Caption) ]
                     ]
                     --
-                    // Items list
+                    // The list scrolls while query and keyboard hints stay reachable.
                     Node {
-                        width: percent(100),
+                        width: percent(100), min_height: px(0.0), flex_shrink: 1.0,
+                        overflow: Overflow::scroll_y(),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(space::S4),
                     }
+                    ScrollArea CommandPaletteScrollArea
                     Children [
                         { items_boxed }
                     ]
@@ -379,16 +410,19 @@ pub fn command_palette_modal_scene(
                         padding: UiRect::top(Val::Px(space::S4)),
                     }
                     Children [
-                        Text({ "↑↓ 导航 · Enter 执行 · Esc 关闭".to_owned() })
+                        Text(hints)
                         TextRole(Role::Caption)
                         --
-                        Text({ format!("{}/{} 项", state.filtered_indices.len(), state.catalogue.len()) })
+                        Text({ format!("{}/{}", state.filtered_indices.len(), state.catalogue.len()) })
                         TextRole(Role::Caption)
                     ]
                 ]
             ]
     }
 }
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct CommandPaletteEmptyState;
 
 /// Marker on the palette's query text node (so a remount latch can read it
 /// back in tests).
@@ -398,6 +432,8 @@ pub struct CommandPaletteQueryLabel;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::command_catalogue::ProfileChoice;
 
     #[test]
     fn test_command_palette_lifecycle_and_filtering() {
@@ -460,9 +496,8 @@ mod tests {
         // The shared matcher is the same engine Iced applies: substring plus
         // the regional-keyword pinyin initials (香港 → xg). A stored profile
         // named 香港 exercises it through the live profile rows.
-        let catalogue = CommandCatalogue::with_profiles(&[
-            infiltrator_contract::command_catalogue::ProfileChoice::new("sub-1", "香港 IEPL 01"),
-        ]);
+        let catalogue =
+            CommandCatalogue::with_profiles(&[ProfileChoice::new("sub-1", "香港 IEPL 01")]);
         let mut state = CommandPaletteState::from_catalogue(catalogue);
         state.open();
         state.set_query("xg");

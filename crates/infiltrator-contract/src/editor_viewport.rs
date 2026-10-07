@@ -21,6 +21,7 @@
 //! * [`EditorViewport::first_line`]/[`EditorViewport::last_line`] are always
 //!   inside `0..total_lines`, so a render path can index lines directly.
 
+use std::ops::RangeInclusive;
 /// One indentation step of the shared indent-reference model. Config YAML in
 /// this project is written with two-space indentation (the same width the
 /// AST-preserving formatter normalizes to).
@@ -142,7 +143,7 @@ impl EditorViewport {
     }
 
     /// 1-based rendered line numbers, in reading order.
-    pub fn line_numbers(&self) -> std::ops::RangeInclusive<usize> {
+    pub fn line_numbers(&self) -> RangeInclusive<usize> {
         self.first_line + 1..=self.last_line() + 1
     }
 
@@ -159,17 +160,6 @@ impl EditorViewport {
     /// Whether a 1-based line number is inside the window.
     pub fn contains_line(&self, line: usize) -> bool {
         line > self.first_line && line <= self.last_line() + 1
-    }
-
-    /// Window label for either surface's gutter header, e.g.
-    /// `行 41–80 / 共 10000`.
-    pub fn range_label(&self) -> String {
-        format!(
-            "行 {}–{} / 共 {}",
-            self.first_line + 1,
-            self.last_line() + 1,
-            self.total_lines
-        )
     }
 }
 

@@ -1,13 +1,12 @@
 //! Profile-backed controller endpoint adapter.
 
+use crate::manager::ConfigManager;
 use async_trait::async_trait;
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use std::sync::Arc;
 use yaml_rust2::YamlLoader;
-
-use crate::manager::ConfigManager;
 
 /// Resolves the active profile's controller URL and secret on demand.
 ///

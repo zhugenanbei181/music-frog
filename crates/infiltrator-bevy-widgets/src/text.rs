@@ -8,15 +8,14 @@
 //! tree, they restamp components in place. The same projection re-stamps
 //! every role on a theme switch — see [`crate::switch`].
 
+use crate::fonts::FontSources;
+use crate::palette::UiPalette;
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::lifecycle::Add;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res};
 use bevy::text::{FontSize, FontSource, TextColor, TextFont};
-
-use crate::fonts::FontSources;
-use crate::palette::UiPalette;
 
 /// Which typographic role a text node plays.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

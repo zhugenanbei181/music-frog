@@ -1,52 +1,51 @@
+use crate::locales::{Lang, Localizer};
 use std::collections::HashMap;
 
+/// Render canonical copy once, leaving inserted values opaque.
+pub fn localize(code: &str, key: &str, values: &[(&str, String)]) -> String {
+    let values: Vec<_> = values
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect();
+    interpolate(Lang(code).tr(key).as_ref(), &values)
+}
 /// Convenient array-based key-value interpolation helper.
 pub fn interpolate(template: &str, pairs: &[(&str, &str)]) -> String {
-    let mut s = template.to_string();
-    for &(k, v) in pairs {
-        s = s.replace(&format!("{{{k}}}"), v);
+    interpolate_with(template, |key| {
+        pairs
+            .iter()
+            .find(|(name, _)| *name == key)
+            .map(|(_, value)| *value)
+    })
+}
+
+/// Resolve placeholders in the template once; inserted user values remain opaque.
+fn interpolate_with<'a>(template: &str, mut lookup: impl FnMut(&str) -> Option<&'a str>) -> String {
+    let mut output = String::with_capacity(template.len());
+    let mut remaining = template;
+    while let Some(start) = remaining.find('{') {
+        output.push_str(&remaining[..start]);
+        let tail = &remaining[start + 1..];
+        let Some(end) = tail.find('}') else {
+            output.push_str(&remaining[start..]);
+            return output;
+        };
+        if let Some(value) = lookup(&tail[..end]) {
+            output.push_str(value);
+        } else {
+            output.push_str(&remaining[start..start + end + 2]);
+        }
+        remaining = &tail[end + 1..];
     }
-    s
+    output.push_str(remaining);
+    output
 }
 
 pub struct I18nInterpolator;
 
 impl I18nInterpolator {
     pub fn interpolate(template: &str, params: &HashMap<String, String>) -> String {
-        let mut result = String::new();
-        let mut chars = template.chars().peekable();
-
-        while let Some(c) = chars.next() {
-            if c == '{' {
-                let mut key = String::new();
-                let mut found_closing = false;
-
-                while let Some(&next_c) = chars.peek() {
-                    chars.next();
-                    if next_c == '}' {
-                        found_closing = true;
-                        break;
-                    }
-                    key.push(next_c);
-                }
-
-                if found_closing {
-                    if let Some(val) = params.get(&key) {
-                        result.push_str(val);
-                    } else {
-                        result.push('{');
-                        result.push_str(&key);
-                        result.push('}');
-                    }
-                } else {
-                    result.push('{');
-                    result.push_str(&key);
-                }
-            } else {
-                result.push(c);
-            }
-        }
-        result
+        interpolate_with(template, |key| params.get(key).map(String::as_str))
     }
 
     pub fn resolve_fallback_locale<'a>(preferred: &str, supported: &[&'a str]) -> &'a str {
@@ -88,6 +87,29 @@ impl I18nInterpolator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn both_interpolation_interfaces_keep_user_placeholders_opaque_and_order_independent() {
+        let template = "{user} · {count}";
+        let pairs = [("user", "User {count} / 日本"), ("count", "3")];
+        assert_eq!(interpolate(template, &pairs), "User {count} / 日本 · 3");
+        assert_eq!(
+            interpolate(template, &[pairs[1], pairs[0]]),
+            "User {count} / 日本 · 3"
+        );
+        let params = pairs
+            .into_iter()
+            .map(|(key, value)| (key.to_owned(), value.to_owned()))
+            .collect();
+        assert_eq!(
+            I18nInterpolator::interpolate(template, &params),
+            "User {count} / 日本 · 3"
+        );
+        assert_eq!(
+            interpolate("{known} {missing} {unfinished", &[("known", "value")]),
+            "value {missing} {unfinished"
+        );
+    }
 
     #[test]
     fn test_interpolate_single() {

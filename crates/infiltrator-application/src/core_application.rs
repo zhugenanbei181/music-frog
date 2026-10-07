@@ -1,37 +1,47 @@
-use infiltrator_contract::command::{CommandIntent, CommandResult, RequestId};
+use self::execution::closed_failure;
+use crate::command_application::CommandHandler;
+use crate::log_application::LogApplication;
+use crate::log_stream::LogPump;
+use futures_util::lock;
+use infiltrator_contract::command::{CommandIntent, CommandResult, ProxyMode, RequestId};
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{
     CoreEvent, CoreLifecycle, CoreLifecycleSnapshot, CoreSnapshot, CoreWatchdogSnapshot,
 };
+use infiltrator_domain::core_state;
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex, RwLock};
-
-use crate::command_application::CommandHandler;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, Sender, SyncSender, sync_channel};
+use std::sync::{Arc, Mutex, RwLock, Weak};
+use std::thread::Builder;
+use std::time;
 
 #[path = "core_watchdog.rs"]
 mod watchdog_runtime;
 
 mod command_name;
+mod dispatch;
+mod execution;
 
 const EVENT_CAPACITY: usize = 256;
 const DISPATCH_CAPACITY: usize = 256;
-const DEFAULT_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
-const DEFAULT_READINESS_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+const DEFAULT_READINESS_TIMEOUT: time::Duration = time::Duration::from_secs(15);
+const DEFAULT_READINESS_POLL_INTERVAL: time::Duration = time::Duration::from_millis(250);
 static NEXT_SESSION_NAMESPACE: AtomicU64 = AtomicU64::new(1);
 
 /// Readiness retry policy expressed entirely in standard-library values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReadinessPolicy {
-    pub timeout: std::time::Duration,
-    pub poll_interval: std::time::Duration,
+    pub timeout: time::Duration,
+    pub poll_interval: time::Duration,
 }
 
 impl Default for ReadinessPolicy {
@@ -49,14 +59,20 @@ struct StateMirror {
 }
 
 struct Inner {
+    logs: LogApplication,
+    log_pump: Mutex<Option<LogPump>>,
+    telemetry: lock::Mutex<telemetry::TelemetryState>,
     process: Arc<dyn CoreProcess>,
     readiness: Arc<dyn CoreReadiness>,
     overview: Option<Arc<dyn OverviewReader>>,
     readiness_policy: ReadinessPolicy,
     runtime: Arc<dyn ApplicationRuntime>,
     command_handler: RwLock<Option<Arc<dyn CommandHandler>>>,
-    dispatch_tx: std::sync::mpsc::SyncSender<DispatchedCommand>,
-    operation: futures_util::lock::Mutex<()>,
+    dispatch_tx: SyncSender<DispatchedCommand>,
+    commands: lock::Mutex<()>,
+    operation: lock::Mutex<()>,
+    closed: AtomicBool,
+    active_command: AtomicBool,
     state: RwLock<StateMirror>,
     watchdog: Mutex<watchdog_runtime::WatchdogRuntime>,
     next_request_id: AtomicU64,
@@ -68,6 +84,7 @@ struct Inner {
 struct DispatchedCommand {
     request_id: RequestId,
     intent: CommandIntent,
+    reply: Option<Sender<CommandResult>>,
 }
 
 /// The single application owner of Core lifecycle operations.
@@ -152,11 +169,14 @@ impl CoreApplication {
         readiness_policy: ReadinessPolicy,
         runtime: Arc<dyn ApplicationRuntime>,
     ) -> Self {
-        let (dispatch_tx, dispatch_rx) = std::sync::mpsc::sync_channel(DISPATCH_CAPACITY);
+        let (dispatch_tx, dispatch_rx) = sync_channel(DISPATCH_CAPACITY);
         let session_namespace = NEXT_SESSION_NAMESPACE
             .fetch_add(1, Ordering::Relaxed)
             .max(1);
         let inner = Arc::new(Inner {
+            logs: LogApplication::default(),
+            log_pump: Mutex::new(None),
+            telemetry: lock::Mutex::new(telemetry::TelemetryState::default()),
             process,
             readiness,
             overview,
@@ -164,7 +184,10 @@ impl CoreApplication {
             runtime: Arc::clone(&runtime),
             command_handler: RwLock::new(None),
             dispatch_tx,
-            operation: futures_util::lock::Mutex::new(()),
+            commands: lock::Mutex::new(()),
+            operation: lock::Mutex::new(()),
+            closed: AtomicBool::new(false),
+            active_command: AtomicBool::new(false),
             state: RwLock::new(StateMirror {
                 state: CoreState::Idle { generation: 0 },
                 revision: 0,
@@ -189,9 +212,35 @@ impl CoreApplication {
             .command_handler
             .write()
             .expect("command handler lock");
+        assert!(
+            !self.inner.closed.load(Ordering::Acquire),
+            "cannot configure a closed application"
+        );
         *slot = Some(handler);
     }
 
+    pub fn log_application(&self) -> LogApplication {
+        self.inner.logs.clone()
+    }
+    pub fn install_log_gateway(&self, gateway: Arc<dyn RuntimeGateway>) -> Result<(), Failure> {
+        let mut slot = self.inner.log_pump.lock().expect("log driver");
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Err(closed_failure());
+        }
+        slot.take();
+        let weak = Arc::downgrade(&self.inner);
+        let pump = LogPump::spawn(
+            self.inner.logs.clone(),
+            gateway,
+            self.inner.runtime.clone(),
+            move || {
+                weak.upgrade()
+                    .map(|inner| CoreApplication { inner }.snapshot().lifecycle_snapshot())
+            },
+        )?;
+        *slot = Some(pump);
+        Ok(())
+    }
     /// Execute a command and await its terminal result. The returned values
     /// contain no executor-specific types.
     pub async fn execute(&self, intent: CommandIntent) -> CommandResult {
@@ -204,38 +253,7 @@ impl CoreApplication {
     /// [`Self::drain_events`]. The caller never needs to own or name Tokio;
     /// every dispatched command is serialized by the same worker.
     pub fn dispatch(&self, intent: CommandIntent) -> RequestId {
-        let request_id = self.allocate_request_id();
-        let kind = intent.kind();
-        match self
-            .inner
-            .dispatch_tx
-            .try_send(DispatchedCommand { request_id, intent })
-        {
-            Ok(()) => {}
-            Err(std::sync::mpsc::TrySendError::Full(_)) => {
-                self.push_event(CoreEvent::CommandFailed {
-                    request_id,
-                    kind,
-                    failure: Failure::new(
-                        ErrorCode::Internal,
-                        "application command queue is full",
-                        true,
-                    ),
-                });
-            }
-            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
-                self.push_event(CoreEvent::CommandFailed {
-                    request_id,
-                    kind,
-                    failure: Failure::new(
-                        ErrorCode::Internal,
-                        "application worker is no longer available",
-                        true,
-                    ),
-                });
-            }
-        }
-        request_id
+        self.enqueue(intent, None)
     }
 
     /// Return the latest immutable contract projection.
@@ -280,6 +298,9 @@ impl CoreApplication {
     /// and desktop boot attach flows; it never calls `start` on the process.
     pub async fn adopt_if_running(&self) -> Result<bool, Failure> {
         let _operation = self.inner.operation.lock().await;
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Err(closed_failure());
+        }
         if !matches!(self.current_state(), CoreState::Idle { .. }) {
             return Ok(false);
         }
@@ -290,25 +311,21 @@ impl CoreApplication {
         }
 
         let session_token = self.allocate_session_token();
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested {
-            session_token,
-        });
+        self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
         match self
             .wait_for_readiness(session_token, self.inner.readiness_policy.timeout)
             .await
         {
             Ok(endpoint) => {
-                self.apply_domain_event(
-                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess {
-                        session_token,
-                        endpoint,
-                    },
-                );
+                self.apply_domain_event(core_state::CoreEvent::ReadinessSuccess {
+                    session_token,
+                    endpoint,
+                });
                 Ok(true)
             }
             Err(error) => {
                 let message = error.to_string();
-                self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed {
+                self.apply_domain_event(core_state::CoreEvent::StartFailed {
                     session_token,
                     error: message,
                 });
@@ -330,56 +347,7 @@ impl CoreApplication {
         SessionToken::new((u128::from(self.inner.session_namespace) << 64) | u128::from(sequence))
     }
 
-    async fn execute_with_id(&self, request_id: RequestId, intent: CommandIntent) -> CommandResult {
-        let kind = intent.kind();
-        self.push_event(CoreEvent::CommandAccepted { request_id, kind });
-
-        let _operation = self.inner.operation.lock().await;
-        let outcome = match intent {
-            CommandIntent::StartCore => self.start_locked().await,
-            CommandIntent::StopCore => self.stop_locked().await,
-            CommandIntent::RestartCore => self.restart_locked().await,
-            CommandIntent::SetProxyMode { mode } => self.set_mode_locked(mode).await,
-            unsupported => {
-                let handler = self
-                    .inner
-                    .command_handler
-                    .read()
-                    .expect("command handler lock")
-                    .clone();
-                match handler {
-                    Some(handler) => handler.handle(unsupported).await,
-                    None => Err(Failure::unsupported(format!(
-                        "command `{}` has no application command handler",
-                        command_name::command_name(&unsupported)
-                    ))),
-                }
-            }
-        };
-
-        match outcome {
-            Ok(()) => {
-                self.push_event(CoreEvent::CommandCompleted { request_id, kind });
-                CommandResult::Completed { request_id }
-            }
-            Err(failure) => {
-                self.push_event(CoreEvent::CommandFailed {
-                    request_id,
-                    kind,
-                    failure: failure.clone(),
-                });
-                CommandResult::Rejected {
-                    request_id,
-                    failure,
-                }
-            }
-        }
-    }
-
-    async fn set_mode_locked(
-        &self,
-        wanted: infiltrator_contract::command::ProxyMode,
-    ) -> Result<(), Failure> {
+    async fn set_mode_locked(&self, wanted: ProxyMode) -> Result<(), Failure> {
         let Some(overview) = self.inner.overview.as_ref() else {
             return Err(Failure::unsupported(
                 "proxy mode control is not configured for this host",
@@ -396,7 +364,7 @@ impl CoreApplication {
                     actual.to_wire(),
                     wanted.to_wire()
                 ),
-                false,
+                true,
             ))
         }
     }
@@ -415,12 +383,10 @@ impl CoreApplication {
         self.reset_watchdog_for_start();
 
         let session_token = self.allocate_session_token();
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartRequested {
-            session_token,
-        });
+        self.apply_domain_event(core_state::CoreEvent::StartRequested { session_token });
         if let Err(error) = self.inner.process.cleanup_orphaned().await {
             let message = error.to_string();
-            self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed {
+            self.apply_domain_event(core_state::CoreEvent::StartFailed {
                 session_token,
                 error: message,
             });
@@ -428,7 +394,7 @@ impl CoreApplication {
         }
         if let Err(error) = self.inner.process.start().await {
             let message = error.to_string();
-            self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed {
+            self.apply_domain_event(core_state::CoreEvent::StartFailed {
                 session_token,
                 error: message.clone(),
             });
@@ -440,17 +406,15 @@ impl CoreApplication {
             .await
         {
             Ok(endpoint) => {
-                self.apply_domain_event(
-                    infiltrator_domain::core_state::CoreEvent::ReadinessSuccess {
-                        session_token,
-                        endpoint,
-                    },
-                );
+                self.apply_domain_event(core_state::CoreEvent::ReadinessSuccess {
+                    session_token,
+                    endpoint,
+                });
                 Ok(())
             }
             Err(error) => {
                 let message = error.to_string();
-                self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StartFailed {
+                self.apply_domain_event(core_state::CoreEvent::StartFailed {
                     session_token,
                     error: message,
                 });
@@ -467,21 +431,17 @@ impl CoreApplication {
         let Some(session_token) = self.session_token() else {
             return Err(invalid_state_failure("stop"));
         };
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopRequested {
-            session_token,
-        });
+        self.apply_domain_event(core_state::CoreEvent::StopRequested { session_token });
         if let Err(error) = self.inner.process.stop().await {
             let message = error.to_string();
-            self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopFailed {
+            self.apply_domain_event(core_state::CoreEvent::StopFailed {
                 session_token,
                 error: message,
             });
             return Err(Failure::from(error));
         }
 
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::StopCompleted {
-            session_token,
-        });
+        self.apply_domain_event(core_state::CoreEvent::StopCompleted { session_token });
         self.reset_watchdog_after_stop();
         Ok(())
     }
@@ -508,7 +468,7 @@ impl CoreApplication {
             .clone()
     }
 
-    fn apply_domain_event(&self, event: infiltrator_domain::core_state::CoreEvent) {
+    fn apply_domain_event(&self, event: core_state::CoreEvent) {
         let snapshot = {
             let mut mirror = self.inner.state.write().expect("core state lock");
             let (state, warning) = CoreStateMachine::step(&mirror.state, event);
@@ -519,6 +479,7 @@ impl CoreApplication {
             }
             snapshot_from_state(&mirror.state, mirror.revision, self.watchdog_snapshot())
         };
+        self.inner.logs.observe_core(&snapshot);
         self.push_event(CoreEvent::SnapshotUpdated(snapshot));
     }
 
@@ -533,21 +494,19 @@ impl CoreApplication {
     async fn wait_for_readiness(
         &self,
         session_token: SessionToken,
-        timeout: std::time::Duration,
-    ) -> Result<String, infiltrator_ports::error::PortError> {
-        let deadline = std::time::Instant::now() + timeout;
+        timeout: time::Duration,
+    ) -> Result<String, PortError> {
+        let deadline = time::Instant::now() + timeout;
         loop {
             if self.session_token() != Some(session_token) {
-                return Err(infiltrator_ports::error::PortError::Failed(
-                    "stale core session token".to_string(),
-                ));
+                return Err(PortError::Failed("stale core session token".to_string()));
             }
             match self.inner.process.status().await {
                 Ok(CoreLifecycle::Starting)
                 | Ok(CoreLifecycle::Ready)
                 | Ok(CoreLifecycle::Running) => {}
                 Ok(_) => {
-                    return Err(infiltrator_ports::error::PortError::Failed(
+                    return Err(PortError::Failed(
                         "core process exited before readiness".to_string(),
                     ));
                 }
@@ -559,7 +518,7 @@ impl CoreApplication {
                 Err(error) => error,
             };
 
-            if std::time::Instant::now() >= deadline {
+            if time::Instant::now() >= deadline {
                 return Err(probe_error);
             }
             self.inner
@@ -588,74 +547,75 @@ impl CoreLifecyclePort for CoreApplication {
         self.snapshot().lifecycle_snapshot()
     }
 
-    async fn start(&self) -> Result<u64, infiltrator_ports::error::PortError> {
-        match self.execute(CommandIntent::StartCore).await {
+    async fn start(&self) -> Result<u64, PortError> {
+        match self
+            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::StartCore)
+            .await
+        {
             CommandResult::Completed { .. } => Ok(self.generation()),
-            CommandResult::Rejected { failure, .. } => {
-                Err(infiltrator_ports::error::PortError::Failed(failure.message))
-            }
-            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
+            CommandResult::Produced { .. } => Err(PortError::Failed(
+                "Unexpected typed result for a lifecycle/control command".into(),
+            )),
+            CommandResult::Accepted { .. } => Err(PortError::Failed(
                 "application start unexpectedly returned Accepted".to_string(),
             )),
         }
     }
 
-    async fn stop(&self) -> Result<(), infiltrator_ports::error::PortError> {
-        match self.execute(CommandIntent::StopCore).await {
+    async fn stop(&self) -> Result<(), PortError> {
+        match self
+            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::StopCore)
+            .await
+        {
             CommandResult::Completed { .. } => Ok(()),
-            CommandResult::Rejected { failure, .. } => {
-                Err(infiltrator_ports::error::PortError::Failed(failure.message))
-            }
-            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
+            CommandResult::Produced { .. } => Err(PortError::Failed(
+                "Unexpected typed result for a lifecycle/control command".into(),
+            )),
+            CommandResult::Accepted { .. } => Err(PortError::Failed(
                 "application stop unexpectedly returned Accepted".to_string(),
             )),
         }
     }
 
-    async fn restart(&self) -> Result<u64, infiltrator_ports::error::PortError> {
-        match self.execute(CommandIntent::RestartCore).await {
+    async fn restart(&self) -> Result<u64, PortError> {
+        match self
+            .execute_lifecycle_with_id(self.allocate_request_id(), CommandIntent::RestartCore)
+            .await
+        {
             CommandResult::Completed { .. } => Ok(self.generation()),
-            CommandResult::Rejected { failure, .. } => {
-                Err(infiltrator_ports::error::PortError::Failed(failure.message))
-            }
-            CommandResult::Accepted { .. } => Err(infiltrator_ports::error::PortError::Failed(
+            CommandResult::Rejected { failure, .. } => Err(PortError::Failed(failure.message)),
+            CommandResult::Produced { .. } => Err(PortError::Failed(
+                "Unexpected typed result for a lifecycle/control command".into(),
+            )),
+            CommandResult::Accepted { .. } => Err(PortError::Failed(
                 "application restart unexpectedly returned Accepted".to_string(),
             )),
         }
     }
 
-    fn begin_reload(&self) -> Result<SessionToken, infiltrator_ports::error::PortError> {
+    fn begin_reload(&self) -> Result<SessionToken, PortError> {
         let CoreState::Running { session_token, .. } = self.current_state() else {
-            return Err(infiltrator_ports::error::PortError::Failed(
+            return Err(PortError::Failed(
                 "core is not running for hot reload".to_string(),
             ));
         };
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::ReloadRequested {
-            session_token,
-        });
+        self.apply_domain_event(core_state::CoreEvent::ReloadRequested { session_token });
         Ok(session_token)
     }
 
-    fn complete_reload(
-        &self,
-        session_token: SessionToken,
-    ) -> Result<(), infiltrator_ports::error::PortError> {
+    fn complete_reload(&self, session_token: SessionToken) -> Result<(), PortError> {
         self.check_session(session_token)
-            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::ReloadSuccess {
-            session_token,
-        });
+            .map_err(|failure| PortError::Failed(failure.message))?;
+        self.apply_domain_event(core_state::CoreEvent::ReloadSuccess { session_token });
         Ok(())
     }
 
-    fn fail_reload(
-        &self,
-        session_token: SessionToken,
-        error: String,
-    ) -> Result<(), infiltrator_ports::error::PortError> {
+    fn fail_reload(&self, session_token: SessionToken, error: String) -> Result<(), PortError> {
         self.check_session(session_token)
-            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
-        self.apply_domain_event(infiltrator_domain::core_state::CoreEvent::ReloadFailed {
+            .map_err(|failure| PortError::Failed(failure.message))?;
+        self.apply_domain_event(core_state::CoreEvent::ReloadFailed {
             session_token,
             error,
         });
@@ -665,17 +625,15 @@ impl CoreLifecyclePort for CoreApplication {
     async fn wait_for_ready(
         &self,
         generation: u64,
-        timeout: std::time::Duration,
-    ) -> Result<(), infiltrator_ports::error::PortError> {
+        timeout: time::Duration,
+    ) -> Result<(), PortError> {
         if self.generation() != generation {
-            return Err(infiltrator_ports::error::PortError::Failed(
+            return Err(PortError::Failed(
                 "stale application generation".to_string(),
             ));
         }
         let Some(session_token) = self.session_token() else {
-            return Err(infiltrator_ports::error::PortError::Failed(
-                "core session is not active".to_string(),
-            ));
+            return Err(PortError::Failed("core session is not active".to_string()));
         };
         self.wait_for_readiness(session_token, timeout)
             .await
@@ -686,15 +644,15 @@ impl CoreLifecyclePort for CoreApplication {
         &self,
         generation: u64,
         session_token: SessionToken,
-        timeout: std::time::Duration,
-    ) -> Result<(), infiltrator_ports::error::PortError> {
+        timeout: time::Duration,
+    ) -> Result<(), PortError> {
         if self.generation() != generation {
-            return Err(infiltrator_ports::error::PortError::Failed(
+            return Err(PortError::Failed(
                 "stale application generation".to_string(),
             ));
         }
         self.check_session(session_token)
-            .map_err(|failure| infiltrator_ports::error::PortError::Failed(failure.message))?;
+            .map_err(|failure| PortError::Failed(failure.message))?;
         self.wait_for_readiness(session_token, timeout)
             .await
             .map(|_| ())
@@ -702,11 +660,11 @@ impl CoreLifecyclePort for CoreApplication {
 }
 
 fn spawn_dispatch_worker(
-    inner: std::sync::Weak<Inner>,
+    inner: Weak<Inner>,
     dispatch_rx: Receiver<DispatchedCommand>,
     runtime: Arc<dyn ApplicationRuntime>,
 ) {
-    let _ = std::thread::Builder::new()
+    let _ = Builder::new()
         .name("infiltrator-application".to_owned())
         .spawn(move || {
             while let Ok(command) = dispatch_rx.recv() {
@@ -714,9 +672,12 @@ fn spawn_dispatch_worker(
                     return;
                 };
                 runtime.block_on(Box::pin(async move {
-                    let _ = CoreApplication { inner }
+                    let result = CoreApplication { inner }
                         .execute_with_id(command.request_id, command.intent)
                         .await;
+                    if let Some(reply) = command.reply {
+                        let _ = reply.send(result);
+                    }
                 }));
             }
         });
@@ -804,6 +765,8 @@ fn snapshot_from_state(
     }
 }
 
+#[path = "core_telemetry.rs"]
+mod telemetry;
 #[cfg(test)]
 #[path = "core_application_tests.rs"]
 mod tests;

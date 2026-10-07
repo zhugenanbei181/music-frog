@@ -1,3 +1,6 @@
+use std::time;
+use tokio::net::TcpListener;
+use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
 
 use super::*;
@@ -91,7 +94,7 @@ async fn test_switch_proxy() {
 #[tokio::test]
 async fn test_stream_traffic() {
     let addr = "127.0.0.1:19090";
-    let server = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let server = TcpListener::bind(addr).await.unwrap();
 
     tokio::spawn(async move {
         use futures_util::SinkExt;
@@ -113,7 +116,7 @@ async fn test_stream_traffic() {
     let client = MihomoClient::new(&format!("http://{}", addr), None).unwrap();
     let mut rx = client.stream_traffic().await.unwrap();
 
-    let data = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+    let data = timeout(time::Duration::from_secs(1), rx.recv())
         .await
         .unwrap();
     assert!(data.is_some());
@@ -125,7 +128,7 @@ async fn test_stream_traffic() {
 #[tokio::test]
 async fn test_stream_connections() {
     let addr = "127.0.0.1:19091";
-    let server = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let server = TcpListener::bind(addr).await.unwrap();
 
     tokio::spawn(async move {
         use futures_util::SinkExt;
@@ -148,7 +151,7 @@ async fn test_stream_connections() {
     let client = MihomoClient::new(&format!("http://{}", addr), None).unwrap();
     let mut rx = client.stream_connections().await.unwrap();
 
-    let data = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+    let data = timeout(time::Duration::from_secs(1), rx.recv())
         .await
         .unwrap();
     assert!(data.is_some());
@@ -156,7 +159,7 @@ async fn test_stream_connections() {
 
 #[tokio::test]
 async fn test_stream_events_expose_lifecycle_and_data() {
-    let server = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = server.local_addr().unwrap();
     tokio::spawn(async move {
         use futures_util::SinkExt;
@@ -179,7 +182,7 @@ async fn test_stream_events_expose_lifecycle_and_data() {
     let mut saw_connected = false;
     let mut saw_item = false;
     for _ in 0..6 {
-        let event = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+        let event = timeout(time::Duration::from_secs(1), rx.recv())
             .await
             .unwrap();
         let Some(event) = event else { break };

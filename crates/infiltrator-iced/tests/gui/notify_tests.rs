@@ -1,4 +1,5 @@
 use super::*;
+use std::env::{remove_var, set_var};
 
 #[test]
 fn warn_throttled_first_call_then_throttled() {
@@ -70,21 +71,21 @@ fn smoke_probe_title_is_valid() {
 fn force_notify_requested_reflects_environment() {
     // When unset or set to non-1 value
     unsafe {
-        std::env::remove_var("INFILTRATOR_FORCE_NOTIFY");
+        remove_var("INFILTRATOR_FORCE_NOTIFY");
     }
     assert!(!force_notify_requested());
 
     unsafe {
-        std::env::set_var("INFILTRATOR_FORCE_NOTIFY", "0");
+        set_var("INFILTRATOR_FORCE_NOTIFY", "0");
     }
     assert!(!force_notify_requested());
 
     unsafe {
-        std::env::set_var("INFILTRATOR_FORCE_NOTIFY", "1");
+        set_var("INFILTRATOR_FORCE_NOTIFY", "1");
     }
     assert!(force_notify_requested());
 
     unsafe {
-        std::env::remove_var("INFILTRATOR_FORCE_NOTIFY");
+        remove_var("INFILTRATOR_FORCE_NOTIFY");
     }
 }

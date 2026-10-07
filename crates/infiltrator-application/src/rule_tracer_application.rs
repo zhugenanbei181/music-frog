@@ -1,56 +1,49 @@
 //! Application seam for the interactive Live Rule Tracer sandbox (分流追踪器应用服务).
 
+use self::statistics::TraceStatistics;
+use futures_util::lock;
 use infiltrator_contract::active_exit::ActiveExitSnapshot;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::rule_condition::{ConditionIssue, RuleTraceIssue};
+use infiltrator_contract::rule_location::RuleLocation;
+use infiltrator_contract::rule_trace_run::RuleTraceExecution;
+use infiltrator_contract::rule_trace_run::RuleTraceRequest;
 use infiltrator_contract::rule_tracer::{
-    DecisionChainSnapshot, RuleDeadEntry, RuleDeadReason, RuleHitAuditSnapshot, RuleHitSummary,
-    RuleTracerSnapshot, RuleTracerStatus, TracerRuleOverride, TracerRuleOverrideResult,
-    TracerRuleOverrideStatus, TrafficContextSnapshot,
+    DecisionChainSnapshot, RuleTracerSnapshot, RuleTracerStatus, TracerRuleOverride,
+    TracerRuleOverrideResult, TracerRuleOverrideStatus, TrafficContextSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_domain::proxy::Proxy;
-use infiltrator_domain::rule_hit_counter::RuleHitCounter;
-use infiltrator_domain::rules::RuleEntry;
-use infiltrator_domain::rules::analyzer::{ShadowReason, find_shadowed_rules};
 use infiltrator_domain::rules::tracer::decision_chain::build_decision_chain;
+use infiltrator_domain::rules::tracer::named::trace_named_rules;
 use infiltrator_domain::rules::tracer::{RuleTraceMatch, TrafficContext, trace_rules};
 use infiltrator_domain::rules::types::parse_rule_str;
-use std::collections::HashMap;
+use infiltrator_domain::rules::{RuleEntry, rewrite_rule_target};
+use infiltrator_ports::rule_tracer::RuleOverridePort;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-
-/// Maximum number of per-rule hit summaries published in the audit snapshot.
-const HIT_AUDIT_LIMIT: usize = 20;
-
-/// Running AST match-latency statistics for the routing-contribution audit.
-#[derive(Clone, Debug, Default)]
-struct TraceLatencyStats {
-    count: u64,
-    total_us: u64,
-    last_us: Option<u64>,
-}
 
 /// DUAL-12-08: the optional host persistence capability driving the
 /// reverse-apply. Wrapped so the application's `Debug` derive does not require
 /// the port object itself to be `Debug`.
 #[derive(Clone, Default)]
-struct OverridePortSlot(
-    Arc<Mutex<Option<Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>>>>,
-);
+struct OverridePortSlot(Arc<Mutex<Option<Arc<dyn RuleOverridePort>>>>);
 
 impl OverridePortSlot {
-    fn get(&self) -> Option<Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>> {
-        self.0.lock().ok().and_then(|slot| slot.clone())
+    fn get(&self) -> Option<Arc<dyn RuleOverridePort>> {
+        self.0.lock().expect("rule override port lock").clone()
     }
 
-    fn set(&self, port: Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>) {
-        if let Ok(mut slot) = self.0.lock() {
-            *slot = Some(port);
-        }
+    fn set(&self, port: Arc<dyn RuleOverridePort>) {
+        *self.0.lock().expect("rule override port lock") = Some(port);
     }
 }
 
-impl std::fmt::Debug for OverridePortSlot {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for OverridePortSlot {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("OverridePortSlot")
             .field("configured", &self.get().is_some())
@@ -60,30 +53,34 @@ impl std::fmt::Debug for OverridePortSlot {
 
 #[derive(Clone, Debug, Default)]
 pub struct RuleTracerApplication {
+    execution: Arc<Mutex<RuleTraceExecution>>,
+    admission: Arc<lock::Mutex<()>>,
     active_query: Arc<Mutex<String>>,
     context: Arc<Mutex<TrafficContextSnapshot>>,
-    hit_counter: Arc<Mutex<RuleHitCounter>>,
-    trace_stats: Arc<Mutex<TraceLatencyStats>>,
+    statistics: Arc<Mutex<TraceStatistics>>,
     override_port: OverridePortSlot,
 }
 
 impl RuleTracerApplication {
     pub fn new() -> Self {
         Self {
+            execution: Arc::new(Mutex::new(RuleTraceExecution::default())),
+            admission: Arc::new(lock::Mutex::new(())),
             active_query: Arc::new(Mutex::new(String::new())),
             context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
-            hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
-            trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
+            statistics: Arc::new(Mutex::new(TraceStatistics::default())),
             override_port: OverridePortSlot::default(),
         }
     }
 
-    pub fn with_query(query: impl Into<String>) -> Self {
+    #[cfg(test)]
+    fn with_query(query: impl Into<String>) -> Self {
         Self {
+            execution: Arc::new(Mutex::new(RuleTraceExecution::default())),
+            admission: Arc::new(lock::Mutex::new(())),
             active_query: Arc::new(Mutex::new(query.into())),
             context: Arc::new(Mutex::new(TrafficContextSnapshot::default())),
-            hit_counter: Arc::new(Mutex::new(RuleHitCounter::new())),
-            trace_stats: Arc::new(Mutex::new(TraceLatencyStats::default())),
+            statistics: Arc::new(Mutex::new(TraceStatistics::default())),
             override_port: OverridePortSlot::default(),
         }
     }
@@ -91,10 +88,7 @@ impl RuleTracerApplication {
     /// DUAL-12-08: inject the host persistence capability. Composed after the
     /// core application exists (the adapter needs the live lifecycle session),
     /// so every surface holding a clone observes the same port.
-    pub fn set_override_port(
-        &self,
-        port: Arc<dyn infiltrator_ports::rule_tracer::RuleOverridePort>,
-    ) {
+    pub fn set_override_port(&self, port: Arc<dyn RuleOverridePort>) {
         self.override_port.set(port);
     }
 
@@ -123,49 +117,86 @@ impl RuleTracerApplication {
             );
         };
 
-        let mut rules = match port.load_rule_entries().await {
-            Ok(rules) => rules,
+        let workspace = match port.load_rule_workspace().await {
+            Ok(workspace) => workspace,
             Err(error) => {
-                return TracerRuleOverrideResult::rejected(
+                return TracerRuleOverrideResult::rejected_failure(
                     TracerRuleOverrideStatus::ApplyFailed,
-                    request.rule_index,
-                    new_target,
-                    format!("读取当前规则失败: {error}"),
+                    request,
+                    Failure::from(error),
                 );
             }
         };
-
-        let Some(entry) = rules.get_mut(request.rule_index) else {
-            return TracerRuleOverrideResult::rejected(
+        if workspace.source != request.expected_source {
+            return TracerRuleOverrideResult::rejected_failure(
                 TracerRuleOverrideStatus::StaleRuleIndex,
-                request.rule_index,
-                new_target,
-                format!(
-                    "命中规则 #{} 已不存在，请重新执行追踪",
-                    request.rule_index + 1
+                request,
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "The source profile changed; run the simulation again",
+                    true,
+                ),
+            );
+        }
+        if !workspace.targets.contains(&new_target) {
+            return TracerRuleOverrideResult::rejected_failure(
+                TracerRuleOverrideStatus::InvalidTarget,
+                request,
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    "The requested outbound is absent from the source profile",
+                    false,
+                ),
+            );
+        }
+        let mut rules = match &request.rule_table {
+            Some(table) => workspace.sub_rules.get(table).cloned().unwrap_or_default(),
+            None => workspace.rules.clone(),
+        };
+        let Some(entry) = rules
+            .get_mut(request.rule_index)
+            .filter(|entry| entry.enabled && entry.rule == request.expected_rule)
+        else {
+            return TracerRuleOverrideResult::rejected_failure(
+                TracerRuleOverrideStatus::StaleRuleIndex,
+                request,
+                Failure::new(
+                    ErrorCode::NotReady,
+                    "The traced rule changed or no longer exists; run the simulation again",
+                    true,
                 ),
             );
         };
-
         let previous_rule_raw = entry.rule.clone();
-        let Some(updated_rule_raw) =
-            infiltrator_domain::rules::rewrite_rule_target(&previous_rule_raw, &new_target)
-        else {
-            return TracerRuleOverrideResult::rejected(
+        let Some(updated_rule_raw) = rewrite_rule_target(&previous_rule_raw, &new_target) else {
+            return TracerRuleOverrideResult::rejected_failure(
                 TracerRuleOverrideStatus::InvalidTarget,
-                request.rule_index,
-                new_target,
-                "该规则没有可重写的出站目标".to_owned(),
+                request,
+                Failure::new(
+                    ErrorCode::InvalidInput,
+                    "The rule has no rewritable outbound",
+                    false,
+                ),
             );
         };
         entry.rule = updated_rule_raw.clone();
-
-        if let Err(error) = port.apply_rule_entries(&rules).await {
-            return TracerRuleOverrideResult::rejected(
+        let committed = match &request.rule_table {
+            Some(table) => {
+                port.compare_and_apply_named_rule(
+                    &workspace,
+                    &RuleLocation::named(table.clone(), request.rule_index),
+                    &previous_rule_raw,
+                    &updated_rule_raw,
+                )
+                .await
+            }
+            None => port.compare_and_apply_rules(&workspace, &rules).await,
+        };
+        if let Err(error) = committed {
+            return TracerRuleOverrideResult::rejected_failure(
                 TracerRuleOverrideStatus::ApplyFailed,
-                request.rule_index,
-                new_target,
-                format!("应用配置事务失败: {error}"),
+                request,
+                Failure::from(error),
             );
         }
 
@@ -177,213 +208,78 @@ impl RuleTracerApplication {
         )
     }
 
-    pub fn set_query(&self, query: impl Into<String>) {
-        if let Ok(mut lock) = self.active_query.lock() {
-            *lock = query.into();
-        }
+    fn set_query(&self, query: impl Into<String>) {
+        *self.active_query.lock().expect("rule trace query lock") = query.into();
     }
 
-    pub fn query(&self) -> String {
+    fn query(&self) -> String {
         self.active_query
             .lock()
-            .map(|q| q.clone())
-            .unwrap_or_default()
+            .expect("rule trace query lock")
+            .clone()
     }
 
     /// DUAL-12-10: store the simulated sandbox environment (source IP and
     /// inbound ports). The stored context is merged onto every trace and
     /// projection so the Iced port path and the Bevy surface reader agree.
-    pub fn set_context(&self, context: &TrafficContextSnapshot) {
-        if let Ok(mut lock) = self.context.lock() {
-            *lock = context.clone();
-        }
+    fn set_context(&self, context: &TrafficContextSnapshot) {
+        *self.context.lock().expect("rule trace context lock") = context.clone();
     }
 
     /// The stored simulated sandbox environment.
-    pub fn context(&self) -> TrafficContextSnapshot {
+    fn context(&self) -> TrafficContextSnapshot {
         self.context
             .lock()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
+            .expect("rule trace context lock")
+            .clone()
     }
 
     /// Merge the stored sandbox environment onto a query-derived context.
-    fn merged_context(&self, query: &str) -> TrafficContext {
-        let mut context = TrafficContext::from_query(query);
-        let stored = self.context();
-        if let Some(src_ip) = stored
-            .src_ip
-            .as_deref()
-            .and_then(|raw| raw.trim().parse::<std::net::IpAddr>().ok())
-        {
-            context.src_ip = Some(src_ip);
-        }
-        if let Some(src_port) = stored.src_port {
-            context.src_port = Some(src_port);
-        }
-        if let Some(in_port) = stored.in_port {
-            context.in_port = Some(in_port);
-        }
-        if let Some(client_ip) = stored
-            .client_ip
-            .as_deref()
-            .and_then(|raw| raw.trim().parse::<std::net::IpAddr>().ok())
-        {
-            context.client_ip = Some(client_ip);
-        }
-        context
-    }
-
-    /// Feed observed rule hits into the shared counter.
-    pub fn record_hits(&self, hits: &[(&str, u64)]) {
-        if let Ok(mut counter) = self.hit_counter.lock() {
-            counter.record_batch(hits);
-        }
-    }
-
-    /// Reset every accumulated hit counter and timestamp.
-    pub fn clear_hits(&self) {
-        if let Ok(mut counter) = self.hit_counter.lock() {
-            counter.clear();
-        }
-    }
-
-    /// Hits observed for a single rule.
-    pub fn hit_count_for(&self, rule_raw: &str) -> u64 {
-        self.hit_counter
-            .lock()
-            .map(|counter| counter.hit_count_for(rule_raw))
-            .unwrap_or(0)
-    }
-
-    /// Last observed hit timestamp (epoch seconds) for a single rule.
-    pub fn last_hit_for(&self, rule_raw: &str) -> Option<u64> {
-        self.hit_counter
-            .lock()
-            .ok()
-            .and_then(|counter| counter.last_hit_for(rule_raw))
-    }
-
-    /// Build the shared hit-audit read model from the accumulated counter and
-    /// the static shadow analysis of the current rule list.
-    pub fn audit(&self, rules: &[RuleEntry]) -> RuleHitAuditSnapshot {
-        let total_hits;
-        let tracked_rules;
-        let top_hits: Vec<RuleHitSummary>;
-        let last_hit_rule;
-        let last_hit_secs;
-
-        match self.hit_counter.lock() {
-            Ok(counter) => {
-                total_hits = counter.total_hits();
-                top_hits = counter
-                    .top_rules_by_hits(HIT_AUDIT_LIMIT)
-                    .into_iter()
-                    .map(|record| RuleHitSummary {
-                        last_hit_secs: (record.last_hit_secs > 0).then_some(record.last_hit_secs),
-                        rule_raw: record.rule_raw,
-                        hit_count: record.hit_count,
-                        total_payload_bytes: record.total_payload_bytes,
-                    })
-                    .collect();
-                tracked_rules = top_hits.len();
-                last_hit_secs = top_hits
-                    .iter()
-                    .filter_map(|entry| entry.last_hit_secs)
-                    .max();
-                last_hit_rule = last_hit_secs.and_then(|latest| {
-                    top_hits
-                        .iter()
-                        .find(|entry| entry.last_hit_secs == Some(latest))
-                        .map(|entry| entry.rule_raw.clone())
-                });
-            }
-            Err(_) => {
-                total_hits = 0;
-                tracked_rules = 0;
-                top_hits = Vec::new();
-                last_hit_rule = None;
-                last_hit_secs = None;
-            }
-        }
-
-        let shadow_warnings = find_shadowed_rules(rules);
-        let shadow_map: HashMap<usize, &_> = shadow_warnings
-            .iter()
-            .map(|warning| (warning.index, warning))
-            .collect();
-
-        let mut dead_rules = Vec::new();
-        let mut cidr_overlaps = Vec::new();
-        for (index, entry) in rules.iter().enumerate() {
-            let hit_count = self.hit_count_for(&entry.rule);
-            let last_hit = self.last_hit_for(&entry.rule);
-            if let Some(warning) = shadow_map.get(&index) {
-                let entry = RuleDeadEntry {
-                    rule_raw: entry.rule.clone(),
-                    hit_count,
-                    reason: RuleDeadReason::Shadowed,
-                    shadowed_by: Some(warning.shadowed_by_rule.clone()),
-                    detail: Some(warning.reason.to_string()),
-                    last_hit_secs: last_hit,
-                };
-                if matches!(warning.reason, ShadowReason::IpCidrShadowedByCidr) {
-                    cidr_overlaps.push(entry.clone());
-                }
-                dead_rules.push(entry);
-            } else if hit_count == 0 && entry.enabled {
-                dead_rules.push(RuleDeadEntry {
-                    rule_raw: entry.rule.clone(),
-                    hit_count,
-                    reason: RuleDeadReason::ZeroHits,
-                    shadowed_by: None,
-                    detail: None,
-                    last_hit_secs: last_hit,
-                });
-            }
-        }
-
-        let (trace_count, avg_match_latency_us, last_match_latency_us) =
-            match self.trace_stats.lock() {
-                Ok(stats) => (
-                    stats.count,
-                    (stats.count > 0).then(|| stats.total_us as f64 / stats.count as f64),
-                    stats.last_us,
-                ),
-                Err(_) => (0, None, None),
-            };
-
-        RuleHitAuditSnapshot {
-            total_hits,
-            tracked_rules,
-            top_hits,
-            dead_rules,
-            cidr_overlaps,
-            last_hit_rule,
-            last_hit_secs,
-            can_clear: total_hits > 0,
-            trace_count,
-            avg_match_latency_us,
-            last_match_latency_us,
-        }
+    fn merged_context(&self, query: &str) -> Result<TrafficContext, RuleTraceIssue> {
+        TrafficContext::from_request(&RuleTraceRequest {
+            query: query.into(),
+            context: self.context(),
+        })
+        .map_err(|failure| RuleTraceIssue {
+            index: 0,
+            location: None,
+            rule: String::new(),
+            issue: ConditionIssue::InvalidRule {
+                reason: failure.message,
+            },
+        })
     }
 
     /// Pure simulation trace over a rule set and query context.
-    pub fn trace(
+    #[cfg(test)]
+    pub(crate) fn trace(
         &self,
         rules: &[RuleEntry],
         query: &str,
         active_exit: Option<&ActiveExitSnapshot>,
         proxies: Option<&HashMap<String, Proxy>>,
-    ) -> (Option<RuleTraceMatch>, DecisionChainSnapshot) {
+    ) -> Result<(Option<RuleTraceMatch>, DecisionChainSnapshot), RuleTraceIssue> {
+        self.trace_in_scope(rules, None, query, active_exit, proxies)
+    }
+
+    fn trace_in_scope(
+        &self,
+        rules: &[RuleEntry],
+        sub_rules: Option<&BTreeMap<String, Vec<RuleEntry>>>,
+        query: &str,
+        active_exit: Option<&ActiveExitSnapshot>,
+        proxies: Option<&HashMap<String, Proxy>>,
+    ) -> Result<(Option<RuleTraceMatch>, DecisionChainSnapshot), RuleTraceIssue> {
         let start = Instant::now();
-        let context = self.merged_context(query);
-        let domain_matched = trace_rules(rules, &context);
+        let context = self.merged_context(query)?;
+        let domain_matched = match sub_rules {
+            Some(tables) => trace_named_rules(rules, tables, &context),
+            None => trace_rules(rules, &context),
+        }?;
 
         let parsed_rule = domain_matched
             .as_ref()
-            .and_then(|m| rules.get(m.index))
-            .and_then(|entry| parse_rule_str(&entry.rule).ok());
+            .and_then(|matched| parse_rule_str(&matched.raw).ok());
 
         let target_group = domain_matched
             .as_ref()
@@ -395,9 +291,9 @@ impl RuleTracerApplication {
         // domain chain renders a neutral node instead of fabricated node data.
         let mut resolved: (Option<String>, Option<String>, Option<u32>, Option<String>) =
             (None, None, None, None);
-        if target_group.eq_ignore_ascii_case("DIRECT") {
+        if target_group == "DIRECT" {
             resolved = (Some("DIRECT".into()), Some("Direct".into()), None, None);
-        } else if target_group.eq_ignore_ascii_case("REJECT") {
+        } else if target_group == "REJECT" {
             resolved = (Some("REJECT".into()), Some("Reject".into()), None, None);
         } else if let Some(proxies) = proxies
             && let Some(group) = proxies.get(target_group)
@@ -407,11 +303,28 @@ impl RuleTracerApplication {
             resolved = (
                 Some(now_node_name.to_owned()),
                 node_info.map(|n| n.proxy_type().to_string()),
-                node_info.and_then(|n| n.delay()),
-                active_exit.and_then(|e| e.country_code.clone()),
+                node_info.and_then(|n| n.delay()).filter(|delay| *delay > 0),
+                active_exit
+                    .filter(|exit| {
+                        exit.is_drawable() && exit.name.as_deref() == Some(now_node_name)
+                    })
+                    .and_then(|exit| exit.country_code.clone()),
+            );
+        } else if let Some(node) = proxies.and_then(|proxies| proxies.get(target_group))
+            && !node.is_group()
+        {
+            resolved = (
+                Some(target_group.to_owned()),
+                Some(node.proxy_type().to_owned()),
+                node.delay().filter(|delay| *delay > 0),
+                active_exit
+                    .filter(|exit| exit.is_drawable() && exit.name.as_deref() == Some(target_group))
+                    .and_then(|exit| exit.country_code.clone()),
             );
         } else if let Some(exit) = active_exit
             && exit.is_drawable()
+            && (exit.group.as_deref() == Some(target_group)
+                || exit.name.as_deref() == Some(target_group))
         {
             resolved = (
                 exit.name.clone(),
@@ -427,12 +340,11 @@ impl RuleTracerApplication {
             resolved.3.as_deref(),
         );
 
-        let latency_us = start.elapsed().as_micros().max(1) as u64;
-        if let Ok(mut stats) = self.trace_stats.lock() {
-            stats.count += 1;
-            stats.total_us += latency_us;
-            stats.last_us = Some(latency_us);
-        }
+        let latency_us = start.elapsed().as_micros() as u64;
+        self.statistics
+            .lock()
+            .expect("rule statistics lock")
+            .record_trace(domain_matched.as_ref(), latency_us);
 
         let chain = build_decision_chain(
             rules,
@@ -446,53 +358,57 @@ impl RuleTracerApplication {
             latency_us,
         );
 
-        (domain_matched, chain)
+        Ok((domain_matched, chain))
     }
 
     /// Project the Live Rule Tracer read model for the current snapshot revision.
-    pub fn project(
+    #[cfg(test)]
+    pub(crate) fn simulate_snapshot(
         &self,
-        core: &CoreSnapshot,
+        core: Option<&CoreSnapshot>,
         rules: &[RuleEntry],
         active_exit: Option<&ActiveExitSnapshot>,
         proxies: Option<&HashMap<String, Proxy>>,
-    ) -> RuleTracerSnapshot {
-        let revision = core.revision.max(1);
+    ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
+        self.simulate_workspace_snapshot(core, rules, None, active_exit, proxies)
+    }
+
+    pub(crate) fn simulate_workspace_snapshot(
+        &self,
+        core: Option<&CoreSnapshot>,
+        rules: &[RuleEntry],
+        sub_rules: Option<&BTreeMap<String, Vec<RuleEntry>>>,
+        active_exit: Option<&ActiveExitSnapshot>,
+        proxies: Option<&HashMap<String, Proxy>>,
+    ) -> Result<RuleTracerSnapshot, RuleTraceIssue> {
+        let generation = core.map_or(0, |core| core.generation);
+        let revision = core.map_or(1, |core| core.revision.max(1));
         let query = self.query();
 
         // When query is empty, provide a clean, ready-to-test sandbox with presets
         if query.trim().is_empty() {
-            let mut snapshot = RuleTracerSnapshot::empty(core.generation, revision);
-            if matches!(
-                core.lifecycle,
-                CoreLifecycle::Running | CoreLifecycle::Ready
-            ) {
+            let mut snapshot = RuleTracerSnapshot::empty(generation, revision);
+            if core.is_some_and(|core| {
+                matches!(
+                    core.lifecycle,
+                    CoreLifecycle::Running | CoreLifecycle::Ready
+                )
+            }) {
                 snapshot.status = RuleTracerStatus::Ready;
             }
-            snapshot.hit_audit = self.audit(rules);
-            return snapshot;
+            return Ok(snapshot);
         }
 
         // The simulated sandbox environment (source IP / ports) the shared
         // engine merged onto the query; published as `simulated_context`.
-        let simulated_context = self.merged_context(&query);
-        let ctx_snapshot = TrafficContextSnapshot {
-            domain: simulated_context.domain.clone(),
-            ip: simulated_context.ip.map(|ip| ip.to_string()),
-            port: simulated_context.port,
-            src_ip: simulated_context.src_ip.map(|ip| ip.to_string()),
-            src_port: simulated_context.src_port,
-            in_port: simulated_context.in_port,
-            process_name: simulated_context.process_name.clone(),
-            network: simulated_context.network.clone(),
-            in_type: simulated_context.in_type.clone(),
-            client_ip: simulated_context.client_ip.map(|ip| ip.to_string()),
-        };
+        let simulated_context = self.merged_context(&query)?;
+        let ctx_snapshot = simulated_context.snapshot();
 
-        let (_matched, chain) = self.trace(rules, &query, active_exit, proxies);
+        let (_matched, chain) =
+            self.trace_in_scope(rules, sub_rules, &query, active_exit, proxies)?;
 
         let mut snapshot = RuleTracerSnapshot::ready(
-            core.generation,
+            generation,
             revision,
             query,
             ctx_snapshot,
@@ -501,51 +417,18 @@ impl RuleTracerApplication {
         );
 
         // Offline notice if core is stopped but AST trace still completed
-        if !matches!(
-            core.lifecycle,
-            CoreLifecycle::Running | CoreLifecycle::Ready
-        ) {
+        if core.is_some_and(|core| {
+            !matches!(
+                core.lifecycle,
+                CoreLifecycle::Running | CoreLifecycle::Ready
+            )
+        }) {
             snapshot.status = RuleTracerStatus::Ready;
             snapshot.failure =
                 Some("内核离线：当前展示基于本地 AST 规则树的离线模拟推演".to_owned());
         }
 
-        snapshot.hit_audit = self.audit(rules);
-        snapshot
-    }
-}
-
-/// Port seam so an inbound surface drives the exact application instance the
-/// surface reader projects, keeping one query state across Iced and Bevy.
-#[async_trait::async_trait]
-impl infiltrator_ports::rule_tracer::RuleTracerPort for RuleTracerApplication {
-    fn set_query(&self, query: &str) {
-        RuleTracerApplication::set_query(self, query);
-    }
-
-    fn set_context(&self, context: &TrafficContextSnapshot) {
-        RuleTracerApplication::set_context(self, context);
-    }
-
-    fn trace(
-        &self,
-        rules: &[RuleEntry],
-        query: &str,
-        active_exit: Option<&ActiveExitSnapshot>,
-    ) -> DecisionChainSnapshot {
-        self.trace(rules, query, active_exit, None).1
-    }
-
-    fn record_hits(&self, hits: &[(&str, u64)]) {
-        RuleTracerApplication::record_hits(self, hits);
-    }
-
-    fn clear_hits(&self) {
-        RuleTracerApplication::clear_hits(self);
-    }
-
-    async fn apply_override(&self, request: &TracerRuleOverride) -> TracerRuleOverrideResult {
-        RuleTracerApplication::apply_override(self, request).await
+        Ok(snapshot)
     }
 }
 
@@ -568,6 +451,14 @@ fn validate_override_target(target: &str) -> Result<(), String> {
     Ok(())
 }
 
+mod execution;
+
 #[cfg(test)]
 #[path = "rule_tracer_application_test.rs"]
 mod tests;
+
+mod statistics;
+
+#[cfg(test)]
+#[path = "rule_trace_statistics_test.rs"]
+mod statistics_test;

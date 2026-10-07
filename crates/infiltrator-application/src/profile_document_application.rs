@@ -5,25 +5,24 @@
 //! write protection and runs the *shared* syntax preflight
 //! ([`infiltrator_domain::config::preflight_yaml_syntax`]) once;
 //! [`ProfileDocumentApplication::save`] rejects a syntactically invalid buffer
-//! and then commits through the same guarded write path and apply transaction
-//! the Iced editor uses (`save_edited_profile_content`).
+//! and commits the exact caller-observed workspace through the protected, source-bound transaction.
 //!
 //! Live per-keystroke diagnostics stay in the surface: they call the same
 //! domain function on the local buffer, so both surfaces share one rule set
 //! without a round trip per character.
 
-use infiltrator_contract::error::{ErrorCode, Failure};
-use infiltrator_contract::profile_document::{
-    ProfileDocumentSnapshot, SyntaxDiagnosticSnapshot, publish_profile_document,
-};
-use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use crate::profile_application::{ProfileApplication, valid_name};
+use crate::profile_editor_observations::EditorFacet;
+use infiltrator_contract::error::{ErrorCode, Failure, FailureReason};
+use infiltrator_contract::profile_document::{ProfileDocumentSnapshot, SyntaxDiagnosticSnapshot};
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
 use infiltrator_contract::yaml_snippets::{SnippetCaret, SnippetInsertion, insert_at_caret};
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::config::preflight_yaml_syntax;
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use std::sync::Arc;
-
-use crate::profile_application::ProfileApplication;
 
 #[derive(Clone)]
 pub struct ProfileDocumentApplication {
@@ -42,20 +41,26 @@ impl ProfileDocumentApplication {
             Some(name) if !name.trim().is_empty() => name.to_string(),
             _ => self.profiles.current_profile().await?,
         };
-        let detail = self.profiles.load_profile_detail(&name).await?;
-        let protection = ProfileWriteProtection::from_subscription_url(
-            detail.subscription_url.as_deref().unwrap_or_default(),
-        );
-        let syntax = preflight_yaml_syntax(&detail.content)
-            .err()
-            .map(|diagnostic| SyntaxDiagnosticSnapshot {
-                line: diagnostic.line,
-                column: diagnostic.column,
-                message: diagnostic.message,
-            });
-        let document = ProfileDocumentSnapshot::new(detail.name, detail.content, protection)
-            .with_syntax(syntax);
-        publish_profile_document(document.clone());
+        let name = valid_name(&name)?;
+        let read = self
+            .profiles
+            .begin_editor_read(&name, EditorFacet::Document);
+        self.profiles.mark_editor_loading(&read);
+        let workspace = match self.profiles.load_workspace(&name).await {
+            Ok(workspace) => workspace,
+            Err(failure) => {
+                self.profiles.fail_editor_read(&read, failure.clone());
+                return Err(failure);
+            }
+        };
+        let document = document_snapshot(workspace);
+        if !self.profiles.observe_document(&read, document.clone()) {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "Profile document read was superseded",
+                false,
+            ));
+        }
         Ok(document)
     }
 
@@ -68,33 +73,66 @@ impl ProfileDocumentApplication {
     pub async fn save<R: ManagedRuntime + ?Sized>(
         &self,
         runtime: Option<Arc<R>>,
-        profile: &str,
+        expected: &ProfileSourceIdentity,
         content: &str,
         allow_protected: bool,
     ) -> Result<ProfileDocumentSnapshot, Failure> {
         if let Err(diagnostic) = preflight_yaml_syntax(content) {
-            return Err(Failure::new(
-                ErrorCode::Configuration,
-                format!(
-                    "YAML 语法错误（第 {} 行，第 {} 列）：{}",
-                    diagnostic.line, diagnostic.column, diagnostic.message
+            return Err(
+                Failure::new(ErrorCode::Configuration, diagnostic.message, false).with_reason(
+                    FailureReason::YamlSyntax {
+                        line: diagnostic.line,
+                        column: diagnostic.column,
+                    },
                 ),
-                false,
+            );
+        }
+        let name = valid_name(&expected.profile)?;
+        let read = self
+            .profiles
+            .begin_editor_read(&name, EditorFacet::Document);
+        let workspace = self.profiles.load_workspace(&name).await?;
+        if workspace.source != *expected {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "The observed profile document or options changed; inspect before saving",
+                true,
             ));
         }
-        self.profiles
-            .save_edited_profile_content(
+        let committed = self
+            .profiles
+            .commit_workspace(
                 runtime,
-                profile.to_string(),
-                content.to_string(),
-                ApplyStrategy::PreferReload,
-                allow_protected,
+                expected,
+                &ProfileWorkspaceUpdate {
+                    purpose: ProfileWorkspacePurpose::DirectEdit { allow_protected },
+                    content: content.to_owned(),
+                    options: workspace.options,
+                },
             )
             .await?;
-        // Re-read what actually landed: the transaction may have reloaded or
-        // restarted the core, and the surfaces must render the stored bytes.
-        self.load(Some(profile)).await
+        let document = document_snapshot(committed);
+        self.profiles.observe_document(&read, document.clone());
+        Ok(document)
     }
+}
+
+pub(crate) fn document_snapshot(workspace: ProfileWorkspace) -> ProfileDocumentSnapshot {
+    let syntax = preflight_yaml_syntax(&workspace.content)
+        .err()
+        .map(|diagnostic| SyntaxDiagnosticSnapshot {
+            line: diagnostic.line,
+            column: diagnostic.column,
+            message: diagnostic.message,
+        });
+    let mut document = ProfileDocumentSnapshot::new(
+        workspace.source.profile.clone(),
+        workspace.content,
+        workspace.write_protection,
+    )
+    .with_syntax(syntax);
+    document.source = Some(workspace.source);
+    document
 }
 
 /// DUAL-09-04: splice a shared catalogue snippet at a caret.

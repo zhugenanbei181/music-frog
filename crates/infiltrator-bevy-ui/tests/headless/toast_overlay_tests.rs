@@ -9,17 +9,14 @@ use bevy::ui::widget::Text;
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::toast::{ShellToast, ToastPolicyGate};
 use infiltrator_bevy_widgets::toast::{ToastContainer, ToastKind, ToastQueue};
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 use infiltrator_contract::toast::ToastPolicy;
 
 fn mounted_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     app.update();
     app
 }

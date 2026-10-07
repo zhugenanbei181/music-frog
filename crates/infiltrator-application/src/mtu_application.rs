@@ -1,8 +1,11 @@
 //! Physical-link to TUN MTU negotiation use-case.
 
 use crate::runtime_query_application::RuntimeQueryApplication;
-use infiltrator_contract::error::Failure;
-use infiltrator_contract::mtu::{MtuNegotiationSnapshot, MtuProbeState};
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::mtu::{
+    MAX_TUN_MTU_BYTES, MIN_TUN_MTU_BYTES, MtuNegotiationSnapshot, MtuProbeState,
+};
+use infiltrator_domain::mtu_optimizer::MtuOptimizer;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
@@ -69,7 +72,7 @@ impl MtuApplication {
                     .await,
             ),
             (MtuProbeState::Ready, None) => Some(Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 "ready MTU probe did not contain a calculated TUN MTU",
                 false,
             ))),
@@ -79,7 +82,7 @@ impl MtuApplication {
             Some(Ok(())) => match tun_mtu {
                 Some(tun_mtu) => snapshot.with_applied_tun_mtu(tun_mtu),
                 None => snapshot.with_failure(Failure::new(
-                    infiltrator_contract::error::ErrorCode::InvalidState,
+                    ErrorCode::InvalidState,
                     "ready MTU probe did not contain a calculated TUN MTU",
                     false,
                 )),
@@ -96,20 +99,15 @@ impl MtuApplication {
         match self.port.probe_physical_mtu().await {
             Ok(physical)
                 if !physical.interface.trim().is_empty()
-                    && (infiltrator_contract::mtu::MIN_TUN_MTU_BYTES
-                        ..=infiltrator_contract::mtu::MAX_TUN_MTU_BYTES)
-                        .contains(&physical.mtu) =>
+                    && (MIN_TUN_MTU_BYTES..=MAX_TUN_MTU_BYTES).contains(&physical.mtu) =>
             {
-                let (tun_mtu, tcp_mss) =
-                    infiltrator_domain::mtu_optimizer::MtuOptimizer::negotiate_tun_mtu(
-                        physical.mtu,
-                    );
+                let (tun_mtu, tcp_mss) = MtuOptimizer::negotiate_tun_mtu(physical.mtu);
                 MtuNegotiationSnapshot::ready(revision, physical, tun_mtu, tcp_mss)
             }
             Ok(_) => MtuNegotiationSnapshot::failed(
                 revision,
                 Failure::new(
-                    infiltrator_contract::error::ErrorCode::InvalidInput,
+                    ErrorCode::InvalidInput,
                     "physical MTU probe returned an invalid interface or MTU",
                     false,
                 ),
@@ -133,6 +131,8 @@ impl MtuApplication {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    #[cfg(test)]
+    use infiltrator_contract::capability::Capability;
     use infiltrator_contract::mtu::{MtuProbeState, PhysicalMtuSnapshot};
 
     struct ReadyProbe;
@@ -153,7 +153,7 @@ mod tests {
     impl MtuProbePort for UnsupportedProbe {
         async fn probe_physical_mtu(&self) -> Result<PhysicalMtuSnapshot, PortError> {
             Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Tun,
+                Capability::Tun,
                 "native interface MTU is not exposed",
             ))
         }
@@ -193,7 +193,7 @@ mod tests {
         let snapshot = application.probe().await;
         assert!(
             matches!(snapshot.state, MtuProbeState::Failed { ref failure }
-            if failure.code == infiltrator_contract::error::ErrorCode::InvalidInput)
+            if failure.code == ErrorCode::InvalidInput)
         );
     }
 }

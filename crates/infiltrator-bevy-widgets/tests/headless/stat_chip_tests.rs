@@ -5,6 +5,7 @@
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
 use bevy::asset::AssetPlugin;
+use bevy::ecs::entity;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::text::TextColor;
@@ -88,10 +89,10 @@ fn chip_fill_flips_with_the_theme_without_respawn() {
 
     let dark = UiPalette::new(&Theme::dark());
     let world = app.world_mut();
-    let mut chips = world.query::<(bevy::ecs::entity::Entity, &StatChip)>();
+    let mut chips = world.query::<(entity::Entity, &StatChip)>();
     let (chip_root, _) = chips.iter(world).next().expect("chip mounted");
     let world = app.world_mut();
-    let mut roots = world.query::<(bevy::ecs::entity::Entity, &bevy::ui::BackgroundColor)>();
+    let mut roots = world.query::<(entity::Entity, &BackgroundColor)>();
     let (chip_root, dark_fill) = roots
         .iter(world)
         .find(|(id, _)| *id == chip_root)

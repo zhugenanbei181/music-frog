@@ -40,6 +40,10 @@ impl ScriptExportPort for UnsupportedScriptExportPort {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::error::ErrorCode;
+    #[cfg(test)]
+    use infiltrator_contract::error::Failure;
     use infiltrator_contract::script_export::ScriptExportKind;
 
     fn request() -> ScriptExportRequest {
@@ -57,15 +61,9 @@ mod tests {
     fn unsupported_host_answers_with_a_typed_capability_error() {
         let port = UnsupportedScriptExportPort;
         let error = port.save_export(&request()).expect_err("must not save");
-        assert_eq!(
-            error.error_code(),
-            infiltrator_contract::error::ErrorCode::Unsupported
-        );
-        let failure: infiltrator_contract::error::Failure = error.into();
-        assert_eq!(
-            failure.code,
-            infiltrator_contract::error::ErrorCode::Unsupported
-        );
+        assert_eq!(error.error_code(), ErrorCode::Unsupported);
+        let failure: Failure = error.into();
+        assert_eq!(failure.code, ErrorCode::Unsupported);
         assert!(!failure.retryable);
         assert!(failure.message.contains("Profiles"));
     }

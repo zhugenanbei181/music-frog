@@ -5,12 +5,13 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory};
+use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, ProxyHistory, Shadowsocks};
+use std::collections::HashMap;
 
 #[test]
 fn test_proxy_filtering_and_sorting() {
     let (mut state, _) = AppState::new();
-    let mut proxies = std::collections::HashMap::new();
+    let mut proxies = HashMap::new();
 
     // Group GLOBAL
     proxies.insert(
@@ -26,7 +27,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node A (100ms)
     proxies.insert(
         "Proxy-A".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-A".to_string(),
                 history: vec![ProxyHistory {
@@ -42,7 +43,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node B (50ms)
     proxies.insert(
         "Proxy-B".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-B".to_string(),
                 history: vec![ProxyHistory {
@@ -58,7 +59,7 @@ fn test_proxy_filtering_and_sorting() {
     // Node Special (200ms)
     proxies.insert(
         "Special".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Special".to_string(),
                 history: vec![ProxyHistory {
@@ -161,7 +162,7 @@ fn test_runtime_connection_filter_state() {
 #[test]
 fn test_runtime_proxy_selector_sync_and_apply() {
     let (mut state, _) = AppState::new();
-    let mut proxies = std::collections::HashMap::new();
+    let mut proxies = HashMap::new();
 
     proxies.insert(
         "GLOBAL".to_string(),
@@ -174,7 +175,7 @@ fn test_runtime_proxy_selector_sync_and_apply() {
     );
     proxies.insert(
         "Proxy-A".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-A".to_string(),
                 ..Default::default()
@@ -184,7 +185,7 @@ fn test_runtime_proxy_selector_sync_and_apply() {
     );
     proxies.insert(
         "Proxy-B".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Proxy-B".to_string(),
                 ..Default::default()
@@ -206,7 +207,7 @@ fn test_runtime_proxy_selector_sync_and_apply() {
 #[test]
 fn test_filter_alive_and_favorite_pinning() {
     let (mut state, _) = AppState::new();
-    let mut proxies = std::collections::HashMap::new();
+    let mut proxies = HashMap::new();
 
     // Group GLOBAL with 3 nodes
     proxies.insert(
@@ -226,9 +227,10 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Alive-1 (120ms)
     proxies.insert(
         "Node-Alive-1".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Node-Alive-1".to_string(),
+                alive: true,
                 history: vec![ProxyHistory {
                     time: "".into(),
                     delay: 120,
@@ -242,9 +244,10 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Dead (0ms / no delay)
     proxies.insert(
         "Node-Dead".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Node-Dead".to_string(),
+                alive: false,
                 history: vec![],
                 ..Default::default()
             },
@@ -255,9 +258,10 @@ fn test_filter_alive_and_favorite_pinning() {
     // Node-Alive-2 (50ms)
     proxies.insert(
         "Node-Alive-2".to_string(),
-        Proxy::Shadowsocks(infiltrator_domain::proxy::Shadowsocks {
+        Proxy::Shadowsocks(Shadowsocks {
             base: ProxyBase {
                 name: "Node-Alive-2".to_string(),
+                alive: true,
                 history: vec![ProxyHistory {
                     time: "".into(),
                     delay: 50,
@@ -309,7 +313,7 @@ fn test_filter_alive_and_favorite_pinning() {
 #[test]
 fn test_pinyin_fuzzy_filter_in_gui() {
     let (mut state, _) = AppState::new();
-    let mut proxies = std::collections::HashMap::new();
+    let mut proxies = HashMap::new();
 
     proxies.insert(
         "GLOBAL".to_string(),
@@ -375,12 +379,4 @@ fn test_custom_node_modal_interactions() {
 
     let _ = state.update(Message::OpenAddCustomNodeModal(false));
     assert!(!state.runtime.is_adding_custom_node);
-}
-
-#[test]
-fn test_dual_04_proxy_regression_matrix() {
-    let report =
-        infiltrator_contract::proxies::ProxyRegressionMatrixReport::run_deterministic_matrix();
-    assert!(report.is_all_passed());
-    assert_eq!(report.total_scenarios, 15);
 }

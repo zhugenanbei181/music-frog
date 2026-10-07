@@ -3,6 +3,8 @@
 
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Res, ResMut};
+use bevy::time::Time;
+use std::cmp::Ordering;
 
 /// A fixed-capacity circular ring buffer with zero runtime allocations.
 #[derive(Clone, Debug)]
@@ -155,7 +157,7 @@ impl TelemetryStatistics {
         let mean = (sum / count as f64) as f32;
 
         // Sort to compute exact percentiles
-        finite_samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        finite_samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
         let p95_idx = ((count as f32 * 0.95).round() as usize).min(count - 1);
         let p99_idx = ((count as f32 * 0.99).round() as usize).min(count - 1);
 
@@ -251,10 +253,7 @@ impl TelemetryCadenceManager {
 }
 
 /// Bevy ECS system stepping the telemetry cadence manager every frame.
-pub fn update_telemetry_cadence(
-    time: Res<bevy::time::Time>,
-    manager: Option<ResMut<TelemetryCadenceManager>>,
-) {
+pub fn update_telemetry_cadence(time: Res<Time>, manager: Option<ResMut<TelemetryCadenceManager>>) {
     if let Some(mut manager) = manager {
         let dt = time.delta_secs();
         manager.on_frame(dt);

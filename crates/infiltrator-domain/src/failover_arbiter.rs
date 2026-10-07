@@ -1,6 +1,7 @@
 //! Load balancing strategies, health-based failover, consistent hashing, and sticky session routing.
 
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,7 +149,7 @@ impl ConsistentHashRing {
 
     fn hash_key(key: &str) -> u64 {
         use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         hasher.finish()
     }

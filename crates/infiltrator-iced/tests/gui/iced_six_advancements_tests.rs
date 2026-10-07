@@ -5,18 +5,27 @@
 //! exact string/integer values, and mathematical invariants.
 
 use crate::state::AppState;
+use crate::test_mounts::rules_dns_tests::rules_tracer::{run, setup};
+use crate::test_mounts::script_workbench_tests;
 use crate::types::app::Route;
-use crate::types::app_routing::{AppRouteRule, AppRoutingMode};
 use crate::types::message::Message;
 use crate::types::options::EditorPane;
+use crate::types::rule_trace::RuleTraceAction;
+use crate::types::script::ScriptAction;
 use crate::view::virtual_list::VirtualListConfig;
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::rule_condition::TrafficField;
 use infiltrator_contract::rules_workspace::RulesTab;
+use infiltrator_contract::surface_snapshot::ProxyGroupSnapshot;
 use infiltrator_desktop::process_enumerator::{ExtendedProcessInfo, ProcessCategory};
-use infiltrator_domain::rules::RuleEntry;
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use std::sync::atomic::Ordering;
 
 #[test]
 fn test_advancement_1_live_rule_tracer_contract() {
-    let (mut state, _) = AppState::new();
+    let (mut state, reader, store) = setup();
 
     // 1. Initial tracer state check
     assert_eq!(state.editor.rules_tab, RulesTab::List);
@@ -27,32 +36,14 @@ fn test_advancement_1_live_rule_tracer_contract() {
     let _ = state.update(Message::SetRulesTab(RulesTab::Tracer));
     assert_eq!(state.editor.rules_tab, RulesTab::Tracer);
 
-    // Populate real test rules into the runtime
-    state.editor.rules = vec![
-        RuleEntry {
-            rule: "DOMAIN-SUFFIX,google.com,ProxyGroup".to_string(),
-            enabled: true,
-        },
-        RuleEntry {
-            rule: "IP-CIDR,1.1.1.1/32,DIRECT".to_string(),
-            enabled: true,
-        },
-        RuleEntry {
-            rule: "PROCESS-NAME,steam.exe,GameProxy".to_string(),
-            enabled: true,
-        },
-        RuleEntry {
-            rule: "MATCH,FallbackProxy".to_string(),
-            enabled: true,
-        },
-    ];
+    store.replace("proxy-groups:\n  - name: ProxyGroup\n    type: select\n    proxies: [DIRECT]\n  - name: GameProxy\n    type: select\n    proxies: [DIRECT]\n  - name: FallbackProxy\n    type: select\n    proxies: [DIRECT]\nrules:\n  - DOMAIN-SUFFIX,google.com,ProxyGroup\n  - IP-CIDR,1.1.1.1/32,DIRECT,no-resolve\n  - PROCESS-NAME,steam.exe,GameProxy\n  - MATCH,FallbackProxy\n");
 
     // Scenario A: trace domain match
     let _ = state.update(Message::UpdateRulesTracerInput(
         "mail.google.com".to_string(),
     ));
     assert_eq!(state.editor.rules_tracer_input, "mail.google.com");
-    let _ = state.update(Message::RunRulesTracer);
+    run(&mut state, &reader);
 
     let chain0 = state
         .editor
@@ -60,28 +51,38 @@ fn test_advancement_1_live_rule_tracer_contract() {
         .clone()
         .expect("match expected");
     assert_eq!(chain0.hit_rule_index, Some(0));
-    assert_eq!(chain0.matched_rule_raw, "DOMAIN-SUFFIX,google.com");
+    assert_eq!(
+        chain0.matched_rule_raw,
+        "DOMAIN-SUFFIX,google.com,ProxyGroup"
+    );
     assert_eq!(chain0.target_proxy, "ProxyGroup");
     assert_eq!(chain0.nodes.len(), 5);
     assert!(!chain0.is_fallback);
 
     // Scenario B: trace IP match
     let _ = state.update(Message::UpdateRulesTracerInput("1.1.1.1".to_string()));
-    let _ = state.update(Message::RunRulesTracer);
+    run(&mut state, &reader);
     let chain1 = state
         .editor
         .rules_tracer_chain
         .clone()
         .expect("IP match expected");
     assert_eq!(chain1.hit_rule_index, Some(1));
-    assert_eq!(chain1.matched_rule_raw, "IP-CIDR,1.1.1.1/32");
+    assert_eq!(
+        chain1.matched_rule_raw,
+        "IP-CIDR,1.1.1.1/32,DIRECT,no-resolve"
+    );
     assert_eq!(chain1.target_proxy, "DIRECT");
 
+    let _ = state.update(Message::RuleTrace(RuleTraceAction::Sandbox(
+        TrafficField::ProcessName,
+        "other.exe".into(),
+    )));
     // Scenario C: trace fallback MATCH
     let _ = state.update(Message::UpdateRulesTracerInput(
         "unknown-domain.xyz".to_string(),
     ));
-    let _ = state.update(Message::RunRulesTracer);
+    run(&mut state, &reader);
     let chain_fb = state
         .editor
         .rules_tracer_chain
@@ -92,10 +93,15 @@ fn test_advancement_1_live_rule_tracer_contract() {
     assert_eq!(chain_fb.target_proxy, "FallbackProxy");
     assert!(chain_fb.is_fallback);
 
-    // Clearing the input clears the replayed chain.
+    // Invalid input preserves the last real report and performs no source read.
     let _ = state.update(Message::UpdateRulesTracerInput(String::new()));
-    let _ = state.update(Message::RunRulesTracer);
-    assert!(state.editor.rules_tracer_chain.is_none());
+    assert_eq!(state.update(Message::RunRulesTracer).units(), 0);
+    assert_eq!(state.editor.rules_tracer_chain.as_ref(), Some(&chain_fb));
+    assert_eq!(
+        state.editor.rule_trace.failure.as_ref().unwrap().code,
+        ErrorCode::InvalidInput
+    );
+    assert_eq!(store.rule_loads.load(Ordering::SeqCst), 3);
 }
 
 #[test]
@@ -103,16 +109,16 @@ fn test_advancement_2_app_routing_grid_state_and_transitions() {
     let (mut state, _) = AppState::new();
 
     // Initial state
-    assert_eq!(state.app_routing.mode, AppRoutingMode::Global);
+    assert_eq!(state.app_routing.mode, AppRoutingMode::ProxyAll);
     assert!(state.app_routing.processes.is_empty());
     assert!(state.app_routing.custom_rules.is_empty());
 
     // Switch mode: Global -> Whitelist -> Blacklist
-    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::Whitelist));
-    assert_eq!(state.app_routing.mode, AppRoutingMode::Whitelist);
+    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::ProxySelected));
+    assert_eq!(state.app_routing.mode, AppRoutingMode::ProxySelected);
 
-    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::Blacklist));
-    assert_eq!(state.app_routing.mode, AppRoutingMode::Blacklist);
+    let _ = state.update(Message::SetAppRoutingMode(AppRoutingMode::BypassSelected));
+    assert_eq!(state.app_routing.mode, AppRoutingMode::BypassSelected);
 
     // Mock loaded processes
     let sample_procs = vec![
@@ -154,17 +160,17 @@ fn test_advancement_2_app_routing_grid_state_and_transitions() {
     // Assign custom rule to Chrome: Proxy -> Direct -> Block
     let _ = state.update(Message::SetAppRouteRule {
         process: "chrome".to_string(),
-        rule: AppRouteRule::Direct,
+        rule: AppRoutingRule::Direct,
     });
     assert_eq!(
         state.app_routing.custom_rules.get("chrome"),
-        Some(&AppRouteRule::Direct)
+        Some(&AppRoutingRule::Direct)
     );
 
-    // Verify AppRouteRule::next() cycle
-    assert_eq!(AppRouteRule::Proxy.next(), AppRouteRule::Direct);
-    assert_eq!(AppRouteRule::Direct.next(), AppRouteRule::Block);
-    assert_eq!(AppRouteRule::Block.next(), AppRouteRule::Proxy);
+    // Verify AppRoutingRule::next() cycle
+    assert_eq!(AppRoutingRule::Proxy.next(), AppRoutingRule::Direct);
+    assert_eq!(AppRoutingRule::Direct.next(), AppRoutingRule::Block);
+    assert_eq!(AppRoutingRule::Block.next(), AppRoutingRule::Proxy);
 
     // Filter query test
     let _ = state.update(Message::SetAppRoutingFilter("studio".to_string()));
@@ -219,33 +225,52 @@ fn test_advancement_4_proxy_group_reordering_and_reset() {
         ("FALLBACK".to_string(), vec!["node4".to_string()]),
     ];
 
-    // Initial order is empty (follows filtered_groups natural order)
-    assert!(state.runtime.proxy_group_order.is_empty());
-
-    // Move "GAMES" (idx 2) up -> should become idx 1 (before STREAMING)
-    let _ = state.update(Message::MoveProxyGroupUp("GAMES".to_string()));
+    state.runtime.proxy_groups = state
+        .runtime
+        .filtered_groups
+        .iter()
+        .map(|(name, _)| ProxyGroupSnapshot {
+            name: name.clone(),
+            group_type: "Selector".into(),
+            classification: None,
+            current: String::new(),
+            expanded: true,
+            proxies: vec![],
+        })
+        .collect();
+    let observed = state.runtime.proxy_groups.clone();
+    assert!(!state.runtime.group_order_open);
+    let _ = state.update(Message::MoveProxyGroupUp("GAMES".into()));
+    assert!(state.runtime.group_order_open);
     assert_eq!(
-        state.runtime.proxy_group_order,
+        state.runtime.group_order_editor.draft,
         vec!["PROXIES", "GAMES", "STREAMING", "FALLBACK"]
     );
-
-    // Move "GAMES" up again -> should become idx 0 (top priority)
-    let _ = state.update(Message::MoveProxyGroupUp("GAMES".to_string()));
+    let _ = state.update(Message::MoveProxyGroupUp("GAMES".into()));
     assert_eq!(
-        state.runtime.proxy_group_order,
+        state.runtime.group_order_editor.draft,
         vec!["GAMES", "PROXIES", "STREAMING", "FALLBACK"]
     );
-
-    // Move "GAMES" down -> should become idx 1
-    let _ = state.update(Message::MoveProxyGroupDown("GAMES".to_string()));
+    let _ = state.update(Message::MoveProxyGroupDown("GAMES".into()));
     assert_eq!(
-        state.runtime.proxy_group_order,
+        state.runtime.group_order_editor.draft,
         vec!["PROXIES", "GAMES", "STREAMING", "FALLBACK"]
     );
-
-    // Reset order
     let _ = state.update(Message::ResetProxyGroupOrder);
-    assert!(state.runtime.proxy_group_order.is_empty());
+    assert_eq!(
+        state.runtime.group_order_editor.draft,
+        vec!["FALLBACK", "GAMES", "PROXIES", "STREAMING"]
+    );
+    assert_eq!(
+        state.runtime.proxy_groups, observed,
+        "editing never reorders the observed product facts"
+    );
+    let _ = state.update(Message::CancelProxyGroupOrder);
+    assert!(!state.runtime.group_order_open);
+    assert_eq!(
+        state.runtime.group_order_editor.draft,
+        vec!["PROXIES", "STREAMING", "GAMES", "FALLBACK"]
+    );
 }
 
 #[test]
@@ -276,16 +301,20 @@ fn test_advancement_5_mini_hud_mode_and_always_on_top() {
 
 #[test]
 fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
-    let (mut state, _) = AppState::new();
+    let scripts = ScriptApplication::new();
+    let mut state = script_workbench_tests::setup(
+        scripts.clone(),
+        ScriptExportApplication::without_host_port(),
+    );
 
     // Switch to Editor -> Script pane
     let _ = state.update(Message::SetEditorPane(EditorPane::Script));
     assert_eq!(state.editor.editor_pane, EditorPane::Script);
 
     // Load a shared preset catalogue entry
-    let _ = state.update(Message::SelectScriptPreset(
+    let _ = state.update(Message::Script(ScriptAction::SelectPreset(
         "auto-country-groups".to_string(),
-    ));
+    )));
     assert_eq!(
         state.editor.script_sandbox.selected_preset.as_deref(),
         Some("auto-country-groups")
@@ -300,10 +329,13 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
 
     // Provide test input YAML with nodes from different regions
     let test_yaml = "proxies:\n  - name: HK-01\n    type: ss\n    server: hk.example.com\n    port: 8388\n  - name: US-01\n    type: ss\n    server: us.example.com\n    port: 8388\n  - name: JP-01\n    type: ss\n    server: jp.example.com\n    port: 8388\n";
-    let _ = state.update(Message::UpdateScriptSandboxInputYaml(test_yaml.to_string()));
+    let _ = state.update(Message::Script(ScriptAction::EditYaml(
+        test_yaml.to_string(),
+    )));
 
     // Run the sandbox test through the shared application projection
-    let _ = state.update(Message::RunScriptSandboxTest);
+    let task = state.update(Message::Script(ScriptAction::Run));
+    script_workbench_tests::complete(&mut state, task);
 
     // Invariants assertion
     let snapshot = state
@@ -329,12 +361,17 @@ fn test_advancement_6_quickjs_script_sandbox_console_lifecycle() {
     assert!(snapshot.is_success());
     // The same projection is published for the Bevy surface.
     assert_eq!(
-        infiltrator_application::script_application::last_script_sandbox().as_ref(),
+        scripts
+            .observation()
+            .result
+            .as_ref()
+            .map(|result| &result.snapshot),
         Some(snapshot)
     );
 
     // Clear sandbox
-    let _ = state.update(Message::ClearScriptSandbox);
+    let task = state.update(Message::Script(ScriptAction::Clear));
+    script_workbench_tests::complete(&mut state, task);
     assert!(state.editor.script_sandbox.snapshot.is_none());
-    assert!(infiltrator_application::script_application::last_script_sandbox().is_none());
+    assert!(scripts.observation().result.is_none());
 }

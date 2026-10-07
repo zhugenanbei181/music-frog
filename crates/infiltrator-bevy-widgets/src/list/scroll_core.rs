@@ -4,6 +4,7 @@
 
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
+use std::cmp::Ordering;
 
 // ===========================================================================
 // 1. Fixed-Height Virtual Window Math
@@ -186,11 +187,10 @@ impl DynamicHeightIndex {
         }
 
         // Binary search prefix_sums: find index where prefix_sums[i] <= offset_y < prefix_sums[i+1]
-        let idx = match self.prefix_sums.binary_search_by(|probe| {
-            probe
-                .partial_cmp(&offset_y_px)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) {
+        let idx = match self
+            .prefix_sums
+            .binary_search_by(|probe| probe.partial_cmp(&offset_y_px).unwrap_or(Ordering::Equal))
+        {
             Ok(exact) => exact.min(self.item_count.saturating_sub(1)),
             Err(insertion) => insertion
                 .saturating_sub(1)

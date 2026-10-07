@@ -3,14 +3,15 @@
 //! Provides bidirectional lossless translation between Clash YAML,
 //! Shadowrocket/V2Ray/QuantumultX URI formats, raw JSON, and Base64 subscriptions.
 
-use anyhow::{Result, anyhow};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
-
 use crate::filter::{ContentDedupStrategy, DeduplicationStrategy, NodeSortOrder};
 use crate::profile_aggregator::ProfileAggregator;
 use crate::proxy_nodes::model::PortHopping;
+use anyhow::{Result, anyhow};
+use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use infiltrator_contract::aggregator::{AggregationCustomGroup, AggregationRenameRule};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 
 #[path = "profile_converter/uri_export.rs"]
 pub(crate) mod uri_export;
@@ -552,9 +553,9 @@ pub(crate) fn decode_base64_flexible(input: &str) -> Result<String> {
     let sanitized: String = input.chars().filter(|c| !c.is_whitespace()).collect();
     let decoded = STANDARD
         .decode(&sanitized)
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&sanitized))
-        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(&sanitized))
-        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&sanitized))
+        .or_else(|_| URL_SAFE.decode(&sanitized))
+        .or_else(|_| STANDARD_NO_PAD.decode(&sanitized))
+        .or_else(|_| URL_SAFE_NO_PAD.decode(&sanitized))
         .map_err(|e| anyhow!("Failed to decode Base64: {e}"))?;
     String::from_utf8(decoded).map_err(|e| anyhow!("Invalid UTF-8 in Base64: {e}"))
 }
@@ -599,9 +600,9 @@ pub struct AggregationOptions {
     pub sort_by: NodeSortOrder,
     pub generate_proxy_groups: bool,
     /// DUAL-08-08: regex rename rules applied before cleaning and grouping.
-    pub rename_rules: Vec<infiltrator_contract::aggregator::AggregationRenameRule>,
+    pub rename_rules: Vec<AggregationRenameRule>,
     /// DUAL-08-10: user-authored groups appended to the synthesized cascade.
-    pub custom_groups: Vec<infiltrator_contract::aggregator::AggregationCustomGroup>,
+    pub custom_groups: Vec<AggregationCustomGroup>,
     /// DUAL-08-09: drop nodes failing the required-field precheck.
     pub availability_precheck: bool,
 }

@@ -7,9 +7,7 @@ pub mod gnome;
 pub mod kde;
 
 use super::{SystemProxyState, parse_endpoint};
-
-pub type DesktopEnvironment = environment::DesktopEnvironment;
-pub type UnsupportedDesktopError = gnome::UnsupportedDesktopError;
+use crate::proxy::linux::environment::DesktopEnvironment;
 
 /// 探测当前 Linux 桌面环境。
 pub fn detect_desktop_environment() -> DesktopEnvironment {

@@ -1,4 +1,6 @@
+use std::{io, result};
 use thiserror::Error;
+use tokio_tungstenite::tungstenite;
 
 #[derive(Error, Debug)]
 pub enum MihomoError {
@@ -6,7 +8,7 @@ pub enum MihomoError {
     Http(#[from] reqwest::Error),
 
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] io::Error),
 
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
@@ -21,7 +23,7 @@ pub enum MihomoError {
     UrlParse(#[from] url::ParseError),
 
     #[error("WebSocket error: {0}")]
-    WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
+    WebSocket(Box<tungstenite::Error>),
 
     #[error("Config error: {0}")]
     Config(String),
@@ -32,6 +34,9 @@ pub enum MihomoError {
     #[error("Version error: {0}")]
     Version(String),
 
+    #[error("Operation canceled")]
+    Canceled,
+
     #[error("Proxy error: {0}")]
     Proxy(String),
 
@@ -40,13 +45,13 @@ pub enum MihomoError {
 }
 
 // Manual From implementation for WebSocket error to box it
-impl From<tokio_tungstenite::tungstenite::Error> for MihomoError {
-    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+impl From<tungstenite::Error> for MihomoError {
+    fn from(err: tungstenite::Error) -> Self {
         MihomoError::WebSocket(Box::new(err))
     }
 }
 
-pub type Result<T> = std::result::Result<T, MihomoError>;
+pub type Result<T> = result::Result<T, MihomoError>;
 
 #[cfg(test)]
 mod tests {
@@ -84,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_io_error_conversion() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let io_err = io::Error::new(io::ErrorKind::NotFound, "file not found");
         let mihomo_err: MihomoError = io_err.into();
         assert!(matches!(mihomo_err, MihomoError::Io(_)));
     }

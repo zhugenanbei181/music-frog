@@ -13,13 +13,14 @@ use crate::types::message::Message;
 use crate::view::components::icon_button;
 use crate::view::svg_icons::Icon;
 use crate::view::theme;
-use iced::widget::{Space, container, mouse_area, row, text};
+use iced::widget::{Space, column, container, mouse_area, row, text};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_contract::a11y::ShellA11yNode;
+use infiltrator_contract::window_chrome::WindowChrome;
 
 /// The mounted strip's height in logical pixels; the contract owns the number.
 pub(crate) fn strip_height_px() -> f32 {
-    infiltrator_contract::window_chrome::WindowChrome::FRAMELESS.chrome_height_px() as f32
+    WindowChrome::FRAMELESS.chrome_height_px() as f32
 }
 
 /// The drag/controls strip mounted at the top of the frameless window.
@@ -28,7 +29,7 @@ pub(crate) fn strip_height_px() -> f32 {
 /// system decorations (the OS already owns dragging), so the view root can
 /// mount it unconditionally.
 pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
-    if !infiltrator_contract::window_chrome::WindowChrome::FRAMELESS.needs_custom_controls() {
+    if !WindowChrome::FRAMELESS.needs_custom_controls() {
         return Space::new().height(Length::Shrink).into();
     }
 
@@ -87,5 +88,5 @@ pub fn chrome_strip(state: &AppState) -> Element<'_, Message> {
             ..Default::default()
         });
 
-    iced::widget::column![bar, hairline].into()
+    column![bar, hairline].into()
 }

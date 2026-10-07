@@ -7,8 +7,8 @@
 //! both UI surfaces are all driven by the same fact source.
 
 use crate::speedtest::{
-    NodeSpeedtestResult, PacketLossRating, SpeedtestPhase, SpeedtestProgress, SpeedtestScope,
-    SpeedtestSnapshot, SpeedtestTargetConfig,
+    HistoricalSpeedtestRecord, JitterCalculation, NodeSpeedtestResult, PacketLossRating,
+    SpeedtestPhase, SpeedtestProgress, SpeedtestScope, SpeedtestSnapshot, SpeedtestTargetConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -157,9 +157,7 @@ fn node(name: &str, delay: Option<u32>, alive: bool) -> NodeSpeedtestResult {
         group_name: Some("PROXIES".to_owned()),
         proxy_type: "Shadowsocks".to_owned(),
         delay_ms: delay,
-        jitter: Some(crate::speedtest::JitterCalculation::from_samples(&[Some(
-            delay.unwrap_or(0),
-        )])),
+        jitter: Some(JitterCalculation::from_samples(&[Some(delay.unwrap_or(0))])),
         bandwidth_mbps: Some(80.0),
         packet_loss: if alive {
             PacketLossRating::Excellent
@@ -180,6 +178,7 @@ fn snapshot_with(phase: SpeedtestPhase) -> SpeedtestSnapshot {
     results.insert("HK-1".to_owned(), node("HK-1", Some(30), true));
     results.insert("HK-2".to_owned(), node("HK-2", None, false));
     SpeedtestSnapshot {
+        availability: None,
         generation: 1,
         revision: 1,
         phase,
@@ -264,20 +263,18 @@ fn cancel_check() -> bool {
 
 fn history_check() -> bool {
     let mut snapshot = snapshot_with(SpeedtestPhase::Completed);
-    snapshot
-        .recent_history
-        .push(crate::speedtest::HistoricalSpeedtestRecord {
-            run_id: 1,
-            timestamp_epoch_ms: 1_700_000_000_000,
-            scope: SpeedtestScope::AllGroups,
-            target_url: snapshot.config.test_url.clone(),
-            total_nodes: 2,
-            alive_nodes: 1,
-            avg_latency_ms: Some(30.0),
-            avg_jitter_ms: Some(0.0),
-            avg_bandwidth_mbps: Some(80.0),
-            overall_star_rating: 4,
-        });
+    snapshot.recent_history.push(HistoricalSpeedtestRecord {
+        run_id: 1,
+        timestamp_epoch_ms: 1_700_000_000_000,
+        scope: SpeedtestScope::AllGroups,
+        target_url: snapshot.config.test_url.clone(),
+        total_nodes: 2,
+        alive_nodes: 1,
+        avg_latency_ms: Some(30.0),
+        avg_jitter_ms: Some(0.0),
+        avg_bandwidth_mbps: Some(80.0),
+        overall_star_rating: 4,
+    });
     snapshot.recent_history.len() == 1
 }
 

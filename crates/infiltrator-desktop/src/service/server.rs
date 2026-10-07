@@ -1,13 +1,20 @@
-use std::sync::Arc;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::sync::watch;
-
 use super::state_machine::{CommandSequence, SequenceExecutionResult};
 use super::{
     AuthToken, DefaultServiceCommandHandler, IpcEndpoint, PrivilegeLevel, ServiceCommandHandler,
     ServiceError, ServiceRequest, ServiceResponse, ServiceResponsePayload, recv_framed_json,
     send_framed_json,
 };
+use std::fs::{Permissions, set_permissions};
+use std::sync::Arc;
+use tokio::fs::{create_dir_all, remove_file};
+use tokio::io::duplex;
+#[cfg(windows)]
+use tokio::io::split;
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::UnixListener;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::ServerOptions;
+use tokio::sync::watch;
 
 pub struct ServiceServer<H> {
     endpoint: IpcEndpoint,
@@ -29,18 +36,18 @@ impl<H: ServiceCommandHandler + 'static> ServiceServer<H> {
             #[cfg(unix)]
             IpcEndpoint::UnixSocket(path) => {
                 if path.exists() {
-                    let _ = tokio::fs::remove_file(path).await;
+                    let _ = remove_file(path).await;
                 }
                 if let Some(parent) = path.parent() {
-                    let _ = tokio::fs::create_dir_all(parent).await;
+                    let _ = create_dir_all(parent).await;
                 }
-                let listener = tokio::net::UnixListener::bind(path)
-                    .map_err(|e| ServiceError::Io(e.to_string()))?;
+                let listener =
+                    UnixListener::bind(path).map_err(|e| ServiceError::Io(e.to_string()))?;
 
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+                    let _ = set_permissions(path, Permissions::from_mode(0o600));
                 }
 
                 loop {
@@ -67,12 +74,12 @@ impl<H: ServiceCommandHandler + 'static> ServiceServer<H> {
                         }
                     }
                 }
-                let _ = tokio::fs::remove_file(path).await;
+                let _ = remove_file(path).await;
                 Ok(())
             }
             #[cfg(windows)]
             IpcEndpoint::NamedPipe(pipe_name) => {
-                let server = tokio::net::windows::named_pipe::ServerOptions::new()
+                let server = ServerOptions::new()
                     .first_pipe_instance(true)
                     .create(pipe_name)
                     .map_err(|e| ServiceError::Io(e.to_string()))?;
@@ -87,13 +94,13 @@ impl<H: ServiceCommandHandler + 'static> ServiceServer<H> {
                         }
                         connected = current_server.connect() => {
                             if connected.is_ok() {
-                                let (reader, writer) = tokio::io::split(current_server);
+                                let (reader, writer) = split(current_server);
                                 let handler = self.handler.clone();
                                 let token = self.auth_token.clone();
                                 tokio::spawn(async move {
                                     let _ = process_connection(reader, writer, &token, handler).await;
                                 });
-                                current_server = tokio::net::windows::named_pipe::ServerOptions::new()
+                                current_server = ServerOptions::new()
                                     .create(pipe_name)
                                     .map_err(|e| ServiceError::Io(e.to_string()))?;
                             }
@@ -179,8 +186,8 @@ impl<H: ServiceCommandHandler + 'static> MockServiceHarness<H> {
         &self,
         request: &ServiceRequest,
     ) -> Result<ServiceResponse, ServiceError> {
-        let (client_read, server_write) = tokio::io::duplex(4096);
-        let (server_read, client_write) = tokio::io::duplex(4096);
+        let (client_read, server_write) = duplex(4096);
+        let (server_read, client_write) = duplex(4096);
 
         let handler = self.handler.clone();
         let token = self.auth_token.clone();

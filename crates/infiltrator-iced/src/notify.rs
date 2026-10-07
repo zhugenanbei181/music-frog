@@ -27,9 +27,15 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::utils::sanitize_ui_text;
 use iced::Task;
 use infiltrator_desktop::notify::{NotificationLevel, warn_throttled};
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::env::var;
+use std::time;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::task::spawn_blocking;
+use tokio::time::timeout;
 
 /// 桌面通知紧急程度（映射 org.freedesktop.Notifications urgency hint）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -52,8 +58,8 @@ impl From<NotifyUrgency> for NotificationLevel {
 /// 同步提交一条系统通知；正文/标题先过 [`crate::utils::sanitize_ui_text`]。
 /// 返回守护进程是否受理（仅用于日志/测试，调用方无需处理）。
 pub fn send(title: &str, body: &str, urgency: NotifyUrgency) -> bool {
-    let title = crate::utils::sanitize_ui_text(title);
-    let body = crate::utils::sanitize_ui_text(body);
+    let title = sanitize_ui_text(title);
+    let body = sanitize_ui_text(body);
     backend::send(&title, &body, urgency)
 }
 
@@ -159,7 +165,7 @@ mod backend {
 /// 设置后 demo 模式的 `system_notify` 短路被绕过（`notifications_enabled`
 /// 开关语义保持），且应用启动即发一条探针通知供 smoke 断言。
 pub(crate) fn force_notify_requested() -> bool {
-    std::env::var("INFILTRATOR_FORCE_NOTIFY").is_ok_and(|value| value.trim() == "1")
+    var("INFILTRATOR_FORCE_NOTIFY").is_ok_and(|value| value.trim() == "1")
 }
 
 /// 探针通知的固定 ASCII 标题：desktop-smoke 在守护进程历史里按它断言。
@@ -176,20 +182,19 @@ pub(crate) fn startup_probe_task() -> Task<Message> {
     let title = SMOKE_PROBE_TITLE.to_string();
     let body = format!(
         "app-to-daemon probe {}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_millis())
             .unwrap_or_default()
     );
     Task::perform(
         async move {
-            let delivered =
-                tokio::task::spawn_blocking(move || send(&title, &body, NotifyUrgency::Normal))
-                    .await
-                    .unwrap_or_else(|join_error| {
-                        warn_throttled(&format!("notify probe task failed: {join_error}"));
-                        false
-                    });
+            let delivered = spawn_blocking(move || send(&title, &body, NotifyUrgency::Normal))
+                .await
+                .unwrap_or_else(|join_error| {
+                    warn_throttled(&format!("notify probe task failed: {join_error}"));
+                    false
+                });
             log::info!("notify probe delivered={delivered}");
         },
         |()| Message::Noop,
@@ -219,8 +224,8 @@ impl AppState {
         let body = body.to_string();
         Task::perform(
             async move {
-                let attempt = tokio::task::spawn_blocking(move || send(&title, &body, urgency));
-                match tokio::time::timeout(std::time::Duration::from_secs(2), attempt).await {
+                let attempt = spawn_blocking(move || send(&title, &body, urgency));
+                match timeout(time::Duration::from_secs(2), attempt).await {
                     Ok(Ok(delivered)) => delivered,
                     Ok(Err(join_error)) => {
                         warn_throttled(&format!("system notification task failed: {join_error}"));

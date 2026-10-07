@@ -1,5 +1,6 @@
 //! Desktop adapter for the Windows AppContainer loopback port.
 
+use crate::uwp_loopback::{clear_all, exempt_all, set_loopback_exempt, try_list_app_containers};
 use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::uwp::UwpPackageSnapshot;
@@ -26,7 +27,7 @@ impl UwpLoopbackPort for DesktopUwpLoopbackPort {
         if !cfg!(windows) {
             return Err(unsupported());
         }
-        crate::uwp_loopback::try_list_app_containers()
+        try_list_app_containers()
             .map(|packages| {
                 packages
                     .into_iter()
@@ -45,19 +46,14 @@ impl UwpLoopbackPort for DesktopUwpLoopbackPort {
         if !cfg!(windows) {
             return Err(unsupported());
         }
-        crate::uwp_loopback::set_loopback_exempt(sid, exempt).map_err(map_error)
+        set_loopback_exempt(sid, exempt).map_err(map_error)
     }
 
     async fn set_all(&self, exempt: bool) -> Result<(), PortError> {
         if !cfg!(windows) {
             return Err(unsupported());
         }
-        if exempt {
-            crate::uwp_loopback::exempt_all()
-        } else {
-            crate::uwp_loopback::clear_all()
-        }
-        .map_err(map_error)
+        if exempt { exempt_all() } else { clear_all() }.map_err(map_error)
     }
 }
 

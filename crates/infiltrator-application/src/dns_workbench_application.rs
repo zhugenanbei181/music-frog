@@ -6,15 +6,23 @@
 //! surface reader both call the same mapping, so the two surfaces cannot show
 //! different DNS facts.
 
+use crate::dns_latency_application::DnsLatencyApplication;
+use crate::dns_leak_application::{DnsLeakApplication, NO_ECHO_PORT_REASON};
+use crate::stun_probe_application::StunProbeApplication;
 use infiltrator_contract::dns::{
-    DnsHostEntry, DnsUpstreamProtocol, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsFallbackPolicy, DnsServerTag,
+    DnsUpstreamProtocol, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
     join_server_list,
 };
 use infiltrator_contract::dns_form::DnsWorkbenchForm;
 use infiltrator_contract::dns_latency::DnsLatencyReport;
+use infiltrator_contract::dns_leak::DnsLeakReport;
 use infiltrator_contract::dns_self_heal::DnsSelfHealSnapshot;
-use infiltrator_contract::surface_snapshot::DnsServerSnapshot;
+use infiltrator_contract::stun_probe::StunProbeReport;
+use infiltrator_contract::surface_snapshot::{DnsPageSnapshot, DnsServerSnapshot};
 use infiltrator_domain::dns;
+use infiltrator_domain::dns_tester::DnsTester;
+use infiltrator_domain::runtime::ConnectionSnapshot;
 
 /// The protocol chip label for one configured nameserver address.
 pub fn dns_protocol(address: &str) -> String {
@@ -44,14 +52,14 @@ pub fn dns_servers_from_lists(
         .into_iter()
         .map(|address| DnsServerSnapshot {
             protocol: dns_protocol(&address),
-            tags: infiltrator_contract::dns::DnsServerTag::classify(&address, false),
+            tags: DnsServerTag::classify(&address, false),
             address,
             latency_ms: None,
             is_fallback: false,
         })
         .chain(fallback.into_iter().map(|address| DnsServerSnapshot {
             protocol: dns_protocol(&address),
-            tags: infiltrator_contract::dns::DnsServerTag::classify(&address, true),
+            tags: DnsServerTag::classify(&address, true),
             address,
             latency_ms: None,
             is_fallback: true,
@@ -60,34 +68,24 @@ pub fn dns_servers_from_lists(
 }
 
 /// Build the shared DNS page read model from the configured profile.
-pub fn dns_page_snapshot(
-    config: &dns::DnsConfig,
-    fake_ip_range: String,
-) -> infiltrator_contract::surface_snapshot::DnsPageSnapshot {
+pub fn dns_page_snapshot(config: &dns::DnsConfig, fake_ip_range: String) -> DnsPageSnapshot {
     use infiltrator_contract::surface_snapshot::DnsPageSnapshot;
     DnsPageSnapshot {
-        enhanced_mode: infiltrator_contract::dns::DnsEnhancedMode::from_config_value(
-            config.enhanced_mode.as_deref(),
-        ),
+        enhanced_mode: DnsEnhancedMode::from_config_value(config.enhanced_mode.as_deref()),
         cache_entries: 0,
         fake_ip_range,
         servers: dns_servers(config),
         switches: dns_core_switches(config),
-        filter_mode: infiltrator_contract::dns::DnsFakeIpFilterMode::from_config_value(
-            config.fake_ip_filter_mode.as_deref(),
-        ),
+        filter_mode: DnsFakeIpFilterMode::from_config_value(config.fake_ip_filter_mode.as_deref()),
         default_nameserver: config.default_nameserver.clone().unwrap_or_default(),
         fallback_policy: fallback_policy(config),
         fake_ip_filter: config.fake_ip_filter.clone().unwrap_or_default(),
         proxy_server_nameserver: config.proxy_server_nameserver.clone().unwrap_or_default(),
         direct_nameserver: config.direct_nameserver.clone().unwrap_or_default(),
-        cache_flush: infiltrator_contract::dns::DnsCacheFlushReport::default(),
         fake_ip_pool: FakeIpMappingPool::default(),
         latency: DnsLatencyReport::default(),
-        leak: infiltrator_contract::dns_leak::DnsLeakReport::default(),
-        stun: infiltrator_contract::stun_probe::StunProbeReport::default(),
+        stun: StunProbeReport::default(),
         self_heal: DnsSelfHealSnapshot::default(),
-        hosts: hosts_entries(config),
     }
 }
 
@@ -96,10 +94,7 @@ pub fn dns_page_snapshot(
 /// The report carries the honest per-server outcomes; each server row also
 /// gets its measured round trip so the latency highlight renders the value the
 /// host actually measured (and stays `None` when nothing was measured).
-pub fn apply_latency_report(
-    snapshot: &mut infiltrator_contract::surface_snapshot::DnsPageSnapshot,
-    report: &DnsLatencyReport,
-) {
+pub fn apply_latency_report(snapshot: &mut DnsPageSnapshot, report: &DnsLatencyReport) {
     snapshot.latency = report.clone();
     for server in &mut snapshot.servers {
         server.latency_ms = report.latency_of(&server.address);
@@ -107,41 +102,26 @@ pub fn apply_latency_report(
 }
 
 /// The honest last probe of this host (an empty typed refusal without one).
-pub fn latency_report(
-    application: Option<&crate::dns_latency_application::DnsLatencyApplication>,
-) -> DnsLatencyReport {
+pub fn latency_report(application: Option<&DnsLatencyApplication>) -> DnsLatencyReport {
     application
-        .map(crate::dns_latency_application::DnsLatencyApplication::last_report)
+        .map(DnsLatencyApplication::last_report)
         .unwrap_or_default()
 }
 
 /// DUAL-14-08: the honest last cross-source leak probe of this host (an empty
 /// typed refusal without a configured echo source).
-pub fn leak_report(
-    application: Option<&crate::dns_leak_application::DnsLeakApplication>,
-) -> infiltrator_contract::dns_leak::DnsLeakReport {
+pub fn leak_report(application: Option<&DnsLeakApplication>) -> DnsLeakReport {
     application
-        .map(crate::dns_leak_application::DnsLeakApplication::last_report)
-        .unwrap_or_default()
+        .map(DnsLeakApplication::last_report)
+        .unwrap_or_else(|| DnsLeakReport::unsupported(NO_ECHO_PORT_REASON))
 }
 
 /// DUAL-14-09 (re-scoped): the honest last STUN UDP-egress probe of this host
 /// (an empty typed refusal without a prober). The report is the host's own UDP
 /// mapping, never a browser WebRTC result.
-pub fn stun_report(
-    application: Option<&crate::stun_probe_application::StunProbeApplication>,
-) -> infiltrator_contract::stun_probe::StunProbeReport {
+pub fn stun_report(application: Option<&StunProbeApplication>) -> StunProbeReport {
     application
-        .map(crate::stun_probe_application::StunProbeApplication::last_report)
-        .unwrap_or_default()
-}
-
-/// DUAL-14-11: the configured `dns.hosts` map as flat shared rows.
-pub fn hosts_entries(config: &dns::DnsConfig) -> Vec<DnsHostEntry> {
-    config
-        .hosts
-        .as_ref()
-        .map(infiltrator_domain::dns_hosts::hosts_entries_from_map)
+        .map(StunProbeApplication::last_report)
         .unwrap_or_default()
 }
 
@@ -156,7 +136,7 @@ pub fn hosts_entries(config: &dns::DnsConfig) -> Vec<DnsHostEntry> {
 /// rest of the pool.
 pub fn fake_ip_pool_from_connections(
     range: &str,
-    connections: Option<&infiltrator_domain::runtime::ConnectionSnapshot>,
+    connections: Option<&ConnectionSnapshot>,
 ) -> FakeIpMappingPool {
     let Some(snapshot) = connections else {
         return FakeIpMappingPool::default();
@@ -179,7 +159,7 @@ pub fn fake_ip_pool_from_connections(
         if host.is_empty() || address.is_empty() {
             continue;
         }
-        if !infiltrator_domain::dns_tester::DnsTester::check_fake_ip_range(address, range) {
+        if !DnsTester::check_fake_ip_range(address, range) {
             continue;
         }
         if entries.iter().any(|entry| entry.address == address) {
@@ -204,8 +184,8 @@ pub fn fake_ip_pool_from_connections(
 }
 
 /// Map the six profile switches onto the shared switch value object.
-pub fn dns_core_switches(config: &dns::DnsConfig) -> infiltrator_contract::dns::DnsCoreSwitches {
-    infiltrator_contract::dns::DnsCoreSwitches {
+pub fn dns_core_switches(config: &dns::DnsConfig) -> DnsCoreSwitches {
+    DnsCoreSwitches {
         enable: config.enable.unwrap_or(false),
         ipv6: config.ipv6.unwrap_or(false),
         cache: config.cache.unwrap_or(false),
@@ -216,9 +196,9 @@ pub fn dns_core_switches(config: &dns::DnsConfig) -> infiltrator_contract::dns::
 }
 
 /// Map `fallback-filter` onto the shared fallback policy.
-pub fn fallback_policy(config: &dns::DnsConfig) -> infiltrator_contract::dns::DnsFallbackPolicy {
+pub fn fallback_policy(config: &dns::DnsConfig) -> DnsFallbackPolicy {
     let filter = config.fallback_filter.as_ref();
-    infiltrator_contract::dns::DnsFallbackPolicy {
+    DnsFallbackPolicy {
         geoip: filter.and_then(|filter| filter.geoip).unwrap_or(false),
         geoip_code: filter
             .and_then(|filter| filter.geoip_code.clone())
@@ -240,20 +220,16 @@ pub fn join_editor_list(entries: &[String]) -> String {
     join_server_list(entries)
 }
 
-/// The honest DNS cache flush report the page read model publishes.
-pub fn cache_flush_report(
-    dns_cache: Option<&crate::dns_cache_application::DnsCacheApplication>,
-) -> infiltrator_contract::dns::DnsCacheFlushReport {
-    dns_cache
-        .map(crate::dns_cache_application::DnsCacheApplication::last_report)
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::dns_latency_application::NO_PROBER_REASON;
+    #[cfg(test)]
+    use crate::dns_leak_application::NO_ECHO_PORT_REASON;
     use infiltrator_contract::dns::DnsFallbackPolicy;
-
+    #[cfg(test)]
+    use infiltrator_contract::dns_leak::DnsLeakConclusion;
     fn config() -> dns::DnsConfig {
         dns::DnsConfig {
             enable: Some(true),
@@ -321,20 +297,6 @@ mod tests {
         assert_eq!(join_editor_list(&["a".to_owned(), "b".to_owned()]), "a, b");
     }
 
-    #[tokio::test]
-    async fn cache_flush_report_follows_the_shared_application_state() {
-        use infiltrator_contract::dns::{DnsCacheFlushReport, DnsFlushOutcome};
-        assert_eq!(cache_flush_report(None), DnsCacheFlushReport::default());
-
-        let application = crate::dns_cache_application::DnsCacheApplication::unconfigured();
-        let report = application.flush_all().await.expect("flush");
-        assert!(matches!(
-            report.fake_ip,
-            DnsFlushOutcome::Unsupported { .. }
-        ));
-        assert_eq!(cache_flush_report(Some(&application)), report);
-    }
-
     #[test]
     fn fake_ip_pool_publishes_only_observed_bindings() {
         use infiltrator_domain::runtime::{Connection, ConnectionMetadata, ConnectionSnapshot};
@@ -379,32 +341,6 @@ mod tests {
         let no_range = fake_ip_pool_from_connections("", Some(&snapshot));
         assert!(!no_range.is_observed_subset());
         assert!(no_range.entries.is_empty());
-    }
-
-    #[test]
-    fn hosts_entries_project_the_profile_map() {
-        let mut hosts_config = config();
-        let mut map = std::collections::BTreeMap::new();
-        map.insert(
-            "localhost".to_owned(),
-            serde_json::Value::String("127.0.0.1".to_owned()),
-        );
-        map.insert(
-            "multi.example.com".to_owned(),
-            serde_json::Value::Array(vec![
-                serde_json::Value::String("1.1.1.1".to_owned()),
-                serde_json::Value::String("8.8.8.8".to_owned()),
-            ]),
-        );
-        hosts_config.hosts = Some(map);
-
-        let entries = hosts_entries(&hosts_config);
-        assert_eq!(entries.len(), 3);
-        let snapshot = form_from_config(&hosts_config);
-        assert_eq!(snapshot.fake_ip_range, "198.18.0.1/16");
-        assert_eq!(entries[0].domain, "localhost");
-        assert_eq!(entries[2].address, "8.8.8.8");
-        assert!(hosts_entries(&config()).is_empty());
     }
 
     #[test]
@@ -464,13 +400,10 @@ mod tests {
 
     #[test]
     fn a_host_without_a_prober_keeps_the_typed_unsupported_status() {
-        let application = crate::dns_latency_application::DnsLatencyApplication::unconfigured();
+        let application = DnsLatencyApplication::unconfigured();
         let report = latency_report(Some(&application));
         assert!(!report.status.is_ready());
-        assert_eq!(
-            report.status.reason(),
-            Some(crate::dns_latency_application::NO_PROBER_REASON)
-        );
+        assert_eq!(report.status.reason(), Some(NO_PROBER_REASON));
         let mut snapshot = dns_page_snapshot(&config(), String::new());
         apply_latency_report(&mut snapshot, &report);
         assert!(!snapshot.latency.is_probed());
@@ -479,36 +412,27 @@ mod tests {
 
     #[test]
     fn a_host_without_a_leak_fact_source_keeps_the_typed_unsupported_state() {
-        let application = crate::dns_leak_application::DnsLeakApplication::unconfigured();
+        let application = DnsLeakApplication::unconfigured();
         let report = leak_report(Some(&application));
         assert!(!report.status.is_ready());
-        assert_eq!(
-            report.status.reason(),
-            Some(crate::dns_leak_application::NO_ECHO_PORT_REASON)
-        );
+        assert_eq!(report.status.reason(), Some(NO_ECHO_PORT_REASON));
         assert_eq!(
             report.conclusion(),
-            infiltrator_contract::dns_leak::DnsLeakConclusion::Unsupported {
-                reason: crate::dns_leak_application::NO_ECHO_PORT_REASON.to_owned()
+            DnsLeakConclusion::Unsupported {
+                reason: NO_ECHO_PORT_REASON.to_owned()
             }
         );
 
         // A host with a prober but no controlled echo authority is just as
         // explicit, and the shared page snapshot never carries a verdict.
-        let configured_but_sourceless =
-            crate::dns_leak_application::DnsLeakApplication::new(None, Vec::new());
+        let configured_but_sourceless = DnsLeakApplication::new(None, Vec::new());
         let report = leak_report(Some(&configured_but_sourceless));
         assert!(!report.conclusion().is_consistent());
         assert!(!report.conclusion().is_divergent());
 
-        let snapshot = dns_page_snapshot(&config(), String::new());
-        assert_eq!(
-            snapshot.leak,
-            infiltrator_contract::dns_leak::DnsLeakReport::default()
-        );
         assert_eq!(
             leak_report(None),
-            infiltrator_contract::dns_leak::DnsLeakReport::default()
+            DnsLeakReport::unsupported(NO_ECHO_PORT_REASON)
         );
     }
 }

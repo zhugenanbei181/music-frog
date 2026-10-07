@@ -3,28 +3,26 @@
 //! snapshot. No device is involved — the same real recognition path a mobile
 //! host would feed is exercised deterministically.
 
-use std::sync::Arc;
-use std::time::Duration;
-
 use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
+use bevy::ecs::query::With;
 use bevy::input::touch::{TouchInput, TouchPhase};
 use bevy::math::Vec2;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
-use bevy::time::Time;
+use bevy::time::{Time, TimeUpdateStrategy};
 use bevy::ui::Node;
 use bevy::ui::prelude::{Display, Val};
 use bevy::ui::widget::Text;
-
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::gesture::{
     GestureHostReport, ShellGesturePlugin, ShellGestureSnapshot, shared_outcome, shared_phase,
     touch_support,
 };
-use infiltrator_bevy_ui::pages::connections::ConnectionItem;
+use infiltrator_contract::surface_snapshot::ConnectionSnapshot;
+
 use infiltrator_bevy_ui::pages::connections_row::connection_row_scene;
 use infiltrator_bevy_ui::pages::proxies::ProxyNode;
 use infiltrator_bevy_ui::pages::proxies_card::proxy_node_scene;
@@ -33,6 +31,7 @@ use infiltrator_bevy_widgets::gesture::{
     GestureOutcome, PullToRefreshIndicator, PullToRefreshState, PullToRefreshText,
     SwipeActionDrawer, SwipeContentContainer, SwipeToActionItem, pull_to_refresh_scene,
 };
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::theme::Theme;
 use infiltrator_contract::shell_gesture::{
@@ -40,6 +39,8 @@ use infiltrator_contract::shell_gesture::{
     SwipeDirection,
 };
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use std::sync::Arc;
+use std::time::Duration;
 
 fn gesture_app() -> App {
     let mut app = App::new();
@@ -50,9 +51,9 @@ fn gesture_app() -> App {
     // is overwritten and spring convergence would depend on wall-clock timing.
     // Pinning the update strategy makes each `app.update()` advance exactly
     // 20 ms, matching what the spring tests intend to step.
-    app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
-        Duration::from_millis(20),
-    ));
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        20,
+    )));
     app.update();
     app
 }
@@ -384,6 +385,23 @@ fn a_pull_to_refresh_over_threshold_arms_and_triggers_route_refresh_command() {
             submitted.contains(&expected_cmd),
             "expected route {route:?} to dispatch {expected_cmd:?}, but got {submitted:?}"
         );
+        let label = app
+            .world_mut()
+            .query::<(Entity, &PullToRefreshText)>()
+            .single(app.world())
+            .expect("one mounted refresh label")
+            .0;
+        app.world_mut()
+            .resource_mut::<UiLocale>()
+            .apply_preference("en-US");
+        app.update();
+        assert_eq!(app.world().get::<Text>(label).unwrap().0, "Refreshing...");
+        assert_eq!(snapshot(&app).0.pull.phase, PullPhase::Refreshing);
+        assert_eq!(
+            sink.submitted(),
+            vec![expected_cmd],
+            "copy replay never resubmits the refresh command"
+        );
     }
 }
 
@@ -420,7 +438,7 @@ fn test_proxy_card_swipe_to_action_spring_slides_content_and_reveals_drawer() {
 
     let item_entity = app
         .world_mut()
-        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .query_filtered::<Entity, With<SwipeToActionItem>>()
         .single(app.world())
         .expect("swipe item entity");
     app.world_mut()
@@ -476,8 +494,10 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
     app.add_plugins((AssetPlugin::default(), ScenePlugin));
     let palette = UiPalette::new(&Theme::dark());
 
-    let conn = ConnectionItem {
+    let conn = ConnectionSnapshot {
+        start: String::new(),
         id: "conn-999".to_owned(),
+        destination_host: "api.github.com".to_owned(),
         host: "api.github.com:443".to_owned(),
         process: "curl".to_owned(),
         rule: "Proxy".to_owned(),
@@ -491,6 +511,7 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
         destination_port: "443".to_owned(),
         destination_geo_ip: None,
         destination_ip_asn: String::new(),
+        rate_observed: true,
         upload_bps: 1024.0,
         download_bps: 4096.0,
         upload_total: 10000,
@@ -503,7 +524,7 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
 
     let item_entity = app
         .world_mut()
-        .query_filtered::<Entity, bevy::ecs::query::With<SwipeToActionItem>>()
+        .query_filtered::<Entity, With<SwipeToActionItem>>()
         .single(app.world())
         .expect("connection row swipe item");
 

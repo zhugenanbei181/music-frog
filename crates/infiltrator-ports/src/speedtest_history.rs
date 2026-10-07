@@ -4,9 +4,8 @@
 //! the zero-toolkit seam a host uses to survive a process restart without the
 //! application layer depending on a filesystem or async runtime.
 
-use infiltrator_contract::speedtest::HistoricalSpeedtestRecord;
-
 use crate::error::PortError;
+use infiltrator_contract::speedtest::HistoricalSpeedtestRecord;
 
 /// Durable store for the most recent speedtest run summaries.
 pub trait SpeedtestHistoryStore: Send + Sync {

@@ -1,8 +1,12 @@
 use super::*;
+use crate::mini_hud_window::install_host_handle;
 use async_trait::async_trait;
+use infiltrator_contract::mini_hud::{MiniHudDisplay, MiniHudHostOutcome};
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::settings_store::SettingsStore;
 use std::sync::{Arc, Mutex};
+use tokio::runtime::{Builder, Runtime};
 
 #[derive(Default)]
 struct MemorySettingsStore {
@@ -10,7 +14,7 @@ struct MemorySettingsStore {
 }
 
 #[async_trait]
-impl infiltrator_ports::settings_store::SettingsStore for MemorySettingsStore {
+impl SettingsStore for MemorySettingsStore {
     async fn load(&self) -> Result<AppSettings, PortError> {
         Ok(self.settings.lock().expect("lock").clone())
     }
@@ -25,10 +29,8 @@ impl infiltrator_ports::settings_store::SettingsStore for MemorySettingsStore {
     }
 }
 
-fn runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        .build()
-        .expect("runtime")
+fn runtime() -> Runtime {
+    Builder::new_current_thread().build().expect("runtime")
 }
 
 /// The Iced composition path: the shared application hands the placement
@@ -36,11 +38,11 @@ fn runtime() -> tokio::runtime::Runtime {
 /// handle; the handle queues it for the update-path window task.
 #[test]
 fn a_persisted_placement_reaches_the_iced_window_handle() {
-    let handle = crate::mini_hud_window::install_host_handle();
+    let handle = install_host_handle();
     handle.mark_live(false);
     let _ = handle.take_pending();
     let application = facade(Arc::new(MemorySettingsStore::default()));
-    let display = infiltrator_contract::mini_hud::MiniHudDisplay::new(0, 0, 1920, 1080);
+    let display = MiniHudDisplay::new(0, 0, 1920, 1080);
     let runtime = runtime();
 
     // The window id is not resolved yet: the desktop adapter stays honest.
@@ -49,7 +51,7 @@ fn a_persisted_placement_reaches_the_iced_window_handle() {
         .expect("place");
     assert!(matches!(
         report.host,
-        infiltrator_contract::mini_hud::MiniHudHostOutcome::Unsupported { .. }
+        MiniHudHostOutcome::Unsupported { .. }
     ));
     assert!(handle.take_pending().is_empty());
 
@@ -59,10 +61,7 @@ fn a_persisted_placement_reaches_the_iced_window_handle() {
     let report = runtime
         .block_on(application.place_from(MiniHudPlacement::default(), 8, 12, Some(display)))
         .expect("place");
-    assert_eq!(
-        report.host,
-        infiltrator_contract::mini_hud::MiniHudHostOutcome::Applied
-    );
+    assert_eq!(report.host, MiniHudHostOutcome::Applied);
     assert_eq!(
         report.placement,
         MiniHudPlacement::new(0, 12),

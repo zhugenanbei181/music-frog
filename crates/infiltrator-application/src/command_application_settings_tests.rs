@@ -7,14 +7,20 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::language::LanguagePreference;
+use infiltrator_contract::mini_hud::MiniHudPlacement;
+use infiltrator_contract::proxy_probe_options::ProxyProbeOptions;
+use infiltrator_contract::shortcuts::ShortcutAction;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::settings_store::SettingsStore;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 struct FakeSettingsStore {
     settings: Mutex<AppSettings>,
+    reject_save: AtomicBool,
 }
 
 #[async_trait]
@@ -28,6 +34,9 @@ impl SettingsStore for FakeSettingsStore {
     }
 
     async fn save(&self, settings: &AppSettings) -> Result<(), PortError> {
+        if self.reject_save.load(Ordering::SeqCst) {
+            return Err(PortError::Io("probe settings write denied".into()));
+        }
         *self.settings.lock().expect("settings lock") = settings.clone();
         Ok(())
     }
@@ -88,9 +97,7 @@ async fn shortcut_capture_persists_and_rejects_conflicts() {
     let captured = settings
         .shortcuts
         .iter()
-        .find(|binding| {
-            binding.action == infiltrator_contract::shortcuts::ShortcutAction::ToggleTun
-        })
+        .find(|binding| binding.action == ShortcutAction::ToggleTun)
         .expect("captured binding")
         .chord
         .display_string(false);
@@ -149,7 +156,7 @@ async fn mini_hud_placement_writes_are_validated_per_field() {
     let placement = store.settings.lock().expect("lock").mini_hud;
     assert_eq!(
         placement,
-        infiltrator_contract::mini_hud::MiniHudPlacement {
+        MiniHudPlacement {
             x: 320,
             y: -40,
             pinned: true,
@@ -175,4 +182,117 @@ async fn mini_hud_placement_writes_are_validated_per_field() {
     assert_eq!(bad_field.code, ErrorCode::InvalidInput);
     // Rejected writes leave the stored placement untouched.
     assert_eq!(store.settings.lock().expect("lock").mini_hud.x, 320);
+}
+
+#[tokio::test]
+async fn probe_options_persist_atomically_preserve_unrelated_settings_and_refuse_bad_or_failed_writes()
+ {
+    let (application, store) = settings_application();
+    let original = store.settings.lock().unwrap().clone();
+    let options = ProxyProbeOptions {
+        test_url: "https://probe.example.test/check".into(),
+        timeout_ms: 32767,
+    };
+    let intent = CommandIntent::SetProxyProbeOptions {
+        options: options.clone(),
+    };
+    application.execute(intent.clone()).await.unwrap();
+    let stored = store.settings.lock().unwrap().clone();
+    assert_eq!(stored.runtime_panel.delay_test_url, options.test_url);
+    assert_eq!(stored.runtime_panel.delay_timeout_ms, options.timeout_ms);
+    assert_eq!(stored.theme, original.theme);
+    assert_eq!(
+        stored.runtime_panel.connection_sort,
+        original.runtime_panel.connection_sort
+    );
+    for timeout in [0, 32768, 60000] {
+        let failure = application
+            .execute(CommandIntent::SetProxyProbeOptions {
+                options: ProxyProbeOptions {
+                    timeout_ms: timeout,
+                    ..options.clone()
+                },
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(failure.code, ErrorCode::InvalidInput);
+        assert_eq!(*store.settings.lock().unwrap(), stored);
+    }
+    store.reject_save.store(true, Ordering::SeqCst);
+    let failure = application
+        .execute(CommandIntent::SetProxyProbeOptions {
+            options: ProxyProbeOptions::default(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(failure.code, ErrorCode::Storage);
+    assert!(failure.retryable);
+    assert_eq!(*store.settings.lock().unwrap(), stored);
+    store.reject_save.store(false, Ordering::SeqCst);
+    application.execute(intent.clone()).await.unwrap();
+    let failure = CommandApplication::new().execute(intent).await.unwrap_err();
+    assert_eq!(failure.code, ErrorCode::NotReady);
+}
+
+#[tokio::test]
+async fn language_commands_canonicalize_and_persist_only_after_success_without_overwriting_unrelated_settings()
+ {
+    let (application, store) = settings_application();
+    for (raw, expected) in [("en", "en-US"), (" ZH_cn ", "zh-CN"), ("SYSTEM", "system")] {
+        application
+            .execute(CommandIntent::UpdateSetting {
+                key: "language".into(),
+                value: raw.into(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(store.settings.lock().unwrap().language, expected);
+    }
+    let original = store.settings.lock().unwrap().clone();
+    for invalid in ["", "unsupported", "zh-TW"] {
+        assert_eq!(
+            application
+                .execute(CommandIntent::UpdateSetting {
+                    key: "language".into(),
+                    value: invalid.into()
+                })
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidInput
+        );
+        assert_eq!(*store.settings.lock().unwrap(), original);
+    }
+    store.reject_save.store(true, Ordering::SeqCst);
+    assert_eq!(
+        application
+            .execute(CommandIntent::SetLanguage {
+                preference: LanguagePreference::English
+            })
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::Storage
+    );
+    assert_eq!(*store.settings.lock().unwrap(), original);
+    store.reject_save.store(false, Ordering::SeqCst);
+    application
+        .execute(CommandIntent::SetLanguage {
+            preference: LanguagePreference::English,
+        })
+        .await
+        .unwrap();
+    let mut expected = original;
+    expected.language = "en-US".into();
+    assert_eq!(*store.settings.lock().unwrap(), expected);
+    assert_eq!(
+        CommandApplication::new()
+            .execute(CommandIntent::SetLanguage {
+                preference: LanguagePreference::English
+            })
+            .await
+            .unwrap_err()
+            .code,
+        ErrorCode::NotReady
+    );
 }

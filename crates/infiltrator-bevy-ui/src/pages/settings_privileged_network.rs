@@ -1,5 +1,8 @@
 //! Bevy Settings projection for privileged network regression transactions.
 
+use super::LastSettingsProjection;
+use super::settings_core::SettingsProjection;
+use crate::command::{CommandSinkHandle, UiCommand};
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
@@ -7,19 +10,19 @@ use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, JustifyContent, Node, UiRect, Val, percent, px,
+    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, UiRect, Val,
+    percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::host_network_projection::privileged;
+use infiltrator_bevy_widgets::button::ButtonDisabled;
+use infiltrator_bevy_widgets::interaction_block::InteractionBlocked;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
-
-use super::SettingsProjectionUpdated;
-use super::settings_core::SettingsProjection;
-use crate::command::{CommandSinkHandle, UiCommand};
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PrivilegedNetworkRunButton;
@@ -28,6 +31,7 @@ pub struct PrivilegedNetworkRunButton;
 pub struct PrivilegedNetworkStatusLine;
 
 pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box<dyn Scene> {
+    let view = privileged(&projection.privileged_network, UiLocale::default().code());
     Box::new(surface_scene(
         vec![Box::new(bsn! {
                     Node {
@@ -40,13 +44,13 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                     BackgroundColor({ palette.surface_elevated })
                     Children [
                         Node {
-                            flex_direction: bevy::ui::prelude::FlexDirection::Column,
+                            flex_direction: FlexDirection::Column,
                             row_gap: Val::Px(space::S4),
                         }
                         Children [
-                            Text({ "特权网络无头回归 (Privileged Network Regression)".to_owned() }) TextRole(Role::Body)
+                            LocalizedText::plain("settings_privileged_network_title") TextRole(Role::Body)
                             --
-                            Text(format_status(&projection.privileged_network)) PrivilegedNetworkStatusLine TextRole(Role::Mono)
+                            Text({format!("{} · {}",view.status,view.details)}) PrivilegedNetworkStatusLine TextRole(Role::Mono)
                         ]
                         --
                         Node {
@@ -60,7 +64,7 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
                         PrivilegedNetworkRunButton
                         Button
                         Children [
-                            Text({ "运行回归".to_owned() }) TextRole(Role::BodyStrong)
+                            LocalizedText::plain("privileged_network_run") TextRole(Role::BodyStrong)
                         ]
                     ]
         })],
@@ -70,39 +74,40 @@ pub(super) fn scene(projection: &SettingsProjection, palette: &UiPalette) -> Box
 
 pub(super) fn on_action_activated(
     activate: On<Activate>,
-    buttons: Query<(), With<PrivilegedNetworkRunButton>>,
+    buttons: Query<&ButtonDisabled, With<PrivilegedNetworkRunButton>>,
+    blocked: Query<(), With<InteractionBlocked>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
-    if buttons.contains(activate.entity)
+    if !blocked.contains(activate.entity)
+        && buttons
+            .get(activate.entity)
+            .is_ok_and(|disabled| !disabled.0)
         && let Some(handle) = handle
     {
         handle.submit(UiCommand::RunPrivilegedNetworkRegression);
     }
 }
-
-pub(super) fn apply_projection(
-    update: On<SettingsProjectionUpdated>,
-    mut status_lines: Query<&mut Text, With<PrivilegedNetworkStatusLine>>,
+pub(super) fn replay(
+    last: Res<LastSettingsProjection>,
+    locale: Res<UiLocale>,
+    mut lines: Query<&mut Text, With<PrivilegedNetworkStatusLine>>,
+    mut buttons: Query<&mut ButtonDisabled, With<PrivilegedNetworkRunButton>>,
+    handle: Option<Res<CommandSinkHandle>>,
 ) {
-    let status = format_status(&update.0.privileged_network);
-    for mut line in &mut status_lines {
-        line.0 = status.clone();
-    }
-}
-
-pub(super) fn format_status(snapshot: &PrivilegedNetworkSnapshot) -> String {
-    match &snapshot.state {
-        PrivilegedNetworkState::Idle => "未运行".to_owned(),
-        PrivilegedNetworkState::Injecting => "注入中".to_owned(),
-        PrivilegedNetworkState::Active => {
-            format!("已注入 · operations={}", snapshot.operation_count)
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
+    let view = privileged(&projection.privileged_network, locale.code());
+    let next = format!("{} · {}", view.status, view.details);
+    for mut text in &mut lines {
+        if text.0 != next {
+            text.0 = next.clone();
         }
-        PrivilegedNetworkState::RollingBack => "回滚清理中".to_owned(),
-        PrivilegedNetworkState::Cleaned => format!(
-            "已清理 · operations={} · rollback={}",
-            snapshot.operation_count, snapshot.rollback_attempted
-        ),
-        PrivilegedNetworkState::Unsupported { reason } => format!("宿主不支持 · {reason}"),
-        PrivilegedNetworkState::Failed { failure } => format!("失败 · {}", failure.message),
+    }
+    for mut disabled in &mut buttons {
+        let enabled = handle.is_some() && view.start_enabled;
+        if disabled.0 == enabled {
+            disabled.0 = !enabled;
+        }
     }
 }

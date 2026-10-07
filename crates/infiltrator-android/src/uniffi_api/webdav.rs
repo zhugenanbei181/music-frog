@@ -1,6 +1,10 @@
 //! WebDAV backup surface: credential/settings storage and validation plus
 //! the on-demand sync run driven by the sync engine planner/executor.
 
+use crate::host_support;
+use crate::tls::ensure_rustls_provider;
+#[cfg(test)]
+use std::path;
 #[cfg(test)]
 use std::sync::Arc;
 
@@ -147,7 +151,7 @@ async fn load_webdav_settings() -> Result<WebDavSettings, FfiStatus> {
 /// OS keyring）。
 #[cfg(test)]
 async fn load_webdav_settings_in<S: SecureStore>(
-    home: &std::path::Path,
+    home: &path::Path,
     store: &S,
 ) -> Result<WebDavSettings, FfiStatus> {
     let settings = load_hydrated_app_settings_in(home, store).await?;
@@ -158,9 +162,9 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
     let application = build_settings_application().await?;
     let mut app_settings = application.load().await.map_err(map_application_failure)?;
     if settings.password.is_empty() {
-        crate::host_support::clear_webdav_password().await;
+        host_support::clear_webdav_password().await;
     } else {
-        crate::host_support::save_webdav_password(&settings.password).await?;
+        host_support::save_webdav_password(&settings.password).await?;
     }
     let mut core_config = webdav_settings_to_core(settings.clone());
     core_config.password = String::new();
@@ -178,7 +182,7 @@ async fn save_webdav_settings(settings: WebDavSettings) -> Result<WebDavSettings
 /// 凭据悄悄丢失，与 iced 桌面端保存语义一致）。
 #[cfg(test)]
 async fn save_webdav_settings_in<S: SecureStore>(
-    home: &std::path::Path,
+    home: &path::Path,
     settings: WebDavSettings,
     store: &S,
 ) -> Result<WebDavSettings, FfiStatus> {
@@ -206,7 +210,7 @@ async fn save_webdav_settings_in<S: SecureStore>(
 }
 
 async fn test_webdav_settings(settings: WebDavSettings) -> FfiStatus {
-    crate::tls::ensure_rustls_provider();
+    ensure_rustls_provider();
     let application = match build_sync_application().await {
         Ok(application) => application,
         Err(status) => return status,
@@ -250,10 +254,10 @@ async fn sync_webdav_now() -> Result<WebDavSyncSummary, FfiStatus> {
 /// 密码经水合加载从 OS keyring 取回（settings.toml 已不携带明文）。
 #[cfg(test)]
 async fn sync_webdav_now_in<S: SecureStore + 'static>(
-    home: &std::path::Path,
+    home: &path::Path,
     store: S,
 ) -> Result<WebDavSyncSummary, FfiStatus> {
-    crate::tls::ensure_rustls_provider();
+    ensure_rustls_provider();
     let settings = load_hydrated_app_settings_in(home, &store).await?;
     if !settings.webdav.enabled {
         return Err(FfiStatus::err(FfiErrorCode::NotReady, "WebDAV is disabled"));
@@ -274,7 +278,7 @@ async fn sync_webdav_now_in<S: SecureStore + 'static>(
 /// 无密码加载：settings.toml 本体（不含 keyring 明文）。仅限保存路径等
 /// 不需要完整凭据的调用方。
 #[cfg(test)]
-async fn load_app_settings_in(home: &std::path::Path) -> Result<AppSettings, FfiStatus> {
+async fn load_app_settings_in(home: &path::Path) -> Result<AppSettings, FfiStatus> {
     let path = settings_path(home)
         .map_err(|err| FfiStatus::err(FfiErrorCode::InvalidState, err.to_string()))?;
     load_settings(&path).await.map_err(map_anyhow_error)
@@ -285,7 +289,7 @@ async fn load_app_settings_in(home: &std::path::Path) -> Result<AppSettings, Ffi
 /// password 的序列化被 core 跳过，因此水合值不会落盘。
 #[cfg(test)]
 async fn load_hydrated_app_settings_in<S: SecureStore>(
-    home: &std::path::Path,
+    home: &path::Path,
     store: &S,
 ) -> Result<AppSettings, FfiStatus> {
     let path = settings_path(home)
@@ -321,20 +325,34 @@ fn webdav_settings_to_core(settings: WebDavSettings) -> WebDavConfig {
 mod tests {
     use super::*;
     use infiltrator_core::settings_io::{WEBDAV_CREDENTIAL_SERVICE, WEBDAV_PASSWORD_KEY};
+    #[cfg(test)]
+    use infiltrator_ports::error::PortError;
+    #[cfg(test)]
+    use std::collections::HashMap;
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use std::fs::create_dir_all;
+    #[cfg(test)]
+    use std::fs::read_to_string;
+    #[cfg(test)]
+    use std::fs::remove_dir_all;
     use std::path::PathBuf;
+    #[cfg(test)]
+    use std::result;
     use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     /// 内存凭据存储（仿 core settings.rs 的 MemoryStore 先例），避免测试
     /// 触碰真实 OS keyring。
     struct MemoryStore {
-        entries: Mutex<std::collections::HashMap<String, String>>,
+        entries: Mutex<HashMap<String, String>>,
     }
 
     impl Default for MemoryStore {
         fn default() -> Self {
             Self {
-                entries: Mutex::new(std::collections::HashMap::new()),
+                entries: Mutex::new(HashMap::new()),
             }
         }
     }
@@ -351,11 +369,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SecureStore for MemoryStore {
-        async fn get(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+        async fn get(&self, service: &str, key: &str) -> result::Result<Option<String>, PortError> {
             Ok(self.peek(service, key))
         }
 
@@ -364,7 +378,7 @@ mod tests {
             service: &str,
             key: &str,
             value: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        ) -> result::Result<(), PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -372,11 +386,7 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(
-            &self,
-            service: &str,
-            key: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        async fn delete(&self, service: &str, key: &str) -> result::Result<(), PortError> {
             self.entries
                 .lock()
                 .expect("store lock")
@@ -392,9 +402,9 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("infiltrator-android-webdav-{tag}-{unique}"));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).expect("create test home dir");
+        let path = temp_dir().join(format!("infiltrator-android-webdav-{tag}-{unique}"));
+        let _ = remove_dir_all(&path);
+        create_dir_all(&path).expect("create test home dir");
         path
     }
 
@@ -409,7 +419,7 @@ mod tests {
         }
     }
 
-    fn settings_file(home: &std::path::Path) -> PathBuf {
+    fn settings_file(home: &path::Path) -> PathBuf {
         settings_path(home).expect("settings path resolves")
     }
 
@@ -438,7 +448,7 @@ mod tests {
         );
 
         // settings 文件无明文。
-        let raw = std::fs::read_to_string(settings_file(&home)).expect("settings file written");
+        let raw = read_to_string(settings_file(&home)).expect("settings file written");
         assert!(!raw.contains("password"), "plaintext leaked: {raw}");
         assert!(!raw.contains("s3cret"), "plaintext leaked: {raw}");
         assert!(
@@ -467,12 +477,12 @@ mod tests {
             .expect("reload succeeds");
         assert_eq!(reloaded.password, "");
 
-        let raw_after = std::fs::read_to_string(settings_file(&home)).expect("settings readable");
+        let raw_after = read_to_string(settings_file(&home)).expect("settings readable");
         assert!(
             !raw_after.contains("s3cret"),
             "plaintext leaked: {raw_after}"
         );
-        let _ = std::fs::remove_dir_all(home);
+        let _ = remove_dir_all(home);
     }
 
     /// 同步入口的禁用短路：WebDAV 未启用时水合加载照常工作，但同步拒绝
@@ -487,6 +497,6 @@ mod tests {
             .expect_err("disabled webdav must fail the sync");
         assert_eq!(err.code, FfiErrorCode::NotReady);
         assert!(format!("{:?}", err.message).contains("disabled"));
-        let _ = std::fs::remove_dir_all(home);
+        let _ = remove_dir_all(home);
     }
 }

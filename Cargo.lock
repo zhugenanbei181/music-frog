@@ -5302,16 +5302,19 @@ dependencies = [
  "infiltrator-contract",
  "infiltrator-domain",
  "infiltrator-ports",
+ "infiltrator-shared",
  "log",
  "regex",
  "serde_json",
  "serde_yaml_ng",
  "tokio",
+ "unicode-segmentation",
+ "url",
 ]
 
 [[package]]
 name = "infiltrator-bevy-ui"
-version = "0.1.0"
+version = "0.30.0"
 dependencies = [
  "accesskit",
  "async-trait",
@@ -5321,6 +5324,7 @@ dependencies = [
  "infiltrator-bevy-widgets",
  "infiltrator-composition",
  "infiltrator-contract",
+ "infiltrator-desktop",
  "infiltrator-domain",
  "infiltrator-ports",
  "infiltrator-shared",
@@ -5328,15 +5332,19 @@ dependencies = [
  "openssl",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
 [[package]]
 name = "infiltrator-bevy-widgets"
-version = "0.1.0"
+version = "0.30.0"
 dependencies = [
+ "accesskit",
  "bevy",
  "blake3",
+ "infiltrator-contract",
+ "infiltrator-shared",
  "unicode-segmentation",
 ]
 
@@ -5368,7 +5376,10 @@ dependencies = [
 name = "infiltrator-composition"
 version = "0.30.0"
 dependencies = [
+ "async-trait",
  "infiltrator-application",
+ "infiltrator-contract",
+ "infiltrator-domain",
  "infiltrator-ios",
  "infiltrator-ports",
  "log",
@@ -5492,7 +5503,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-iced"
-version = "0.20.0"
+version = "0.30.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5514,6 +5525,7 @@ dependencies = [
  "is_elevated",
  "ksni",
  "log",
+ "mihomo-config",
  "mihomo-platform",
  "mihomo-version",
  "muda",
@@ -5526,6 +5538,7 @@ dependencies = [
  "serde_yaml_ng",
  "single-instance",
  "sys-locale",
+ "tempfile",
  "thiserror 2.0.20",
  "tokio",
  "tray-icon",

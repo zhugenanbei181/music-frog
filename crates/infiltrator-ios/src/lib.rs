@@ -10,6 +10,8 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
+use infiltrator_contract::mtu::PhysicalMtuSnapshot;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
@@ -46,9 +48,7 @@ pub trait IosBridge: Send + Sync {
 
     /// Native Swift code supplies local packaged-core/config evidence. The
     /// default is conservative and never claims readiness without evidence.
-    fn offline_startup_snapshot(
-        &self,
-    ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+    fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         Default::default()
     }
 }
@@ -78,9 +78,7 @@ impl IosHostAdapter {
         self.bridge.core_controller_url()
     }
 
-    pub fn offline_startup_snapshot(
-        &self,
-    ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
+    pub fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         self.bridge.offline_startup_snapshot()
     }
 }
@@ -135,27 +133,23 @@ impl DataDirProvider for IosHostAdapter {
 
 #[async_trait]
 impl OfflineStartupPort for IosHostAdapter {
-    async fn validate_offline_startup(
-        &self,
-    ) -> Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError> {
+    async fn validate_offline_startup(&self) -> Result<OfflineStartupSnapshot, PortError> {
         Ok(self.bridge.offline_startup_snapshot())
     }
 }
 
 #[async_trait]
 impl MtuProbePort for IosHostAdapter {
-    async fn probe_physical_mtu(
-        &self,
-    ) -> Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+    async fn probe_physical_mtu(&self) -> Result<PhysicalMtuSnapshot, PortError> {
         self.bridge
             .physical_mtu()
-            .map(|mtu| infiltrator_contract::mtu::PhysicalMtuSnapshot {
+            .map(|mtu| PhysicalMtuSnapshot {
                 interface: "ios-active-link".to_owned(),
                 mtu,
             })
             .ok_or_else(|| {
                 PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Tun,
+                    Capability::Tun,
                     "iOS native bridge does not expose physical MTU",
                 )
             })
@@ -246,14 +240,33 @@ fn unsupported(reason: &'static str) -> Availability {
 mod tests {
     use super::*;
     use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    #[cfg(test)]
+    use infiltrator_application::mtu_application::MtuApplication;
+    #[cfg(test)]
+    use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::command::{CommandIntent, CommandResult};
+    #[cfg(test)]
+    use infiltrator_contract::mtu::MtuProbeState;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::LocalAssetStatus;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::StartupNetworkPolicy;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::StartupRemoteDependency;
     use infiltrator_ports::application_runtime::{
         ApplicationFuture, ApplicationRuntime, ApplicationSleep,
     };
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
-    use infiltrator_ports::core_process::CoreProcess;
-    use infiltrator_ports::core_process::CoreReadiness;
+    use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
     use std::sync::Mutex;
+    #[cfg(test)]
+    use std::time;
+    #[cfg(test)]
+    use tokio::runtime::Builder;
+    #[cfg(test)]
+    use tokio::runtime::Runtime;
+    #[cfg(test)]
+    use tokio::time::sleep;
 
     struct FakeBridge {
         running: Mutex<bool>,
@@ -308,12 +321,8 @@ mod tests {
             None
         }
 
-        fn offline_startup_snapshot(
-            &self,
-        ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
-            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
-                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
-            )
+        fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
+            OfflineStartupSnapshot::ready(LocalAssetStatus::Available)
         }
     }
 
@@ -362,20 +371,14 @@ mod tests {
         let adapter = IosHostAdapter::new(FakeBridge {
             running: Mutex::new(false),
         });
-        let snapshot =
-            infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
-                Arc::new(adapter),
-            )
+        let snapshot = OfflineStartupApplication::new(Arc::new(adapter))
             .snapshot()
             .await;
         assert!(snapshot.is_offline_startable());
-        assert_eq!(
-            snapshot.policy,
-            infiltrator_contract::offline_startup::StartupNetworkPolicy::OfflineFirst
-        );
+        assert_eq!(snapshot.policy, StartupNetworkPolicy::OfflineFirst);
         assert_eq!(
             snapshot.remote_dependency,
-            infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
+            StartupRemoteDependency::Optional
         );
     }
 
@@ -384,14 +387,8 @@ mod tests {
         let adapter = IosHostAdapter::new(FakeBridge {
             running: Mutex::new(false),
         });
-        let snapshot =
-            infiltrator_application::mtu_application::MtuApplication::new(Arc::new(adapter))
-                .probe()
-                .await;
-        assert_eq!(
-            snapshot.state,
-            infiltrator_contract::mtu::MtuProbeState::Unsupported
-        );
+        let snapshot = MtuApplication::new(Arc::new(adapter)).probe().await;
+        assert_eq!(snapshot.state, MtuProbeState::Unsupported);
     }
 
     struct ReadyProbe;
@@ -403,15 +400,15 @@ mod tests {
         }
     }
 
-    struct TokioTestRuntime(tokio::runtime::Runtime);
+    struct TokioTestRuntime(Runtime);
 
     impl ApplicationRuntime for TokioTestRuntime {
         fn block_on(&self, future: ApplicationFuture) {
             self.0.block_on(future);
         }
 
-        fn sleep(&self, duration: std::time::Duration) -> ApplicationSleep<'_> {
-            Box::pin(tokio::time::sleep(duration))
+        fn sleep(&self, duration: time::Duration) -> ApplicationSleep<'_> {
+            Box::pin(sleep(duration))
         }
     }
 
@@ -420,7 +417,7 @@ mod tests {
         let adapter = IosHostAdapter::new(FakeBridge {
             running: Mutex::new(false),
         });
-        let runtime = tokio::runtime::Builder::new_current_thread()
+        let runtime = Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("test runtime");
@@ -428,8 +425,8 @@ mod tests {
             Arc::new(adapter),
             Arc::new(ReadyProbe),
             ReadinessPolicy {
-                timeout: std::time::Duration::from_secs(1),
-                poll_interval: std::time::Duration::from_millis(1),
+                timeout: time::Duration::from_secs(1),
+                poll_interval: time::Duration::from_millis(1),
             },
             Arc::new(TokioTestRuntime(runtime)),
         );

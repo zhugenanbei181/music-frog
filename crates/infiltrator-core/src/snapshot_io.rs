@@ -1,9 +1,12 @@
 //! Filesystem adapter for configuration snapshot history.
 
+use crate::history::{list_snapshots, read_snapshot, save_snapshot, snapshot_dir};
+use crate::profile_store_io::config_dir;
 use infiltrator_domain::snapshots::SnapshotMeta;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::snapshot_store::SnapshotStore;
 use std::path::{Path, PathBuf};
+use tokio::fs::{canonicalize, remove_file};
 
 pub struct FileSnapshotStore {
     config_dir: PathBuf,
@@ -15,15 +18,15 @@ impl FileSnapshotStore {
     }
 
     pub async fn current() -> anyhow::Result<Self> {
-        Ok(Self::new(crate::profile_store_io::config_dir().await?))
+        Ok(Self::new(config_dir().await?))
     }
 
     async fn safe_path(&self, profile: &str, path: &Path) -> Result<PathBuf, PortError> {
-        let root = crate::history::snapshot_dir(&self.config_dir, profile);
-        let root = tokio::fs::canonicalize(&root)
+        let root = snapshot_dir(&self.config_dir, profile);
+        let root = canonicalize(&root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
-        let path = tokio::fs::canonicalize(path)
+        let path = canonicalize(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         if !path.starts_with(&root) {
@@ -38,20 +41,20 @@ impl FileSnapshotStore {
 #[async_trait::async_trait]
 impl SnapshotStore for FileSnapshotStore {
     async fn save(&self, profile: &str, content: &str) -> Result<SnapshotMeta, PortError> {
-        crate::history::save_snapshot(&self.config_dir, profile, content)
+        save_snapshot(&self.config_dir, profile, content)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
 
     async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, PortError> {
-        crate::history::list_snapshots(&self.config_dir, profile)
+        list_snapshots(&self.config_dir, profile)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
 
     async fn read(&self, profile: &str, path: &Path) -> Result<String, PortError> {
         let path = self.safe_path(profile, path).await?;
-        crate::history::read_snapshot(&path)
+        read_snapshot(&path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
@@ -60,7 +63,7 @@ impl SnapshotStore for FileSnapshotStore {
         // `safe_path` canonicalizes first, so the shared prune policy can only
         // ever delete inside `<config_dir>/snapshots/<profile>`.
         let path = self.safe_path(profile, path).await?;
-        tokio::fs::remove_file(&path)
+        remove_file(&path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }

@@ -1,10 +1,14 @@
 use super::*;
 use async_trait::async_trait;
+use infiltrator_application::rule_list_fixtures::list_document;
 use infiltrator_contract::provider_cache::{
     ProviderCachePurge, ProviderContentOrigin, RuleProviderCacheSnapshot,
 };
+use infiltrator_domain::rules::RuleEntry;
 use infiltrator_ports::error::PortError;
-use infiltrator_ports::rule_provider_cache::{ProviderCacheEntry, RuleProviderCachePort};
+use infiltrator_ports::rule_provider_cache::{
+    ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
+};
 use std::sync::Arc;
 
 struct FakeCache {
@@ -35,7 +39,7 @@ impl RuleProviderCachePort for FakeCache {
     async fn fingerprint(
         &self,
         _declaration: &RuleProviderDeclaration,
-    ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderFileFact>, PortError> {
+    ) -> Result<Option<ProviderFileFact>, PortError> {
         Ok(None)
     }
 
@@ -62,8 +66,8 @@ fn declarations_come_from_the_loaded_profile_json_only() {
 fn unpack_without_a_declaration_reports_an_honest_status() {
     let (mut state, _) = AppState::new();
     let _ = state.update(Message::UnpackRuleProviderToCustom("absent".to_owned()));
-    assert!(state.editor.rules.is_empty());
-    assert!(!state.editor.rules_dirty);
+    assert!(state.editor.rule_list.draft.is_empty());
+    assert!(!state.editor.rule_list.dirty());
     assert!(!state.editor.provider_unpack.is_unpacking);
     let status = state
         .editor
@@ -95,10 +99,12 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
     state.runtime.rule_provider_cache_port = Some(Arc::new(FakeCache {
         bytes: Some(b"cached.cn\n".to_vec()),
     }));
-    state.editor.rules = vec![infiltrator_domain::rules::RuleEntry {
+    state.editor.rule_list.draft = vec![RuleEntry {
         rule: "MATCH,DIRECT".to_owned(),
         enabled: true,
     }];
+    let document = list_document(state.editor.rule_list.draft.clone());
+    state.editor.rule_list.observe(Some(&document), None);
     // The shared application service is exactly what the handler drives;
     // the async result then lands in `finish_rule_provider_unpack`.
     let declaration = state.declared_rule_provider("cn").expect("declaration");
@@ -110,9 +116,12 @@ async fn unpack_reads_the_host_cache_through_the_injected_port() {
     assert_eq!(plan.entries[0].rule, "DOMAIN-SUFFIX,cached.cn,PROXY");
 
     let _ = state.finish_rule_provider_unpack(Ok(plan));
-    assert_eq!(state.editor.rules[0].rule, "DOMAIN-SUFFIX,cached.cn,PROXY");
-    assert_eq!(state.editor.rules[1].rule, "MATCH,DIRECT");
-    assert!(state.editor.rules_dirty);
+    assert_eq!(
+        state.editor.rule_list.draft[0].rule,
+        "DOMAIN-SUFFIX,cached.cn,PROXY"
+    );
+    assert_eq!(state.editor.rule_list.draft[1].rule, "MATCH,DIRECT");
+    assert!(state.editor.rule_list.dirty());
     assert_eq!(state.editor.provider_unpack.unpacked_rules_count, 1);
     assert!(
         state

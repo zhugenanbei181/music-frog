@@ -10,8 +10,10 @@
 //! function on the buffer, so a keystroke never waits for a round trip while
 //! the *rules* stay single-sourced.
 
+use crate::profile_options::ProfileOptionsSnapshot;
+use crate::profile_protection::ProfileWriteProtection;
+use crate::profile_source::ProfileSourceIdentity;
 use serde::{Deserialize, Serialize};
-use std::sync::{Mutex, OnceLock};
 
 /// Shared form of `infiltrator_domain::config::SyntaxDiagnostic`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,9 +36,11 @@ impl SyntaxDiagnosticSnapshot {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileDocumentSnapshot {
     pub profile: String,
+    #[serde(default)]
+    pub source: Option<ProfileSourceIdentity>,
     pub content: String,
     /// The same write classification the save guard enforces (DUAL-09-12).
-    pub write_protection: crate::profile_protection::ProfileWriteProtection,
+    pub write_protection: ProfileWriteProtection,
     /// `Some` only when the stored document currently fails the preflight.
     pub syntax: Option<SyntaxDiagnosticSnapshot>,
     pub line_count: usize,
@@ -46,12 +50,13 @@ impl ProfileDocumentSnapshot {
     pub fn new(
         profile: impl Into<String>,
         content: impl Into<String>,
-        write_protection: crate::profile_protection::ProfileWriteProtection,
+        write_protection: ProfileWriteProtection,
     ) -> Self {
         let content = content.into();
         let line_count = content.lines().count();
         Self {
             profile: profile.into(),
+            source: None,
             content,
             write_protection,
             syntax: None,
@@ -74,26 +79,17 @@ impl ProfileDocumentSnapshot {
     }
 }
 
-fn document_cache() -> &'static Mutex<Option<ProfileDocumentSnapshot>> {
-    static DOCUMENT: OnceLock<Mutex<Option<ProfileDocumentSnapshot>>> = OnceLock::new();
-    DOCUMENT.get_or_init(|| Mutex::new(None))
+/// Both facets returned by one actual document/sidecar transaction.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileWorkspaceReceipt {
+    pub previous: ProfileSourceIdentity,
+    pub submitted_mixin_yaml: String,
+    pub document: ProfileDocumentSnapshot,
+    pub options: ProfileOptionsSnapshot,
 }
 
-/// Publish the document a surface just loaded (or saved).
-pub fn publish_profile_document(document: ProfileDocumentSnapshot) {
-    if let Ok(mut cache) = document_cache().lock() {
-        *cache = Some(document);
-    }
-}
-
-/// The last published profile document, if any.
-pub fn last_profile_document() -> Option<ProfileDocumentSnapshot> {
-    document_cache().lock().ok().and_then(|cache| cache.clone())
-}
-
-/// Drop the cached document (profile switch, delete, restore).
-pub fn clear_profile_document() {
-    if let Ok(mut cache) = document_cache().lock() {
-        *cache = None;
-    }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileDocumentSaved {
+    pub previous: ProfileSourceIdentity,
+    pub document: ProfileDocumentSnapshot,
 }

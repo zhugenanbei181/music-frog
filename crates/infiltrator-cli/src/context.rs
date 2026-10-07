@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use infiltrator_application::connection_application::ConnectionApplication;
 use infiltrator_application::doctor_application::DoctorApplication;
 use infiltrator_application::profile_application::ProfileApplication;
@@ -9,17 +6,26 @@ use infiltrator_application::runtime_query_application::RuntimeQueryApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_core::doctor_port::MihomoDoctor;
 use infiltrator_core::settings_store::FileSettingsStore;
+use infiltrator_core::subscription_io::HttpSubscriptionSource;
+use infiltrator_core::sync_port::FileWebDavSync;
+use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::settings::AppSettings;
 use infiltrator_ports::endpoint::EndpointSource as _;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
+use mihomo_api::error;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::manager::paths::resolve_configs_dir_in;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_platform::paths::get_home_dir;
 use mihomo_version::manager::VersionManager;
+use std::path;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Per-invocation runtime context: the resolved home directory plus the
 /// loaded [`AppSettings`]. Every handler builds its managers through this
@@ -47,7 +53,7 @@ impl Runtime {
         Ok(Self { home, settings })
     }
 
-    pub fn home(&self) -> &std::path::Path {
+    pub fn home(&self) -> &path::Path {
         &self.home
     }
 
@@ -63,9 +69,7 @@ impl Runtime {
     /// ConfigManager following the full configs-directory resolution chain:
     /// `INFILTRATOR_CONFIGS_DIR` env > `settings.configs_dir` >
     /// `<home>/configs`.
-    pub fn config_manager(
-        &self,
-    ) -> mihomo_api::error::Result<ConfigManager<DefaultCredentialStore>> {
+    pub fn config_manager(&self) -> error::Result<ConfigManager<DefaultCredentialStore>> {
         ConfigManager::with_home_configs_dir_and_store(
             self.home.clone(),
             self.settings.configs_dir.as_deref(),
@@ -73,13 +77,12 @@ impl Runtime {
         )
     }
 
-    pub fn version_manager(&self) -> mihomo_api::error::Result<VersionManager> {
+    pub fn version_manager(&self) -> error::Result<VersionManager> {
         VersionManager::with_home(self.home.clone())
     }
 
     pub fn version_application(&self) -> anyhow::Result<VersionApplication> {
-        let version =
-            infiltrator_core::version_port::MihomoVersionPort::with_home(self.home.clone())?;
+        let version = MihomoVersionPort::with_home(self.home.clone())?;
         Ok(VersionApplication::new(Arc::new(version)))
     }
 
@@ -87,31 +90,26 @@ impl Runtime {
     /// Uses the home-bound resolution so an injected test home works exactly
     /// like the detected one.
     pub fn configs_dir(&self) -> anyhow::Result<PathBuf> {
-        Ok(mihomo_config::manager::paths::resolve_configs_dir_in(
+        Ok(resolve_configs_dir_in(
             self.settings.configs_dir.as_deref(),
             &self.home,
         )?)
     }
 
-    pub fn profile_application(&self) -> mihomo_api::error::Result<ProfileApplication> {
+    pub fn profile_application(&self) -> error::Result<ProfileApplication> {
         Ok(ProfileApplication::new(Arc::new(self.config_manager()?)))
     }
 
     pub fn subscription_source(&self) -> impl SubscriptionSource {
-        infiltrator_core::subscription_io::HttpSubscriptionSource::with_default_clients()
+        HttpSubscriptionSource::with_default_clients()
     }
 
     pub fn doctor_application(&self) -> DoctorApplication {
-        DoctorApplication::new(Arc::new(
-            infiltrator_core::doctor_port::MihomoDoctor::with_home(self.home.clone()),
-        ))
+        DoctorApplication::new(Arc::new(MihomoDoctor::with_home(self.home.clone())))
     }
 
     pub fn sync_application(&self) -> anyhow::Result<SyncApplication> {
-        let sync = infiltrator_core::sync_port::FileWebDavSync::new(
-            self.home.clone(),
-            DefaultCredentialStore::default(),
-        );
+        let sync = FileWebDavSync::new(self.home.clone(), DefaultCredentialStore::default());
         Ok(SyncApplication::new(Arc::new(sync)))
     }
 

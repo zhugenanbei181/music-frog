@@ -7,6 +7,7 @@
 //! **Scene Adapter**: [`splitter_scene`] builds declarative dual-pane layouts
 //! separated by a token-styled interactive resize handle.
 
+use crate::palette::UiPalette;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -18,8 +19,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, JustifyContent, Node, Val, percent, px,
 };
 use bevy::ui_widgets::Button;
-
-use crate::palette::UiPalette;
 
 /// Split orientation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -190,7 +189,6 @@ pub fn advance_splitters(
 }
 
 /// Repaint pane basis when [`SplitterFraction`] changes.
-#[allow(clippy::type_complexity)]
 pub fn sync_splitter_visuals(
     splitters: Query<(Entity, &SplitterFraction), Changed<SplitterFraction>>,
     groups: Query<&Children>,

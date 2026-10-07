@@ -11,8 +11,7 @@
 //! registry) because the desktop service outlives any single surface window:
 //! a preview produced from either surface is projected to both.
 
-use std::sync::{Mutex, OnceLock};
-
+use crate::profile_application::ProfileApplication;
 use chrono::Utc;
 use infiltrator_contract::aggregator::{
     AggregatedProfileOutcome, AggregationDraft, AggregationReport, AggregationTemplate,
@@ -24,9 +23,7 @@ use infiltrator_domain::profile_aggregator::{AggregationPlan, ProfileAggregator}
 use infiltrator_domain::profile_converter::{AggregationOptions, SourceSubscription};
 use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use std::sync::Arc;
-
-use crate::profile_application::ProfileApplication;
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(test)]
 #[path = "profile_aggregation_application_test.rs"]

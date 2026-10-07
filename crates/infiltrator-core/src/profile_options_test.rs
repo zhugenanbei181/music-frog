@@ -1,26 +1,37 @@
 //! Behavior tests for the per-profile option sidecar pipeline.
 
 use super::*;
+use crate::settings_io::{save_settings, settings_path};
 use infiltrator_domain::filter::{
     ContentDedupStrategy, DeduplicationStrategy, NodeMutatorConfig, NodeSortOrder,
     SubscriptionFilterPipeline,
 };
 use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::profile_options::{
-    FilterDedup, FilterSpec, MultiplierSpec, RenameSpec, strip_rule_lines,
+    FilterDedup, FilterSpec, MultiplierSpec, ProfileOptions, RenameSpec, options_path,
+    strip_rule_lines,
 };
+use infiltrator_domain::settings::AppSettings;
+use mihomo_config::manager::paths::CONFIGS_DIR_ENV;
+use mihomo_config::profile_option_store::{delete_options, save_options};
+use mihomo_platform::paths::{get_home_dir, set_home_dir_override};
 use serde_yaml_ng::Value;
+use std::env::{remove_var, set_var, temp_dir, var};
+use std::fs::create_dir_all;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::fs;
+use tokio::fs::remove_dir_all;
 
 fn temp_config_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = temp_dir().join(format!(
         "infiltrator-options-{tag}-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos()
     ));
-    std::fs::create_dir_all(&dir).unwrap();
+    create_dir_all(&dir).unwrap();
     dir
 }
 
@@ -117,7 +128,7 @@ async fn test_save_load_roundtrip_and_missing_file_default() {
 
     let missing = load_options(&dir, "ghost").await.unwrap();
     assert_eq!(missing, ProfileOptions::default());
-    let _ = tokio::fs::remove_dir_all(&dir).await;
+    let _ = remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
@@ -137,21 +148,17 @@ async fn test_saving_empty_options_removes_sidecar() {
         .await
         .unwrap();
     assert!(!options_path(&dir, "beta").exists());
-    let _ = tokio::fs::remove_dir_all(&dir).await;
+    let _ = remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_malformed_sidecar_is_an_error_not_silently_dropped() {
     let dir = temp_config_dir("malformed");
     let path = options_path(&dir, "gamma");
-    tokio::fs::create_dir_all(path.parent().unwrap())
-        .await
-        .unwrap();
-    tokio::fs::write(&path, "mixin: [not, a, mapping")
-        .await
-        .unwrap();
+    fs::create_dir_all(path.parent().unwrap()).await.unwrap();
+    fs::write(&path, "mixin: [not, a, mapping").await.unwrap();
     assert!(load_options(&dir, "gamma").await.is_err());
-    let _ = tokio::fs::remove_dir_all(&dir).await;
+    let _ = remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
@@ -176,7 +183,7 @@ async fn test_apply_saved_options_uses_the_sidecar() {
     assert!(report.is_none());
     let doc: Value = serde_yaml_ng::from_str(&out).unwrap();
     assert!(doc.get("allow-lan").unwrap().as_bool().unwrap());
-    let _ = tokio::fs::remove_dir_all(&dir).await;
+    let _ = remove_dir_all(&dir).await;
 }
 
 #[test]
@@ -201,30 +208,28 @@ fn test_strip_rule_lines_is_exact_match_and_idempotent() {
 async fn test_delete_options_is_best_effort() {
     let dir = temp_config_dir("delete");
     // Missing file: must not panic nor error.
-    delete_options(&dir, "ghost").await;
+    delete_options(&dir, "ghost").await.unwrap();
 }
 
 #[tokio::test]
 async fn test_options_wrapper_follows_configs_dir_redirect() {
     let _guard = mihomo_platform::TEST_LOCK.lock().await;
-    let original_home = mihomo_platform::paths::get_home_dir().unwrap();
+    let original_home = get_home_dir().unwrap();
     let home = temp_config_dir("redirect-home");
     let cloud_dir = home.join("cloud-profiles");
-    std::fs::create_dir_all(&cloud_dir).unwrap();
-    assert!(mihomo_platform::paths::set_home_dir_override(home.clone()));
+    create_dir_all(&cloud_dir).unwrap();
+    assert!(set_home_dir_override(home.clone()));
 
-    let env_key = mihomo_config::manager::paths::CONFIGS_DIR_ENV;
-    let prev_env = std::env::var(env_key).ok();
-    unsafe { std::env::remove_var(env_key) };
+    let env_key = CONFIGS_DIR_ENV;
+    let prev_env = var(env_key).ok();
+    unsafe { remove_var(env_key) };
 
-    let settings_file = crate::settings_io::settings_path(&home).unwrap();
-    let settings = infiltrator_domain::settings::AppSettings {
+    let settings_file = settings_path(&home).unwrap();
+    let settings = AppSettings {
         configs_dir: Some(cloud_dir.to_string_lossy().to_string()),
-        ..infiltrator_domain::settings::AppSettings::default()
+        ..AppSettings::default()
     };
-    crate::settings_io::save_settings(&settings_file, &settings)
-        .await
-        .unwrap();
+    save_settings(&settings_file, &settings).await.unwrap();
 
     let subscription =
         "port: 7890\nproxies:\n  - name: HK-01\n    type: ss\n  - name: US-01\n    type: ss\n";
@@ -251,11 +256,11 @@ async fn test_options_wrapper_follows_configs_dir_redirect() {
     assert_eq!(report.unwrap().excluded_by_blacklist, 1);
 
     match prev_env {
-        Some(value) => unsafe { std::env::set_var(env_key, value) },
-        None => unsafe { std::env::remove_var(env_key) },
+        Some(value) => unsafe { set_var(env_key, value) },
+        None => unsafe { remove_var(env_key) },
     }
-    mihomo_platform::paths::set_home_dir_override(original_home);
-    let _ = tokio::fs::remove_dir_all(&home).await;
+    set_home_dir_override(original_home);
+    let _ = remove_dir_all(&home).await;
 }
 
 #[test]

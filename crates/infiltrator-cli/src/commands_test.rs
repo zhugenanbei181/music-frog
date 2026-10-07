@@ -1,9 +1,9 @@
-use clap::{CommandFactory, Parser};
-
 use crate::commands::{
     Cli, Commands, ConfigsDirAction, ConnectionAction, DoctorAction, KernelAction, ProfileAction,
     ProxyAction, ServiceAction, SyncAction,
 };
+use clap::{CommandFactory, Parser};
+use std::mem::discriminant;
 
 fn parse(args: &[&str]) -> Commands {
     let mut full: Vec<&str> = vec!["infiltrator"];
@@ -209,10 +209,9 @@ fn service_subcommands_parse() {
     ] {
         let slice = args.clone();
         match parse(&slice) {
-            Commands::Service { action } => assert_eq!(
-                std::mem::discriminant(&action),
-                std::mem::discriminant(&expected)
-            ),
+            Commands::Service { action } => {
+                assert_eq!(discriminant(&action), discriminant(&expected))
+            }
             _ => panic!("expected service command {slice:?}"),
         }
     }

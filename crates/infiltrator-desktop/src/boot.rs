@@ -27,24 +27,49 @@
 //!   via the existing [`mihomo_config`] rotation (it picks its own port, so
 //!   the injected picker is used solely to wait for port release).
 
-use std::fmt;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
-
+use crate::composition::core_application;
+use crate::runtime::MihomoRuntime;
+use crate::service::ServiceManager;
+use crate::storage::doctor;
+use crate::storage::{home_dir, subscription_source};
+use crate::surface::SurfaceEngines;
+use crate::system_dns_cache::DesktopSystemDnsCache;
+use crate::version::resolve_binary;
 use anyhow::anyhow;
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::dns_cache_application::DnsCacheApplication;
+use infiltrator_application::dns_latency_application::DnsLatencyApplication;
+use infiltrator_application::dns_leak_application::{DnsLeakApplication, default_echo_sources};
+use infiltrator_application::dns_query_application::DnsQueryApplication;
+use infiltrator_application::doctor_application::DoctorApplication;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_application::proxy_preferences_application::ProxyPreferencesApplication;
+use infiltrator_application::rule_list_application::RuleListApplication;
+use infiltrator_application::rule_tracer_application::RuleTracerApplication;
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
+use infiltrator_application::snapshot_application::SnapshotApplication;
+use infiltrator_application::speedtest_application::SpeedtestApplication;
+use infiltrator_application::stun_probe_application::StunProbeApplication;
+use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
+use infiltrator_core::dns_latency_io::HttpDnsLatencyProber;
+use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
 use infiltrator_core::settings_io::app_config_manager;
+use infiltrator_core::snapshot_io::FileSnapshotStore;
+use infiltrator_core::stun_io::UdpStunProbe;
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::host_runtime::HostRuntime;
+use mihomo_api::client::MihomoClient;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::port::is_port_available;
 use mihomo_version::manager::VersionManager;
-
-use crate::runtime::MihomoRuntime;
-use crate::service::ServiceManager;
-use crate::version::resolve_binary;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
+use std::{error, fmt};
+use tokio::time::{Instant, sleep, timeout};
 
 /// Ledger default: three boot attempts (initial try plus two retries).
 pub const DEFAULT_MAX_ATTEMPTS: u32 = 3;
@@ -111,8 +136,8 @@ impl fmt::Display for BootError {
     }
 }
 
-impl std::error::Error for BootError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl error::Error for BootError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(&*self.source)
     }
 }
@@ -177,7 +202,7 @@ pub async fn bootstrap_host_runtime_from_current_home(
     bundled_candidates: &[PathBuf],
 ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
     let vm = VersionManager::new()?;
-    let data_dir = crate::storage::home_dir()?;
+    let data_dir = home_dir()?;
     bootstrap_host_runtime(&vm, use_bundled, bundled_candidates, &data_dir).await
 }
 
@@ -320,7 +345,7 @@ pub(crate) async fn run_boot_retry<E: BootEngine>(
                     if let Some(port) = failure.controller_port {
                         wait_for_port_release(port, config.port_release_timeout, port_picker).await;
                     }
-                    tokio::time::sleep(config.retry_delay).await;
+                    sleep(config.retry_delay).await;
                 }
             }
         }
@@ -340,13 +365,13 @@ async fn wait_for_port_release(
     timeout: Duration,
     picker: &(dyn Fn(u16) -> Option<u16> + Send + Sync),
 ) {
-    let deadline = tokio::time::Instant::now() + timeout;
+    let deadline = Instant::now() + timeout;
     while picker(port) != Some(port) {
-        if tokio::time::Instant::now() >= deadline {
+        if Instant::now() >= deadline {
             log::warn!("controller port {port} not released within {timeout:?}; continuing");
             return;
         }
-        tokio::time::sleep(PORT_RELEASE_POLL_INTERVAL).await;
+        sleep(PORT_RELEASE_POLL_INTERVAL).await;
     }
 }
 
@@ -437,70 +462,90 @@ impl BootEngine for ProductionEngine<'_> {
             )
         })?;
         let application = Arc::new(
-            crate::composition::core_application(
+            core_application(
                 &service_manager,
                 endpoint.url.clone(),
                 endpoint.secret.clone(),
-                infiltrator_application::speedtest_application::SpeedtestApplication::new(
-                    Arc::new(
-                        mihomo_api::client::MihomoClient::new(
-                            &endpoint.url,
-                            endpoint.secret.clone(),
-                        )
-                        .map_err(|error| {
-                            AttemptFailure::new(
-                                anyhow!("build controller client: {error}"),
-                                controller,
-                                false,
-                            )
-                        })?,
+                SurfaceEngines {
+                    profiles: ProfileApplication::new(cm.clone()),
+                    configuration: ConfigurationApplication::new(cm.clone()),
+                    snapshots: SnapshotApplication::new(
+                        cm.clone(),
+                        Arc::new(FileSnapshotStore::new(cm.config_dir().to_path_buf())),
                     ),
-                ),
-                infiltrator_application::rule_tracer_application::RuleTracerApplication::new(),
-                infiltrator_application::dns_cache_application::DnsCacheApplication::new(
-                    Some(Arc::new(
-                        mihomo_api::client::MihomoClient::new(
-                            &endpoint.url,
-                            endpoint.secret.clone(),
+                    scripts: ScriptApplication::new(),
+                    script_exports: ScriptExportApplication::without_host_port(),
+                    doctor: DoctorApplication::new(Arc::new(doctor().map_err(|error| {
+                        AttemptFailure::new(
+                            anyhow!("construct diagnostic host: {error}"),
+                            controller,
+                            false,
                         )
-                        .map_err(|error| {
-                            AttemptFailure::new(
-                                anyhow!("build DNS cache controller client: {error}"),
-                                controller,
-                                false,
-                            )
-                        })?,
+                    })?)),
+                    proxy_preferences: ProxyPreferencesApplication::new(),
+                    speedtest: SpeedtestApplication::new(Arc::new(
+                        MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
+                            |error| {
+                                AttemptFailure::new(
+                                    anyhow!("build controller client: {error}"),
+                                    controller,
+                                    false,
+                                )
+                            },
+                        )?,
                     )),
-                    Some(Arc::new(
-                        crate::system_dns_cache::DesktopSystemDnsCache::new(),
-                    )),
-                ),
-                // DUAL-14-10: the boot path composes the same real prober the
-                // runtime does, so a surface started from the retry ladder
-                // measures instead of reporting a placeholder.
-                infiltrator_application::dns_latency_application::DnsLatencyApplication::new(Some(
-                    Arc::new(infiltrator_core::dns_latency_io::HttpDnsLatencyProber::new()),
-                )),
-                // DUAL-14-08: mirror of runtime.rs: the boot path injects the
-                // same real echo adapter and the same real default TXT echo
-                // authorities, so a surface started from the retry ladder
-                // cross-checks instead of reporting a placeholder.
-                infiltrator_application::dns_leak_application::DnsLeakApplication::new(
-                    Some(Arc::new(
-                        infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe::new(),
-                    )),
-                    infiltrator_application::dns_leak_application::default_echo_sources(),
-                ),
-                // DUAL-14-09 (re-scoped): mirror of runtime.rs: the boot path
-                // injects the same real UDP STUN adapter and public default
-                // server, so a surface started from the retry ladder probes
-                // this host's UDP egress instead of reporting a placeholder.
-                infiltrator_application::stun_probe_application::StunProbeApplication::new(
-                    Some(Arc::new(infiltrator_core::stun_io::UdpStunProbe::new())),
-                    infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER,
-                ),
+                    rule_tracer: RuleTracerApplication::new(),
+                    rule_list: RuleListApplication::default(),
+                    dns_query: DnsQueryApplication::new(Some(Arc::new(
+                        MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
+                            |error| {
+                                AttemptFailure::new(
+                                    anyhow!("build DNS query controller client: {error}"),
+                                    controller,
+                                    false,
+                                )
+                            },
+                        )?,
+                    ))),
+                    dns_cache: DnsCacheApplication::new(
+                        Some(Arc::new(
+                            MihomoClient::new(&endpoint.url, endpoint.secret.clone()).map_err(
+                                |error| {
+                                    AttemptFailure::new(
+                                        anyhow!("build DNS cache controller client: {error}"),
+                                        controller,
+                                        false,
+                                    )
+                                },
+                            )?,
+                        )),
+                        Some(Arc::new(DesktopSystemDnsCache::new())),
+                    ),
+                    // DUAL-14-10: the boot path composes the same real prober the
+                    // runtime does, so a surface started from the retry ladder
+                    // measures instead of reporting a placeholder.
+                    dns_latency: DnsLatencyApplication::new(Some(Arc::new(
+                        HttpDnsLatencyProber::new(),
+                    ))),
+                    // DUAL-14-08: mirror of runtime.rs: the boot path injects the
+                    // same real echo adapter and the same real default TXT echo
+                    // authorities, so a surface started from the retry ladder
+                    // cross-checks instead of reporting a placeholder.
+                    dns_leak: DnsLeakApplication::new(
+                        Some(Arc::new(HttpDnsLeakEchoProbe::new())),
+                        default_echo_sources(),
+                    ),
+                    // DUAL-14-09 (re-scoped): mirror of runtime.rs: the boot path
+                    // injects the same real UDP STUN adapter and public default
+                    // server, so a surface started from the retry ladder probes
+                    // this host's UDP egress instead of reporting a placeholder.
+                    stun_probe: StunProbeApplication::new(
+                        Some(Arc::new(UdpStunProbe::new())),
+                        DEFAULT_STUN_SERVER,
+                    ),
+                },
                 cm.clone(),
-                Arc::new(crate::storage::subscription_source()),
+                Arc::new(subscription_source()),
             )
             .map_err(|error| {
                 AttemptFailure::new(
@@ -571,7 +616,7 @@ impl BootEngine for ProductionEngine<'_> {
 }
 
 async fn stop_application_quietly(application: &CoreApplication) {
-    match tokio::time::timeout(STOP_TIMEOUT, CoreLifecyclePort::stop(application)).await {
+    match timeout(STOP_TIMEOUT, CoreLifecyclePort::stop(application)).await {
         Ok(Ok(())) => log::info!("stopped mihomo core after failed boot attempt"),
         Ok(Err(error)) => {
             log::warn!("failed to stop mihomo core after failed attempt: {error}")
@@ -825,7 +870,7 @@ mod tests {
             if seen < 2 { None } else { Some(port) }
         };
 
-        let started = tokio::time::Instant::now();
+        let started = Instant::now();
         wait_for_port_release(TEST_PORT, Duration::from_secs(5), &picker).await;
         assert!(started.elapsed() < Duration::from_secs(1));
         assert_eq!(polls.load(Ordering::SeqCst), 3);
@@ -835,7 +880,7 @@ mod tests {
     async fn port_release_wait_gives_up_after_timeout() {
         let picker = |_port: u16| -> Option<u16> { None };
 
-        let started = tokio::time::Instant::now();
+        let started = Instant::now();
         wait_for_port_release(TEST_PORT, Duration::from_millis(50), &picker).await;
         assert!(started.elapsed() >= Duration::from_millis(50));
     }
@@ -883,7 +928,7 @@ mod tests {
         assert!(display.contains("9090, 9091"));
         assert!(display.contains("controller not ready within 15.0s"));
 
-        let source = std::error::Error::source(&error).expect("source");
+        let source = error::Error::source(&error).expect("source");
         assert_eq!(source.to_string(), "controller not ready within 15.0s");
     }
 

@@ -4,11 +4,11 @@
 //! test-intent: behavior
 
 use crate::state::AppState;
-use crate::types::doctor::{
+use crate::types::message::Message;
+use infiltrator_contract::doctor::{
     BootstrapReport, BootstrapStep, DoctorCheckResult, DoctorFixAction, DoctorFixReport,
     DoctorReport, DoctorStatus,
 };
-use crate::types::message::Message;
 use infiltrator_contract::error::InfiltratorError;
 
 fn check(id: &str, status: DoctorStatus) -> DoctorCheckResult {
@@ -176,15 +176,29 @@ fn test_doctor_actions_are_noop_in_demo_mode() {
 #[test]
 fn test_doctor_status_badge_mapping() {
     use crate::view::components::BadgeKind;
-    use crate::view::doctor::{status_badge_kind, status_label};
+    use crate::view::doctor::status_badge_kind;
+    use infiltrator_application::doctor_projection::status_key;
+    use infiltrator_shared::locales::{Lang, Localizer};
     assert_eq!(status_badge_kind(DoctorStatus::Pass), BadgeKind::Success);
     assert_eq!(status_badge_kind(DoctorStatus::Warn), BadgeKind::Warning);
     assert_eq!(status_badge_kind(DoctorStatus::Fail), BadgeKind::Danger);
     assert_eq!(status_badge_kind(DoctorStatus::Skip), BadgeKind::Neutral);
-    assert_eq!(status_label(DoctorStatus::Pass), "PASS");
-    assert_eq!(status_label(DoctorStatus::Warn), "WARN");
-    assert_eq!(status_label(DoctorStatus::Fail), "FAIL");
-    assert_eq!(status_label(DoctorStatus::Skip), "SKIP");
+    assert_eq!(
+        Lang("en-US").tr(status_key(DoctorStatus::Pass)).as_ref(),
+        "PASS"
+    );
+    assert_eq!(
+        Lang("en-US").tr(status_key(DoctorStatus::Warn)).as_ref(),
+        "WARN"
+    );
+    assert_eq!(
+        Lang("en-US").tr(status_key(DoctorStatus::Fail)).as_ref(),
+        "FAIL"
+    );
+    assert_eq!(
+        Lang("en-US").tr(status_key(DoctorStatus::Skip)).as_ref(),
+        "SKIP"
+    );
 }
 
 #[test]

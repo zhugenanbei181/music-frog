@@ -1,12 +1,13 @@
 //! Pure domain scheduling policy, retry backoff calculation, format detection,
 //! and quota warning evaluation for subscription lifecycles.
 
+use crate::subscription::SubscriptionUserInfo;
+use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use infiltrator_contract::subscription_import::SubscriptionFormat;
+use std::str::from_utf8;
 use std::time::Duration;
 use thiserror::Error;
-
-use crate::subscription::SubscriptionUserInfo;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CronParseError {
@@ -390,10 +391,8 @@ impl FormatDetector {
             return SubscriptionFormat::TrojanUri;
         }
 
-        if let Ok(decoded) = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            trimmed.as_bytes(),
-        ) && let Ok(text) = std::str::from_utf8(&decoded)
+        if let Ok(decoded) = base64::Engine::decode(&STANDARD, trimmed.as_bytes())
+            && let Ok(text) = from_utf8(&decoded)
             && (text.contains("vmess://")
                 || text.contains("vless://")
                 || text.contains("ss://")

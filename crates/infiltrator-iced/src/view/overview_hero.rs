@@ -3,13 +3,16 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
 use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{chip, premium_card, status_dot};
 use crate::view::svg_icons::{Icon, icon_themed};
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, R_CHIP, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, R_CHIP, tokens};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_application::core_status_projection::lifecycle_copy;
+use infiltrator_contract::core_control::CoreControlAction;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Accent hero: status dot + localized status, mode / core-version meta row
@@ -90,52 +93,41 @@ pub fn overview_speedtest_button<'a>(state: &AppState, lang: &Lang<'a>) -> Eleme
 }
 
 pub fn hero_card<'a>(state: &AppState, lang: &Lang<'a>) -> Element<'a, Message> {
-    let running = matches!(state.runtime.status, RuntimeStatus::Running);
-    let status_text = match &state.runtime.status {
-        RuntimeStatus::Starting => lang.tr("status_starting"),
-        RuntimeStatus::Running => lang.tr("status_running"),
-        RuntimeStatus::Error(_) => lang.tr("status_error"),
-        RuntimeStatus::Stopped => lang.tr("status_stopped"),
-    };
+    let lifecycle = state.core_lifecycle_snapshot().lifecycle;
+    let running = matches!(lifecycle, CoreLifecycle::Running | CoreLifecycle::Ready);
+    let status_text = lifecycle_copy(&lifecycle, lang.0);
 
-    let control: Element<'a, Message> = if running {
-        button(
-            row![
-                icon_themed(Icon::Plug, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("stop_proxy").into_owned())
-                    .size(13)
-                    .font(FONT_SEMIBOLD),
-            ]
-            .spacing(theme::SP_SM)
-            .align_y(Alignment::Center),
-        )
-        .padding([10, 20])
-        .style(button::danger)
-        .on_press(Message::StopProxy)
-        .into()
-    } else {
-        button(
-            row![
-                icon_themed(Icon::Zap, 14.0, |t: &Theme| tokens(t).on_accent),
-                text(lang.tr("start_proxy").into_owned())
-                    .size(13)
-                    .font(FONT_SEMIBOLD),
-            ]
-            .spacing(theme::SP_SM)
-            .align_y(Alignment::Center),
-        )
-        .padding([10, 20])
-        .style(style_accent)
-        .on_press(Message::StartProxy)
-        .into()
-    };
+    let projection = state.core_control_projection();
+    let stop = projection.action == Some(CoreControlAction::Stop);
+    let message = projection.action.map(|action| match action {
+        CoreControlAction::Start => Message::StartProxy,
+        CoreControlAction::Stop => Message::StopProxy,
+    });
+    let control: Element<'a, Message> = button(
+        row![
+            icon_themed(
+                if stop { Icon::Plug } else { Icon::Zap },
+                14.0,
+                |t: &Theme| tokens(t).on_accent
+            ),
+            text(lang.tr(projection.label.key()).into_owned())
+                .size(13)
+                .font(FONT_SEMIBOLD),
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center),
+    )
+    .padding([10, 20])
+    .style(if stop { button::danger } else { style_accent })
+    .on_press_maybe(message)
+    .into();
 
     premium_card(
         row![
             status_dot(running),
             Space::new().width(theme::SP_MD),
             column![
-                text(status_text.into_owned())
+                text(status_text)
                     .size(22)
                     .font(FONT_SEMIBOLD)
                     .style(|t: &Theme| text::Style {

@@ -21,17 +21,20 @@
 //!   chart plots nothing, so firing that early would ship a screenshot
 //!   indistinguishable from the pre-data placeholder.
 
-use std::path::PathBuf;
-
-use bevy::app::{App, Plugin, Update};
-use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Local, Res};
-use infiltrator_bevy_widgets::theme::ThemeSkin;
-
-use crate::appearance::{SystemAppearance, ThemeMode};
+use crate::appearance::{SystemAppearance, ThemeMode, resolved_skin};
 use crate::controller::PumpSnapshotSeen;
 use crate::history::TrafficHistory;
-use crate::route::Route;
+use crate::interaction_capture::{CaptureObservationSet, InteractionCapture, ObservedInteraction};
+use crate::route::{ActiveRoute, Route};
+use bevy::app::{App, Plugin, PostUpdate};
+use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
+use bevy::window::{PrimaryWindow, Window};
+use infiltrator_bevy_widgets::theme::ThemeSkin;
+use std::path::PathBuf;
+use std::{env, fs};
 
 /// Parse the capture skin knob. Case-insensitive, whitespace-tolerant;
 /// anything else is `None` (the launcher falls back to the shared
@@ -51,7 +54,7 @@ pub fn parse_skin(raw: &str) -> Option<ThemeSkin> {
 
 /// The capture skin from the environment, if it parses.
 pub fn skin_from_env() -> Option<ThemeSkin> {
-    std::env::var("INFILTRATOR_BEVY_SKIN")
+    env::var("INFILTRATOR_BEVY_SKIN")
         .ok()
         .and_then(|raw| parse_skin(&raw))
 }
@@ -66,14 +69,14 @@ pub fn parse_window_size(raw: &str) -> Option<(u32, u32)> {
 
 /// The capture window size from the environment, if it parses.
 pub fn window_size_from_env() -> Option<(u32, u32)> {
-    std::env::var("INFILTRATOR_BEVY_WINDOW_SIZE")
+    env::var("INFILTRATOR_BEVY_WINDOW_SIZE")
         .ok()
         .and_then(|raw| parse_window_size(&raw))
 }
 
 /// The capture marker path from the environment, if set and non-empty.
 pub fn marker_path_from_env() -> Option<PathBuf> {
-    std::env::var("INFILTRATOR_CAPTURE_MARKER")
+    env::var("INFILTRATOR_CAPTURE_MARKER")
         .ok()
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
@@ -99,7 +102,7 @@ pub fn parse_page(raw: &str) -> Option<Route> {
 
 /// The capture page from the environment, if set.
 pub fn page_from_env() -> Option<Route> {
-    std::env::var("INFILTRATOR_BEVY_PAGE")
+    env::var("INFILTRATOR_BEVY_PAGE")
         .ok()
         .and_then(|raw| parse_page(&raw))
 }
@@ -170,7 +173,11 @@ impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CaptureMarkerPath(self.marker_path.clone()));
         app.insert_resource(WaitForLiveSnapshot(self.waiting_for_first_snapshot));
-        app.add_systems(Update, write_capture_marker);
+        app.init_resource::<CaptureProgress>();
+        app.add_systems(
+            PostUpdate,
+            write_capture_marker.after(CaptureObservationSet),
+        );
     }
 }
 
@@ -198,53 +205,138 @@ fn live_trend_ready(snapshot_seen: bool, ring_len: Option<usize>) -> bool {
     ring_len.is_none_or(|len| len >= LIVE_MIN_TREND_SAMPLES)
 }
 
-/// One-shot readiness writer: count frames with `Local` state, write the
-/// marker once past the threshold (and, when gated, once the live pump has
-/// delivered enough of a trend), then retire. A failed write retries on
-/// the next frame; a successful one never writes again.
-#[allow(clippy::too_many_arguments)]
-fn write_capture_marker(
-    mut frames: Local<u32>,
-    mut done: Local<bool>,
-    mode: Option<Res<ThemeMode>>,
-    appearance: Option<Res<SystemAppearance>>,
-    seen: Option<Res<PumpSnapshotSeen>>,
-    history: Option<Res<TrafficHistory>>,
-    active_route: Option<Res<crate::route::ActiveRoute>>,
-    gate: Res<WaitForLiveSnapshot>,
-    path: Res<CaptureMarkerPath>,
-) {
-    if *done {
+#[derive(Resource, Default)]
+struct CaptureProgress {
+    frames: u32,
+    done: bool,
+}
+
+/// Observe real surfaces; no route-only frame can emit an interaction receipt.
+#[derive(SystemParam)]
+pub struct MarkerInputs<'w, 's> {
+    progress: ResMut<'w, CaptureProgress>,
+    path: Res<'w, CaptureMarkerPath>,
+    wait: Res<'w, WaitForLiveSnapshot>,
+    interaction: Option<Res<'w, InteractionCapture>>,
+    observed: Option<Res<'w, ObservedInteraction>>,
+    windows: Query<'w, 's, &'static Window, With<PrimaryWindow>>,
+    seen: Option<Res<'w, PumpSnapshotSeen>>,
+    history: Option<Res<'w, TrafficHistory>>,
+    mode: Option<Res<'w, ThemeMode>>,
+    appearance: Option<Res<'w, SystemAppearance>>,
+    route: Option<Res<'w, ActiveRoute>>,
+}
+fn write_capture_marker(mut marker: MarkerInputs) {
+    if marker.progress.done {
         return;
     }
-    *frames += 1;
-    if *frames < CAPTURE_READY_FRAME {
+    marker.progress.frames += 1;
+    let frames = marker.progress.frames;
+    if frames < CAPTURE_READY_FRAME {
         return;
     }
-    if gate.0
+    let bounds = if let Some(interaction) = &marker.interaction {
+        if !interaction.activated {
+            return;
+        }
+        let Some(bounds) = marker.observed.as_ref().and_then(|observed| observed.0) else {
+            return;
+        };
+        let Ok(window) = marker.windows.single() else {
+            return;
+        };
+        if !visible_bounds(
+            bounds[0],
+            bounds[1],
+            bounds[2],
+            bounds[3],
+            window.physical_width() as f32,
+            window.physical_height() as f32,
+        ) {
+            if frames == CAPTURE_READY_FRAME {
+                eprintln!(
+                    "capture blocked: bounds={bounds:?} viewport={}x{}",
+                    window.physical_width(),
+                    window.physical_height()
+                );
+            }
+            return;
+        }
+        Some(bounds)
+    } else {
+        None
+    };
+    if marker.wait.0
         && !live_trend_ready(
-            seen.is_some_and(|seen| seen.0),
-            history.as_ref().map(|history| history.len()),
+            marker.seen.as_ref().is_some_and(|seen| seen.0),
+            marker.history.as_ref().map(|history| history.len()),
         )
     {
         return;
     }
-    let skin = crate::appearance::resolved_skin(
-        mode.map(|mode| mode.0).unwrap_or_default(),
-        appearance.map(|appearance| appearance.0).unwrap_or(None),
+    let skin = resolved_skin(
+        marker.mode.as_ref().map(|mode| mode.0).unwrap_or_default(),
+        marker
+            .appearance
+            .as_ref()
+            .and_then(|appearance| appearance.0),
     );
-    let route = active_route
-        .and_then(|r| r.0)
+    let route = marker
+        .route
+        .as_ref()
+        .and_then(|route| route.0)
         .or_else(page_from_env)
         .unwrap_or_default();
-    if std::fs::write(&path.0, capture_marker_line(route, skin)).is_ok() {
-        *done = true;
+    let mut line = capture_marker_line(route, skin);
+    if let Some(interaction) = &marker.interaction {
+        line = format!(
+            "{} scenario={} activated=true",
+            line.trim_end(),
+            interaction.feature.spec().id
+        );
+        if let Some(bounds) = bounds {
+            line.push_str(&format!(
+                " bounds={},{},{},{}",
+                bounds[0], bounds[1], bounds[2], bounds[3]
+            ));
+        }
+        line.push('\n');
     }
+    if fs::write(&marker.path.0, line).is_ok() {
+        marker.progress.done = true;
+    }
+}
+
+fn visible_bounds(
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    viewport_width: f32,
+    viewport_height: f32,
+) -> bool {
+    [x, y, width, height, viewport_width, viewport_height]
+        .iter()
+        .all(|value| value.is_finite())
+        && width > 0.0
+        && height > 0.0
+        && x >= 0.0
+        && y >= 0.0
+        && x + width <= viewport_width
+        && y + height <= viewport_height
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clipped_or_unlaid_out_confirmation_cannot_emit_readiness() {
+        assert!(!visible_bounds(120.0, 374.0, 420.0, 176.0, 720.0, 480.0));
+        assert!(visible_bounds(120.0, 140.0, 420.0, 176.0, 720.0, 480.0));
+        assert!(!visible_bounds(0.0, 0.0, 0.0, 0.0, 720.0, 480.0));
+        assert!(!visible_bounds(f32::NAN, 0.0, 420.0, 176.0, 720.0, 480.0));
+    }
 
     #[test]
     fn skin_parses_every_shared_skin_and_rejects_junk() {

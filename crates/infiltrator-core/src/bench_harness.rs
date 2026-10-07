@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::time::Instant;
 
 /// Result of a benchmark execution.
@@ -59,7 +60,7 @@ impl BenchHarness {
     pub async fn bench_async_op<F, Fut>(name: &str, iterations: u64, mut op: F) -> BenchResult
     where
         F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = ()>,
+        Fut: Future<Output = ()>,
     {
         if iterations == 0 {
             return BenchResult {

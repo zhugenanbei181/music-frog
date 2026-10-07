@@ -3,15 +3,20 @@
 use super::card::{modal_backdrop, modal_card};
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_forms::{style_accent, style_ghost};
 use crate::view::components::{BadgeKind, badge, chip};
-use crate::view::theme::{HAIRLINE, MONO, R_CHIP, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens};
+use crate::view::svg_icons::{Icon, icon_themed};
+use crate::view::theme::{
+    FONT_MEDIUM, FONT_SEMIBOLD, HAIRLINE, MONO, R_CHIP, R_CONTROL, SP_MD, SP_SM, SP_XS, tokens,
+};
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_domain::rules::RuleProviderDiff;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn rule_provider_diff_modal<'a>(
     state: &'a AppState,
-    diff: &'a infiltrator_domain::rules::RuleProviderDiff,
+    diff: &'a RuleProviderDiff,
 ) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);
     let _is_en = state.shell.lang.starts_with("en");
@@ -46,7 +51,7 @@ pub fn rule_provider_diff_modal<'a>(
             diff_items.push(
                 container(text(lang.tr("modal_no_diff").to_string()).size(12).style(
                     |t: &Theme| text::Style {
-                        color: Some(crate::view::theme::tokens(t).text_secondary),
+                        color: Some(tokens(t).text_secondary),
                     },
                 ))
                 .padding([12, 16]),
@@ -54,14 +59,11 @@ pub fn rule_provider_diff_modal<'a>(
     } else {
         for added in &diff.added_rules {
             let row_item = row![
-                crate::view::components::badge(
-                    "+ Add",
-                    crate::view::components::BadgeKind::Success
-                ),
-                Space::new().width(crate::view::theme::SP_SM),
+                badge("+ Add", BadgeKind::Success),
+                Space::new().width(SP_SM),
                 text(added.clone())
                     .size(11)
-                    .font(crate::view::theme::MONO)
+                    .font(MONO)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).text_primary),
                     }),
@@ -139,19 +141,15 @@ pub fn rule_provider_diff_modal<'a>(
             diff.provider_name
         ))
         .size(16)
-        .font(crate::view::theme::FONT_SEMIBOLD)
+        .font(FONT_SEMIBOLD)
         .style(|t: &Theme| text::Style {
-            color: Some(crate::view::theme::tokens(t).text_primary),
+            color: Some(tokens(t).text_primary),
         }),
         Space::new().width(Length::Fill),
-        button(crate::view::svg_icons::icon_themed(
-            crate::view::svg_icons::Icon::X,
-            14.0,
-            |t: &Theme| crate::view::theme::tokens(t).text_secondary
-        ))
-        .padding(4)
-        .style(crate::view::component_forms::style_ghost)
-        .on_press(Message::InspectRuleProviderDiff(None)),
+        button(icon_themed(Icon::X, 14.0, |t: &Theme| tokens(t).text_secondary))
+            .padding(4)
+            .style(style_ghost)
+            .on_press(Message::InspectRuleProviderDiff(None)),
     ]
     .align_y(Alignment::Center);
 
@@ -159,19 +157,19 @@ pub fn rule_provider_diff_modal<'a>(
         button(
             text(lang.tr("modal_close").to_string())
                 .size(12)
-                .font(crate::view::theme::FONT_MEDIUM)
+                .font(FONT_MEDIUM)
         )
         .padding([7, 14])
-        .style(crate::view::component_forms::style_ghost)
+        .style(style_ghost)
         .on_press(Message::InspectRuleProviderDiff(None)),
         Space::new().width(Length::Fill),
         button(
             text(lang.tr("modal_unpack_rules").to_string())
                 .size(12)
-                .font(crate::view::theme::FONT_MEDIUM)
+                .font(FONT_MEDIUM)
         )
         .padding([7, 16])
-        .style(crate::view::component_forms::style_accent)
+        .style(style_accent)
         .on_press(Message::UnpackRuleProvider(provider_name)),
     ]
     .align_y(Alignment::Center);

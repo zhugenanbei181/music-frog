@@ -28,9 +28,7 @@ pub fn parse_port_from_addr(addr: &str) -> Option<u16> {
         return None;
     }
     // Drop an optional scheme (`http://`, `socks5://`, ...) and any path/query.
-    let after_scheme = trimmed
-        .rsplit_once("://")
-        .map_or(trimmed, |(_, rest)| rest);
+    let after_scheme = trimmed.rsplit_once("://").map_or(trimmed, |(_, rest)| rest);
     let authority = after_scheme
         .split(['/', '?', '#'])
         .next()

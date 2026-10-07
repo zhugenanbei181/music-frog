@@ -1,15 +1,17 @@
-use axum::{Router, http::StatusCode, response::Redirect, routing::get};
+use crate::admin_api;
+use crate::admin_api::events::AdminEventBus;
+use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use crate::scheduler::seed_subscription_jobs;
+use axum::Router;
+use axum::http::StatusCode;
+use axum::response::Redirect;
+use axum::routing::get;
 use mihomo_config::port::find_available_port;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 use tower_http::services::{ServeDir, ServeFile};
-
-use crate::admin_api::{
-    self,
-    events::AdminEventBus,
-    state::{AdminApiContext, AdminApiState},
-};
 
 pub struct StaticServerHandle {
     pub url: String,
@@ -98,7 +100,7 @@ pub async fn start_admin_server<C: AdminApiContext>(
     // (not every embedder drives `SubscriptionScheduler::start` itself).
     // Runs inside this runtime; duplicate seeds are harmless because a same
     // name spawn replaces the previous job.
-    crate::scheduler::seed_subscription_jobs(&api_state.ctx).await;
+    seed_subscription_jobs(&api_state.ctx).await;
     let router = Router::new().merge(admin_api::router(api_state));
     let router = if let Some(admin_dir) = admin_dir {
         let admin_static_service = ServeDir::new(admin_dir.clone())

@@ -3,8 +3,6 @@
 //! Compact (<600px) screens: displays as a bottom-docked ActionSheet with full width and rounded top corners.
 //! Medium/Expanded/Ultra screens: displays as a centered floating Dialog card.
 
-use crate::icon::IconId;
-use crate::icon_tile::icon_tile_scene;
 use crate::palette::UiPalette;
 use crate::responsive::{ModalForm, ResponsiveContext};
 use crate::text::{Role, TextRole};
@@ -19,7 +17,7 @@ use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderColor, BorderRadius, Display, FlexDirection, JustifyContent,
-    Node, PositionType, UiRect, Val, percent, px,
+    Node, Overflow, PositionType, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
@@ -77,6 +75,7 @@ pub struct CloseModal;
 /// Scene builder for an adaptive modal dialog / action sheet.
 pub fn adaptive_modal_scene(
     title: String,
+    close_label: String,
     body: Box<dyn Scene>,
     actions: Vec<Box<dyn Scene>>,
     palette: &UiPalette,
@@ -110,6 +109,9 @@ pub fn adaptive_modal_scene(
                     flex_direction: FlexDirection::Column,
                     width: px(480.0),
                     max_width: percent(90),
+                    max_height: percent(92),
+                    min_height: px(0.0),
+                    overflow: Overflow::clip(),
                     padding: UiRect::all(Val::Px(space::S20)),
                     row_gap: Val::Px(space::S16),
                     border: UiRect::all(Val::Px(palette.hairline_px)),
@@ -134,7 +136,7 @@ pub fn adaptive_modal_scene(
                         Button
                         ModalCloseButton
                         Children [
-                            @{ icon_tile_scene(IconId::Trash, 20.0, palette) }
+                            Text(close_label) TextRole(Role::BodyStrong)
                         ]
                     ]
                     --

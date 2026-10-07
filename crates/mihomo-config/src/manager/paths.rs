@@ -2,20 +2,20 @@
 //! canonicalized path construction that cannot escape the config directory.
 //! Also resolves the configs storage directory (cloud-sync redirect).
 
-use std::path::{Path, PathBuf};
-
+use super::ConfigManager;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
+use std::env::{home_dir, var};
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 use tokio::fs;
-
-use super::ConfigManager;
 
 /// 环境变量形式的 configs 目录覆盖，优先级高于 settings 的 `configs_dir`。
 pub const CONFIGS_DIR_ENV: &str = "INFILTRATOR_CONFIGS_DIR";
 
 /// 由调用方提供 home，解析 env/settings 目录重定向。
 pub fn resolve_configs_dir_in(explicit: Option<&str>, home: &Path) -> Result<PathBuf> {
-    let env_value = std::env::var(CONFIGS_DIR_ENV).ok();
+    let env_value = var(CONFIGS_DIR_ENV).ok();
     for candidate in [env_value.as_deref(), explicit] {
         if let Some(dir) = candidate.map(str::trim).filter(|dir| !dir.is_empty()) {
             return expand_tilde(dir).map(|dir| {
@@ -44,7 +44,7 @@ fn expand_tilde(path: &str) -> Result<PathBuf> {
             .map(|rest| rest.trim_start_matches(['/', '\\']))
             .ok_or_else(|| MihomoError::Config(format!("unsupported '~' path form: {path}")))?
     };
-    let home = std::env::home_dir().ok_or_else(|| {
+    let home = home_dir().ok_or_else(|| {
         MihomoError::Config("could not determine user home for '~' expansion".to_string())
     })?;
     Ok(if rest.is_empty() {
@@ -73,20 +73,25 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     /// 同 [`Self::profile_yaml_path`]，但要求文件已存在并返回其规范化路径。
-    pub(super) async fn existing_profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
+    pub async fn existing_profile_yaml_path(&self, profile: &str) -> Result<PathBuf> {
         // 目录不存在则任何 profile 都不可能存在，直接走 NotFound 语义。
         let base = match fs::canonicalize(&self.config_dir).await {
             Ok(base) => base,
-            Err(_) => {
+            Err(error) if error.kind() == ErrorKind::NotFound => {
                 return Err(MihomoError::NotFound(format!(
                     "Profile '{profile}' not found"
                 )));
             }
+            Err(error) => return Err(error.into()),
         };
         let path = self.profile_yaml_path(profile).await?;
-        let canonical = fs::canonicalize(&path)
-            .await
-            .map_err(|_| MihomoError::NotFound(format!("Profile '{profile}' not found")))?;
+        let canonical = fs::canonicalize(&path).await.map_err(|error| {
+            if error.kind() == ErrorKind::NotFound {
+                MihomoError::NotFound(format!("Profile '{profile}' not found"))
+            } else {
+                error.into()
+            }
+        })?;
         if !canonical.starts_with(&base) {
             return Err(MihomoError::Config(
                 "profile path escapes config dir".to_string(),
@@ -132,7 +137,7 @@ pub fn validate_profile_name(profile: &str) -> Result<()> {
 
 /// 校验之后再做一次字符级消毒：即使校验被绕过，分隔符也会被替换为下划线。
 /// 对合法名字这是恒等变换（key 与原名一致）。
-pub(super) fn sanitized_profile_key(profile: &str) -> Result<String> {
+pub(crate) fn sanitized_profile_key(profile: &str) -> Result<String> {
     validate_profile_name(profile)?;
     Ok(profile.replace(['/', '\\', ':'], "_"))
 }
@@ -140,22 +145,36 @@ pub(super) fn sanitized_profile_key(profile: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::manager;
+    #[cfg(test)]
+    use infiltrator_ports::error::PortError;
+    #[cfg(test)]
+    use std::env::remove_var;
+    #[cfg(test)]
+    use std::env::set_var;
+    #[cfg(test)]
+    use std::result;
     use tempfile::TempDir;
+    #[cfg(test)]
+    use tokio::sync::Mutex;
+    #[cfg(test)]
+    use tokio::sync::MutexGuard;
 
-    static TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    static TEST_LOCK: Mutex<()> = Mutex::const_new(());
 
     // 环境变量是进程级全局状态：所有涉及 configs 目录解析的测试都必须持有
     // TEST_LOCK 串行执行，避免互相串扰（与仓库既有 env 测试做法一致）。
-    async fn test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    async fn test_lock() -> MutexGuard<'static, ()> {
         TEST_LOCK.lock().await
     }
 
     fn set_env(value: &str) {
-        unsafe { std::env::set_var(CONFIGS_DIR_ENV, value) };
+        unsafe { set_var(CONFIGS_DIR_ENV, value) };
     }
 
     fn clear_env() {
-        unsafe { std::env::remove_var(CONFIGS_DIR_ENV) };
+        unsafe { remove_var(CONFIGS_DIR_ENV) };
     }
 
     #[tokio::test]
@@ -245,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn expand_tilde_forms() {
-        let home = std::env::home_dir().unwrap();
+        let home = home_dir().unwrap();
         assert_eq!(expand_tilde("~").unwrap(), home);
         assert_eq!(
             expand_tilde("~/Library/Cloud").unwrap(),
@@ -270,8 +289,7 @@ mod tests {
         let cloud = temp_dir.path().join("cloud").join("sync");
 
         set_env(cloud.to_str().unwrap());
-        let manager =
-            crate::manager::ConfigManager::with_home_and_store(home.clone(), TestStore).unwrap();
+        let manager = manager::ConfigManager::with_home_and_store(home.clone(), TestStore).unwrap();
         clear_env();
 
         assert_eq!(manager.config_dir, cloud);
@@ -284,7 +302,7 @@ mod tests {
         let _guard = test_lock().await;
         clear_env();
         let temp_dir = TempDir::new().unwrap();
-        let manager = crate::manager::ConfigManager::with_home_configs_dir_and_store(
+        let manager = manager::ConfigManager::with_home_configs_dir_and_store(
             temp_dir.path().to_path_buf(),
             Some("cloud/profiles"),
             TestStore,
@@ -295,7 +313,7 @@ mod tests {
         assert_eq!(manager.settings_file, temp_dir.path().join("config.toml"));
 
         // 空白值等价于未设置。
-        let manager = crate::manager::ConfigManager::with_home_configs_dir_and_store(
+        let manager = manager::ConfigManager::with_home_configs_dir_and_store(
             temp_dir.path().to_path_buf(),
             Some("  "),
             TestStore,
@@ -312,7 +330,7 @@ mod tests {
             &self,
             _namespace: &str,
             _key: &str,
-        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+        ) -> result::Result<Option<String>, PortError> {
             Ok(None)
         }
 
@@ -321,15 +339,11 @@ mod tests {
             _namespace: &str,
             _key: &str,
             _value: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        ) -> result::Result<(), PortError> {
             Ok(())
         }
 
-        async fn delete(
-            &self,
-            _namespace: &str,
-            _key: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        async fn delete(&self, _namespace: &str, _key: &str) -> result::Result<(), PortError> {
             Ok(())
         }
     }

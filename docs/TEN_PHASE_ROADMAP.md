@@ -6,7 +6,9 @@
 > 本台账记录项目初期 10 个演进阶段与 100 项底层核心落地事实。针对后续推进，双前端（Iced 与 Bevy UI）同步演进、10 大业务组功能全景并集以及 Waves 1~4 批次计划统一收敛至最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)。
 
 > **状态口径校准（2026-09-12）**：
-> 下方 `[x]` 表示“对应代码路径与测试已经出现”，是**历史演进事实记录**，不等于双端 `parity-ready`，更不等于 `host-verified`。本表保留为里程碑追溯，不作为交付准入。当前有效状态与逐项验收一律以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准；真实宿主/发行包验证已按主线决定挂起。
+> 下方 `[x]` 表示“对应代码路径与测试已经出现”，是**历史演进事实记录**，不等于双端 `parity-ready`，更不等于 `host-verified`。本表保留为里程碑追溯，不作为交付准入。当前有效状态与逐项验收一律以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准；平台与发行证据按 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) 推进，缺失证据持续阻断交付。
+
+Android Bevy 后续实施遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)，本地 TODO 的 `BANDROID-001`～`BANDROID-017` 保留扩展既有能力并补齐缺口；历史 Phase 勾选不替代这些产品任务的验收。
 
 ---
 

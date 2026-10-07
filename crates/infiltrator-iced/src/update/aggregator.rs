@@ -7,18 +7,23 @@
 //! library all route through the same shared application, so the source
 //! profiles are never touched.
 
+use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_application::profile_aggregation_application::ProfileAggregationApplication;
 use infiltrator_application::profile_application::ProfileApplication;
-use infiltrator_contract::aggregator::{AggregationDraft, AggregationRenameRule};
+use infiltrator_contract::aggregator::{
+    AggregatedProfileOutcome, AggregationCustomGroup, AggregationDraft, AggregationRenameRule,
+};
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::sync::Arc;
 
-type AggregationOutcome = infiltrator_contract::aggregator::AggregatedProfileOutcome;
+type AggregationOutcome = AggregatedProfileOutcome;
 
 impl AppState {
     /// The draft currently edited in the modal. Err carries the offending
@@ -53,9 +58,7 @@ impl AppState {
         })
     }
 
-    fn aggregator_application(
-        store: std::sync::Arc<dyn infiltrator_ports::profile_store::ProfileStore>,
-    ) -> ProfileAggregationApplication {
+    fn aggregator_application(store: Arc<dyn ProfileStore>) -> ProfileAggregationApplication {
         ProfileAggregationApplication::new(ProfileApplication::new(store))
     }
 
@@ -157,13 +160,13 @@ impl AppState {
                     .filter(|keyword| !keyword.is_empty())
                     .map(str::to_string)
                     .collect();
-                self.profile.aggregator_custom_groups.push(
-                    infiltrator_contract::aggregator::AggregationCustomGroup {
+                self.profile
+                    .aggregator_custom_groups
+                    .push(AggregationCustomGroup {
                         name,
                         group_type: "select".to_string(),
                         member_keywords: keywords,
-                    },
-                );
+                    });
                 self.profile.aggregator_custom_name.clear();
                 self.profile.aggregator_custom_keywords.clear();
                 self.profile.aggregator_report = None;
@@ -178,7 +181,7 @@ impl AppState {
             }
             Message::LoadAggregatorTemplates => Task::perform(
                 async {
-                    let store = crate::configs_dir::config_manager().await?;
+                    let store = config_manager().await?;
                     Self::aggregator_application(store)
                         .list_templates()
                         .await
@@ -226,7 +229,7 @@ impl AppState {
                 let name = self.profile.aggregator_template_name.clone();
                 Task::perform(
                     async move {
-                        let store = crate::configs_dir::config_manager().await?;
+                        let store = config_manager().await?;
                         Self::aggregator_application(store)
                             .save_template(&name, &draft)
                             .await
@@ -254,7 +257,7 @@ impl AppState {
             },
             Message::DeleteAggregatorTemplate(name) => Task::perform(
                 async move {
-                    let store = crate::configs_dir::config_manager().await?;
+                    let store = config_manager().await?;
                     Self::aggregator_application(store)
                         .delete_template(&name)
                         .await
@@ -298,7 +301,7 @@ impl AppState {
                 self.profile.is_aggregating = true;
                 Task::perform(
                     async move {
-                        let store = crate::configs_dir::config_manager().await?;
+                        let store = config_manager().await?;
                         Self::aggregator_application(store)
                             .preview(&draft)
                             .await
@@ -338,7 +341,7 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let store = crate::configs_dir::config_manager().await?;
+                        let store = config_manager().await?;
                         Self::aggregator_application(store)
                             .create_profile_with_runtime(runtime, &draft)
                             .await
@@ -355,7 +358,7 @@ impl AppState {
                 let runtime = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let store = crate::configs_dir::config_manager().await?;
+                        let store = config_manager().await?;
                         Self::aggregator_application(store)
                             .reaggregate(runtime, &template_name)
                             .await

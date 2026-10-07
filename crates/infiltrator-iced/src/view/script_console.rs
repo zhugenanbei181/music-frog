@@ -6,16 +6,29 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::{form_input_style, style_accent};
-use crate::view::components::{BadgeKind, badge, card, icon_button, kbd_badge, modern_scrollable};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, container, row, text, text_input};
+use crate::types::script::ScriptAction;
+use crate::view::component_card::card;
+use crate::view::component_forms::style_accent;
+use crate::view::components::{BadgeKind, badge, kbd_badge, modern_scrollable};
+use crate::view::script_export::export_section;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{svg_icons, theme};
+use iced::widget::{Space, button, column, container, row, text, text_editor};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_console_projection::project_report;
+use infiltrator_contract::script_export::ScriptExportKind;
+use infiltrator_contract::script_run::ScriptEditorField;
 use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 
-fn preset_chip<'a>(label: String, preset_id: String, is_active: bool) -> Element<'a, Message> {
+fn preset_chip<'a>(
+    label: String,
+    preset_id: String,
+    is_active: bool,
+    busy: bool,
+) -> Element<'a, Message> {
     button(text(label).size(12).font(FONT_MEDIUM))
         .padding([4, 10])
         .style(move |t: &Theme, status| {
@@ -24,7 +37,7 @@ fn preset_chip<'a>(label: String, preset_id: String, is_active: bool) -> Element
                 tk.accent_soft
             } else {
                 match status {
-                    iced::widget::button::Status::Hovered => Color {
+                    button::Status::Hovered => Color {
                         a: 0.12,
                         ..tk.accent
                     },
@@ -46,7 +59,7 @@ fn preset_chip<'a>(label: String, preset_id: String, is_active: bool) -> Element
                 ..Default::default()
             }
         })
-        .on_press(Message::SelectScriptPreset(preset_id))
+        .on_press_maybe((!busy).then_some(Message::Script(ScriptAction::SelectPreset(preset_id))))
         .into()
 }
 
@@ -68,24 +81,6 @@ fn meta_line<'a>(label: String, value: String) -> Element<'a, Message> {
     ]
     .align_y(Alignment::Center)
     .into()
-}
-
-/// DUAL-10-01: the engine row and the negotiated capability row. Selecting the
-/// locale here keeps the surface honest in both languages while the shared read
-/// model reports one engine kind; headless tests assert these exact values.
-pub fn engine_meta_rows(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> (String, String) {
-    let english = lang.0.starts_with("en");
-    let engine = if english {
-        snapshot.engine_label_en()
-    } else {
-        snapshot.engine_label_zh()
-    };
-    let capabilities = if english {
-        snapshot.engine_capability_label_en()
-    } else {
-        snapshot.engine_capability_label_zh()
-    };
-    (engine.to_string(), capabilities.to_string())
 }
 
 fn preview_box<'a>(title: String, body: String) -> Element<'a, Message> {
@@ -142,7 +137,9 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
     };
     // DUAL-10-01: the engine that produced this result and its negotiated
     // capability limits, both straight from the shared read model.
-    let (engine_label, engine_capability_label) = engine_meta_rows(lang, snapshot);
+    let view = project_report(snapshot, lang.0);
+    let engine_label = view.engine;
+    let engine_capability_label = view.capabilities;
 
     let mut directives_col = column![].spacing(4);
     if snapshot.matched_directives.is_empty() {
@@ -155,12 +152,7 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
                 }),
         );
     } else {
-        for directive in &snapshot.matched_directives {
-            let line = lang
-                .tr("script_sandbox_directive_row")
-                .replace("{id}", &directive.id)
-                .replace("{label}", &directive.label)
-                .replace("{affected}", &directive.affected.to_string());
+        for line in view.directives {
             directives_col =
                 directives_col.push(text(line).size(11).font(MONO).style(|t: &Theme| {
                     text::Style {
@@ -171,9 +163,9 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
     }
 
     let mut logs_col = column![].spacing(4);
-    for entry in &snapshot.console_logs {
+    for entry in view.logs {
         logs_col = logs_col.push(
-            text(format!("[{}ms] {}", entry.timestamp_ms, entry.message))
+            text(entry)
                 .size(11)
                 .font(MONO)
                 .style(|t: &Theme| text::Style {
@@ -182,37 +174,8 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
         );
     }
 
-    let breaker = lang
-        .tr("script_sandbox_breaker_state")
-        .replace("{state}", snapshot.circuit_breaker.label_zh())
-        .replace(
-            "{fails}",
-            &snapshot.circuit_breaker.consecutive_failures.to_string(),
-        )
-        .replace(
-            "{threshold}",
-            &snapshot.circuit_breaker.failure_threshold.to_string(),
-        )
-        .replace(
-            "{cooldown}",
-            &snapshot.circuit_breaker.cooldown_ms.to_string(),
-        )
-        .replace(
-            "{remaining}",
-            &snapshot.circuit_breaker.remaining_cooldown_ms.to_string(),
-        );
-    let limits = lang
-        .tr("script_sandbox_limits_value")
-        .replace(
-            "{memory_mb}",
-            &format!(
-                "{:.0}",
-                snapshot.max_memory_limit_bytes as f64 / (1024.0 * 1024.0)
-            ),
-        )
-        .replace("{timeout}", &snapshot.timeout_limit_ms.to_string())
-        .replace("{elapsed}", &snapshot.execution_time_ms.to_string())
-        .replace("{bytes}", &snapshot.memory_used_bytes.to_string());
+    let breaker = view.breaker;
+    let limits = view.limits;
 
     let mut body = column![
         row![
@@ -245,10 +208,7 @@ fn console_body<'a>(lang: &Lang<'_>, snapshot: &ScriptSandboxSnapshot) -> Elemen
             lang.tr("script_sandbox_capabilities").to_string(),
             engine_capability_label,
         ),
-        meta_line(
-            lang.tr("script_sandbox_hook_stage").to_string(),
-            format!("{} ({})", snapshot.hook_stage_label, snapshot.hook_stage),
-        ),
+        meta_line(lang.tr("script_sandbox_hook_stage").to_string(), view.hook,),
         meta_line(lang.tr("script_sandbox_breaker").to_string(), breaker),
         meta_line(lang.tr("script_sandbox_limits").to_string(), limits),
     ]
@@ -335,8 +295,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     let snapshot = state.editor.script_sandbox.snapshot.as_ref();
     let active_preset = state.editor.script_sandbox.selected_preset.as_deref();
 
-    let preset_definitions =
-        infiltrator_application::script_application::ScriptApplication::new().builtin_presets();
+    let preset_definitions = ScriptApplication::new().builtin_presets();
     let mut preset_row = row![
         text(lang.tr("script_sandbox_presets").to_string())
             .size(12)
@@ -350,12 +309,27 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
     for definition in preset_definitions {
         let is_active = active_preset == Some(definition.id.as_str());
         preset_row = preset_row
-            .push(preset_chip(definition.name, definition.id, is_active))
+            .push(preset_chip(
+                definition.name,
+                definition.id,
+                is_active,
+                state.editor.script_sandbox.busy(),
+            ))
             .push(Space::new().width(theme::SP_SM));
     }
     let preset_row = preset_row
         .push(Space::new().width(Length::Fill))
-        .push(icon_button(Icon::Trash2, 14.0, Message::ClearScriptSandbox))
+        .push(
+            button(svg_icons::icon_themed(
+                Icon::Trash2,
+                14.0,
+                |theme: &Theme| tokens(theme).text_secondary,
+            ))
+            .on_press_maybe(
+                (!state.editor.script_sandbox.busy())
+                    .then_some(Message::Script(ScriptAction::Clear)),
+            ),
+        )
         .push(Space::new().width(theme::SP_SM))
         .push(
             button(
@@ -371,7 +345,10 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
             )
             .padding([6, 14])
             .style(style_accent)
-            .on_press(Message::RunScriptSandboxTest),
+            .on_press_maybe(
+                (!state.editor.script_sandbox.busy() && !state.shell.ime.is_composing())
+                    .then_some(Message::Script(ScriptAction::Run)),
+            ),
         );
 
     let script_input = column![
@@ -382,24 +359,18 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 color: Some(tokens(t).text_secondary)
             }),
         Space::new().height(theme::SP_XS),
-        text_input(
-            "function main(config, profile) {\n  return config;\n}",
-            &state.editor.script_sandbox.script_code
-        )
-        .on_input(Message::UpdateScriptSandboxCode)
-        .padding([10, 12])
-        .size(12)
-        .font(MONO)
-        .width(Length::Fill)
-        .style(form_input_style),
+        text_editor(&state.editor.script_code_content)
+            .placeholder("function main(config, profile) { return config; }")
+            .on_action(|action| Message::Script(ScriptAction::EditDocument {
+                field: ScriptEditorField::Code,
+                action: Box::new(action)
+            }))
+            .padding(10)
+            .size(12)
+            .font(MONO)
+            .height(Length::Fixed(160.0))
     ]
     .width(Length::FillPortion(1));
-
-    let sample_yaml = if state.editor.script_sandbox.input_yaml.is_empty() {
-        "proxies:\n  - name: Sample-Node\n    type: ss\n    server: 1.2.3.4\n    port: 8388"
-    } else {
-        &state.editor.script_sandbox.input_yaml
-    };
 
     let yaml_input = column![
         text(lang.tr("script_sandbox_input_preview").to_string())
@@ -409,13 +380,16 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 color: Some(tokens(t).text_secondary)
             }),
         Space::new().height(theme::SP_XS),
-        text_input("proxies:\n  - name: Example\n    type: ss", sample_yaml)
-            .on_input(Message::UpdateScriptSandboxInputYaml)
-            .padding([10, 12])
+        text_editor(&state.editor.script_yaml_content)
+            .placeholder("proxies:\n  - name: Example\n    type: ss")
+            .on_action(|action| Message::Script(ScriptAction::EditDocument {
+                field: ScriptEditorField::InputYaml,
+                action: Box::new(action)
+            }))
+            .padding(10)
             .size(12)
             .font(MONO)
-            .width(Length::Fill)
-            .style(form_input_style),
+            .height(Length::Fixed(160.0))
     ]
     .width(Length::FillPortion(1));
 
@@ -452,6 +426,32 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         .into(),
     };
 
+    let mut feedback = column![].spacing(8);
+    if state.editor.script_sandbox.is_running() {
+        feedback = feedback.push(text(lang.tr("script_workbench_running")).size(12));
+    }
+    if let Some(failure) = &state.editor.script_sandbox.failure {
+        feedback = feedback.push(
+            container(text(&failure.message).size(12).width(Length::Fill))
+                .padding(8)
+                .style(|theme: &Theme| container::Style {
+                    border: Border {
+                        width: 1.0,
+                        color: tokens(theme).danger,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+        );
+    }
+    if state.editor.script_sandbox.can_retry() {
+        feedback = feedback.push(
+            button(text(lang.tr("script_workbench_retry")))
+                .style(style_accent)
+                .on_press(Message::Script(ScriptAction::Retry)),
+        );
+    }
+
     // DUAL-10-12: the console body (editors + result + the real export
     // panel) is a bounded scroll region so the export UI stays reachable on
     // the default 780px window; the height follows the shared viewport.
@@ -464,16 +464,17 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 Space::new().height(theme::SP_SM),
                 editors_row,
                 Space::new().height(theme::SP_MD),
+                feedback,
                 output_section,
                 Space::new().height(theme::SP_MD),
                 // DUAL-10-12: the real per-surface export (directive DSL `.js`
                 // + the SHA-256 extension package), routed through the shared
                 // application and the host save-file port.
-                crate::view::script_export::export_section(
+                export_section(
                     state,
                     &[
-                        infiltrator_contract::script_export::ScriptExportKind::DirectiveDslScript,
-                        infiltrator_contract::script_export::ScriptExportKind::ExtensionPackageJson,
+                        ScriptExportKind::DirectiveDslScript,
+                        ScriptExportKind::ExtensionPackageJson,
                     ],
                 ),
             ]

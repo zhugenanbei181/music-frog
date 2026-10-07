@@ -2,18 +2,16 @@
 //! (`/admin/api/proxies`, `/admin/api/proxy/*`, `/admin/api/runtime/proxies`,
 //! `/admin/api/runtime/delay/*`).
 
-use std::collections::HashSet;
-
-use axum::{
-    Json,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use chrono::Utc;
-
 use crate::admin_api::events::{AdminEvent, EVENT_PROXY_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::{Json, extract};
+use chrono::Utc;
+use infiltrator_application::proxy_application::test_proxy_delays;
+use infiltrator_domain::proxy::Proxy;
+use std::collections::{HashMap, HashSet};
 
 pub(crate) const DEFAULT_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
 pub(crate) const DEFAULT_DELAY_TIMEOUT_MS: u32 = 5000;
@@ -21,7 +19,7 @@ const MIN_DELAY_TIMEOUT_MS: u32 = 100;
 const MAX_DELAY_TIMEOUT_MS: u32 = 60_000;
 
 pub async fn get_proxies_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeProxiesResponse>, ApiError> {
     let client = state
         .ctx
@@ -60,7 +58,7 @@ pub async fn get_proxies_http<C: AdminApiContext>(
 }
 
 pub async fn set_proxy_mode_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ProxyModePayload>,
 ) -> Result<StatusCode, ApiError> {
     let mode = normalize_proxy_mode_candidate(&payload.mode)?;
@@ -78,7 +76,7 @@ pub async fn set_proxy_mode_http<C: AdminApiContext>(
 }
 
 pub async fn select_proxy_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ProxySelectPayload>,
 ) -> Result<StatusCode, ApiError> {
     let group = payload.group.trim();
@@ -104,7 +102,7 @@ pub async fn select_proxy_http<C: AdminApiContext>(
 }
 
 pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuntimeProxyDelayNodesResponse>, ApiError> {
     let client = state
         .ctx
@@ -125,7 +123,7 @@ pub async fn list_runtime_proxy_delays_http<C: AdminApiContext>(
 }
 
 pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<RuntimeDelayTestPayload>,
 ) -> Result<Json<RuntimeDelayTestResponse>, ApiError> {
     let proxy = payload.proxy.trim();
@@ -155,7 +153,7 @@ pub async fn test_runtime_proxy_delay_http<C: AdminApiContext>(
 }
 
 pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<RuntimeDelayBatchPayload>,
 ) -> Result<Json<RuntimeDelayBatchResponse>, ApiError> {
     let test_url = normalize_delay_test_url(payload.test_url.as_deref())?;
@@ -174,14 +172,7 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
     let candidates =
         collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
 
-    let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
-        client,
-        candidates,
-        test_url.clone(),
-        timeout_ms,
-        30,
-    )
-    .await;
+    let outcomes = test_proxy_delays(client, candidates, test_url.clone(), timeout_ms, 30).await;
 
     for outcome in outcomes {
         match outcome.result {
@@ -216,7 +207,7 @@ pub async fn test_all_runtime_proxy_delays_http<C: AdminApiContext>(
 }
 
 pub async fn test_proxies_delay_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     payload: Option<Json<ProxyDelayPayload>>,
 ) -> Result<Response, ApiError> {
     let payload = payload.map(|Json(p)| p).unwrap_or_default();
@@ -264,14 +255,7 @@ pub async fn test_proxies_delay_http<C: AdminApiContext>(
     let candidates =
         collect_delay_test_candidates(payload.proxies.as_deref(), &proxies, &mut results);
 
-    let outcomes = infiltrator_application::proxy_application::test_proxy_delays(
-        client,
-        candidates,
-        test_url.clone(),
-        timeout_ms,
-        30,
-    )
-    .await;
+    let outcomes = test_proxy_delays(client, candidates, test_url.clone(), timeout_ms, 30).await;
 
     for outcome in outcomes {
         match outcome.result {
@@ -342,9 +326,7 @@ fn normalize_delay_timeout_ms(timeout_ms: Option<u32>) -> u32 {
         .clamp(MIN_DELAY_TIMEOUT_MS, MAX_DELAY_TIMEOUT_MS)
 }
 
-fn build_runtime_proxy_delay_nodes(
-    proxies: std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>,
-) -> Vec<RuntimeProxyDelayNode> {
+fn build_runtime_proxy_delay_nodes(proxies: HashMap<String, Proxy>) -> Vec<RuntimeProxyDelayNode> {
     let mut nodes: Vec<RuntimeProxyDelayNode> = proxies
         .into_iter()
         .filter_map(|(name, info)| {
@@ -366,7 +348,7 @@ fn build_runtime_proxy_delay_nodes(
 
 pub(crate) fn collect_delay_test_candidates(
     requested: Option<&[String]>,
-    proxies: &std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>,
+    proxies: &HashMap<String, Proxy>,
     results: &mut Vec<RuntimeDelayBatchResult>,
 ) -> Vec<String> {
     match requested {

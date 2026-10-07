@@ -1,29 +1,25 @@
-use super::*;
-
 use super::surface_demo::{
     empty_app_routing, empty_connections, empty_dns, empty_doctor, empty_logs, empty_profiles,
-    empty_proxies, empty_rules, empty_settings, empty_sync,
+    empty_proxies, empty_rules, empty_sync,
 };
-use crate::pages::app_routing::{AppItem, AppRouteRule, AppRoutingMode};
-use crate::pages::connections::ConnectionItem;
-use crate::pages::doctor::{DoctorCheckItem, DoctorCheckState, DoctorProjection};
-use crate::pages::logs::{LogEntry, LogLevel};
+use super::surface_settings::empty_settings;
+use super::*;
+use crate::pages::app_routing::AppItem;
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+
+use crate::pages::doctor::{DoctorCheckItem, DoctorProjection};
+use crate::pages::logs::LogEntry;
 use crate::pages::profiles::ProfileItem;
 use crate::pages::proxies::{ProxyGroup, ProxyNode};
 use crate::pages::rules::{RuleItem, RuleProviderItem};
-use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo, SyncStatus};
+use crate::pages::sync::{ConflictingKey, SnapshotItem, SyncConflictInfo};
 use crate::projection::OverviewState;
+use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use infiltrator_application::system_toggle_application::SystemToggleApplication;
+use infiltrator_contract::connection::ConnectionStreamPhase;
+use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::snapshot::CoreLifecycle;
-
-fn log_level_from_str(value: &str) -> Option<LogLevel> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "debug" => Some(LogLevel::Debug),
-        "info" => Some(LogLevel::Info),
-        "warn" | "warning" => Some(LogLevel::Warn),
-        "error" | "err" => Some(LogLevel::Error),
-        _ => None,
-    }
-}
+use std::time;
 
 pub(super) fn overview_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
@@ -38,11 +34,9 @@ pub(super) fn overview_projection(
         }
     };
     OverviewProjection {
+        lifecycle: core.lifecycle.clone(),
+        readout: snapshot.shell_readout.clone(),
         state,
-        mode: page
-            .and_then(|value| value.proxy_mode)
-            .or(core.proxy_mode)
-            .unwrap_or_default(),
         upload_bps: page
             .map(|value| value.upload_bps)
             .unwrap_or(core.upload_bps),
@@ -58,7 +52,7 @@ pub(super) fn overview_projection(
         sampled_at: core
             .sampled_at_epoch_ms
             .and_then(|value| u64::try_from(value).ok())
-            .map(std::time::Duration::from_millis)
+            .map(time::Duration::from_millis)
             .unwrap_or_default(),
         failure: snapshot
             .failure
@@ -84,11 +78,16 @@ pub(super) fn overview_projection(
         reconnect_mask: snapshot.reconnect_mask.clone(),
         viewport: snapshot.viewport.clone(),
         subscription_quota: snapshot.subscription_quota.clone(),
-        system_toggles: infiltrator_application::system_toggle_application::SystemToggleApplication::from_surface(snapshot),
-        proxy_mode: infiltrator_application::proxy_mode_application::ProxyModeApplication::from_surface(snapshot),
+        system_toggles: SystemToggleApplication::from_surface(snapshot),
+        proxy_mode: ProxyModeApplication::from_surface(snapshot),
         speedtest: snapshot.speedtest.clone(),
         cpu_percent: snapshot.resources.cpu_percent,
-        total_traffic_bytes: snapshot.pages.connections.data.as_ref().map(|c| c.total_upload_bytes + c.total_download_bytes),
+        total_traffic_bytes: snapshot
+            .pages
+            .connections
+            .data
+            .as_ref()
+            .map(|c| c.total_upload_bytes + c.total_download_bytes),
     }
 }
 
@@ -101,6 +100,8 @@ pub(super) fn proxies_projection(
         .data
         .as_ref()
         .map(|value| ProxiesProjection {
+            name_runs: value.name_runs.clone(),
+            search_query: value.search_query.clone(),
             groups: value
                 .groups
                 .iter()
@@ -125,6 +126,8 @@ pub(super) fn proxies_projection(
                 })
                 .collect(),
             testing: value.testing,
+            filter_alive: value.filter_alive.enabled,
+            compact_view: value.compact_view,
             active_exit: value.active_exit.clone(),
             custom_node: value.custom_node.clone(),
         })
@@ -134,7 +137,7 @@ pub(super) fn proxies_projection(
 pub(super) fn profiles_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ProfilesProjection {
-    snapshot
+    let mut projection = snapshot
         .pages
         .profiles
         .data
@@ -163,6 +166,7 @@ pub(super) fn profiles_projection(
                     next_update: profile.next_update.clone(),
                     auto_reload_core: profile.auto_reload_core,
                     filter: profile.filter.clone(),
+                    filter_source: profile.filter_source.clone(),
                     write_protection: profile.write_protection,
                 })
                 .collect(),
@@ -176,12 +180,17 @@ pub(super) fn profiles_projection(
             // loaded editor document travel with the page read model.
             snapshot_history: value.snapshot_history.clone(),
             apply_transaction: value.apply_transaction.clone(),
-            profile_document: value.profile_document.clone(),
-            profile_options: value.profile_options.clone(),
+            profile_document: snapshot.profile_editor.document.clone(),
+            profile_options: snapshot.profile_editor.options.clone(),
+            editor_read: snapshot.profile_editor.read.clone(),
             script_sandbox: snapshot.script_sandbox.clone(),
             script_export: snapshot.script_export.clone(),
         })
-        .unwrap_or_else(empty_profiles)
+        .unwrap_or_else(empty_profiles);
+    projection.profile_document = snapshot.profile_editor.document.clone();
+    projection.profile_options = snapshot.profile_editor.options.clone();
+    projection.editor_read = snapshot.profile_editor.read.clone();
+    projection
 }
 
 pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> RulesProjection {
@@ -194,7 +203,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
             total_rules: value.total_rules,
             default_action: value.default_action.clone(),
             tracer: value.tracer.clone(),
-            hit_audit: value.tracer.hit_audit.clone(),
+            hit_audit: value.hit_audit.clone(),
             mrs_acceleration: value.mrs_acceleration.clone(),
             // DUAL-11-08: the publish cap and the omitted count are shared
             // facts, so the page can render the truncation honestly.
@@ -220,6 +229,11 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
                 .rules
                 .iter()
                 .map(|rule| RuleItem {
+                    edit_id: rule.edit_id,
+                    raw: rule.raw.clone(),
+                    source_ip: rule.source_ip,
+                    no_resolve: rule.no_resolve,
+                    failure: rule.failure.clone(),
                     id: rule.id,
                     rule_type: rule.rule_type.clone(),
                     payload: rule.payload.clone(),
@@ -238,9 +252,7 @@ pub(super) fn rules_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> 
 pub(super) fn connections_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> ConnectionsProjection {
-    let stream_phase = infiltrator_contract::connection::ConnectionStreamPhase::from_page_status(
-        &snapshot.pages.connections.status,
-    );
+    let stream_phase = ConnectionStreamPhase::from_page_status(&snapshot.pages.connections.status);
     snapshot
         .pages
         .connections
@@ -251,37 +263,12 @@ pub(super) fn connections_projection(
             total_upload_bytes: value.total_upload_bytes,
             total_download_bytes: value.total_download_bytes,
             stream_phase,
-            connections: value
-                .connections
-                .iter()
-                .map(|connection| ConnectionItem {
-                    id: connection.id.clone(),
-                    host: connection.host.clone(),
-                    process: connection.process.clone(),
-                    rule: connection.rule.clone(),
-                    rule_payload: connection.rule_payload.clone(),
-                    chain: connection.chain.clone(),
-                    chains: connection.chains.clone(),
-                    network: connection.network.clone(),
-                    source_ip: connection.source_ip.clone(),
-                    source_port: connection.source_port.clone(),
-                    destination_ip: connection.destination_ip.clone(),
-                    destination_port: connection.destination_port.clone(),
-                    destination_geo_ip: connection.destination_geo_ip.clone(),
-                    destination_ip_asn: connection.destination_ip_asn.clone(),
-                    upload_bps: connection.upload_bps,
-                    download_bps: connection.download_bps,
-                    upload_total: connection.upload_total,
-                    download_total: connection.download_total,
-                })
-                .collect(),
+            connections: value.connections.clone(),
         })
         .unwrap_or_else(|| empty_connections_with_phase(stream_phase))
 }
 
-fn empty_connections_with_phase(
-    stream_phase: infiltrator_contract::connection::ConnectionStreamPhase,
-) -> ConnectionsProjection {
+fn empty_connections_with_phase(stream_phase: ConnectionStreamPhase) -> ConnectionsProjection {
     let mut projection = empty_connections();
     projection.stream_phase = stream_phase;
     projection
@@ -294,20 +281,30 @@ pub(super) fn logs_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> L
         .data
         .as_ref()
         .map(|value| LogsProjection {
+            status: snapshot.pages.logs.status.clone(),
+            generation: snapshot.core.generation,
+            session_token: snapshot.core.session_token,
             total_entries: value.total_entries,
-            active_level: value.active_level.as_deref().and_then(log_level_from_str),
+            active_level: value.active_level.as_deref().map(LogLevel::from_identifier),
             entries: value
                 .entries
                 .iter()
                 .map(|entry| LogEntry {
+                    id: entry.id,
                     timestamp: entry.timestamp.clone(),
-                    level: log_level_from_str(&entry.level).unwrap_or(LogLevel::Info),
+                    level: LogLevel::from_identifier(&entry.level),
                     tag: entry.tag.clone(),
                     message: entry.message.clone(),
                 })
                 .collect(),
         })
-        .unwrap_or_else(empty_logs)
+        .unwrap_or_else(|| {
+            let mut projection = empty_logs();
+            projection.status = snapshot.pages.logs.status.clone();
+            projection.generation = snapshot.core.generation;
+            projection.session_token = snapshot.core.session_token;
+            projection
+        })
 }
 
 pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> DnsProjection {
@@ -316,8 +313,20 @@ pub(super) fn dns_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> Dn
         .dns
         .data
         .as_ref()
-        .map(DnsProjection::from_snapshot)
-        .unwrap_or_else(empty_dns)
+        .map(|dns| {
+            DnsProjection::from_snapshot(
+                dns,
+                &snapshot.dns_leak,
+                snapshot.dns_hosts.data.as_ref(),
+                &snapshot.dns_cache.report,
+            )
+        })
+        .unwrap_or_else(|| {
+            let mut projection = empty_dns();
+            projection.leak = snapshot.dns_leak.clone();
+            projection.cache_flush = snapshot.dns_cache.report.clone();
+            projection
+        })
 }
 
 pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> DoctorProjection {
@@ -328,6 +337,7 @@ pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) ->
         .data
         .as_ref()
         .map(|value| DoctorProjection {
+            report_finished_at: value.report_finished_at,
             overall_healthy: value.overall_healthy,
             last_run: value.last_run.clone(),
             watchdog: watchdog.clone(),
@@ -335,15 +345,14 @@ pub(super) fn doctor_projection(snapshot: &surface_snapshot::SurfaceSnapshot) ->
                 .checks
                 .iter()
                 .map(|check| DoctorCheckItem {
+                    kind: check.kind,
+                    detail_copy_key: check.detail_copy_key.clone(),
                     id: check.id.clone(),
                     name: check.name.clone(),
                     category: check.category.clone(),
-                    state: match check.state.to_ascii_lowercase().as_str() {
-                        "fail" | "failed" => DoctorCheckState::Fail,
-                        "warn" | "warning" => DoctorCheckState::Warning,
-                        _ => DoctorCheckState::Pass,
-                    },
+                    state: check.state,
                     detail: check.detail.clone(),
+                    hint: check.hint.clone(),
                     fix_available: check.fix_available,
                 })
                 .collect(),
@@ -365,8 +374,8 @@ pub(super) fn app_routing_projection(
         .as_ref()
         .map(|value| AppRoutingProjection {
             mode: match value.mode.to_ascii_lowercase().as_str() {
-                "proxy_selected" | "proxy_list" | "whitelist" => AppRoutingMode::BypassList,
-                "bypass_selected" | "bypass_list" | "blacklist" => AppRoutingMode::ProxyList,
+                "proxy_selected" | "proxy_list" | "whitelist" => AppRoutingMode::ProxySelected,
+                "bypass_selected" | "bypass_list" | "blacklist" => AppRoutingMode::BypassSelected,
                 _ => AppRoutingMode::ProxyAll,
             },
             include_system: value.include_system,
@@ -379,9 +388,9 @@ pub(super) fn app_routing_projection(
                     name: app.name.clone(),
                     process_name: app.process_name.clone(),
                     rule: match app.rule.to_ascii_lowercase().as_str() {
-                        "direct" => AppRouteRule::Direct,
-                        "block" => AppRouteRule::Block,
-                        _ => AppRouteRule::Proxy,
+                        "direct" => AppRoutingRule::Direct,
+                        "block" => AppRoutingRule::Block,
+                        _ => AppRoutingRule::Proxy,
                     },
                     is_system: app.is_system,
                 })
@@ -397,13 +406,8 @@ pub(super) fn sync_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> S
         .data
         .as_ref()
         .map(|value| SyncProjection {
-            status: match value.status.to_ascii_lowercase().as_str() {
-                "syncing" => SyncStatus::Syncing,
-                "conflict" => SyncStatus::Conflict,
-                "error" => SyncStatus::Error,
-                "disconnected" => SyncStatus::Disconnected,
-                _ => SyncStatus::Connected,
-            },
+            status: value.status,
+            history_status: value.history_status.clone(),
             server_url: value.server_url.clone(),
             username: value.username.clone(),
             last_sync: value.last_sync.clone(),
@@ -425,6 +429,7 @@ pub(super) fn sync_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> S
                 .snapshots
                 .iter()
                 .map(|item| SnapshotItem {
+                    profile: item.profile.clone(),
                     id: item.id.clone(),
                     timestamp: item.timestamp.clone(),
                     device: item.device.clone(),
@@ -432,18 +437,26 @@ pub(super) fn sync_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> S
                 })
                 .collect(),
         })
-        .unwrap_or_else(empty_sync)
+        .unwrap_or_else(|| {
+            let mut projection = empty_sync();
+            projection.history_status = snapshot.pages.sync.status.clone();
+            projection
+        })
 }
 
 pub(super) fn settings_projection(
     snapshot: &surface_snapshot::SurfaceSnapshot,
 ) -> SettingsProjection {
-    snapshot
+    let mut projection = snapshot
         .pages
         .settings
         .data
         .clone()
         .map(|value| SettingsProjection {
+            close_to_tray: value.close_to_tray,
+            notifications_enabled: value.notifications_enabled,
+            preference_status: snapshot.pages.settings.status.clone(),
+            runtime_status: snapshot.runtime_control.status.clone(),
             autostart: value.autostart,
             system_proxy: value.system_proxy,
             system_proxy_snapshot: snapshot.system_proxy.clone(),
@@ -476,6 +489,8 @@ pub(super) fn settings_projection(
         })
         .unwrap_or_else(|| {
             let mut projection = empty_settings();
+            projection.preference_status = snapshot.pages.settings.status.clone();
+            projection.runtime_status = snapshot.runtime_control.status.clone();
             projection.core_versions = snapshot.versions.clone();
             projection.core_integrity = snapshot.versions.verification.clone();
             projection.controller_auth = snapshot.controller_auth;
@@ -488,5 +503,18 @@ pub(super) fn settings_projection(
             projection.vpn = snapshot.vpn.clone();
             projection.privileged_network = snapshot.privileged_network.clone();
             projection
-        })
+        });
+    let observed = &snapshot.runtime_control;
+    projection.runtime_status = observed.status.clone();
+    projection.mixed_port = observed.mixed_port;
+    projection.allow_lan = observed.allow_lan;
+    projection.lan_bind_address = observed.lan_bind_address.clone();
+    projection.lan_security = observed.lan_security.clone();
+    projection.ipv6_routing = observed.ipv6_routing;
+    projection.tun_enabled = observed.tun_enabled;
+    projection.tun_stack = observed.tun_stack.clone();
+    projection.tun_auto_route = observed.tun_auto_route;
+    projection.tun_strict_route = observed.tun_strict_route;
+    projection.log_level = observed.log_level.clone();
+    projection
 }

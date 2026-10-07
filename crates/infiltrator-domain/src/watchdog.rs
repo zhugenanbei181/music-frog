@@ -8,7 +8,9 @@
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreWatchdogSnapshot, CoreWatchdogState};
+use std::fmt::{Display, Formatter};
 use std::time::Duration;
+use std::{error, fmt};
 
 /// Recovery policy for one application's crash loop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,8 +68,8 @@ pub enum WatchdogTransitionError {
     InvalidState,
 }
 
-impl std::fmt::Display for WatchdogTransitionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for WatchdogTransitionError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::StaleSession => formatter.write_str("stale watchdog session token"),
             Self::InvalidState => formatter.write_str("invalid watchdog state transition"),
@@ -75,7 +77,7 @@ impl std::fmt::Display for WatchdogTransitionError {
     }
 }
 
-impl std::error::Error for WatchdogTransitionError {}
+impl error::Error for WatchdogTransitionError {}
 
 /// Deterministic state machine backing the application watchdog.
 #[derive(Clone, Debug)]

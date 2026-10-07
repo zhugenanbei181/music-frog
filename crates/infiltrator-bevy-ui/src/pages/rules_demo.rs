@@ -4,40 +4,46 @@
 //! production surface fills [`RulesProjection`] from the shared read model.
 
 use super::rules::{RuleItem, RuleProviderItem, RulesProjection};
+use infiltrator_composition::demo_identities::{PROXIES, STREAMING};
+use infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot;
+use infiltrator_contract::provider_cache::{KernelEtagSupportSnapshot, RuleProviderCacheSnapshot};
+use infiltrator_contract::rule_hit_audit::RuleHitAuditSnapshot;
+use infiltrator_contract::rule_tracer::RuleTracerSnapshot;
+use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
+use infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT;
 
 impl RulesProjection {
     /// Believable demo fixture for the Rules page.
     pub fn demo() -> Self {
         Self {
             total_rules: 2842,
-            default_action: "DIRECT (漏网之鱼直连)".to_owned(),
-            hit_audit: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture()
-                .hit_audit,
-            tracer: infiltrator_contract::rule_tracer::RuleTracerSnapshot::demo_fixture(),
+            default_action: "DIRECT".to_owned(),
+            hit_audit: Some(RuleHitAuditSnapshot::demo_fixture()),
+            tracer: RuleTracerSnapshot::demo_fixture(),
             mrs_acceleration:
-                infiltrator_contract::mrs_acceleration::MrsAccelerationSnapshot::demo_fixture(),
+                MrsAccelerationSnapshot::demo_fixture(),
             truncated_rule_count: None,
-            rule_publish_limit: infiltrator_domain::rules::view::RULE_PUBLISH_LIMIT,
-            provider_cache: infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::ready(
+            rule_publish_limit: RULE_PUBLISH_LIMIT,
+            provider_cache: RuleProviderCacheSnapshot::ready(
                 "~/.config/mihomo-rs/configs/rules",
                 3,
                 1_048_576,
             ),
             etag_support:
-                infiltrator_contract::provider_cache::KernelEtagSupportSnapshot::from_declared(Some(
+                KernelEtagSupportSnapshot::from_declared(Some(
                     true,
                 )),
             json_documents: vec![
-                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
-                    section: infiltrator_contract::rules_workspace::RulesJsonSection::RuleProviders,
+                RulesJsonDocumentSnapshot {
+                    section: RulesJsonSection::RuleProviders,
                     json: "{\n  \"geosite-geolocation-!cn\": {\n    \"type\": \"http\",\n    \"behavior\": \"domain\",\n    \"url\": \"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs\",\n    \"interval\": 86400\n  }\n}".to_owned(),
                 },
-                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
-                    section: infiltrator_contract::rules_workspace::RulesJsonSection::ProxyProviders,
+                RulesJsonDocumentSnapshot {
+                    section: RulesJsonSection::ProxyProviders,
                     json: "{}".to_owned(),
                 },
-                infiltrator_contract::rules_workspace::RulesJsonDocumentSnapshot {
-                    section: infiltrator_contract::rules_workspace::RulesJsonSection::Sniffer,
+                RulesJsonDocumentSnapshot {
+                    section: RulesJsonSection::Sniffer,
                     json: "{\n  \"enable\": true,\n  \"sniff\": {\n    \"HTTP\": {\n      \"ports\": [80, \"8080-8880\"]\n    }\n  }\n}".to_owned(),
                 },
             ],
@@ -78,55 +84,70 @@ impl RulesProjection {
             ],
             rules: vec![
                 RuleItem {
-                    id: 1,
+                    edit_id: None,
+                    raw: format!("DOMAIN-SUFFIX,google.com,{STREAMING}"),
+ source_ip: false, no_resolve: false, failure: None,
+id: 1,
                     rule_type: "DOMAIN-SUFFIX".to_owned(),
                     payload: "google.com".to_owned(),
-                    proxy: "国外媒体 (GLOBAL-MEDIA)".to_owned(),
-                    hit_count: 1420,
+                    proxy: STREAMING.to_owned(),
+                    hit_count: Some(1420),
                     is_enabled: true,
                     last_hit_secs: Some(1_700_000_010),
                     is_shadowed: false,
                     shadow_reason: None,
                 },
                 RuleItem {
-                    id: 2,
+                    edit_id: None,
+                    raw: format!("DOMAIN-KEYWORD,github,{PROXIES}"),
+ source_ip: false, no_resolve: false, failure: None,
+id: 2,
                     rule_type: "DOMAIN-KEYWORD".to_owned(),
                     payload: "github".to_owned(),
-                    proxy: "节点选择 (PROXIES)".to_owned(),
-                    hit_count: 852,
+                    proxy: PROXIES.to_owned(),
+                    hit_count: Some(852),
                     is_enabled: false,
                     last_hit_secs: Some(1_700_000_008),
                     is_shadowed: false,
                     shadow_reason: None,
                 },
                 RuleItem {
-                    id: 3,
+                    edit_id: None,
+                    raw: "GEOIP,CN,DIRECT".to_owned(),
+ source_ip: false, no_resolve: false, failure: None,
+id: 3,
                     rule_type: "GEOIP".to_owned(),
                     payload: "CN".to_owned(),
                     proxy: "DIRECT".to_owned(),
-                    hit_count: 4210,
+                    hit_count: Some(4210),
                     is_enabled: true,
                     last_hit_secs: Some(1_700_000_004),
                     is_shadowed: false,
                     shadow_reason: None,
                 },
                 RuleItem {
-                    id: 4,
+                    edit_id: None,
+                    raw: "RULE-SET,custom-reject-ads,REJECT".to_owned(),
+ source_ip: false, no_resolve: false, failure: None,
+id: 4,
                     rule_type: "RULE-SET".to_owned(),
                     payload: "custom-reject-ads".to_owned(),
                     proxy: "REJECT".to_owned(),
-                    hit_count: 128,
+                    hit_count: Some(128),
                     is_enabled: true,
                     last_hit_secs: Some(1_699_999_900),
                     is_shadowed: false,
                     shadow_reason: None,
                 },
                 RuleItem {
-                    id: 5,
+                    edit_id: None,
+                    raw: "MATCH,DIRECT".to_owned(),
+ source_ip: false, no_resolve: false, failure: None,
+id: 5,
                     rule_type: "MATCH".to_owned(),
                     payload: "".to_owned(),
                     proxy: "DIRECT".to_owned(),
-                    hit_count: 56,
+                    hit_count: Some(56),
                     is_enabled: true,
                     last_hit_secs: None,
                     is_shadowed: true,

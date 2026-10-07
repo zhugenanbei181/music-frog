@@ -9,16 +9,7 @@ use std::fmt;
 pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
     Some(match m {
         Message::LoadRules => write!(f, "LoadRules"),
-        Message::RulesBundleLoaded(Ok(bundle)) => write!(
-            f,
-            "RulesBundleLoaded(Ok({} rules, rp:{} chars, pp:{} chars, sn:{} chars))",
-            bundle.rules.len(),
-            bundle.rule_providers_json.len(),
-            bundle.proxy_providers_json.len(),
-            bundle.sniffer_json.len()
-        ),
-        Message::RulesBundleLoaded(Err(e)) => write!(f, "RulesBundleLoaded(Err({:?}))", e),
-        Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.len()),
+        Message::RulesLoaded(Ok(r)) => write!(f, "RulesLoaded(Ok({} rules))", r.rules.len()),
         Message::RulesLoaded(Err(e)) => write!(f, "RulesLoaded(Err({:?}))", e),
         Message::SetRulesTab(tab) => write!(f, "SetRulesTab({:?})", tab),
         Message::SetRulesJsonTab(tab) => write!(f, "SetRulesJsonTab({:?})", tab),
@@ -77,26 +68,19 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::ApplyTracerRuleOverride { rule_index } => {
             write!(f, "ApplyTracerRuleOverride({rule_index})")
         }
-        Message::TracerRuleOverrideApplied(result) => {
-            write!(f, "TracerRuleOverrideApplied({result:?})")
-        }
         Message::UpdateFilteredGroups => write!(f, "UpdateFilteredGroups"),
         Message::UpdateNewRuleType(s) => write!(f, "UpdateNewRuleType({})", s),
         Message::UpdateNewRulePayload(s) => write!(f, "UpdateNewRulePayload({})", s),
         Message::UpdateNewRuleTarget(s) => write!(f, "UpdateNewRuleTarget({})", s),
         Message::AddCustomRule => write!(f, "AddCustomRule"),
-        Message::RuleAdded(Ok(_)) => write!(f, "RuleAdded(Ok)"),
-        Message::RuleAdded(Err(e)) => write!(f, "RuleAdded(Err({:?}))", e),
-        Message::ToggleRuleEnabled(index) => write!(f, "ToggleRuleEnabled({})", index),
-        Message::MoveRuleUp(index) => write!(f, "MoveRuleUp({})", index),
-        Message::MoveRuleDown(index) => write!(f, "MoveRuleDown({})", index),
+        Message::ToggleRuleEnabled(id) => write!(f, "ToggleRuleEnabled({id:?})"),
+        Message::MoveRuleUp(id) => write!(f, "MoveRuleUp({id:?})"),
+        Message::MoveRuleDown(id) => write!(f, "MoveRuleDown({id:?})"),
         Message::SaveRules => write!(f, "SaveRules"),
         Message::ApplyGameRoutingPresets => write!(f, "ApplyGameRoutingPresets"),
         Message::UpdateGeoDatabases => write!(f, "UpdateGeoDatabases"),
         Message::GeoDatabasesUpdated(Ok(_)) => write!(f, "GeoDatabasesUpdated(Ok)"),
         Message::GeoDatabasesUpdated(Err(e)) => write!(f, "GeoDatabasesUpdated(Err({:?}))", e),
-        Message::RulesSaved(Ok(_)) => write!(f, "RulesSaved(Ok)"),
-        Message::RulesSaved(Err(e)) => write!(f, "RulesSaved(Err({:?}))", e),
         Message::InspectRuleProviderDiff(opt) => write!(f, "InspectRuleProviderDiff({opt:?})"),
         Message::UnpackRuleProvider(name) => write!(f, "UnpackRuleProvider({name})"),
         Message::RuleProviderDiffLoaded(Ok(diff)) => {
@@ -200,8 +184,14 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::AddDnsHostRow => write!(f, "AddDnsHostRow"),
         Message::RemoveDnsHostRow(i) => write!(f, "RemoveDnsHostRow({})", i),
         Message::SaveDnsHosts => write!(f, "SaveDnsHosts"),
-        Message::DnsHostsSaved(Ok(_)) => write!(f, "DnsHostsSaved(Ok)"),
-        Message::DnsHostsSaved(Err(error)) => write!(f, "DnsHostsSaved(Err({:?}))", error),
+        Message::OpenDnsHostsEditor => write!(f, "OpenDnsHostsEditor"),
+        Message::CancelDnsHostRowInput => write!(f, "CancelDnsHostRowInput"),
+        Message::CancelDnsHostsEditor => write!(f, "CancelDnsHostsEditor"),
+        Message::EditDnsHostRow(id) => write!(f, "EditDnsHostRow({id})"),
+        Message::ImportLegacyDnsHosts => write!(f, "ImportLegacyDnsHosts"),
+        Message::DnsHostsCommandFinished { token, result } => {
+            write!(f, "DnsHostsCommandFinished({token}, {result:?})")
+        }
         Message::UpdateTunFormEnable(v) => write!(f, "UpdateTunFormEnable({})", v),
         Message::UpdateTunFormStack(v) => write!(f, "UpdateTunFormStack({})", v),
         Message::UpdateTunFormMtu(v) => write!(f, "UpdateTunFormMtu({})", v),
@@ -217,6 +207,10 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::TickSubUpdate => write!(f, "TickSubUpdate"),
         Message::TickWebDavSync => write!(f, "TickWebDavSync"),
         Message::TickRuntimeRefresh => write!(f, "TickRuntimeRefresh"),
+        Message::CaptureRegionMeasured(bounds) => write!(f, "CaptureRegionMeasured({bounds:?})"),
+        Message::CaptureFrameRendered { revision, .. } => {
+            write!(f, "CaptureFrameRendered({revision})")
+        }
         Message::TickFrame(now) => write!(f, "TickFrame({:?})", now),
         Message::TrayEvent(e) => write!(f, "TrayEvent({:?})", e),
         Message::Exit => write!(f, "Exit"),
@@ -324,12 +318,11 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::CancelConfirmation => write!(f, "CancelConfirmation"),
         Message::ClearError => write!(f, "ClearError"),
         Message::EditProfile(p) => write!(f, "EditProfile({:?})", p),
-        Message::ProfileContentLoaded(Ok((p, _))) => {
-            write!(f, "ProfileContentLoaded(Ok({:?}))", p)
+        Message::ProfileContentLoaded(reply) => {
+            write!(f, "ProfileContentLoaded(ticket={})", reply.ticket)
         }
-        Message::ProfileContentLoaded(Err(e)) => {
-            write!(f, "ProfileContentLoaded(Err({:?}))", e)
-        }
+        Message::DiscardProfileDraft => write!(f, "DiscardProfileDraft"),
+        Message::DiscardMixinDraft => write!(f, "DiscardMixinDraft"),
         Message::LoadProfileSnapshots => write!(f, "LoadProfileSnapshots"),
         Message::ProfileSnapshotsLoaded(Ok(history)) => {
             write!(
@@ -344,14 +337,11 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         Message::RestoreProfileSnapshot(path) => {
             write!(f, "RestoreProfileSnapshot({:?})", path)
         }
-        Message::ProfileSnapshotRestored(Ok(_)) => write!(f, "ProfileSnapshotRestored(Ok)"),
-        Message::ProfileSnapshotRestored(Err(error)) => {
-            write!(f, "ProfileSnapshotRestored(Err({:?}))", error)
-        }
         Message::EditorAction(_) => write!(f, "EditorAction"),
         Message::SaveProfile => write!(f, "SaveProfile"),
-        Message::ProfileSaved(Ok(_)) => write!(f, "ProfileSaved(Ok)"),
-        Message::ProfileSaved(Err(e)) => write!(f, "ProfileSaved(Err({:?}))", e),
+        Message::ProfileSaved(reply) => {
+            write!(f, "ProfileSaved(operation={})", reply.pending.operation)
+        }
         Message::OpenConfigDirFinished(Ok(_)) => write!(f, "OpenConfigDirFinished(Ok)"),
         Message::OpenConfigDirFinished(Err(error)) => {
             write!(f, "OpenConfigDirFinished(Err({:?}))", error)
@@ -392,8 +382,17 @@ pub(super) fn fmt(m: &Message, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result
         }
         Message::OpenConfigDir => write!(f, "OpenConfigDir"),
         Message::FlushFakeIpCache => write!(f, "FlushFakeIpCache"),
-        Message::DnsCacheFlushed(Ok(report)) => write!(f, "DnsCacheFlushed(Ok({report:?}))"),
-        Message::DnsCacheFlushed(Err(error)) => write!(f, "DnsCacheFlushed(Err({error}))"),
+        Message::ConfirmDnsCacheFlush => write!(f, "ConfirmDnsCacheFlush"),
+        Message::CancelDnsCacheFlush => write!(f, "CancelDnsCacheFlush"),
+        Message::RetryDnsCacheFlush => write!(f, "RetryDnsCacheFlush"),
+        Message::DnsCacheCommandFinished { token, result } => f
+            .debug_struct("DnsCacheCommandFinished")
+            .field("token", token)
+            .field("result", result)
+            .finish(),
+        Message::ProxyDelayCompleted { name, result } => {
+            write!(f, "ProxyDelayCompleted({name}, {result:?})")
+        }
         Message::TestProxyDelay(p) => write!(f, "TestProxyDelay({})", p),
         Message::TestGroupDelay(g) => write!(f, "TestGroupDelay({})", g),
         Message::ProxyTested(p, Ok(d)) => write!(f, "ProxyTested({}, Ok({}ms))", p, d),

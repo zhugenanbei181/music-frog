@@ -7,10 +7,9 @@
 //! default and the workbench reports a typed unsupported status instead of a
 //! fabricated latency.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::dns_latency::{DnsLatencyProbeRequest, DnsLatencyReport};
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait DnsLatencyProbePort: Send + Sync {

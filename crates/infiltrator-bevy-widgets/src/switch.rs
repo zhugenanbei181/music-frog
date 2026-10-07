@@ -12,18 +12,17 @@
 //! only pick between the four token sets defined in [`crate::theme`], so an
 //! off-token color has no path into the palette.
 
+use crate::button::{ControlVisual, control_fill};
+use crate::fonts::FontSources;
+use crate::palette::UiPalette;
+use crate::text::{TextRole, role_typography};
+use crate::theme::{Theme, ThemeSkin};
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::picking::hover::PickingInteraction;
 use bevy::text::{TextColor, TextFont};
 use bevy::ui::BackgroundColor;
-
-use crate::button::{ControlVisual, control_fill};
-use crate::fonts::FontSources;
-use crate::palette::UiPalette;
-use crate::text::{TextRole, role_typography};
-use crate::theme::{Theme, ThemeSkin};
 
 /// Pick one of the token sets defined in [`crate::theme`]. Observe with
 /// [`apply_theme`], registered by [`crate::WidgetsPlugin`].

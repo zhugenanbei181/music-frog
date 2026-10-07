@@ -5,13 +5,14 @@
 //! `infiltrator_application::shortcut_application`; this module is only the
 //! desktop-composition wiring that hands the facade the host settings store.
 
+use crate::host::storage::settings_store;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::shortcut_application::ShortcutApplication;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::shortcuts::{ShortcutAction, ShortcutChord, ShortcutRegistry};
 
 async fn application() -> Result<ShortcutApplication, InfiltratorError> {
-    let store = crate::host::storage::settings_store()
+    let store = settings_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))?;
     Ok(ShortcutApplication::new(SettingsApplication::new(store)))

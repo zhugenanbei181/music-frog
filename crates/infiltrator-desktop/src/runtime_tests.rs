@@ -1,4 +1,7 @@
 use super::*;
+use std::env::{remove_var, set_var};
+use std::sync::Mutex;
+use tokio::fs::write;
 
 #[test]
 fn test_normalize_mode() {
@@ -153,12 +156,12 @@ fn test_collect_geoip_candidates_empty() {
     assert!(result.contains(&PathBuf::from("/path/to/geoip.metadb")));
 }
 
-static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn test_build_geoip_url_list_default() {
     let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { std::env::remove_var("MIHOMO_GEOIP_URL") };
+    unsafe { remove_var("MIHOMO_GEOIP_URL") };
     let result = build_geoip_url_list();
     assert_eq!(result.len(), 3);
     assert!(result[0].contains("github.com"));
@@ -168,27 +171,27 @@ fn test_build_geoip_url_list_default() {
 #[test]
 fn test_build_geoip_url_list_custom() {
     let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { std::env::set_var("MIHOMO_GEOIP_URL", "https://custom.url/geoip.metadb") };
+    unsafe { set_var("MIHOMO_GEOIP_URL", "https://custom.url/geoip.metadb") };
     let result = build_geoip_url_list();
     assert_eq!(result.len(), 1);
     assert_eq!(result[0], "https://custom.url/geoip.metadb");
-    unsafe { std::env::remove_var("MIHOMO_GEOIP_URL") };
+    unsafe { remove_var("MIHOMO_GEOIP_URL") };
 }
 
 #[test]
 fn test_build_geoip_url_list_empty_custom() {
     let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { std::env::set_var("MIHOMO_GEOIP_URL", "   ") };
+    unsafe { set_var("MIHOMO_GEOIP_URL", "   ") };
     let result = build_geoip_url_list();
     assert_eq!(result.len(), 3);
-    unsafe { std::env::remove_var("MIHOMO_GEOIP_URL") };
+    unsafe { remove_var("MIHOMO_GEOIP_URL") };
 }
 
 #[tokio::test]
 async fn offline_geoip_missing_is_non_fatal_and_does_not_write_or_download() {
     let dir = tempfile::TempDir::new().expect("temp dir");
     let config_path = dir.path().join("default.yaml");
-    tokio::fs::write(&config_path, "geoip: true\nmode: rule\n")
+    write(&config_path, "geoip: true\nmode: rule\n")
         .await
         .expect("config");
     let target = dir.path().join("geoip.metadb");

@@ -1,25 +1,23 @@
 //! Bevy Settings control for the host system proxy.
 
+use super::settings_core::{SettingsLine, SettingsLineKind};
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{Node, UiRect, Val, percent};
+use bevy::ui::prelude::{AlignItems, BackgroundColor, JustifyContent, Node, UiRect, Val, percent};
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::ValueChange;
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use infiltrator_application::network_status_projection::system_proxy_status;
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::system_proxy::{
-    SystemProxyOwnership, SystemProxyRecoverySnapshot, SystemProxyRecoveryStatus,
-    SystemProxySnapshot, SystemProxyStatus,
-};
-
-use super::settings_core::{SettingsLine, SettingsLineKind};
-use crate::command::{CommandSinkHandle, UiCommand};
+use infiltrator_contract::system_proxy::{SystemProxyRecoverySnapshot, SystemProxySnapshot};
 
 /// Parent marker for the host system proxy checkbox.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -33,7 +31,7 @@ pub(super) fn toggle_scene(checked: bool, palette: &UiPalette) -> Box<dyn Scene>
             }
             SystemProxyToggle
             Children [
-                @{ checkbox_scene("设置系统代理 (Set System Proxy)".to_owned(), checked, palette) }
+                @{ localized_checkbox_scene(LocalizedText::plain("settings_set_system_proxy"), checked, palette) }
             ]
     })
 }
@@ -46,47 +44,17 @@ pub(super) fn status_row(
     Box::new(bsn! {
             Node {
                 width: percent(100),
-                align_items: bevy::ui::prelude::AlignItems::Center,
-                justify_content: bevy::ui::prelude::JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
                 padding: UiRect::all(Val::Px(space::S8)),
             }
-            bevy::ui::prelude::BackgroundColor({ palette.surface_elevated })
+            BackgroundColor({ palette.surface_elevated })
             Children [
-                Text({ "系统代理状态 (System Proxy Status)".to_owned() }) TextRole(Role::Body)
+                LocalizedText::plain("settings_system_proxy_status_title") TextRole(Role::Body)
                 --
-                Text(format_status(snapshot, recovery)) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
+                Text({ system_proxy_status(snapshot, recovery, "zh-CN") }) SettingsLine(SettingsLineKind::SystemProxy) TextRole(Role::Mono)
             ]
     })
-}
-
-pub(super) fn format_status(
-    snapshot: &SystemProxySnapshot,
-    recovery: &SystemProxyRecoverySnapshot,
-) -> String {
-    let recovery_status = match &recovery.status {
-        SystemProxyRecoveryStatus::Restored { .. } => Some("启动已清理孤儿代理"),
-        SystemProxyRecoveryStatus::SkippedExternal { .. } => Some("检测到外部修改，未覆盖"),
-        SystemProxyRecoveryStatus::Failed { .. } => Some("启动恢复失败"),
-        SystemProxyRecoveryStatus::SkippedLiveOwner { .. } => Some("已有实例持有代理"),
-        SystemProxyRecoveryStatus::Unknown | SystemProxyRecoveryStatus::NotNeeded => None,
-    };
-    if let Some(status) = recovery_status {
-        return status.to_owned();
-    }
-    match &snapshot.status {
-        SystemProxyStatus::Unknown => "未探测".to_owned(),
-        SystemProxyStatus::Disabled => "已关闭".to_owned(),
-        SystemProxyStatus::Enabled => match snapshot.ownership {
-            SystemProxyOwnership::Repaired => "已自动修复外部修改".to_owned(),
-            SystemProxyOwnership::Owned => snapshot.endpoint.as_deref().map_or_else(
-                || "已接管".to_owned(),
-                |endpoint| format!("已接管 {endpoint}"),
-            ),
-            _ => "已启用".to_owned(),
-        },
-        SystemProxyStatus::Unsupported { .. } => "宿主不支持".to_owned(),
-        SystemProxyStatus::Failed { failure } => format!("失败 ({})", failure.message),
-    }
 }
 
 pub(super) fn on_changed(

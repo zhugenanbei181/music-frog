@@ -1,19 +1,21 @@
 //! Backup and export/import utilities for all local configurations, profiles, and settings.
 
+use crate::snapshots::SnapshotMeta;
 use chrono::Utc;
 use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use ring::pbkdf2;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Write};
 use std::num::NonZeroU32;
+use std::{io, result};
 use thiserror::Error;
+use zip::result::ZipError;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
-
-use crate::snapshots::SnapshotMeta;
 
 const ENCRYPTED_MAGIC: &[u8; 16] = b"IFTR_BACKUP_V1\x00\x00";
 const SALT_LEN: usize = 16;
@@ -25,13 +27,13 @@ const HEADER_LEN: usize = 16 + SALT_LEN + NONCE_LEN + 4; // 48 bytes
 #[derive(Debug, Error)]
 pub enum BackupError {
     #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] io::Error),
 
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 
     #[error("Zip archive error: {0}")]
-    Zip(#[from] zip::result::ZipError),
+    Zip(#[from] ZipError),
 
     #[error("Password cannot be empty")]
     EmptyPassword,
@@ -49,7 +51,7 @@ pub enum BackupError {
     IntegrityMismatch { expected: String, actual: String },
 }
 
-pub type Result<T, E = BackupError> = std::result::Result<T, E>;
+pub type Result<T, E = BackupError> = result::Result<T, E>;
 
 /// Represents a single configuration profile stored inside a backup bundle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -496,7 +498,7 @@ pub fn prune_snapshots(snapshots: &[SnapshotMeta], max_retain: usize) -> Vec<Str
 
     let mut pruned_paths = Vec::new();
     for (_profile, mut profile_snaps) in grouped {
-        profile_snaps.sort_by_key(|s| std::cmp::Reverse(s.timestamp));
+        profile_snaps.sort_by_key(|s| Reverse(s.timestamp));
 
         let mut seen_hashes = HashSet::new();
         let mut retained_count = 0;

@@ -5,13 +5,14 @@
 
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup};
-use bevy::asset::Assets;
-use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::asset::{AssetApp, AssetPlugin, Assets, Handle};
 use bevy::color::Color;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::system::Commands;
+use bevy::ecs::world::World;
 use bevy::image::Image;
 use bevy::picking::hover::PickingInteraction;
+use bevy::render::mesh::Mesh;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -37,7 +38,8 @@ use infiltrator_bevy_widgets::chart::ring_buffer::{
     CadenceMode, FixedRingBuffer, TelemetryCadenceManager, TelemetryStatistics,
 };
 use infiltrator_bevy_widgets::chart::topology::{
-    TopologyLink, TopologyNode, TopologyPlate, TopologySpec, rasterize_topology, topology_scene,
+    NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, rasterize_topology,
+    topology_scene,
 };
 use infiltrator_bevy_widgets::chart::{
     ChartCrosshairTracked, ChartLayer, ChartPlate, ChartSpec, Grid, chart_scene, polyline,
@@ -46,6 +48,8 @@ use infiltrator_bevy_widgets::chart::{
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use std::thread::sleep;
+use std::time;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -131,6 +135,29 @@ fn rasterizer_draws_a_two_pixel_line_breaking_at_gaps() {
         [0, 0, 0, 0],
         "the gap column never bridges"
     );
+}
+
+#[test]
+fn rasterizer_keeps_isolated_observations_visible_without_bridging_timeouts() {
+    let ink = [255, 0, 0, 255];
+    let layer = ChartLayer {
+        points: polyline(&[18.0, f32::NAN, 42.0], 40.0, 20.0),
+        line: ink,
+        fill: None,
+    };
+    let data = rasterize(40, 20, None, &[layer]);
+    assert_eq!(pixel(&data, 40, 0, 19), ink);
+    assert_eq!(pixel(&data, 40, 39, 0), ink);
+    for y in 0..20 {
+        assert_eq!(pixel(&data, 40, 20, y), [0, 0, 0, 0]);
+    }
+    let single = ChartLayer {
+        points: polyline(&[7.0], 40.0, 20.0),
+        line: ink,
+        fill: None,
+    };
+    let data = rasterize(40, 20, None, &[single]);
+    assert_eq!(pixel(&data, 40, 39, 10), ink);
 }
 
 #[test]
@@ -228,14 +255,14 @@ fn chart_scene_stamps_an_image_node_and_updates_rewrite_the_same_handle() {
         entity
     };
 
-    let handle_of = |world: &bevy::ecs::world::World| {
+    let handle_of = |world: &World| {
         world
             .get::<ImageNode>(plate_id)
             .expect("image node survives")
             .image
             .clone()
     };
-    let data_of = |world: &bevy::ecs::world::World, handle: &bevy::asset::Handle<Image>| {
+    let data_of = |world: &World, handle: &Handle<Image>| {
         world
             .resource::<Assets<Image>>()
             .get(handle)
@@ -349,16 +376,8 @@ fn mesh_generation_waveform_donut_and_histogram() {
     assert_eq!(ribbon_mesh.vertices.len(), 6);
 
     let bevy_mesh = area_mesh.to_bevy_mesh();
-    assert!(
-        bevy_mesh
-            .attribute(bevy::render::mesh::Mesh::ATTRIBUTE_POSITION)
-            .is_some()
-    );
-    assert!(
-        bevy_mesh
-            .attribute(bevy::render::mesh::Mesh::ATTRIBUTE_COLOR)
-            .is_some()
-    );
+    assert!(bevy_mesh.attribute(Mesh::ATTRIBUTE_POSITION).is_some());
+    assert!(bevy_mesh.attribute(Mesh::ATTRIBUTE_COLOR).is_some());
 
     let sector =
         build_donut_sector_mesh([50.0, 50.0], 20.0, 40.0, 0.0, 1.57, [0.0, 1.0, 0.0, 1.0], 8);
@@ -433,27 +452,9 @@ fn histogram_latency_tiers_and_scene_sync() {
 #[test]
 fn topology_diagram_ribbon_flow_and_scene_sync() {
     let nodes = vec![
-        TopologyNode::new(
-            "inbound",
-            "Chrome",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Inbound,
-            0.1,
-            0.5,
-        ),
-        TopologyNode::new(
-            "rule",
-            "Rule Router",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Rule,
-            0.5,
-            0.5,
-        ),
-        TopologyNode::new(
-            "outbound",
-            "HK-Node",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Outbound,
-            0.9,
-            0.5,
-        ),
+        TopologyNode::new("inbound", "Chrome", NodeCategory::Inbound, 0.1, 0.5),
+        TopologyNode::new("rule", "Rule Router", NodeCategory::Rule, 0.5, 0.5),
+        TopologyNode::new("outbound", "HK-Node", NodeCategory::Outbound, 0.9, 0.5),
     ];
     let links = vec![
         TopologyLink::new("inbound", "rule", 5_000_000.0),
@@ -671,27 +672,9 @@ fn test_radar_geometry_and_composite_health_scoring() {
 #[test]
 fn topology_hover_chain_highlight_and_linear_flow_advancement() {
     let nodes = vec![
-        TopologyNode::new(
-            "inbound",
-            "Inbound",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Inbound,
-            0.1,
-            0.5,
-        ),
-        TopologyNode::new(
-            "ruleset",
-            "RuleSet",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Rule,
-            0.5,
-            0.5,
-        ),
-        TopologyNode::new(
-            "outbound",
-            "Outbound",
-            infiltrator_bevy_widgets::chart::topology::NodeCategory::Outbound,
-            0.9,
-            0.5,
-        ),
+        TopologyNode::new("inbound", "Inbound", NodeCategory::Inbound, 0.1, 0.5),
+        TopologyNode::new("ruleset", "RuleSet", NodeCategory::Rule, 0.5, 0.5),
+        TopologyNode::new("outbound", "Outbound", NodeCategory::Outbound, 0.9, 0.5),
     ];
     let links = vec![
         TopologyLink::new("inbound", "ruleset", 5_000_000.0),
@@ -719,7 +702,7 @@ fn topology_hover_chain_highlight_and_linear_flow_advancement() {
 
     // Advance time across updates
     app.update();
-    std::thread::sleep(std::time::Duration::from_millis(25));
+    sleep(time::Duration::from_millis(25));
     app.update();
 
     let plate = app.world().get::<TopologyPlate>(plate_entity).unwrap();

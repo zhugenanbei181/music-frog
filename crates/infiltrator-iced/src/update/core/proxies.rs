@@ -2,27 +2,49 @@
 //! delay testing and the persisted runtime-panel preferences (sort keys,
 //! delay test URL/timeout, connection filter/sort).
 
+use crate::settings_store::update;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::update::core::profile_apply::save_task;
 use iced::Task;
+use infiltrator_application::proxy_projection::project_groups_snapshot;
+use infiltrator_application::proxy_search_projection::project_name_runs;
+use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_domain::settings::RuntimePanelConfig;
+use infiltrator_contract::proxies::ProxySortOrder;
+use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::speedtest::SpeedtestScope;
+use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
+use infiltrator_domain::proxy::Proxy;
+use infiltrator_ports::error::PortError;
+use std::collections::HashMap;
 
-pub(super) const DEFAULT_RUNTIME_DELAY_TEST_URL: &str = "http://www.gstatic.com/generate_204";
-pub(super) const DEFAULT_RUNTIME_DELAY_TIMEOUT_MS: u32 = 5000;
-pub(super) const MIN_RUNTIME_DELAY_TIMEOUT_MS: u32 = 100;
-pub(super) const MAX_RUNTIME_DELAY_TIMEOUT_MS: u32 = 60_000;
 const DEFAULT_RUNTIME_CONNECTION_SORT: &str = "download_desc";
 
 impl AppState {
+    fn apply_proxies_loaded(
+        &mut self,
+        result: Result<HashMap<String, Proxy>, InfiltratorError>,
+    ) -> Task<Message> {
+        self.runtime.is_loading_proxies = false;
+        match result {
+            Ok(proxies) => {
+                self.runtime.proxies = proxies;
+                self.reconcile_proxy_inspection();
+                self.refresh_tray();
+                self.recompute_filtered_groups();
+                self.sync_runtime_proxy_selection();
+            }
+            Err(error) => self.set_error(&error),
+        }
+        Task::none()
+    }
+
     /// Drive a scope-wide speedtest through the shared engine port. The host's
     /// `SpeedtestApplication` is the single fact source both surfaces read; no
     /// UI-local metric or legacy proxy path is used.
-    fn run_speedtest_scope(
-        &mut self,
-        scope: infiltrator_contract::speedtest::SpeedtestScope,
-    ) -> Task<Message> {
+    fn run_speedtest_scope(&mut self, scope: SpeedtestScope) -> Task<Message> {
         let Some(port) = self
             .runtime
             .runtime
@@ -34,8 +56,43 @@ impl AppState {
                 ToastStatus::Error,
             ));
         };
-        let test_url = self.speedtest_target_url();
-        let timeout_ms = self.normalized_delay_timeout_ms();
+        if let Some(application) = self.commands.clone() {
+            let group = match scope {
+                SpeedtestScope::SingleGroup(group) => Some(group),
+                SpeedtestScope::AllGroups => None,
+                _ => return Task::none(),
+            };
+            let (url, timeout_ms) = match self.applied_probe_options() {
+                Ok(options) => (Some(options.test_url), Some(options.timeout_ms)),
+                Err(_) => (None, None),
+            };
+            self.runtime.runtime_testing_all_delays = true;
+            return Task::perform(
+                async move {
+                    match (application
+                        .execute(CommandIntent::TestDelay {
+                            group,
+                            url,
+                            timeout_ms,
+                        })
+                        .await)
+                        .into_unit()
+                    {
+                        Ok(()) => Ok(port.snapshot()),
+                        Err(failure) => Err(PortError::Rejected(failure)),
+                    }
+                },
+                Message::SpeedtestScopeUpdated,
+            );
+        }
+        let options = match self.applied_probe_options() {
+            Ok(options) => options,
+            Err(failure) => {
+                return Task::done(Message::ShowToast(failure.message, ToastStatus::Error));
+            }
+        };
+        let test_url = Some(options.test_url);
+        let timeout_ms = options.timeout_ms;
         self.runtime.runtime_testing_all_delays = true;
         Task::perform(
             async move { port.run_scope(scope, test_url, Some(timeout_ms)).await },
@@ -63,59 +120,6 @@ impl AppState {
         }
     }
 
-    fn delay_sortable_value(&self, name: &str) -> Option<u32> {
-        self.runtime
-            .proxies
-            .get(name)
-            .and_then(|proxy| proxy.history().last().map(|item| item.delay))
-            .filter(|delay| *delay > 0)
-    }
-
-    fn compare_delay_members(&self, left: &str, right: &str) -> std::cmp::Ordering {
-        let left_fav = self.runtime.favorite_proxies.contains(left);
-        let right_fav = self.runtime.favorite_proxies.contains(right);
-        if left_fav != right_fav {
-            return if left_fav {
-                std::cmp::Ordering::Less
-            } else {
-                std::cmp::Ordering::Greater
-            };
-        }
-
-        let left_delay = self.delay_sortable_value(left);
-        let right_delay = self.delay_sortable_value(right);
-
-        let compare_delay = |desc: bool| match (left_delay, right_delay) {
-            (None, None) => left.cmp(right),
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (Some(lv), Some(rv)) => {
-                let base = if desc { rv.cmp(&lv) } else { lv.cmp(&rv) };
-                if base == std::cmp::Ordering::Equal {
-                    left.cmp(right)
-                } else {
-                    base
-                }
-            }
-        };
-
-        match self.runtime.proxy_delay_sort.as_str() {
-            "name_asc" => left.cmp(right),
-            "name_desc" => right.cmp(left),
-            "delay_desc" => compare_delay(true),
-            _ => compare_delay(false),
-        }
-    }
-
-    fn normalized_delay_test_url(&self) -> String {
-        let trimmed = self.runtime.runtime_delay_test_url.trim();
-        if trimmed.is_empty() {
-            DEFAULT_RUNTIME_DELAY_TEST_URL.to_string()
-        } else {
-            trimmed.to_string()
-        }
-    }
-
     /// DUAL-06-03: the user-typed speedtest target, or `None` when blank so the
     /// shared engine applies its own default. The engine owns the effective
     /// target fact; the UI only carries the raw input into the port call.
@@ -130,34 +134,19 @@ impl AppState {
         (current as i32 + delta).clamp(1, 64) as usize
     }
 
-    fn normalized_delay_timeout_ms(&self) -> u32 {
-        self.runtime
-            .runtime_delay_timeout_ms
-            .trim()
-            .parse::<u32>()
-            .ok()
-            .filter(|value| *value >= MIN_RUNTIME_DELAY_TIMEOUT_MS)
-            .unwrap_or(DEFAULT_RUNTIME_DELAY_TIMEOUT_MS)
-            .min(MAX_RUNTIME_DELAY_TIMEOUT_MS)
-    }
-
     pub(super) fn persist_runtime_panel_settings_task(&self) -> Task<Message> {
-        let runtime_panel = RuntimePanelConfig {
-            auto_refresh: self.runtime.runtime_auto_refresh,
-            delay_sort: Self::normalize_delay_sort_key(&self.runtime.proxy_delay_sort).to_string(),
-            delay_test_url: self.normalized_delay_test_url(),
-            delay_timeout_ms: self.normalized_delay_timeout_ms(),
-            connection_filter: self.runtime.runtime_connection_filter.clone(),
-            connection_sort: Self::normalize_connection_sort_key(
-                &self.runtime.runtime_connection_sort,
-            )
-            .to_string(),
-        };
-
+        let auto_refresh = self.runtime.runtime_auto_refresh;
+        let delay_sort = Self::normalize_delay_sort_key(&self.runtime.proxy_delay_sort).to_string();
+        let connection_filter = self.runtime.runtime_connection_filter.clone();
+        let connection_sort =
+            Self::normalize_connection_sort_key(&self.runtime.runtime_connection_sort).to_string();
         Task::perform(
             async move {
-                crate::settings_store::update(|settings| {
-                    settings.runtime_panel = runtime_panel;
+                update(|settings| {
+                    settings.runtime_panel.auto_refresh = auto_refresh;
+                    settings.runtime_panel.delay_sort = delay_sort;
+                    settings.runtime_panel.connection_filter = connection_filter;
+                    settings.runtime_panel.connection_sort = connection_sort;
                 })
                 .await
             },
@@ -166,54 +155,29 @@ impl AppState {
     }
 
     pub fn recompute_filtered_groups(&mut self) {
-        let mut groups: Vec<_> = self
-            .runtime
-            .proxies
-            .iter()
-            .filter(|(_, p)| p.is_group())
-            .collect();
-
-        // Sort groups: GLOBAL first, then by type
-        groups.sort_by(|(na, pa), (nb, pb)| {
-            if *na == "GLOBAL" {
-                return std::cmp::Ordering::Less;
-            }
-            if *nb == "GLOBAL" {
-                return std::cmp::Ordering::Greater;
-            }
-            pa.proxy_type().cmp(pb.proxy_type())
-        });
-
-        let mut result = Vec::new();
-        for (group_name, group_info) in groups {
-            let mut members: Vec<String> =
-                group_info.all().map(|all| all.to_vec()).unwrap_or_default();
-
-            // 1. Filter with smart pinyin and ISO region matching (T01-07)
-            if !self.runtime.proxy_filter.is_empty() {
-                members.retain(|m| {
-                    infiltrator_shared::fuzzy_search::pinyin_fuzzy_match(
-                        m,
-                        &self.runtime.proxy_filter,
-                    )
-                });
-            }
-
-            if self.runtime.filter_alive_only {
-                members.retain(|m| self.delay_sortable_value(m).is_some());
-            }
-
-            if members.is_empty()
-                && (!self.runtime.proxy_filter.is_empty() || self.runtime.filter_alive_only)
-            {
-                continue;
-            }
-
-            members.sort_by(|left, right| self.compare_delay_members(left, right));
-
-            result.push((group_name.clone(), members));
+        if self.commands.is_some() && !self.shell.demo {
+            return;
         }
-        self.runtime.filtered_groups = result;
+        let mut preferences = self.runtime.proxy_ui_preferences.clone();
+        preferences.search_query = self.runtime.proxy_filter.clone();
+        preferences.filter_alive = self.runtime.filter_alive_only;
+        preferences.sort_order =
+            ProxySortOrder::from_str_loose(&self.runtime.proxy_delay_sort).unwrap_or_default();
+        preferences.favorite_proxies = self.runtime.favorite_proxies.iter().cloned().collect();
+        let (groups, _) = project_groups_snapshot(&self.runtime.proxies, &preferences);
+        self.runtime.proxy_name_runs = project_name_runs(&groups, &preferences.search_query);
+        self.runtime.proxy_groups = groups;
+        self.runtime.filtered_groups = self
+            .runtime
+            .proxy_groups
+            .iter()
+            .map(|group| {
+                (
+                    group.name.clone(),
+                    group.proxies.iter().map(|node| node.name.clone()).collect(),
+                )
+            })
+            .collect();
     }
 
     fn sync_runtime_proxy_selection(&mut self) {
@@ -284,6 +248,10 @@ impl AppState {
         match message {
             Message::LoadProxies => {
                 if let Some(rt) = self.runtime.runtime.clone() {
+                    let scope = self.commands.as_ref().map(|application| {
+                        let snapshot = application.snapshot();
+                        (snapshot.generation, snapshot.session_token)
+                    });
                     self.runtime.is_loading_proxies = true;
                     Task::perform(
                         async move {
@@ -291,24 +259,47 @@ impl AppState {
                                 .await
                                 .map_err(|error| InfiltratorError::Internal(error.to_string()))
                         },
-                        Message::ProxiesLoaded,
+                        move |result| match scope {
+                            Some((generation, session_token)) => Message::ProxiesLoadedForSession {
+                                generation,
+                                session_token,
+                                result,
+                            },
+                            None => Message::ProxiesLoaded(result),
+                        },
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::ProxiesLoaded(result) => {
-                self.runtime.is_loading_proxies = false;
-                match result {
-                    Ok(proxies) => {
-                        self.runtime.proxies = proxies;
-                        self.refresh_tray();
-                        self.recompute_filtered_groups();
-                        self.sync_runtime_proxy_selection();
-                    }
-                    Err(e) => self.set_error(&e),
+            Message::ProxiesLoadedForSession {
+                generation,
+                session_token,
+                result,
+            } => {
+                let current = self
+                    .commands
+                    .as_ref()
+                    .map(|application| application.snapshot());
+                if current.is_some_and(|current| {
+                    current.generation == generation
+                        && current.session_token == session_token
+                        && matches!(
+                            current.lifecycle,
+                            CoreLifecycle::Ready | CoreLifecycle::Running
+                        )
+                }) {
+                    self.apply_proxies_loaded(result)
+                } else {
+                    Task::none()
                 }
-                Task::none()
+            }
+            Message::ProxiesLoaded(result) => {
+                if self.commands.is_some() {
+                    Task::none()
+                } else {
+                    self.apply_proxies_loaded(result)
+                }
             }
             Message::SelectProxy(group, name) => {
                 if let Some(rt) = self.runtime.runtime.clone() {
@@ -324,15 +315,20 @@ impl AppState {
                     Task::none()
                 }
             }
-            Message::FilterProxies(filter) => {
-                self.runtime.proxy_filter = filter;
-                Task::done(Message::UpdateFilteredGroups)
-            }
+            Message::FilterProxies(filter) => self.update_proxy_search(filter),
             Message::ToggleFilterAlive(enabled) => {
+                if self.commands.is_some() {
+                    return self
+                        .submit_proxy_preference(CommandIntent::ToggleFilterAlive { enabled });
+                }
                 self.runtime.filter_alive_only = enabled;
                 Task::done(Message::UpdateFilteredGroups)
             }
             Message::ToggleFavoriteProxy(proxy) => {
+                if self.commands.is_some() {
+                    return self
+                        .submit_proxy_preference(CommandIntent::ToggleFavoriteProxy { proxy });
+                }
                 if self.runtime.favorite_proxies.contains(&proxy) {
                     self.runtime.favorite_proxies.remove(&proxy);
                 } else {
@@ -341,6 +337,11 @@ impl AppState {
                 Task::done(Message::UpdateFilteredGroups)
             }
             Message::ToggleProxyCompactView => {
+                if self.commands.is_some() {
+                    return self.submit_proxy_preference(CommandIntent::SetProxyCompactView {
+                        compact: !self.runtime.proxy_compact_view,
+                    });
+                }
                 self.runtime.proxy_compact_view = !self.runtime.proxy_compact_view;
                 Task::none()
             }
@@ -397,7 +398,7 @@ impl AppState {
                     ));
                 }
 
-                let node_item = infiltrator_domain::profile_converter::ProxyNodeItem {
+                let node_item = ProxyNodeItem {
                     name: name.clone(),
                     server,
                     port,
@@ -424,20 +425,14 @@ impl AppState {
                 };
 
                 let runtime = self.runtime.runtime.clone();
-                crate::update::core::profile_apply::save_task(
+                save_task(
                     runtime,
                     move |content| {
                         let mut nodes =
-                            infiltrator_domain::profile_converter::ProfileConverter::parse_nodes(
-                                content,
-                                infiltrator_domain::profile_converter::ProfileFormat::ClashYaml,
-                            )
-                            .unwrap_or_default();
+                            ProfileConverter::parse_nodes(content, ProfileFormat::ClashYaml)
+                                .unwrap_or_default();
                         nodes.insert(0, node_item);
-                        infiltrator_domain::profile_converter::ProfileConverter::export_nodes(
-                            &nodes,
-                            infiltrator_domain::profile_converter::ProfileFormat::ClashYaml,
-                        )
+                        ProfileConverter::export_nodes(&nodes, ProfileFormat::ClashYaml)
                     },
                     Message::CustomNodeAdded,
                 )
@@ -463,9 +458,20 @@ impl AppState {
                 }
             }
             Message::InspectProxy(proxy) => {
-                self.runtime.inspecting_proxy = proxy;
+                let next = proxy.filter(|name| self.proxy_inspection(name).is_some());
+                if self.runtime.inspecting_proxy != next {
+                    self.runtime.inspection_probe.dismiss();
+                    self.runtime.inspecting_proxy = next;
+                }
+                self.reconcile_proxy_inspection();
                 Task::none()
             }
+            Message::TestInspectedProxy => self.probe_inspected_proxy(),
+            Message::ProxyInspectionProbed {
+                name,
+                token,
+                result,
+            } => self.finish_inspection_probe(name, token, result),
             Message::ToggleProxySort => {
                 self.runtime.proxy_sort_by_delay = !self.runtime.proxy_sort_by_delay;
                 self.runtime.proxy_delay_sort = if self.runtime.proxy_sort_by_delay {
@@ -476,6 +482,11 @@ impl AppState {
                 Task::done(Message::UpdateFilteredGroups)
             }
             Message::UpdateProxyDelaySort(sort_key) => {
+                if self.commands.is_some() {
+                    return self.submit_proxy_preference(CommandIntent::SetProxySortOrder {
+                        order: ProxySortOrder::from_str_loose(&sort_key).unwrap_or_default(),
+                    });
+                }
                 let normalized = Self::normalize_delay_sort_key(&sort_key).to_string();
                 self.runtime.proxy_delay_sort = normalized.clone();
                 self.runtime.proxy_sort_by_delay = normalized.starts_with("delay_");
@@ -485,12 +496,14 @@ impl AppState {
                 ])
             }
             Message::UpdateDelayTestUrl(url) => {
-                self.runtime.runtime_delay_test_url = url;
-                self.persist_runtime_panel_settings_task()
+                self.runtime.probe_options_editor.edit_url(url);
+                self.sync_probe_draft_fields();
+                Task::none()
             }
             Message::UpdateDelayTimeoutMs(timeout) => {
-                self.runtime.runtime_delay_timeout_ms = timeout;
-                self.persist_runtime_panel_settings_task()
+                self.runtime.probe_options_editor.edit_timeout(timeout);
+                self.sync_probe_draft_fields();
+                Task::none()
             }
             Message::UpdateRuntimeSelectedGroup(group) => {
                 self.runtime.runtime_selected_group = group;
@@ -510,6 +523,13 @@ impl AppState {
                 Task::done(Message::SelectProxy(group, proxy))
             }
             Message::UpdateRuntimeConnectionFilter(filter) => {
+                self.diag.connection_groups.edit_query(
+                    filter
+                        .trim()
+                        .strip_prefix("tab:closed")
+                        .unwrap_or(&filter)
+                        .trim(),
+                );
                 self.runtime.runtime_connection_filter = filter;
                 self.diag.connections_page = 0;
                 self.persist_runtime_panel_settings_task()
@@ -605,10 +625,25 @@ impl AppState {
                 }
             }
             Message::TestProxyDelay(name) => {
+                if !self.runtime.runtime_testing_delay_proxy.is_empty() {
+                    return Task::none();
+                }
+                if self.commands.is_some() {
+                    return self.probe_proxy_by_name(name);
+                }
                 if let Some(rt) = self.runtime.runtime.clone() {
                     let n = name.clone();
-                    let test_url = self.normalized_delay_test_url();
-                    let timeout_ms = self.normalized_delay_timeout_ms();
+                    let options = match self.applied_probe_options() {
+                        Ok(options) => options,
+                        Err(failure) => {
+                            return Task::done(Message::ShowToast(
+                                failure.message,
+                                ToastStatus::Error,
+                            ));
+                        }
+                    };
+                    let test_url = options.test_url;
+                    let timeout_ms = options.timeout_ms;
                     self.runtime.runtime_testing_delay_proxy = name.clone();
                     Task::perform(
                         async move {
@@ -621,6 +656,18 @@ impl AppState {
                     )
                 } else {
                     Task::none()
+                }
+            }
+            Message::ProxyDelayCompleted { name, result } => {
+                if self.runtime.runtime_testing_delay_proxy != name {
+                    return Task::none();
+                }
+                self.runtime.runtime_testing_delay_proxy.clear();
+                match result {
+                    Ok(()) => Task::done(Message::LoadProxies),
+                    Err(failure) => {
+                        Task::done(Message::ShowToast(failure.message, ToastStatus::Error))
+                    }
                 }
             }
             Message::ProxyTested(name, result) => {
@@ -639,14 +686,14 @@ impl AppState {
                     )),
                 }
             }
-            Message::TestGroupDelay(name) => self.run_speedtest_scope(
-                infiltrator_contract::speedtest::SpeedtestScope::SingleGroup(name),
-            ),
+            Message::TestGroupDelay(name) => {
+                self.run_speedtest_scope(SpeedtestScope::SingleGroup(name))
+            }
             Message::TestAllProxyDelays => {
                 if self.runtime.runtime_testing_all_delays {
                     return Task::none();
                 }
-                self.run_speedtest_scope(infiltrator_contract::speedtest::SpeedtestScope::AllGroups)
+                self.run_speedtest_scope(SpeedtestScope::AllGroups)
             }
             other => self.update_core_runtime_config(other),
         }

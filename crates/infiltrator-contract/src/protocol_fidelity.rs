@@ -15,9 +15,11 @@
 //! being silently rewritten into a "close enough" variant (DUAL-05-14
 //! 未知字段无损流通).
 
-use serde::{Deserialize, Serialize};
-
+use crate::dialer_chain::DialerChainReport;
+use crate::protocol_params::{ProtocolParams, ProtocolParamsReport};
 use crate::protocol_psk::check_2022_psk;
+use crate::protocol_trust::CaTrustReport;
+use serde::{Deserialize, Serialize};
 
 /// DUAL-05-01: Shadowsocks cipher family, including the whole 2022-blake3 set.
 ///
@@ -606,7 +608,7 @@ pub struct ProtocolDraft {
     /// transports, SIP003 plugins, SSH, AnyTLS, ECH). One field keeps the
     /// draft vocabulary in `protocol_params`.
     #[serde(default)]
-    pub params: crate::protocol_params::ProtocolParams,
+    pub params: ProtocolParams,
     /// Keys captured by the codec's flatten catch-all and passed through
     /// verbatim (DUAL-05-14 未知字段无损流通).
     #[serde(default)]
@@ -790,7 +792,7 @@ pub struct ProtocolFidelityReport {
     pub issues: Vec<ProtocolIssue>,
     /// DUAL-05-03…05-12: typed parameter chips + honest non-blocking notes.
     #[serde(default)]
-    pub params: crate::protocol_params::ProtocolParamsReport,
+    pub params: ProtocolParamsReport,
 }
 
 impl ProtocolFidelityReport {
@@ -817,7 +819,7 @@ impl ProtocolFidelityReport {
             },
             smux_overrides: smux.has_overrides(),
             issues: draft.validate(),
-            params: crate::protocol_params::ProtocolParamsReport::from_draft(draft),
+            params: ProtocolParamsReport::from_draft(draft),
         }
     }
 
@@ -929,11 +931,11 @@ pub struct ProtocolStudioSnapshot {
     /// DUAL-05-09/10: the static dialer chains + loop findings for the profile
     /// the studio last analysed. Empty until a profile was analysed.
     #[serde(default)]
-    pub dialer: crate::dialer_chain::DialerChainReport,
+    pub dialer: DialerChainReport,
     /// DUAL-05-13: what the host really did with the CA request (loaded /
     /// unsupported / failed). Never claims a CA the host did not read.
     #[serde(default)]
-    pub ca_trust: crate::protocol_trust::CaTrustReport,
+    pub ca_trust: CaTrustReport,
 }
 
 impl ProtocolStudioSnapshot {

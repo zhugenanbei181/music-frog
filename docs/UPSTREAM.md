@@ -6,7 +6,7 @@
 
 | 上游线 | 当前真相来源 | 当前观察 | 升级影响 |
 | --- | --- | --- | --- |
-| mihomo core | `scripts/fetch-mihomo.sh` | pinned release 为 `v1.19.18`，脚本记录 archive/binary SHA-256 | 资产名、API、配置字段、行为、许可证、ABI、回滚 |
+| mihomo core | `packaging/mihomo-assets.json`；执行 `scripts/fetch-mihomo.sh` | 版本、平台资产、archive/binary SHA-256 均由锁定清单维护；未知版本或目标 fail-closed | 资产名、API、配置字段、行为、许可证、ABI、回滚 |
 | Rust toolchain | `rust-toolchain.toml` | 1.99.0 + rustfmt/clippy，声明 Android target | edition、MSRV/编译器、native crate 和 CI |
 | Rust libraries | 根 `Cargo.toml` + `Cargo.lock` + `src-tauri/Cargo.lock` | workspace 统一 Tokio/Reqwest/Serde 等，UI/宿主有额外 toolkit 依赖 | resolver、feature、TLS、系统库、跨平台编译 |
 | Bevy UI engine | 根 `Cargo.toml`（`bevy = "=0.20.0-rc.2"`）+ `Cargo.lock` | 战略统一 surface，锁 **0.20 发布线**（上游当前为预发布构建 rc.2，GA 后只改 pin 不改代码）；与 taskmanager 同锁 | BSN 语法、feature 闭包、wgpu/naga、文本/无障碍栈、Android APK、桌面打包 |
@@ -44,7 +44,7 @@
 
 | ID | 风险 | 处理方向 |
 | --- | --- | --- |
-| UP-001 | `fetch-mihomo.sh` 对非 pinned 版本跳过校验 | 建立版本→资产→digest manifest，未知版本 fail-closed |
+| UP-001 | 版本→资产→digest 已由 `packaging/mihomo-assets.json` 锁定；下载与提取均校验 | 版本升级必须更新可信 digest；未知版本与目标拒绝执行 |
 | UP-002 | mihomo API/配置能力没有按 core version 固化 fixture | 建立 endpoint、字段、错误和版本能力矩阵 |
 | UP-003 | Rust、Tauri、Iced、Web、Android 的升级验证入口分散 | 统一 dependency update checklist 和 CI stage |
 | UP-004 | external dashboard dist 的上游版本/来源不在单独 manifest | 记录 commit/release、构建方式、字体和 license provenance |

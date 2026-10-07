@@ -1,18 +1,31 @@
 //! File/keyring/WebDAV adapter for the runtime-neutral sync port.
 
-use dav_client::{DavClient, client::WebDavClient};
+use crate::settings_io::load_webdav_password;
+use dav_client::DavClient;
+use dav_client::client::WebDavClient;
 use infiltrator_contract::sync::{SyncConflict, SyncProgress, SyncReport, SyncTransferReport};
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::profiles::sanitize_profile_name;
 use infiltrator_domain::sandbox::{PathValidationResult, SandboxValidator};
 use infiltrator_domain::settings::WebDavConfig;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use infiltrator_ports::sync::{SyncPort, SyncProgressSink, SyncRequest, SyncTransferRequest};
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::manager::paths::resolve_configs_dir_in;
 use mihomo_platform::defaults::DefaultCredentialStore;
+use mihomo_platform::paths::get_home_dir;
 use state_store::StateStore;
 use std::collections::HashSet;
+use std::fs::canonicalize;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use sync_engine::{SyncAction, SyncPlanner, executor::SyncExecutor};
+use std::time::{SystemTime, UNIX_EPOCH};
+use sync_engine::executor::SyncExecutor;
+use sync_engine::{SyncAction, SyncPlanner};
+#[cfg(windows)]
+use tokio::fs::try_exists;
+use tokio::fs::{OpenOptions, create_dir_all, read, read_to_string, remove_file, rename};
 use tokio::io::AsyncWriteExt;
 
 pub struct FileWebDavSync<S = DefaultCredentialStore> {
@@ -29,7 +42,7 @@ impl<S> FileWebDavSync<S> {
 impl FileWebDavSync<DefaultCredentialStore> {
     pub fn current() -> anyhow::Result<Self> {
         Ok(Self::new(
-            mihomo_platform::paths::get_home_dir()?,
+            get_home_dir()?,
             DefaultCredentialStore::default(),
         ))
     }
@@ -64,7 +77,7 @@ where
         let dav = WebDavClient::new(&config.url, &config.username, &password)
             .map_err(|error| PortError::Failed(format!("invalid WebDAV config: {error}")))?;
         let local_root = resolve_configs_dir(request.configs_dir.as_deref(), &self.home)?;
-        tokio::fs::create_dir_all(&local_root)
+        create_dir_all(&local_root)
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
 
@@ -129,7 +142,7 @@ where
         let mut report = SyncTransferReport::default();
         for (index, profile) in profiles.into_iter().enumerate() {
             ensure_not_cancelled(observer.as_ref())?;
-            let content = tokio::fs::read(&profile.path)
+            let content = read(&profile.path)
                 .await
                 .map_err(|error| PortError::Io(error.to_string()))?;
             ensure_not_cancelled(observer.as_ref())?;
@@ -198,8 +211,7 @@ where
                 .map_err(|error| PortError::Network(error.to_string()))?;
             let content = String::from_utf8(content)
                 .map_err(|error| PortError::Failed(format!("远端配置不是 UTF-8 YAML: {error}")))?;
-            infiltrator_domain::config::validate_yaml(&content)
-                .map_err(|error| PortError::Failed(error.to_string()))?;
+            validate_yaml(&content).map_err(|error| PortError::Failed(error.to_string()))?;
 
             let path = config_root.join(format!("{profile_name}.yaml"));
             if sandbox.validate_path(&path) != PathValidationResult::Allowed {
@@ -208,7 +220,7 @@ where
                     path.display()
                 )));
             }
-            match tokio::fs::read_to_string(&path).await {
+            match read_to_string(&path).await {
                 Ok(local) if local == content => {
                     observer.progress(SyncProgress {
                         phase: "下载配置".to_string(),
@@ -232,7 +244,7 @@ where
                     });
                     continue;
                 }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => return Err(PortError::Io(error.to_string())),
             }
 
@@ -267,7 +279,7 @@ where
         remote_path: String,
     ) -> Result<String, PortError> {
         let path = validate_conflict_path(&configs_dir, &remote_path)?;
-        tokio::fs::read_to_string(path)
+        read_to_string(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
@@ -278,7 +290,7 @@ where
         remote_path: String,
     ) -> Result<(), PortError> {
         let path = validate_conflict_path(&configs_dir, &remote_path)?;
-        tokio::fs::remove_file(path)
+        remove_file(path)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
@@ -304,7 +316,7 @@ impl<S: SecureStore> FileWebDavSync<S> {
 
     async fn password(&self, config: &WebDavConfig) -> String {
         if config.password.is_empty() {
-            crate::settings_io::load_webdav_password(&self.secure_store)
+            load_webdav_password(&self.secure_store)
                 .await
                 .unwrap_or_default()
         } else {
@@ -314,14 +326,13 @@ impl<S: SecureStore> FileWebDavSync<S> {
 }
 
 fn resolve_configs_dir(configs_dir: Option<&str>, home: &Path) -> Result<PathBuf, PortError> {
-    mihomo_config::manager::paths::resolve_configs_dir_in(configs_dir, home)
-        .map_err(|error| PortError::Io(error.to_string()))
+    resolve_configs_dir_in(configs_dir, home).map_err(|error| PortError::Io(error.to_string()))
 }
 
 fn validate_conflict_path(configs_dir: &str, remote_path: &str) -> Result<PathBuf, PortError> {
-    let root = std::fs::canonicalize(configs_dir)
+    let root = canonicalize(configs_dir)
         .map_err(|error| PortError::Io(format!("配置目录不可用: {error}")))?;
-    let path = std::fs::canonicalize(remote_path)
+    let path = canonicalize(remote_path)
         .map_err(|error| PortError::Io(format!("冲突文件不可用: {error}")))?;
     if !path.starts_with(&root) {
         return Err(PortError::Failed(format!(
@@ -381,7 +392,7 @@ fn safe_remote_profile_name(remote_path: &str) -> Result<Option<String>, PortErr
         .rsplit_once('.')
         .map(|(name, _)| name)
         .unwrap_or_default();
-    infiltrator_domain::profiles::sanitize_profile_name(profile_name)
+    sanitize_profile_name(profile_name)
         .map(Some)
         .map_err(|error| PortError::Failed(error.to_string()))
 }
@@ -391,8 +402,8 @@ fn conflict_backup_path(path: &Path) -> PathBuf {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("profile");
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
     path.with_file_name(format!("{stem}.remote-conflict-{stamp}.yaml"))
@@ -402,7 +413,7 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), PortError>
     let parent = path
         .parent()
         .ok_or_else(|| PortError::Io(format!("路径没有父目录: {}", path.display())))?;
-    tokio::fs::create_dir_all(parent)
+    create_dir_all(parent)
         .await
         .map_err(|error| PortError::Io(error.to_string()))?;
     let temp = path.with_file_name(format!(
@@ -412,7 +423,7 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), PortError>
             .unwrap_or("profile")
     ));
     let result = async {
-        let mut file = tokio::fs::OpenOptions::new()
+        let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&temp)
@@ -421,14 +432,14 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), PortError>
         file.sync_all().await?;
         drop(file);
         #[cfg(windows)]
-        if tokio::fs::try_exists(path).await? {
-            tokio::fs::remove_file(path).await?;
+        if try_exists(path).await? {
+            remove_file(path).await?;
         }
-        tokio::fs::rename(&temp, path).await
+        rename(&temp, path).await
     }
     .await;
     if result.is_err() {
-        let _ = tokio::fs::remove_file(&temp).await;
+        let _ = remove_file(&temp).await;
     }
     result.map_err(|error| PortError::Io(error.to_string()))
 }
@@ -437,14 +448,16 @@ async fn atomic_write_file(path: &Path, content: &[u8]) -> Result<(), PortError>
 mod tests {
     use super::*;
     use infiltrator_ports::sync::SyncPort;
+    #[cfg(test)]
+    use tokio::fs::write;
 
     #[tokio::test]
     async fn conflict_file_access_reads_and_deletes_inside_the_config_root() {
         let temp = tempfile::tempdir().expect("temp root");
         let root = temp.path().join("configs");
-        tokio::fs::create_dir_all(&root).await.expect("config root");
+        create_dir_all(&root).await.expect("config root");
         let conflict = root.join("demo.remote-conflict.yaml");
-        tokio::fs::write(&conflict, "mode: rule\n")
+        write(&conflict, "mode: rule\n")
             .await
             .expect("conflict file");
 
@@ -473,8 +486,8 @@ mod tests {
         let temp = tempfile::tempdir().expect("temp root");
         let root = temp.path().join("configs");
         let outside = temp.path().join("outside.yaml");
-        tokio::fs::create_dir_all(&root).await.expect("config root");
-        tokio::fs::write(&outside, "mode: direct\n")
+        create_dir_all(&root).await.expect("config root");
+        write(&outside, "mode: direct\n")
             .await
             .expect("outside file");
 

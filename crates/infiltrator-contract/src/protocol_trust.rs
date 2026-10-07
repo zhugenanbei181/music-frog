@@ -19,10 +19,9 @@
 //! degrades to [`CaLoadStatus::Unsupported`] instead of claiming the CA is
 //! loaded.
 
-use serde::{Deserialize, Serialize};
-
 use crate::protocol_fidelity::ProtocolIssue;
 use crate::protocol_params_ext::{is_valid_sha256_fingerprint, push};
+use serde::{Deserialize, Serialize};
 
 /// DUAL-05-13: one draft's certificate-trust settings.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

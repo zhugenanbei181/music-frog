@@ -11,6 +11,9 @@
 //! server error response or a socket/DNS failure never becomes a fabricated
 //! public address.
 
+use crate::dns_latency_io::{resolve_target, split_host_port};
+use crate::stun_wire;
+use crate::stun_wire::MAX_RESPONSE_BYTES;
 use infiltrator_contract::stun_probe::{StunProbeObservation, StunProbeRequest};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::stun_probe::StunProbePort;
@@ -18,9 +21,6 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
-
-use crate::dns_latency_io::{resolve_target, split_host_port};
-use crate::stun_wire::{self, MAX_RESPONSE_BYTES};
 
 /// The IANA STUN/TURN default port, used when the configured server omits one.
 const DEFAULT_STUN_PORT: u16 = 3478;

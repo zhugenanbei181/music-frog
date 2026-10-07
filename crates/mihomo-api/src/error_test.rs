@@ -7,6 +7,8 @@
 #[cfg(test)]
 mod tests {
     use crate::error::{MihomoError, Result};
+    #[cfg(test)]
+    use std::io;
     // ──────────────────────────────────────────────
     // Display 格式：用户可见的错误消息
     // ──────────────────────────────────────────────
@@ -51,7 +53,7 @@ mod tests {
     #[test]
     fn io_error_converts_to_mihomo_io_variant() {
         // 文件读取失败等 IO 错误应自动包装，不需要调用方手动转换
-        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "配置文件不存在");
+        let io_err = io::Error::new(io::ErrorKind::NotFound, "配置文件不存在");
         let mihomo_err: MihomoError = io_err.into();
         assert!(
             matches!(mihomo_err, MihomoError::Io(_)),

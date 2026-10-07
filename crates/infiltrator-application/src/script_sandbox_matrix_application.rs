@@ -7,10 +7,16 @@
 //! default. A row without a runnable backend would be registered as explicitly
 //! *not covered* with the honest reason.
 
+use infiltrator_domain::script_engine::{ExtensionPackage, ScriptError};
+use infiltrator_domain::script_export::{
+    compose_directive_dsl_export, compose_extension_package_export, compose_mixin_overlay_export,
+};
 #[cfg(test)]
 #[path = "script_sandbox_matrix_application_test.rs"]
 mod script_sandbox_matrix_application_test;
 
+use crate::script_application::ScriptApplication;
+use crate::script_export_application::ScriptExportApplication;
 use infiltrator_contract::script_sandbox::{ScriptEngineKind, ScriptSandboxStatus};
 use infiltrator_contract::script_sandbox_matrix::{
     ScriptSandboxMatrixReport, ScriptSandboxMatrixScenario,
@@ -19,9 +25,6 @@ use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mixin_studio;
 use infiltrator_domain::script_engine::{HookStage, ScriptCircuitBreaker, ScriptEngine};
 use std::time::Duration;
-
-use crate::script_application::ScriptApplication;
-use crate::script_export_application::ScriptExportApplication;
 
 /// The one shared executor both surfaces call.
 pub struct ScriptSandboxMatrixApplication;
@@ -90,7 +93,7 @@ fn check_resource_limits() -> Check {
             HookStage::PreMerge,
         );
     match memory {
-        Err(infiltrator_domain::script_engine::ScriptError::MemoryExceeded(bytes)) => {
+        Err(ScriptError::MemoryExceeded(bytes)) => {
             (bytes > 16, format!("memory limit reported {bytes} bytes"))
         }
         other => (false, format!("memory guard did not trip: {other:?}")),
@@ -166,7 +169,7 @@ fn check_cascade_pipeline() -> Check {
         .stages
         .iter()
         .filter(|stage| stage.applied)
-        .map(|stage| stage.id)
+        .map(|stage| stage.id.as_str())
         .collect();
     (
         report.stages.len() == 5
@@ -361,7 +364,7 @@ fn check_dual_surface_alignment() -> Check {
     let snapshot = app.run_sandbox(COUNTRY_SCRIPT, SAMPLE_YAML, Some("auto-country-groups"));
     // The cached projection is exactly what the surface reader republishes to
     // the Bevy surface, so both consoles render the same bytes.
-    let cached = crate::script_application::last_script_sandbox();
+    let cached = app.observation().result.map(|result| result.snapshot);
     (
         cached.as_ref() == Some(&snapshot)
             && snapshot.matched_directive_count() == 1
@@ -372,7 +375,7 @@ fn check_dual_surface_alignment() -> Check {
 
 fn check_extension_round_trip() -> Check {
     let app = ScriptApplication::new();
-    let package = infiltrator_domain::script_engine::ExtensionPackage {
+    let package = ExtensionPackage {
         name: "matrix-ext".to_string(),
         version: "1.0.0".to_string(),
         author: "matrix".to_string(),
@@ -430,7 +433,7 @@ fn check_three_column_editor() -> Check {
 fn check_extension_export() -> Check {
     let (round_trip, round_trip_detail) = check_extension_round_trip();
 
-    let js = match infiltrator_domain::script_export::compose_directive_dsl_export(
+    let js = match compose_directive_dsl_export(
         Some("matrix-country"),
         COUNTRY_SCRIPT,
         Some("auto-country-groups"),
@@ -444,17 +447,13 @@ fn check_extension_export() -> Check {
         && js.content.contains("auto_country_groups");
 
     let base = "mode: rule\nport: 7890\n";
-    let overlay = match infiltrator_domain::script_export::compose_mixin_overlay_export(
-        "matrix",
-        base,
-        "ipv6: true\n",
-    ) {
+    let overlay = match compose_mixin_overlay_export("matrix", base, "ipv6: true\n") {
         Ok(artifact) => artifact,
         Err(error) => return (false, error),
     };
     let overlay_round_trip = mixin_studio::preflight_mixin(base, &overlay.content);
 
-    let package = infiltrator_domain::script_engine::ExtensionPackage {
+    let package = ExtensionPackage {
         name: "matrix-export".to_string(),
         version: "1.0.0".to_string(),
         author: "matrix".to_string(),
@@ -464,11 +463,10 @@ fn check_extension_export() -> Check {
         mixin_yaml: Some("ipv6: true\n".to_string()),
         tags: vec!["matrix".to_string()],
     };
-    let package_artifact =
-        match infiltrator_domain::script_export::compose_extension_package_export(&package) {
-            Ok(artifact) => artifact,
-            Err(error) => return (false, error),
-        };
+    let package_artifact = match compose_extension_package_export(&package) {
+        Ok(artifact) => artifact,
+        Err(error) => return (false, error),
+    };
     let checksum_is_real = package_artifact
         .checksum
         .as_deref()

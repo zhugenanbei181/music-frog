@@ -1,22 +1,20 @@
 //! Dynamic Scripting and Extension management endpoints (`/admin/api/scripts/*`, `/admin/api/extensions/*`).
 
-use axum::Json;
-use std::time::Duration;
-
-use infiltrator_domain::script_engine::{
-    DEFAULT_SCRIPT_TIMEOUT_MS, HookStage, ScriptEngine, ScriptExecutionResult,
-    ScriptValidationResult,
-};
-
 use crate::admin_api::models::{
     ApiError, ExtensionExportPayload, ExtensionExportResponse, ExtensionImportPayload,
     ExtensionImportResponse, ExtensionManifestValidatePayload, ExtensionManifestValidateResponse,
     ScriptExecutePayload, ScriptPresetItem, ScriptPresetsResponse, ScriptValidatePayload,
 };
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::{Json, extract};
+use infiltrator_domain::script_engine::{
+    DEFAULT_SCRIPT_TIMEOUT_MS, HookStage, ScriptEngine, ScriptExecutionResult,
+    ScriptValidationResult,
+};
+use std::time::Duration;
 
 pub async fn list_script_presets_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<ScriptPresetsResponse>, ApiError> {
     let presets = ScriptEngine::builtin_presets()
         .into_iter()
@@ -26,7 +24,7 @@ pub async fn list_script_presets_http<C: AdminApiContext>(
 }
 
 pub async fn execute_script_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ScriptExecutePayload>,
 ) -> Result<Json<ScriptExecutionResult>, ApiError> {
     let timeout_ms = payload.timeout_ms.unwrap_or(DEFAULT_SCRIPT_TIMEOUT_MS);
@@ -41,7 +39,7 @@ pub async fn execute_script_http<C: AdminApiContext>(
 }
 
 pub async fn validate_script_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ScriptValidatePayload>,
 ) -> Result<Json<ScriptValidationResult>, ApiError> {
     let result = ScriptEngine::validate_script(&payload.script);
@@ -49,7 +47,7 @@ pub async fn validate_script_http<C: AdminApiContext>(
 }
 
 pub async fn export_extension_package_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ExtensionExportPayload>,
 ) -> Result<Json<ExtensionExportResponse>, ApiError> {
     let checksum = payload.package.calculate_checksum();
@@ -59,7 +57,7 @@ pub async fn export_extension_package_http<C: AdminApiContext>(
 }
 
 pub async fn import_extension_package_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ExtensionImportPayload>,
 ) -> Result<Json<ExtensionImportResponse>, ApiError> {
     let package = ScriptEngine::import_extension_package(&payload.json)
@@ -78,7 +76,7 @@ pub async fn import_extension_package_http<C: AdminApiContext>(
 }
 
 pub async fn validate_manifest_http<C: AdminApiContext>(
-    axum::extract::State(_state): axum::extract::State<AdminApiState<C>>,
+    extract::State(_state): extract::State<AdminApiState<C>>,
     Json(payload): Json<ExtensionManifestValidatePayload>,
 ) -> Result<Json<ExtensionManifestValidateResponse>, ApiError> {
     match payload.manifest.validate() {

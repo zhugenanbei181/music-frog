@@ -17,6 +17,8 @@
 //! - Forest: taskmanager-inspired eye-care forest green theme (EyeForest).
 //! - AMOLED: pitch-black OLED appearance with high-contrast surfaces.
 
+use iced::font::{Family, Weight};
+use iced::theme::Palette;
 use iced::{Color, Shadow, Theme, Vector};
 use infiltrator_contract::design_tokens::{
     RgbaToken, SkinCorePalette, SkinInteractionPalette, metrics, radius, skin_core,
@@ -85,20 +87,20 @@ pub mod type_scale {
 /// tabular (monospaced) digits by default, so live-updating values do not
 /// jitter horizontally. Bundled in `assets/fonts` (SIL OFL 1.1).
 pub const MONO: iced::Font = iced::Font {
-    family: iced::font::Family::Name("JetBrains Mono"),
+    family: Family::Name("JetBrains Mono"),
     ..iced::Font::DEFAULT
 };
 
 /// Semibold face of the bundled Inter family, for titles and emphasized
 /// labels. Prefer this over `Weight::Bold` for a Clash-Party-like hierarchy.
 pub const FONT_SEMIBOLD: iced::Font = iced::Font {
-    weight: iced::font::Weight::Semibold,
+    weight: Weight::Semibold,
     ..iced::Font::DEFAULT
 };
 
 /// Medium face of the bundled Inter family, for buttons and controls.
 pub const FONT_MEDIUM: iced::Font = iced::Font {
-    weight: iced::font::Weight::Medium,
+    weight: Weight::Medium,
     ..iced::Font::DEFAULT
 };
 
@@ -740,7 +742,7 @@ impl Tokens {
 pub fn forest_theme() -> Theme {
     Theme::custom(
         "Forest".to_string(),
-        iced::theme::Palette {
+        Palette {
             background: FOREST.canvas,
             text: FOREST.text_primary,
             primary: FOREST.accent,
@@ -755,7 +757,7 @@ pub fn forest_theme() -> Theme {
 pub fn amoled_theme() -> Theme {
     Theme::custom(
         "AMOLED".to_string(),
-        iced::theme::Palette {
+        Palette {
             background: AMOLED.canvas,
             text: AMOLED.text_primary,
             primary: AMOLED.accent,
@@ -817,26 +819,26 @@ pub fn theme_to_name(theme: &Theme) -> &'static str {
 }
 
 /// Which shared skin a painted [`Theme`] corresponds to.
-pub fn theme_for_skin_name(theme: &Theme) -> infiltrator_contract::theme::ThemeSkin {
+pub fn theme_for_skin_name(theme: &Theme) -> ThemeSkin {
     if is_forest(theme) {
-        infiltrator_contract::theme::ThemeSkin::Forest
+        ThemeSkin::Forest
     } else if is_amoled(theme) {
-        infiltrator_contract::theme::ThemeSkin::Amoled
+        ThemeSkin::Amoled
     } else if matches!(theme, Theme::Light) {
-        infiltrator_contract::theme::ThemeSkin::Light
+        ThemeSkin::Light
     } else {
-        infiltrator_contract::theme::ThemeSkin::Dark
+        ThemeSkin::Dark
     }
 }
 
 /// Paint one shared skin. The single mapping from the shared vocabulary to
 /// the Iced toolkit theme.
-pub fn theme_for_skin(skin: infiltrator_contract::theme::ThemeSkin) -> Theme {
+pub fn theme_for_skin(skin: ThemeSkin) -> Theme {
     match skin {
-        infiltrator_contract::theme::ThemeSkin::Dark => Theme::Dark,
-        infiltrator_contract::theme::ThemeSkin::Light => Theme::Light,
-        infiltrator_contract::theme::ThemeSkin::Forest => forest_theme(),
-        infiltrator_contract::theme::ThemeSkin::Amoled => amoled_theme(),
+        ThemeSkin::Dark => Theme::Dark,
+        ThemeSkin::Light => Theme::Light,
+        ThemeSkin::Forest => forest_theme(),
+        ThemeSkin::Amoled => amoled_theme(),
     }
 }
 
@@ -844,7 +846,7 @@ pub fn theme_for_skin(skin: infiltrator_contract::theme::ThemeSkin) -> Theme {
 /// owns the accepted spellings; an unknown value honestly falls back to the
 /// cold-start dark skin.
 pub fn theme_from_name(value: &str) -> Theme {
-    match infiltrator_contract::theme::ThemeSkin::from_setting(value) {
+    match ThemeSkin::from_setting(value) {
         Some(skin) => theme_for_skin(skin),
         None => Theme::Dark,
     }

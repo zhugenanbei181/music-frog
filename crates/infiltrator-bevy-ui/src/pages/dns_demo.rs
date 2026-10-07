@@ -4,10 +4,14 @@
 //! budget. This is the explicit screenshot/demo fixture behind
 //! `DemoSurfaceSource`; it is never published as a runtime probe result.
 
+use crate::pages::dns::{DnsProjection, DnsServerItem};
 use infiltrator_contract::dns::{
-    DnsCacheFlushReport, DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsHostEntry,
-    DnsServerTag, FakeIpMappingEntry, FakeIpMappingPool, FakeIpMappingSource,
+    DnsCoreSwitches, DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag, FakeIpMappingEntry,
+    FakeIpMappingPool, FakeIpMappingSource,
 };
+use infiltrator_contract::dns_cache::DnsCacheFlushReport;
+use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
+use infiltrator_contract::dns_hosts::DnsHostEntry;
 use infiltrator_contract::dns_latency::{
     DEFAULT_PROBE_QUESTION, DnsLatencyReport, DnsProbeOutcome, DnsProbeTransport, DnsServerLatency,
 };
@@ -18,9 +22,9 @@ use infiltrator_contract::dns_leak::{
 use infiltrator_contract::dns_self_heal::{
     DnsSelfHealCheck, DnsSelfHealFix, DnsSelfHealKind, DnsSelfHealSnapshot, DnsSelfHealState,
 };
-use infiltrator_contract::stun_probe::{StunMappedAddress, StunProbeObservation, StunProbeReport};
-
-use crate::pages::dns::{DnsProjection, DnsServerItem};
+use infiltrator_contract::stun_probe::{
+    DEFAULT_STUN_SERVER, StunMappedAddress, StunProbeObservation, StunProbeReport,
+};
 
 impl DnsProjection {
     /// Believable demo fixture for the DNS page.
@@ -42,7 +46,7 @@ impl DnsProjection {
                 respect_rules: false,
             },
             filter_mode: DnsFakeIpFilterMode::Blacklist,
-            form: infiltrator_contract::dns_form::DnsWorkbenchForm {
+            form: DnsWorkbenchForm {
                 switches: DnsCoreSwitches {
                     enable: true,
                     ipv6: true,
@@ -56,7 +60,7 @@ impl DnsProjection {
                 bootstrap_nameserver: "223.5.5.5".to_owned(),
                 nameserver: "https://1.1.1.1/dns-query, tls://8.8.8.8:853".to_owned(),
                 fallback: "https://cloudflare-dns.com/dns-query".to_owned(),
-                fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+                fallback_policy: DnsFallbackPolicyDraft {
                     geoip: true,
                     geoip_code: "CN".to_owned(),
                     trigger_ipcidr: "240.0.0.0/4".to_owned(),
@@ -208,7 +212,7 @@ fn demo_leak_report() -> DnsLeakReport {
 fn demo_stun_report() -> StunProbeReport {
     StunProbeReport::from_observation(
         StunProbeObservation::observed(
-            infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER,
+            DEFAULT_STUN_SERVER,
             StunMappedAddress::new("203.0.113.9", 51234),
         ),
         Some(StunMappedAddress::new("203.0.113.9", 0)),

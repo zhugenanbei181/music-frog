@@ -5,6 +5,7 @@ use anyhow::{Result, anyhow};
 use flate2::read::{GzDecoder, ZlibDecoder};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
+use std::str::from_utf8;
 
 /// 已通过安全校验的订阅地址：类型系统保证未经 [`CheckedSubscriptionUrl::parse`]
 /// 的字符串无法进入订阅 IO 适配器。
@@ -636,7 +637,7 @@ fn percent_decode(input: &str) -> String {
     let mut index = 0;
     while index < bytes.len() {
         if bytes[index] == b'%' && index + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[index + 1..index + 3]).unwrap_or_default();
+            let hex = from_utf8(&bytes[index + 1..index + 3]).unwrap_or_default();
             if let Ok(byte) = u8::from_str_radix(hex, 16) {
                 output.push(byte);
                 index += 3;

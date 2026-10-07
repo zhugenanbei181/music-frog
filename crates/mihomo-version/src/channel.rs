@@ -1,5 +1,6 @@
-use mihomo_api::error::Result;
+use mihomo_api::error::{MihomoError, Result};
 use serde::{Deserialize, Serialize};
+use std::result;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,7 +23,7 @@ impl Channel {
 impl FromStr for Channel {
     type Err = String;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
             "stable" => Ok(Channel::Stable),
             "alpha" | "pre-release" | "prerelease" => Ok(Channel::Alpha),
@@ -58,7 +59,7 @@ pub fn asset_file_name(version: &str) -> String {
 pub fn extract_asset_digest(
     release: &serde_json::Value,
     asset_name: &str,
-) -> std::result::Result<String, String> {
+) -> result::Result<String, String> {
     let assets = release["assets"]
         .as_array()
         .ok_or_else(|| format!("release payload has no assets array for {asset_name}"))?;
@@ -85,7 +86,7 @@ pub fn extract_asset_digest(
 /// Fetch the SHA-256 digest of this platform's release archive for `version`
 /// from the GitHub release API. This is the trusted provenance the install
 /// pipeline verifies downloads against (UP-001).
-pub async fn fetch_asset_digest(version: &str) -> mihomo_api::error::Result<String> {
+pub async fn fetch_asset_digest(version: &str) -> Result<String> {
     let asset_name = asset_file_name(version);
     let url = format!("https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/{version}");
     let client = reqwest::Client::new();
@@ -96,14 +97,14 @@ pub async fn fetch_asset_digest(version: &str) -> mihomo_api::error::Result<Stri
         .await?;
 
     if !resp.status().is_success() {
-        return Err(mihomo_api::error::MihomoError::Version(format!(
+        return Err(MihomoError::Version(format!(
             "cannot resolve digest for {version}: GitHub API returned {}",
             resp.status()
         )));
     }
 
     let release: serde_json::Value = resp.json().await?;
-    extract_asset_digest(&release, &asset_name).map_err(mihomo_api::error::MihomoError::Version)
+    extract_asset_digest(&release, &asset_name).map_err(MihomoError::Version)
 }
 
 /// Base URL of the GitHub REST API used by the channel resolution helpers.
@@ -168,7 +169,7 @@ pub async fn fetch_latest_from(base_url: &str, channel: Channel) -> Result<Chann
         .await?;
 
     if !resp.status().is_success() {
-        return Err(mihomo_api::error::MihomoError::Version(format!(
+        return Err(MihomoError::Version(format!(
             "GitHub API error while resolving channel {}: {}",
             channel.as_str(),
             resp.status()
@@ -181,7 +182,7 @@ pub async fn fetch_latest_from(base_url: &str, channel: Channel) -> Result<Chann
         Channel::Stable | Channel::MetaCore => {
             let version = data["tag_name"].as_str().unwrap_or("");
             if version.is_empty() || data["prerelease"].as_bool() == Some(true) {
-                return Err(mihomo_api::error::MihomoError::Version(format!(
+                return Err(MihomoError::Version(format!(
                     "no suitable published release found for channel {}",
                     channel.as_str()
                 )));
@@ -199,14 +200,14 @@ pub async fn fetch_latest_from(base_url: &str, channel: Channel) -> Result<Chann
                     .as_str()
                     .is_some_and(|tag| tag.eq_ignore_ascii_case("Prerelease-Alpha"))
                 {
-                    return Err(mihomo_api::error::MihomoError::Version(
+                    return Err(MihomoError::Version(
                         "no suitable release found for channel alpha".to_string(),
                     ));
                 }
                 &data
             } else {
                 pick_release(releases, channel).ok_or_else(|| {
-                    mihomo_api::error::MihomoError::Version(format!(
+                    MihomoError::Version(format!(
                         "no suitable release found for channel {}",
                         channel.as_str()
                     ))
@@ -251,7 +252,7 @@ pub async fn fetch_releases(limit: usize) -> Result<Vec<ReleaseInfo>> {
         .await?;
 
     if !resp.status().is_success() {
-        return Err(mihomo_api::error::MihomoError::Version(format!(
+        return Err(MihomoError::Version(format!(
             "GitHub API error: {}",
             resp.status()
         )));

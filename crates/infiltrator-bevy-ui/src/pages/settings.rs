@@ -2,44 +2,58 @@
 //! mixed-port routing, LAN sharing, and core controller configuration.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`SettingsLine`]).
-//! The page self-registers [`apply_settings_projection`] and action observers
-//! once per world via [`SettingsPageRoot`]. When [`SettingsProjectionUpdated`]
+//! [`SettingsPagePlugin`] registers [`apply_settings_projection`] and action observers
+//! once at product assembly. When [`SettingsProjectionUpdated`]
 //! fires, texts and options restamp in place without tree rebuilds.
 
+#[path = "settings_query_access.rs"]
+pub mod query_access;
+use self::query_access::{
+    LogLevelControlItem, SettingsActionControls, SettingsProjectionTargets, SettingsTextOutputItem,
+    TunStackControlItem,
+};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::{localized_checkbox_scene, localized_segmented_scene};
+use crate::pages::settings::settings_network_roaming::{
+    NetworkRoamingInterfacesLine, NetworkRoamingRouteLine, NetworkRoamingStatusLine,
+};
+use crate::pages::settings_language::language_card;
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, PostUpdate, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{ParamSet, Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
+use bevy::ecs::schedule::{ApplyDeferred, IntoScheduleConfigs};
+use bevy::ecs::system::{Res, ResMut};
 use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::BorderColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, FlexWrap, JustifyContent, Node,
-    Overflow, PositionType, UiRect, Val, percent, px,
+    Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
+use bevy::ui_widgets::{Activate, Button, ScrollArea};
+use infiltrator_application::settings_status_projection::{format_core_versions, format_integrity};
+use infiltrator_bevy_widgets::button::sync_button_disabled;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::tabs::segmented_control_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::command::CoreLogLevel;
 use infiltrator_contract::service_mode::ServiceModeState;
 use infiltrator_contract::tun::TunStack;
+use settings_preferences::{PreferenceKind, preference_row_scene};
+use settings_runtime::{RuntimeField, RuntimePolicy};
 
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{PageRoot, Route};
-
+#[path = "settings_copy.rs"]
+pub mod settings_copy;
 #[path = "settings_core.rs"]
 pub mod settings_core;
 #[path = "settings_ipv6.rs"]
@@ -52,10 +66,14 @@ pub mod settings_network_roaming;
 pub mod settings_offline_startup;
 #[path = "settings_pac.rs"]
 pub mod settings_pac;
+#[path = "settings_preferences.rs"]
+pub mod settings_preferences;
 #[path = "settings_privileged_network.rs"]
 pub mod settings_privileged_network;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
+#[path = "settings_runtime.rs"]
+pub mod settings_runtime;
 #[path = "settings_system.rs"]
 pub mod settings_system;
 #[path = "settings_tun.rs"]
@@ -63,19 +81,11 @@ mod settings_tun;
 #[path = "settings_vpn.rs"]
 pub mod settings_vpn;
 
-use settings_core::{
-    CoreLogLevelButton, SettingsLine, SettingsLineKind, SettingsProjection, TunStackButton,
-    TunStackButtonAvailability,
-};
+use settings_core::{SettingsLine, SettingsLineKind, SettingsProjection};
 
 /// Root marker on the Settings page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_settings_page)]
 pub struct SettingsPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct SettingsPageBound;
 
 /// Marker for "Save Settings" button.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -137,7 +147,7 @@ pub struct LastSettingsProjection(pub Option<SettingsProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = "系统与内核全局设置 · 统一策略中枢".to_owned();
+    let summary = LocalizedText::plain("settings_summary").render(&UiLocale::default());
 
     bsn! {
             Node {
@@ -151,8 +161,10 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
                 overflow: Overflow::scroll_y(),
             }
             PageRoot(Route::Settings)
-            SettingsPageRoot
+            SettingsPageRoot ScrollArea
             Children [
+                @{ language_card(palette) }
+                --
                 @{ tun_permission_alert_banner_scene(palette) }
                 --
                 @{ header_card_scene(summary, palette) }
@@ -167,8 +179,6 @@ pub fn settings_page(projection: &SettingsProjection, palette: &UiPalette) -> im
 }
 
 pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let alert_text =
-        "⚡ 权限状态: 启用 TUN 前需要为 mihomo 配置平台权限；完成后请重新开启 TUN。".to_owned();
     let border_color = palette.warning;
 
     bsn! {
@@ -200,7 +210,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 Children [
                     @{ icon_tile_scene(IconId::Activity, 28.0, palette) }
                     --
-                    Text(alert_text) TextRole(Role::Body)
+                    LocalizedText::plain("settings_tun_permission_hint") TextRole(Role::Body)
                 ]
                 --
                 Node {
@@ -214,7 +224,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
                 PrepareTunPermissionButton
                 Button
                 Children [
-                    Text({ "准备 TUN 权限".to_owned() }) TextRole(Role::BodyStrong)
+                    LocalizedText::plain("settings_tun_prepare_perm_btn") TextRole(Role::BodyStrong)
                 ]
             ]
     }
@@ -222,7 +232,7 @@ pub fn tun_permission_alert_banner_scene(palette: &UiPalette) -> impl Scene + us
 
 fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("系统设置概览");
+    header_a11y.set_label(UiLocale::default().text("settings_summary"));
 
     surface_scene(
         vec![Box::new(bsn! {
@@ -232,7 +242,7 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                         justify_content: JustifyContent::SpaceBetween,
                         column_gap: Val::Px(space::S16),
                     }
-                    AccessibilityNode(header_a11y)
+                    AccessibilityNode(header_a11y) LocalizedLabel::plain("settings_summary")
                     Children [
                         Node {
                             align_items: AlignItems::Center,
@@ -260,177 +270,13 @@ fn header_card_scene(summary: String, palette: &UiPalette) -> impl Scene + use<>
                             SaveSettingsButton
                             Button
                             Children [
-                                Text({ "保存生效".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("common_save_apply") TextRole(Role::BodyStrong)
                             ]
                         ]
                     ]
         })],
         palette,
     )
-}
-
-fn close_to_tray_toggle_row_scene(enabled: bool, palette: &UiPalette) -> impl Scene + use<> {
-    let text_str = "关闭窗口最小化到托盘 (Close to Tray)".to_owned();
-    let status_str = if enabled { "已开启" } else { "已关闭" };
-    let status_color = if enabled {
-        palette.success
-    } else {
-        palette.ink_dim
-    };
-    let switch_bg = if enabled {
-        palette.accent
-    } else {
-        palette.surface_elevated
-    };
-    let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
-    let knob_color = if enabled {
-        palette.on_accent
-    } else {
-        palette.ink_dim
-    };
-    let edge_color = if enabled {
-        palette.accent
-    } else {
-        palette.border
-    };
-
-    bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ palette.surface_elevated })
-            Children [
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    Text(text_str) TextRole(Role::Body)
-                ]
-                --
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color })
-                    --
-                    Node {
-                        width: px(38.0),
-                        height: px(22.0),
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(11.0)),
-                        position_type: PositionType::Relative,
-                        align_items: AlignItems::Center,
-                    }
-                    BackgroundColor({ switch_bg })
-                    BorderColor {
-                        top: edge_color,
-                        right: edge_color,
-                        bottom: edge_color,
-                        left: edge_color,
-                    }
-                    CloseToTrayToggle
-                    Button
-                    Children [
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: { knob_left },
-                            width: px(16.0),
-                            height: px(16.0),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
-                        }
-                        BackgroundColor({ knob_color })
-                    ]
-                ]
-            ]
-    }
-}
-
-fn system_notifications_toggle_row_scene(enabled: bool, palette: &UiPalette) -> impl Scene + use<> {
-    let text_str = "系统通知 (System Notifications)".to_owned();
-    let status_str = if enabled { "已开启" } else { "已关闭" };
-    let status_color = if enabled {
-        palette.success
-    } else {
-        palette.ink_dim
-    };
-    let switch_bg = if enabled {
-        palette.accent
-    } else {
-        palette.surface_elevated
-    };
-    let knob_left = if enabled { Val::Px(18.0) } else { Val::Px(2.0) };
-    let knob_color = if enabled {
-        palette.on_accent
-    } else {
-        palette.ink_dim
-    };
-    let edge_color = if enabled {
-        palette.accent
-    } else {
-        palette.border
-    };
-
-    bsn! {
-            Node {
-                width: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                padding: UiRect::axes(Val::Px(space::S8), Val::Px(space::S6)),
-                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-            }
-            BackgroundColor({ palette.surface_elevated })
-            Children [
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    Text(text_str) TextRole(Role::Body)
-                ]
-                --
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(space::S8),
-                }
-                Children [
-                    Text({ status_str.to_owned() }) TextRole(Role::Caption) TextColor({ status_color })
-                    --
-                    Node {
-                        width: px(38.0),
-                        height: px(22.0),
-                        border: UiRect::all(Val::Px(palette.hairline_px)),
-                        border_radius: BorderRadius::all(Val::Px(11.0)),
-                        position_type: PositionType::Relative,
-                        align_items: AlignItems::Center,
-                    }
-                    BackgroundColor({ switch_bg })
-                    BorderColor {
-                        top: edge_color,
-                        right: edge_color,
-                        bottom: edge_color,
-                        left: edge_color,
-                    }
-                    SystemNotificationsToggle
-                    Button
-                    Children [
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: { knob_left },
-                            width: px(16.0),
-                            height: px(16.0),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
-                        }
-                        BackgroundColor({ knob_color })
-                    ]
-                ]
-            ]
-    }
 }
 
 pub fn general_settings_card(
@@ -444,10 +290,22 @@ pub fn general_card_scene(
     projection: &SettingsProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let mixed_port_str = format!("端口: {}", projection.mixed_port);
-    let core_channel_str = format!("内核通道: {}", projection.core_channel);
-    let core_versions_str = settings_core::format_core_versions(&projection.core_versions);
-    let core_integrity_str = settings_core::format_integrity(&projection.core_integrity);
+    let mixed_port_str = settings_copy::line(
+        SettingsLineKind::MixedPort,
+        projection,
+        UiLocale::default().code(),
+    )
+    .expect("mixed-port copy");
+    let core_channel_str = settings_copy::line(
+        SettingsLineKind::CoreChannel,
+        projection,
+        UiLocale::default().code(),
+    )
+    .expect("core channel copy");
+    let core_versions_str =
+        format_core_versions(&projection.core_versions, UiLocale::default().code());
+    let core_integrity_str =
+        format_integrity(&projection.core_integrity, UiLocale::default().code());
 
     surface_scene(
         vec![
@@ -457,7 +315,7 @@ pub fn general_card_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "常规与系统集成 (General)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_general_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -467,15 +325,15 @@ pub fn general_card_scene(
                                 row_gap: Val::Px(space::S8),
                             }
                             Children [
-                                @{ checkbox_scene("开机自动启动 (Autostart on Boot)".to_owned(), projection.autostart, palette) }
+                                @{ localized_checkbox_scene(LocalizedText::plain("settings_autostart_on_boot"), projection.autostart, palette) }
                                 --
                                 @{ settings_system::toggle_scene(projection.system_proxy, palette) }
                                 --
                                 @{ settings_system::status_row(&projection.system_proxy_snapshot, &projection.system_proxy_recovery, palette) }
                                 --
-                                @{ close_to_tray_toggle_row_scene(true, palette) }
+                                @{ preference_row_scene(PreferenceKind::Tray, projection.close_to_tray, &projection.preference_status, palette) }
                                 --
-                                @{ system_notifications_toggle_row_scene(true, palette) }
+                                @{ preference_row_scene(PreferenceKind::Notifications, projection.notifications_enabled, &projection.preference_status, palette) }
                                 --
                                 @{ settings_lan::scene(projection, palette) }
                                 --
@@ -496,7 +354,7 @@ pub fn general_card_scene(
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "内核版本通道 (Core Channel)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_core_channel_title") TextRole(Role::Body)
                                     --
                                     Text(core_channel_str) SettingsLine(SettingsLineKind::CoreChannel) TextRole(Role::BodyStrong)
                                 ]
@@ -522,7 +380,7 @@ pub fn general_card_scene(
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "制品完整性 (SHA-256)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_artifact_integrity_title") TextRole(Role::Body)
                                     --
                                     Text(core_integrity_str) SettingsLine(SettingsLineKind::CoreIntegrity) TextRole(Role::Mono)
                                 ]
@@ -536,7 +394,7 @@ pub fn general_card_scene(
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "在线通道探测 (Online Probe)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_channel_probe_title") TextRole(Role::Body)
                                     --
                                     Text(core_versions_str) SettingsLine(SettingsLineKind::CoreVersions) TextRole(Role::Mono)
                                 ]
@@ -550,7 +408,7 @@ pub fn general_card_scene(
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "混合代理端口 (Mixed Port)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_mixed_port_label") TextRole(Role::Body)
                                     --
                                     Text(mixed_port_str) SettingsLine(SettingsLineKind::MixedPort) TextRole(Role::Mono)
                                 ]
@@ -562,38 +420,15 @@ pub fn general_card_scene(
                                     padding: UiRect::top(Val::Px(space::S4)),
                                 }
                                 Children [
-                                    Text({ "界面主题 (Interface Theme)".to_owned() }) TextRole(Role::Caption)
+                                    LocalizedText::plain("settings_interface_theme_title") TextRole(Role::Caption)
                                     --
-                                    @{ segmented_control_scene(
-                                            vec![
-                                                "浅色模式".to_owned(),
-                                                "深色模式".to_owned(),
-                                                "护眼森林".to_owned(),
-                                                "AMOLED".to_owned(),
-                                            ],
+                                    @{ localized_segmented_scene(
+                                            &["theme_light", "theme_dark", "theme_forest", "theme_amoled"],
                                             1,
                                             palette,
                                     ) }
                                 ]
-                                --
-                                Node {
-                                    width: percent(100),
-                                    flex_direction: FlexDirection::Column,
-                                    row_gap: Val::Px(space::S6),
-                                    padding: UiRect::top(Val::Px(space::S4)),
-                                }
-                                Children [
-                                    Text({ "语言设置 (Language)".to_owned() }) TextRole(Role::Caption)
-                                    --
-                                    @{ segmented_control_scene(
-                                            vec![
-                                                "zh-CN (简体中文)".to_owned(),
-                                                "en-US (English)".to_owned(),
-                                            ],
-                                            0,
-                                            palette,
-                                    ) }
-                                ]
+
                             ]
             }),
         ],
@@ -601,58 +436,95 @@ pub fn general_card_scene(
     )
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_settings_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<SettingsPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct SettingsPagePlugin;
+
+impl Plugin for SettingsPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            PostUpdate,
+            (settings_runtime::sync, ApplyDeferred)
+                .chain()
+                .before(sync_button_disabled),
+        );
+        app.init_resource::<settings_lan::LanFieldObservations>();
+        app.add_observer(apply_settings_projection);
+        app.add_observer(on_settings_action_activated);
+        app.add_observer(settings_core::on_mtu_probe_activated);
+        app.add_observer(settings_core::on_tun_route_changed);
+        app.add_observer(settings_core::on_tun_enabled_changed);
+        app.add_observer(settings_system::on_changed);
+        app.add_observer(settings_tun::apply_tun_toggle_projection);
+        app.add_observer(settings_lan::on_toggle_changed);
+        app.add_observer(settings_lan::on_apply_activated);
+        app.add_observer(settings_lan::on_security_apply_activated);
+        app.add_observer(settings_lan::apply_projection);
+        app.add_observer(settings_ipv6::on_changed);
+        app.add_observer(settings_ipv6::apply_projection);
+        app.add_observer(settings_pac::on_changed);
+        app.add_observer(settings_pac::on_apply_activated);
+        app.add_observer(settings_pac::apply_projection);
+        app.add_observer(settings_network_roaming::on_action_activated);
+        app.add_systems(Update, settings_network_roaming::replay);
+        app.add_observer(settings_network_roaming::initialize::<NetworkRoamingStatusLine>);
+        app.add_observer(settings_network_roaming::initialize::<NetworkRoamingInterfacesLine>);
+        app.add_observer(settings_network_roaming::initialize::<NetworkRoamingRouteLine>);
+        app.add_systems(
+            PostUpdate,
+            (
+                settings_preferences::replay,
+                settings_preferences::replay_background,
+            )
+                .before(sync_button_disabled),
+        );
+        app.add_systems(Update, settings_preferences::replay_stack_labels);
+        app.add_observer(settings_vpn::on_action_activated);
+        app.add_systems(
+            PostUpdate,
+            settings_vpn::replay.before(sync_button_disabled),
+        );
+        app.add_observer(settings_privileged_network::on_action_activated);
+        app.add_systems(
+            PostUpdate,
+            settings_privileged_network::replay.before(sync_button_disabled),
+        );
     }
-    let mut commands = world.commands();
-    commands.insert_resource(SettingsPageBound);
-    commands.add_observer(apply_settings_projection);
-    commands.add_observer(on_settings_action_activated);
-    commands.add_observer(settings_core::on_mtu_probe_activated);
-    commands.add_observer(settings_core::on_tun_route_changed);
-    commands.add_observer(settings_core::on_tun_enabled_changed);
-    commands.add_observer(settings_system::on_changed);
-    commands.add_observer(settings_tun::apply_tun_toggle_projection);
-    commands.add_observer(settings_lan::on_toggle_changed);
-    commands.add_observer(settings_lan::on_apply_activated);
-    commands.add_observer(settings_lan::on_security_apply_activated);
-    commands.add_observer(settings_lan::apply_projection);
-    commands.add_observer(settings_ipv6::on_changed);
-    commands.add_observer(settings_ipv6::apply_projection);
-    commands.add_observer(settings_pac::on_changed);
-    commands.add_observer(settings_pac::on_apply_activated);
-    commands.add_observer(settings_pac::apply_projection);
-    commands.add_observer(settings_network_roaming::on_action_activated);
-    commands.add_observer(settings_network_roaming::apply_projection);
-    commands.add_observer(settings_vpn::on_action_activated);
-    commands.add_observer(settings_vpn::apply_projection);
-    commands.add_observer(settings_privileged_network::on_action_activated);
-    commands.add_observer(settings_privileged_network::apply_projection);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn on_settings_action_activated(
     activate: On<Activate>,
-    save_buttons: Query<(), With<SaveSettingsButton>>,
-    prepare_buttons: Query<(), With<PrepareTunPermissionButton>>,
-    tray_toggles: Query<(), With<CloseToTrayToggle>>,
-    notif_toggles: Query<(), With<SystemNotificationsToggle>>,
-    rollback_buttons: Query<(), With<CoreRollbackButton>>,
-    rollback_available: Query<&CoreRollbackAvailability, With<CoreRollbackButton>>,
-    log_level_buttons: Query<&CoreLogLevelButton>,
-    tun_stack_buttons: Query<&TunStackButton>,
-    tun_stack_available: Query<&TunStackButtonAvailability, With<TunStackButton>>,
-    service_buttons: Query<(), With<ServiceModeButton>>,
-    service_available: Query<&ServiceModeAvailability, With<ServiceModeButton>>,
-    port_buttons: Query<(), With<PortConflictButton>>,
     handle: Option<Res<CommandSinkHandle>>,
+    policy: RuntimePolicy,
+    targets: SettingsActionControls,
 ) {
+    let SettingsActionControls {
+        save_buttons,
+        prepare_buttons,
+        tray_toggles,
+        notif_toggles,
+        preference_disabled,
+        rollback_buttons,
+        rollback_available,
+        log_level_buttons,
+        tun_stack_buttons,
+        tun_stack_available,
+        service_buttons,
+        service_available,
+        port_buttons,
+    } = targets;
+
     let Some(handle) = handle else {
         return;
     };
+    if preference_disabled
+        .get(activate.entity)
+        .is_ok_and(|disabled| disabled.0)
+    {
+        return;
+    }
     if save_buttons.contains(activate.entity) {
         handle.submit(UiCommand::UpdateSetting {
             key: "apply".to_owned(),
@@ -664,22 +536,28 @@ pub(crate) fn on_settings_action_activated(
             value: "prepare".to_owned(),
         });
     } else if tray_toggles.contains(activate.entity) {
-        handle.submit(UiCommand::UpdateSetting {
-            key: "close_to_tray".to_owned(),
-            value: "toggle".to_owned(),
-        });
+        if let Some(value) = policy.preference("close_to_tray") {
+            handle.submit(UiCommand::UpdateSetting {
+                key: "close_to_tray".to_owned(),
+                value: (!value).to_string(),
+            });
+        }
     } else if notif_toggles.contains(activate.entity) {
-        handle.submit(UiCommand::UpdateSetting {
-            key: "notifications_enabled".to_owned(),
-            value: "toggle".to_owned(),
-        });
+        if let Some(value) = policy.preference("notifications_enabled") {
+            handle.submit(UiCommand::UpdateSetting {
+                key: "notifications_enabled".to_owned(),
+                value: (!value).to_string(),
+            });
+        }
     } else if rollback_buttons.contains(activate.entity)
         && rollback_available
             .get(activate.entity)
             .is_ok_and(|availability| availability.0)
     {
         handle.submit(UiCommand::RollbackCore);
-    } else if let Ok(button) = log_level_buttons.get(activate.entity) {
+    } else if let Ok(button) = log_level_buttons.get(activate.entity)
+        && policy.available(RuntimeField::LogLevel)
+    {
         handle.submit(UiCommand::SetCoreLogLevel(button.level));
     } else if tun_stack_buttons.contains(activate.entity)
         && tun_stack_available
@@ -699,108 +577,42 @@ pub(crate) fn on_settings_action_activated(
     }
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub(crate) fn apply_settings_projection(
     update: On<SettingsProjectionUpdated>,
     palette: Res<UiPalette>,
+    locale: Option<Res<UiLocale>>,
     mut last: Option<ResMut<LastSettingsProjection>>,
-    mut lines: Query<(
-        &mut Text,
-        Option<&SettingsLine>,
-        Option<&CoreRollbackButtonLabel>,
-        Option<&ServiceModeButtonLabel>,
-    )>,
-    mut rollback_buttons: Query<&mut CoreRollbackAvailability, With<CoreRollbackButton>>,
-    mut button_queries: ParamSet<(
-        Query<(&mut BackgroundColor, &CoreLogLevelButton)>,
-        Query<(
-            &mut BackgroundColor,
-            &mut TunStackButtonAvailability,
-            &TunStackButton,
-        )>,
-    )>,
-    mut service_buttons: Query<&mut ServiceModeAvailability, With<ServiceModeButton>>,
-) {
-    let projection = &update.0;
 
-    for (mut text, line, rollback_label, service_label) in &mut lines {
-        if let Some(line) = line {
-            match line.0 {
-                SettingsLineKind::Summary => {
-                    text.0 = "系统与内核全局设置 · 统一策略中枢".to_owned();
-                }
-                SettingsLineKind::OfflineStartup => {
-                    text.0 = settings_offline_startup::format_offline_startup(
-                        &projection.offline_startup,
-                    );
-                }
-                SettingsLineKind::MixedPort => {
-                    text.0 = format!("端口: {}", projection.mixed_port);
-                }
-                SettingsLineKind::LanBindAddress => {
-                    text.0 = projection.lan_bind_address.clone();
-                }
-                SettingsLineKind::LanSecurity => {
-                    text.0 = settings_lan::format_auth_status(&projection.lan_security);
-                }
-                SettingsLineKind::Ipv6Routing => {}
-                SettingsLineKind::TunStack => {
-                    text.0 = projection.tun_stack.clone();
-                }
-                SettingsLineKind::ControllerPort => {
-                    text.0 = format!("127.0.0.1:{}", projection.controller_port);
-                }
-                SettingsLineKind::LogLevel => {
-                    text.0 = projection.log_level.to_uppercase();
-                }
-                SettingsLineKind::CoreChannel => {
-                    text.0 = format!("内核通道: {}", projection.core_channel);
-                }
-                SettingsLineKind::CoreVersions => {
-                    text.0 = settings_core::format_core_versions(&projection.core_versions);
-                }
-                SettingsLineKind::CoreIntegrity => {
-                    text.0 = settings_core::format_integrity(&projection.core_integrity);
-                }
-                SettingsLineKind::CoreRollback => {
-                    text.0 = settings_core::format_rollback_target(&projection.core_versions);
-                }
-                SettingsLineKind::ControllerAuth => {
-                    text.0 = settings_core::format_controller_auth(&projection.controller_auth);
-                }
-                SettingsLineKind::SystemProxy => {
-                    text.0 = settings_system::format_status(
-                        &projection.system_proxy_snapshot,
-                        &projection.system_proxy_recovery,
-                    );
-                }
-                SettingsLineKind::ServiceMode => {
-                    text.0 = settings_core::format_service_mode(&projection.service_mode);
-                }
-                SettingsLineKind::PortConflicts => {
-                    text.0 = settings_core::format_port_conflicts(&projection.port_conflicts);
-                }
-                SettingsLineKind::CoreResources => {
-                    text.0 = settings_core::format_core_resources(&projection.core_resources);
-                }
-                SettingsLineKind::Mtu => {
-                    text.0 = settings_core::format_mtu(&projection.mtu);
-                }
-            }
+    targets: SettingsProjectionTargets,
+) {
+    let SettingsProjectionTargets {
+        mut button_queries,
+        mut lines,
+        mut rollback_buttons,
+        mut service_buttons,
+    } = targets;
+
+    let projection = &update.0;
+    let fallback = UiLocale::default();
+    let code = locale.as_deref().unwrap_or(&fallback).code();
+
+    for SettingsTextOutputItem {
+        mut text,
+        line,
+        rollback_label,
+        service_label,
+    } in &mut lines
+    {
+        if let Some(line) = line
+            && let Some(value) = settings_copy::line(line.0, projection, code)
+        {
+            text.0 = value;
         }
         if rollback_label.is_some() {
-            text.0 = if projection.core_versions.rollback.target.is_some() {
-                "立即回滚".to_owned()
-            } else {
-                "不可用".to_owned()
-            };
+            text.0 = settings_copy::rollback_label(projection, code);
         }
         if service_label.is_some() {
-            text.0 = if projection.service_mode.state == ServiceModeState::Ready {
-                "已就绪".to_owned()
-            } else {
-                "准备服务模式".to_owned()
-            };
+            text.0 = settings_copy::service_label(projection, code);
         }
     }
 
@@ -812,8 +624,15 @@ pub(crate) fn apply_settings_projection(
     for mut availability in &mut service_buttons {
         availability.0 = !service_ready;
     }
-    let active_level = CoreLogLevel::parse(&projection.log_level);
-    for (mut background, button) in &mut button_queries.p0() {
+    let active_level = projection
+        .log_level
+        .as_deref()
+        .and_then(CoreLogLevel::parse);
+    for LogLevelControlItem {
+        mut background,
+        button,
+    } in &mut button_queries.p0()
+    {
         background.0 = if active_level == Some(button.level) {
             palette.accent
         } else {
@@ -821,8 +640,13 @@ pub(crate) fn apply_settings_projection(
         };
     }
 
-    let active_stack = TunStack::parse(&projection.tun_stack);
-    for (mut background, mut availability, button) in &mut button_queries.p1() {
+    let active_stack = projection.tun_stack.as_deref().and_then(TunStack::parse);
+    for TunStackControlItem {
+        mut background,
+        mut availability,
+        button,
+    } in &mut button_queries.p1()
+    {
         availability.0 = button.stack.is_live_supported();
         background.0 = if availability.0 && active_stack == Some(button.stack) {
             palette.accent
@@ -845,10 +669,10 @@ mod tests {
         let proj = SettingsProjection::demo();
         assert!(proj.autostart);
         assert!(proj.system_proxy);
-        assert_eq!(proj.mixed_port, 7890);
-        assert_eq!(proj.controller_port, 9090);
-        assert!(!proj.allow_lan);
-        assert_eq!(proj.log_level, "info");
-        assert_eq!(proj.tun_stack, "gVisor (高性能用户态协议栈)");
+        assert_eq!(proj.mixed_port, Some(7890));
+        assert_eq!(proj.controller_port, Some(9090));
+        assert_eq!(proj.allow_lan, Some(false));
+        assert_eq!(proj.log_level.as_deref(), Some("info"));
+        assert_eq!(proj.tun_stack.as_deref(), Some("gvisor"));
     }
 }

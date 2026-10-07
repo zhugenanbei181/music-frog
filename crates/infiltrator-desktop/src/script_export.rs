@@ -15,7 +15,9 @@ use infiltrator_contract::script_export::{ScriptExportReceipt, ScriptExportReque
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::script_export::ScriptExportPort;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
+use tempfile::Builder;
 
 /// Upper bound for a single export artifact (8 MiB): an overlay or script
 /// larger than this is a bug, not a document.
@@ -69,13 +71,20 @@ impl ScriptExportPort for DesktopScriptExportPort {
                 format!("导出内容超过 {MAX_EXPORT_BYTES} 字节上限"),
             ));
         }
-        fs::create_dir_all(&self.exports_dir)
-            .map_err(|error| PortError::Io(format!("创建导出目录失败: {error}")))?;
+        fs::create_dir_all(&self.exports_dir).map_err(storage)?;
         let path = self.exports_dir.join(file_name);
-        fs::write(&path, request.content.as_bytes())
-            .map_err(|error| PortError::Io(format!("写入导出文件失败: {error}")))?;
-        let metadata = fs::metadata(&path)
-            .map_err(|error| PortError::Io(format!("读取导出文件失败: {error}")))?;
+        let mut temporary = Builder::new()
+            .prefix(".script-export-")
+            .tempfile_in(&self.exports_dir)
+            .map_err(storage)?;
+        temporary
+            .write_all(request.content.as_bytes())
+            .map_err(storage)?;
+        temporary.as_file().sync_all().map_err(storage)?;
+        let published = temporary
+            .persist_noclobber(&path)
+            .map_err(|error| storage(error.error))?;
+        let metadata = published.metadata().map_err(storage)?;
         Ok(ScriptExportReceipt {
             path: path.to_string_lossy().to_string(),
             bytes_written: metadata.len() as usize,
@@ -83,27 +92,47 @@ impl ScriptExportPort for DesktopScriptExportPort {
     }
 }
 
+fn storage(error: io::Error) -> PortError {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        PortError::PermissionDenied(error.to_string())
+    } else {
+        PortError::Io(error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use infiltrator_contract::error::ErrorCode;
+    #[cfg(test)]
+    use infiltrator_contract::script_export::DIRECTIVE_DSL_JS_HEADER;
     use infiltrator_contract::script_export::ScriptExportKind;
+    #[cfg(test)]
+    use std::env;
+    #[cfg(test)]
+    use std::process::id;
+    #[cfg(test)]
+    use std::time::SystemTime;
+    #[cfg(test)]
+    use std::time::UNIX_EPOCH;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let unique = format!(
             "mf-script-export-{tag}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .map(|elapsed| elapsed.as_nanos())
                 .unwrap_or_default()
         );
-        std::env::temp_dir().join(unique)
+        env::temp_dir().join(unique)
     }
 
     fn request(file_name: &str) -> ScriptExportRequest {
         let content = format!(
             "{}\nfunction main(config) {{ return config; }}\n",
-            infiltrator_contract::script_export::DIRECTIVE_DSL_JS_HEADER
+            DIRECTIVE_DSL_JS_HEADER
         );
         ScriptExportRequest {
             kind: ScriptExportKind::DirectiveDslScript,
@@ -130,16 +159,44 @@ mod tests {
     }
 
     #[test]
+    fn existing_export_and_symlink_targets_are_never_overwritten() {
+        let dir = temp_dir("collision");
+        let port = DesktopScriptExportPort::new(&dir);
+        fs::create_dir_all(port.exports_dir()).unwrap();
+        let existing = port.exports_dir().join("main.js");
+        fs::write(&existing, "user-owned bytes").unwrap();
+        assert!(port.save_export(&request("main.js")).is_err());
+        assert_eq!(fs::read_to_string(&existing).unwrap(), "user-owned bytes");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let target = dir.join("external.txt");
+            fs::write(&target, "external bytes").unwrap();
+            symlink(&target, port.exports_dir().join("linked.js")).unwrap();
+            assert!(port.save_export(&request("linked.js")).is_err());
+            assert_eq!(fs::read_to_string(target).unwrap(), "external bytes");
+        }
+        assert_eq!(
+            fs::read_dir(port.exports_dir())
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|entry| entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".script-export-"))
+                .count(),
+            0
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn a_path_traversal_name_is_refused_before_any_write() {
         let dir = temp_dir("traversal");
         let port = DesktopScriptExportPort::new(&dir);
         for name in ["../escape.js", "nested/escape.js", "/etc/passwd", "..", ""] {
             let error = port.save_export(&request(name)).expect_err("refused");
-            assert_eq!(
-                error.error_code(),
-                infiltrator_contract::error::ErrorCode::Unsupported,
-                "name {name:?}"
-            );
+            assert_eq!(error.error_code(), ErrorCode::Unsupported, "name {name:?}");
         }
         assert!(
             !dir.exists(),

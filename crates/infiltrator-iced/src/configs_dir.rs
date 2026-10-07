@@ -3,15 +3,15 @@
 //! The concrete ConfigManager, keyring and settings resolution stay behind
 //! the core adapter; this module exposes only the port object to UI handlers.
 
+use crate::host::storage::profile_store;
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_ports::profile_store::ProfileStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use infiltrator_contract::error::InfiltratorError;
-use infiltrator_ports::profile_store::ProfileStore;
-
 /// Construct the host's profile persistence port.
 pub async fn config_manager() -> Result<Arc<dyn ProfileStore>, InfiltratorError> {
-    crate::host::storage::profile_store()
+    profile_store()
         .await
         .map_err(|error| InfiltratorError::Config(error.to_string()))
 }

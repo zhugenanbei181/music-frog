@@ -1,5 +1,7 @@
 //! Android host/application composition for the 0.30 seam.
 
+use crate::runtime::AndroidBridgeAdapter;
+use crate::vpn_service::AndroidVpnServicePort;
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::mtu_application::MtuApplication;
@@ -9,14 +11,12 @@ use infiltrator_application::vpn_application::VpnServiceApplication;
 use infiltrator_ports::core_process::CoreReadiness;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::overview::ControllerOverviewReader;
 use mihomo_api::readiness::ControllerReadiness;
 use mihomo_platform::android_bridge::AndroidBridge;
 use std::sync::Arc;
-
-use crate::runtime::AndroidBridgeAdapter;
-use crate::vpn_service::AndroidVpnServicePort;
 
 /// Compose the Android host's local-only startup proof for either UI surface.
 pub fn offline_startup_application<B>(bridge: B) -> OfflineStartupApplication
@@ -52,24 +52,19 @@ where
         controller_url.clone(),
         secret.clone(),
     ));
-    let (reader, gateway): (
-        Arc<dyn OverviewReader>,
-        Option<Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway>>,
-    ) = match MihomoClient::new(&controller_url, secret.clone()) {
-        Ok(client) => (
-            Arc::new(ControllerOverviewReader::new(client.clone())) as Arc<dyn OverviewReader>,
-            Some(Arc::new(client)
-                as Arc<
-                    dyn infiltrator_ports::runtime_gateway::RuntimeGateway,
-                >),
-        ),
-        Err(error) => (
-            Arc::new(UnavailableOverviewReader::new(PortError::Network(
-                error.to_string(),
-            ))) as Arc<dyn OverviewReader>,
-            None,
-        ),
-    };
+    let (reader, gateway): (Arc<dyn OverviewReader>, Option<Arc<dyn RuntimeGateway>>) =
+        match MihomoClient::new(&controller_url, secret.clone()) {
+            Ok(client) => (
+                Arc::new(ControllerOverviewReader::new(client.clone())) as Arc<dyn OverviewReader>,
+                Some(Arc::new(client) as Arc<dyn RuntimeGateway>),
+            ),
+            Err(error) => (
+                Arc::new(UnavailableOverviewReader::new(PortError::Network(
+                    error.to_string(),
+                ))) as Arc<dyn OverviewReader>,
+                None,
+            ),
+        };
     let runtime = infiltrator_composition::tokio_application_runtime()
         .expect("Tokio application runtime must be constructible");
     let application =
@@ -82,7 +77,12 @@ where
             AndroidVpnServicePort::shared(),
         )));
     if let Some(gateway) = gateway {
-        handler = handler.with_runtime(gateway);
+        application
+            .install_log_gateway(gateway.clone())
+            .expect("controller log worker must start");
+        handler = handler
+            .with_runtime(gateway)
+            .with_logs(application.log_application());
     }
     application.install_command_handler(Arc::new(handler));
     application

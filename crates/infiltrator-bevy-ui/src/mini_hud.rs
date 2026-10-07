@@ -5,6 +5,7 @@
 //! the proxy-mode chip. Runtime wiring (mount/unmount, toggle event, pin
 //! persistence) lives in [`crate::mini_hud_shell`].
 
+use crate::a11y::{semantic_node, switch_node};
 use bevy::color::{Alpha, Color};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -17,15 +18,19 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Button;
+use infiltrator_application::system_toggle_projection::{compact_label, compact_status_line};
 use infiltrator_bevy_widgets::button::{ButtonDisabled, pill_caption_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::mini_hud::MiniHudReadModel;
+use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
+use std::env;
 
 /// Toggle state for Mini HUD mode.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -89,9 +94,47 @@ pub struct MiniHudDownWaveform;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudUpWaveform;
 
+#[derive(Clone, Copy, Debug, Default)]
+pub enum MiniHudTextKind {
+    #[default]
+    Mode,
+    Node,
+    ToggleLine,
+    UpRate,
+    DownRate,
+    Pin,
+}
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub struct MiniHudText(pub MiniHudTextKind);
+#[derive(Component, Clone, Copy, Debug)]
+pub struct MiniHudQuickToggle(pub SystemToggle);
+impl Default for MiniHudQuickToggle {
+    fn default() -> Self {
+        Self(SystemToggle::SystemProxy)
+    }
+}
+fn hud_label(key: &str) -> String {
+    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    Lang(&language).tr(key).into_owned()
+}
+pub fn exit_label(model: &MiniHudReadModel) -> String {
+    if model.exit_node.is_empty() {
+        hud_label("mini_hud_empty_exit")
+    } else {
+        model.exit_node.clone()
+    }
+}
+pub fn pin_label(model: &MiniHudReadModel) -> String {
+    hud_label(if model.placement.pinned {
+        "mini_hud_unpin"
+    } else {
+        "mini_hud_pin"
+    })
+}
+
 fn down_waveform_slot_scene() -> impl Scene + use<> {
-    let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
-    let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
+    let width = MiniHudWaveformStrip::WIDTH_PX as f32;
+    let height = MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
             Node {
                 width: px(width),
@@ -104,8 +147,8 @@ fn down_waveform_slot_scene() -> impl Scene + use<> {
 }
 
 fn up_waveform_slot_scene() -> impl Scene + use<> {
-    let width = infiltrator_contract::mini_hud::MiniHudWaveformStrip::WIDTH_PX as f32;
-    let height = infiltrator_contract::mini_hud::MiniHudWaveformStrip::HEIGHT_PX as f32;
+    let width = MiniHudWaveformStrip::WIDTH_PX as f32;
+    let height = MiniHudWaveformStrip::HEIGHT_PX as f32;
     bsn! {
             Node {
                 width: px(width),
@@ -139,28 +182,23 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
     let up_rate = format_rate(model.up_bytes_per_sec);
     let down_rate = format_rate(model.down_bytes_per_sec);
     let mode_label = model.mode_zh.clone();
-    let node_label = if model.exit_node.is_empty() {
-        "未选择出口节点".to_owned()
-    } else {
-        model.exit_node.clone()
-    };
-    let toggle_line = model.status_line();
-    let pinned = model.placement.pinned;
-    let pin_label = if pinned { "取消置顶" } else { "置顶" };
+    let node_label = exit_label(model);
+    let toggle_line =
+        compact_status_line(&model.system_proxy, &model.tun, UiLocale::default().code());
+    let pin_label = pin_label(model);
     // The two quick switches use the same shared action rule as the sidebar:
     // a pending/unknown toggle offers no press (no fabricated transition).
     let proxy_actionable = model.next_value(SystemToggle::SystemProxy).is_some();
     let tun_actionable = model.next_value(SystemToggle::Tun).is_some();
-    let proxy_label = model.system_proxy.compact_label().to_owned();
+    let proxy_label = compact_label(&model.system_proxy, UiLocale::default().code());
     let proxy_selected = model.system_proxy.is_enabled();
-    let tun_label = model.tun.compact_label().to_owned();
+    let tun_label = compact_label(&model.tun, UiLocale::default().code());
     let tun_selected = model.tun.is_enabled();
     // DUAL-15-10: the HUD card and its two quick switches carry the shared
     // semantic rows (role + label), the switches with their live state.
-    let card_node = crate::a11y::semantic_node(ShellA11yNode::MiniHudCard);
-    let proxy_node =
-        crate::a11y::switch_node(ShellA11yNode::MiniHudSystemProxySwitch, proxy_selected);
-    let tun_node = crate::a11y::switch_node(ShellA11yNode::MiniHudTunSwitch, tun_selected);
+    let card_node = semantic_node(ShellA11yNode::MiniHudCard);
+    let proxy_node = switch_node(ShellA11yNode::MiniHudSystemProxySwitch, proxy_selected);
+    let tun_node = switch_node(ShellA11yNode::MiniHudTunSwitch, tun_selected);
     let edge = palette.border;
     let scrim = Color::NONE;
 
@@ -210,6 +248,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                                 border_radius: BorderRadius::all(Val::Px(4.0)),
                             }
                             BackgroundColor({ palette.surface_elevated })
+                            MiniHudText(MiniHudTextKind::Mode)
                             Children [
                                 Text({ mode_label })
                                 TextRole(Role::Caption)
@@ -233,9 +272,9 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             BackgroundColor({ palette.surface_elevated })
                             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
                             Button
-                            MiniHudPinButton
+                            MiniHudPinButton MiniHudText(MiniHudTextKind::Pin)
                             Children [
-                                Text({ pin_label.to_owned() }) TextRole(Role::Caption)
+                                Text(pin_label) TextRole(Role::Caption)
                             ]
                             --
                             Node {
@@ -249,7 +288,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Button
                             MiniHudExpandButton
                             Children [
-                                Text({ "展开".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("rules_expand") TextRole(Role::Caption)
                             ]
                         ]
                     ]
@@ -270,7 +309,8 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         Children [
                             @{ icon_tile_scene(IconId::ArrowDown, 16.0, palette) }
                             --
-                            Text(down_rate) TextRole(Role::BodyStrong)
+                            Node MiniHudText(MiniHudTextKind::DownRate)
+                            Children [ Text(down_rate) TextRole(Role::BodyStrong) ]
                             --
                             @{ down_waveform_slot_scene() }
                         ]
@@ -282,7 +322,8 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         Children [
                             @{ icon_tile_scene(IconId::ArrowUp, 16.0, palette) }
                             --
-                            Text(up_rate) TextRole(Role::BodyStrong)
+                            Node MiniHudText(MiniHudTextKind::UpRate)
+                            Children [ Text(up_rate) TextRole(Role::BodyStrong) ]
                             --
                             @{ up_waveform_slot_scene() }
                         ]
@@ -303,6 +344,7 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             border_radius: BorderRadius::all(Val::Px(4.0)),
                         }
                         BackgroundColor({ palette.accent.with_alpha(0.14) })
+                        MiniHudText(MiniHudTextKind::Node)
                         Children [
                             Text(node_label)
                             TextRole(Role::Caption)
@@ -315,18 +357,17 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                         }
                         Children [
                             @{ pill_caption_scene(proxy_label, proxy_selected, palette) }
-                            MiniHudSystemProxyToggle
+                            MiniHudSystemProxyToggle MiniHudQuickToggle(SystemToggle::SystemProxy)
                             ButtonDisabled({ !proxy_actionable })
                             proxy_node
                             --
                             @{ pill_caption_scene(tun_label, tun_selected, palette) }
-                            MiniHudTunToggle
+                            MiniHudTunToggle MiniHudQuickToggle(SystemToggle::Tun)
                             ButtonDisabled({ !tun_actionable })
                             tun_node
                             --
-                            Text(toggle_line)
-                            TextRole(Role::Caption)
-                            MiniHudToggleLabel
+                            Node MiniHudText(MiniHudTextKind::ToggleLine)
+                            Children [ Text(toggle_line) TextRole(Role::Caption) MiniHudToggleLabel ]
                         ]
                     ]
                 ]
@@ -345,6 +386,8 @@ mod tests {
     use infiltrator_bevy_widgets::palette::UiPalette;
     use infiltrator_bevy_widgets::theme::Theme;
     use infiltrator_contract::system_toggle::SystemToggleSnapshot;
+    #[cfg(test)]
+    use infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot;
 
     fn model() -> MiniHudReadModel {
         let snapshot = SystemToggleSnapshot::from_legacy(true, Some(true), 2);
@@ -356,7 +399,7 @@ mod tests {
             .with_waveform(&waveform_snapshot())
     }
 
-    fn waveform_snapshot() -> infiltrator_contract::traffic_waveform::TrafficWaveformSnapshot {
+    fn waveform_snapshot() -> TrafficWaveformSnapshot {
         use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
         TrafficWaveformSnapshot {
             generation: 1,

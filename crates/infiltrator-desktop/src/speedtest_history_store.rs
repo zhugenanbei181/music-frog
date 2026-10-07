@@ -7,6 +7,8 @@
 use infiltrator_contract::speedtest::HistoricalSpeedtestRecord;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
+use mihomo_platform::paths::get_home_dir;
+use std::fs::{create_dir_all, read_to_string, write};
 use std::path::PathBuf;
 
 pub struct FileSpeedtestHistoryStore {
@@ -16,7 +18,7 @@ pub struct FileSpeedtestHistoryStore {
 impl FileSpeedtestHistoryStore {
     /// Store under the current host home directory.
     pub fn current() -> anyhow::Result<Self> {
-        let home = mihomo_platform::paths::get_home_dir()?;
+        let home = get_home_dir()?;
         Ok(Self {
             path: home.join("speedtest_history.json"),
         })
@@ -33,18 +35,18 @@ impl SpeedtestHistoryStore for FileSpeedtestHistoryStore {
         if !self.path.exists() {
             return Ok(Vec::new());
         }
-        let content = std::fs::read_to_string(&self.path)
-            .map_err(|error| PortError::Io(error.to_string()))?;
+        let content =
+            read_to_string(&self.path).map_err(|error| PortError::Io(error.to_string()))?;
         serde_json::from_str(&content).map_err(|error| PortError::Io(error.to_string()))
     }
 
     fn save(&self, records: &[HistoricalSpeedtestRecord]) -> Result<(), PortError> {
         if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| PortError::Io(error.to_string()))?;
+            create_dir_all(parent).map_err(|error| PortError::Io(error.to_string()))?;
         }
         let content = serde_json::to_string_pretty(records)
             .map_err(|error| PortError::Io(error.to_string()))?;
-        std::fs::write(&self.path, content).map_err(|error| PortError::Io(error.to_string()))
+        write(&self.path, content).map_err(|error| PortError::Io(error.to_string()))
     }
 }
 
@@ -52,6 +54,14 @@ impl SpeedtestHistoryStore for FileSpeedtestHistoryStore {
 mod tests {
     use super::*;
     use infiltrator_contract::speedtest::SpeedtestScope;
+    #[cfg(test)]
+    use std::env::temp_dir;
+    #[cfg(test)]
+    use std::fs::remove_dir_all;
+    #[cfg(test)]
+    use std::fs::remove_file;
+    #[cfg(test)]
+    use std::process::id;
 
     fn sample_records() -> Vec<HistoricalSpeedtestRecord> {
         vec![HistoricalSpeedtestRecord {
@@ -70,21 +80,18 @@ mod tests {
 
     #[test]
     fn file_store_round_trips_records() {
-        let dir = std::env::temp_dir().join(format!("mf-speedtest-history-{}", std::process::id()));
+        let dir = temp_dir().join(format!("mf-speedtest-history-{}", id()));
         let store = FileSpeedtestHistoryStore::at(dir.join("history.json"));
         assert!(store.load().unwrap().is_empty());
         store.save(&sample_records()).unwrap();
         assert_eq!(store.load().unwrap(), sample_records());
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = remove_dir_all(&dir);
     }
 
     #[test]
     fn file_store_missing_file_is_empty() {
-        let path = std::env::temp_dir().join(format!(
-            "mf-speedtest-history-missing-{}.json",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
+        let path = temp_dir().join(format!("mf-speedtest-history-missing-{}.json", id()));
+        let _ = remove_file(&path);
         let store = FileSpeedtestHistoryStore::at(path);
         assert!(store.load().unwrap().is_empty());
     }

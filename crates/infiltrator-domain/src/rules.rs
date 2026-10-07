@@ -4,6 +4,9 @@
 //! profile document, comprehensive rule parsing, shadow rule detection, and
 //! traffic routing simulation.
 
+use crate::rules::types::parse_rule_str;
+use crate::yaml_edit::SourceDoc;
+use crate::yaml_edit::rules_fidelity::apply_rule_list;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
@@ -14,6 +17,7 @@ pub mod edit;
 pub mod logical;
 pub mod matrix;
 pub mod provider_store;
+pub mod source_identity;
 pub mod tracer;
 pub mod types;
 pub mod view;
@@ -44,16 +48,6 @@ pub struct RuleProviderDiff {
     pub added_rules: Vec<String>,
     pub removed_rules: Vec<String>,
     pub unchanged_count: usize,
-}
-
-pub type TrafficContext = tracer::TrafficContext;
-pub type RuleTraceMatch = tracer::RuleTraceMatch;
-
-pub fn trace_rules(
-    rules: &[RuleEntry],
-    context: &tracer::TrafficContext,
-) -> Option<tracer::RuleTraceMatch> {
-    tracer::trace_rules(rules, context)
 }
 
 pub fn diff_rule_provider_contents(
@@ -157,8 +151,8 @@ pub fn load_rules_from_yaml(content: &str) -> Result<Vec<RuleEntry>> {
 /// behavior change.
 pub fn apply_rules_to_yaml(content: &str, rules: &[RuleEntry]) -> Result<String> {
     validate_rules(rules)?;
-    if let Ok(mut doc) = crate::yaml_edit::SourceDoc::parse(content)
-        && crate::yaml_edit::rules_fidelity::apply_rule_list(&mut doc, rules).is_ok()
+    if let Ok(mut doc) = SourceDoc::parse(content)
+        && apply_rule_list(&mut doc, rules).is_ok()
     {
         return Ok(doc.render());
     }
@@ -273,57 +267,61 @@ pub fn validate_rules(rules: &[RuleEntry]) -> Result<()> {
     Ok(())
 }
 
-/// DUAL-12-08: rewrite the outbound target of a rule expression while
-/// preserving its type, payload, logical sub-expressions and any trailing
-/// `no-resolve` flag. The target is the segment after the last top-level comma;
-/// commas nested inside `AND(...)`/`OR(...)`/`NOT(...)`/`SUB-RULE(...)` are
-/// ignored. Returns `None` for a bare value with no target segment.
+/// Rewrite only the native target segment; retain regex commas and all trailing parameters.
 pub fn rewrite_rule_target(rule: &str, new_target: &str) -> Option<String> {
     let trimmed = rule.trim();
-    if trimmed.is_empty() {
+    let parsed = parse_rule_str(trimmed).ok()?;
+    let new_target = new_target.trim();
+    if new_target.is_empty() || parsed.target.is_empty() {
         return None;
     }
-    let lower = trimmed.to_ascii_lowercase();
-    let no_resolve = lower.ends_with(",no-resolve");
-    let body = if no_resolve {
-        trimmed[..trimmed.len() - ",no-resolve".len()].trim_end()
+    let kind = trimmed.split(',').next()?.to_ascii_uppercase();
+    let commas: Vec<usize> = trimmed.match_indices(',').map(|(index, _)| index).collect();
+    let separator = if [
+        "AND",
+        "OR",
+        "NOT",
+        "SUB-RULE",
+        "DOMAIN-REGEX",
+        "PROCESS-NAME-REGEX",
+        "PROCESS-PATH-REGEX",
+    ]
+    .contains(&kind.as_str())
+    {
+        *commas.last()?
+    } else if kind == "MATCH" {
+        *commas.first()?
     } else {
-        trimmed
+        *commas.get(1)?
     };
-
-    // Locate the target separator: the last comma at the shallowest nesting
-    // depth. For a flat rule that is the final comma; for a logical rule the
-    // only candidate is the comma before the target inside the outer parens.
-    let mut depth: i32 = 0;
-    let mut commas: Vec<(i32, usize)> = Vec::new();
-    for (index, ch) in body.char_indices() {
-        match ch {
-            '(' => depth += 1,
-            ')' => depth -= 1,
-            ',' => commas.push((depth, index)),
-            _ => {}
-        }
-    }
-    let shallowest = commas.iter().map(|(level, _)| *level).min()?;
-    let split = commas
-        .iter()
-        .rev()
-        .find(|(level, _)| *level == shallowest)
-        .map(|(_, index)| *index)?;
-    let prefix = &body[..split];
-    if prefix.trim().is_empty() {
-        return None;
-    }
-    // Everything after the target separator up to the trailing logical closing
-    // parens is the old target; preserve those closers.
-    let closers = body.len() - body.trim_end_matches(')').len();
-    let suffix = &body[body.len() - closers..];
-
-    let mut rewritten = format!("{},{new_target}{suffix}", body[..split].trim_end());
-    if no_resolve {
-        rewritten.push_str(",no-resolve");
-    }
-    Some(rewritten)
+    let end = if kind == "MATCH"
+        || ![
+            "AND",
+            "OR",
+            "NOT",
+            "SUB-RULE",
+            "DOMAIN-REGEX",
+            "PROCESS-NAME-REGEX",
+            "PROCESS-PATH-REGEX",
+        ]
+        .contains(&kind.as_str())
+    {
+        commas
+            .iter()
+            .copied()
+            .find(|index| *index > separator)
+            .unwrap_or(trimmed.len())
+    } else {
+        trimmed.len()
+    };
+    let token = &trimmed[separator + 1..end];
+    let start = separator + 1 + token.len() - token.trim_start().len();
+    let end = end - (token.len() - token.trim_end().len());
+    Some(format!(
+        "{}{new_target}{}",
+        &trimmed[..start],
+        &trimmed[end..]
+    ))
 }
 
 #[cfg(test)]
@@ -348,13 +346,16 @@ mod tests {
         // Logical subrules keep their nested commas; only the final target moves.
         assert_eq!(
             rewrite_rule_target(
-                "AND((DOMAIN,api.openai.com),(DST-PORT,443),AI_PROXY)",
+                "AND,((DOMAIN,api.openai.com),(DST-PORT,443)),AI_PROXY",
                 "DIRECT"
             )
             .as_deref(),
-            Some("AND((DOMAIN,api.openai.com),(DST-PORT,443),DIRECT)")
+            Some("AND,((DOMAIN,api.openai.com),(DST-PORT,443)),DIRECT")
         );
         assert_eq!(rewrite_rule_target("DIRECT", "PROXY"), None);
         assert_eq!(rewrite_rule_target("", "PROXY"), None);
     }
 }
+
+#[cfg(test)]
+mod native_syntax_test;

@@ -13,6 +13,7 @@ use super::spec::{
 };
 use super::*;
 use crate::state::AppState;
+use crate::tray::spec::TrayActionId;
 use crate::types::app::Route;
 use crate::types::message::Message;
 use infiltrator_contract::version::InstalledCoreVersion;
@@ -105,7 +106,7 @@ fn event_ctx<'a>(profiles: &'a [ProfileInfo]) -> TrayEventContext<'a> {
     }
 }
 
-fn activated(id: crate::tray::spec::TrayActionId, payload: Option<&str>) -> TrayEvent {
+fn activated(id: TrayActionId, payload: Option<&str>) -> TrayEvent {
     TrayEvent::MenuActivated {
         id,
         payload: payload.map(str::to_owned),
@@ -309,7 +310,7 @@ mod ksni_mapping {
     use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
     use std::collections::HashMap;
 
-    fn sample_tray(events: std::sync::mpsc::Sender<TrayEvent>) -> KsniTray {
+    fn sample_tray(events: mpsc::Sender<TrayEvent>) -> KsniTray {
         let groups = vec![proxy_group("GLOBAL", "A", &[("A", None), ("B", Some(64))])];
         let mut ctx = base_ctx();
         ctx.mode = Some("direct");

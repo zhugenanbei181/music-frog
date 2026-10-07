@@ -1,23 +1,34 @@
 //! Wave 3 Advanced feature message handlers: PCAP capture, Sub-Rules, Speedtest,
 //! GeoData updater, UWP Loopback, and Encrypted Backup packages.
 
+use crate::host::desktop::uwp_loopback_application;
 use crate::state::AppState;
-use crate::types::app::ToastStatus;
+use crate::types::app::{ToastStatus, UwpAppItem, UwpLoopbackState};
 use crate::types::message::Message;
 use iced::Task;
+use infiltrator_contract::error::{Failure, InfiltratorError};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
+use infiltrator_domain::backup::{BackupBundle, export_encrypted_bundle};
+use infiltrator_domain::pcap_exporter::{PcapExporter, PcapHeader};
+use infiltrator_domain::rules::logical::{
+    add_condition, build_logical_rule, remove_condition, select_operator, set_target,
+};
+use infiltrator_ports::error::PortError;
+use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+use std::fs::write;
 
 fn map_uwp_snapshot(
-    target: &mut crate::types::app::UwpLoopbackState,
+    target: &mut UwpLoopbackState,
     snapshot: UwpLoopbackSnapshot,
+    copy_locale: &str,
 ) {
     target.availability = snapshot.availability.clone();
     target.revision = snapshot.revision;
     target.apps = snapshot
         .packages
         .into_iter()
-        .map(|package| crate::types::app::UwpAppItem {
+        .map(|package| UwpAppItem {
             sid: package.sid,
             display_name: package.display_name,
             is_exempt: package.loopback_exempt,
@@ -25,26 +36,27 @@ fn map_uwp_snapshot(
         .collect();
     target.is_scanning = false;
     target.status_message = Some(match snapshot.availability {
-        UwpLoopbackAvailability::Supported => {
-            format!("已扫描 {} 个 UWP AppContainer", target.apps.len())
-        }
+        UwpLoopbackAvailability::Supported => localize(
+            copy_locale,
+            "uwp_scan_count",
+            &[("count", target.apps.len().to_string())],
+        ),
         UwpLoopbackAvailability::Unsupported { reason }
         | UwpLoopbackAvailability::Unavailable { reason } => reason,
     });
 }
 
-fn map_uwp_failure(
-    error: infiltrator_contract::error::Failure,
-) -> infiltrator_contract::error::InfiltratorError {
-    infiltrator_contract::error::InfiltratorError::Internal(error.message)
+fn map_uwp_failure(error: Failure) -> InfiltratorError {
+    InfiltratorError::Internal(error.message)
 }
 
 impl AppState {
     fn apply_uwp_snapshot(&mut self, snapshot: UwpLoopbackSnapshot) {
-        map_uwp_snapshot(&mut self.shell.uwp_loopback, snapshot);
+        map_uwp_snapshot(&mut self.shell.uwp_loopback, snapshot, &self.shell.lang);
     }
 
     pub(super) fn update_ui_wave3(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::TogglePcapCapture => {
                 self.diag.pcap_state.is_capturing = !self.diag.pcap_state.is_capturing;
@@ -55,13 +67,11 @@ impl AppState {
                 Task::none()
             }
             Message::ExportPcapBuffer => {
-                let mut writer = infiltrator_domain::pcap_exporter::PcapExporter::new(
-                    infiltrator_domain::pcap_exporter::PcapHeader::new(65535, 1),
-                );
+                let mut writer = PcapExporter::new(PcapHeader::new(65535, 1));
                 let data = [0x45, 0x00, 0x00, 0x3c, 0x00, 0x01];
                 writer.append_packet(1725360000, 500000, &data);
                 let path = "/tmp/infiltrator_capture.pcap".to_string();
-                let _ = std::fs::write(&path, writer.as_bytes());
+                let _ = write(&path, writer.as_bytes());
                 self.diag.pcap_state.exported_path = Some(path.clone());
                 Task::done(Message::ShowToast(
                     format!("Exported: {path}"),
@@ -70,41 +80,33 @@ impl AppState {
             }
             Message::UpdateSubRuleOperator(op) => {
                 // DUAL-11-02: operator selection is the shared vocabulary gate.
-                infiltrator_domain::rules::logical::select_operator(
-                    &mut self.editor.subrule_draft,
-                    &op,
-                );
+                select_operator(&mut self.editor.subrule_draft, &op);
                 Task::none()
             }
             Message::AddSubRuleCondition(cond) => {
-                infiltrator_domain::rules::logical::add_condition(
-                    &mut self.editor.subrule_draft,
-                    &cond,
-                );
+                add_condition(&mut self.editor.subrule_draft, &cond);
                 Task::none()
             }
             Message::RemoveSubRuleCondition(idx) => {
-                infiltrator_domain::rules::logical::remove_condition(
-                    &mut self.editor.subrule_draft,
-                    idx,
-                );
+                remove_condition(&mut self.editor.subrule_draft, idx);
                 Task::none()
             }
             Message::UpdateSubRuleTarget(t) => {
-                infiltrator_domain::rules::logical::set_target(&mut self.editor.subrule_draft, &t);
+                set_target(&mut self.editor.subrule_draft, &t);
                 Task::none()
             }
             Message::InsertSubRuleIntoRules => {
                 // DUAL-11-02: the visual builder inserts the shared reduction's
                 // canonical `OP((cond),(cond),TARGET)` expression. An invalid
                 // composition is an honest error toast, never a malformed rule.
-                match infiltrator_domain::rules::logical::build_logical_rule(
-                    &self.editor.subrule_draft,
-                ) {
+                match build_logical_rule(&self.editor.subrule_draft) {
                     Ok(entry) => {
                         let formatted_rule = entry.rule.clone();
-                        self.editor.rules.push(entry);
-                        self.editor.rules_dirty = true;
+                        if !self.editor.rule_list.prepend([entry]) {
+                            return Task::none();
+                        }
+                        self.rebuild_rules_render_cache();
+                        self.apply_rules_filter();
                         Task::done(Message::ShowToast(
                             format!("Inserted: {formatted_rule}"),
                             ToastStatus::Success,
@@ -135,7 +137,7 @@ impl AppState {
                 Task::perform(
                     async move {
                         match port.probe_node(&node, 5, test_url, None).await {
-                            Ok(snapshot) => Ok::<_, infiltrator_ports::error::PortError>(snapshot),
+                            Ok(snapshot) => Ok::<_, PortError>(snapshot),
                             Err(error) => Err(error),
                         }
                     },
@@ -209,7 +211,7 @@ impl AppState {
             Message::ScanUwpApps => {
                 if !self.shell.demo {
                     self.shell.uwp_loopback.is_scanning = true;
-                    let application = crate::host::desktop::uwp_loopback_application();
+                    let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.snapshot().await },
                         Message::UwpSnapshotLoaded,
@@ -217,17 +219,17 @@ impl AppState {
                 }
                 self.shell.uwp_loopback.is_scanning = true;
                 let apps = vec![
-                    crate::types::app::UwpAppItem {
+                    UwpAppItem {
                         sid: "S-1-15-2-1".into(),
                         display_name: "Microsoft Store".into(),
                         is_exempt: true,
                     },
-                    crate::types::app::UwpAppItem {
+                    UwpAppItem {
                         sid: "S-1-15-2-2".into(),
                         display_name: "Xbox App".into(),
                         is_exempt: false,
                     },
-                    crate::types::app::UwpAppItem {
+                    UwpAppItem {
                         sid: "S-1-15-2-3".into(),
                         display_name: "Windows Terminal".into(),
                         is_exempt: true,
@@ -250,7 +252,7 @@ impl AppState {
             Message::ExemptAllUwpApps => {
                 if !self.shell.demo {
                     self.shell.uwp_loopback.is_scanning = true;
-                    let application = crate::host::desktop::uwp_loopback_application();
+                    let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.set_all(true).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
@@ -267,7 +269,7 @@ impl AppState {
             Message::ClearAllUwpExemptions => {
                 if !self.shell.demo {
                     self.shell.uwp_loopback.is_scanning = true;
-                    let application = crate::host::desktop::uwp_loopback_application();
+                    let application = uwp_loopback_application();
                     return Task::perform(
                         async move { application.set_all(false).await.map_err(map_uwp_failure) },
                         Message::UwpExemptionsChanged,
@@ -294,7 +296,7 @@ impl AppState {
                         return Task::none();
                     };
                     self.shell.uwp_loopback.is_scanning = true;
-                    let application = crate::host::desktop::uwp_loopback_application();
+                    let application = uwp_loopback_application();
                     return Task::perform(
                         async move {
                             application
@@ -322,7 +324,7 @@ impl AppState {
                     Ok(snapshot) => {
                         self.apply_uwp_snapshot(snapshot);
                         Task::done(Message::ShowToast(
-                            "UWP 回环豁免已应用并完成回读".to_owned(),
+                            Lang(&copy_locale).tr("uwp_loopback_verified").into_owned(),
                             ToastStatus::Success,
                         ))
                     }
@@ -344,16 +346,10 @@ impl AppState {
                         ToastStatus::Warning,
                     ));
                 }
-                let dummy_bundle = infiltrator_domain::backup::BackupBundle::new(
-                    vec![],
-                    String::new(),
-                    String::new(),
-                );
-                if let Ok(bytes) =
-                    infiltrator_domain::backup::export_encrypted_bundle(&dummy_bundle, pass)
-                {
+                let dummy_bundle = BackupBundle::new(vec![], String::new(), String::new());
+                if let Ok(bytes) = export_encrypted_bundle(&dummy_bundle, pass) {
                     let out_path = "/tmp/infiltrator_backup.encpkg".to_string();
-                    let _ = std::fs::write(&out_path, bytes);
+                    let _ = write(&out_path, bytes);
                     self.profile.encrypted_backup.last_exported_path = Some(out_path.clone());
                     Task::done(Message::ShowToast(
                         format!("Exported encrypted backup: {out_path}"),

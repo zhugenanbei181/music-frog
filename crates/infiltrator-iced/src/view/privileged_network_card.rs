@@ -2,25 +2,25 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::style_accent;
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::theme::{self, MONO, tokens};
+use crate::view::components::{BadgeKind, badge};
+use crate::view::theme;
+use crate::view::theme::{MONO, tokens};
 use iced::widget::{Space, button, column, row, text};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::privileged_network::{PrivilegedNetworkSnapshot, PrivilegedNetworkState};
+use infiltrator_application::host_network_projection::privileged;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 pub fn privileged_network_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let snapshot = &state.runtime.privileged_network;
-    let run = button(text(lang.tr("privileged_network_run").to_string()))
+    let view = privileged(&state.runtime.privileged_network, lang.0);
+    let run = button(text(lang.tr(view.start_key).into_owned()))
         .padding([4, 12])
-        .style(style_accent);
-    let run = if matches!(snapshot.state, PrivilegedNetworkState::Unsupported { .. }) {
-        run
-    } else {
-        run.on_press(Message::RunPrivilegedNetworkRegression)
-    };
-    let details = format_details(snapshot);
+        .style(style_accent)
+        .on_press_maybe(
+            view.start_enabled
+                .then_some(Message::RunPrivilegedNetworkRegression),
+        );
     card(
         Some(lang.tr("privileged_network_title").to_string()),
         column![
@@ -31,48 +31,15 @@ pub fn privileged_network_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Elem
                 }),
             Space::new().height(theme::SP_XS),
             row![
-                badge(format_status(&snapshot.state, lang), BadgeKind::Accent),
+                badge(view.status, BadgeKind::Accent),
                 Space::new().width(Length::Fill),
-                text(details).size(11).font(MONO),
+                text(view.details).size(11).font(MONO),
             ]
             .align_y(Alignment::Center),
             Space::new().height(theme::SP_XS),
             run,
         ]
         .spacing(theme::SP_SM),
-    )
-}
-
-fn format_status(state: &PrivilegedNetworkState, lang: &Lang<'_>) -> String {
-    match state {
-        PrivilegedNetworkState::Idle => lang.tr("privileged_network_status_idle").to_string(),
-        PrivilegedNetworkState::Injecting => {
-            lang.tr("privileged_network_status_injecting").to_string()
-        }
-        PrivilegedNetworkState::Active => lang.tr("privileged_network_status_active").to_string(),
-        PrivilegedNetworkState::RollingBack => lang
-            .tr("privileged_network_status_rolling_back")
-            .to_string(),
-        PrivilegedNetworkState::Cleaned => lang.tr("privileged_network_status_cleaned").to_string(),
-        PrivilegedNetworkState::Unsupported { reason } => format!(
-            "{} · {reason}",
-            lang.tr("privileged_network_status_unsupported")
-        ),
-        PrivilegedNetworkState::Failed { failure } => format!(
-            "{} · {}",
-            lang.tr("privileged_network_status_failed"),
-            failure.message
-        ),
-    }
-}
-
-fn format_details(snapshot: &PrivilegedNetworkSnapshot) -> String {
-    format!(
-        "operations={} · injected={} · cleanup={} · rollback={}",
-        snapshot.operation_count,
-        snapshot.injected,
-        snapshot.cleanup_attempted,
-        snapshot.rollback_attempted
     )
 }
 

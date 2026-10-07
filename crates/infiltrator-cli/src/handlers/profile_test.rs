@@ -1,8 +1,8 @@
+use super::{apply_configs_dir_override, profile_json, profile_row};
+use crate::context::Runtime;
+use crate::test_support::EnvGuard;
 use infiltrator_domain::profiles::ProfileInfo;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
-
-use super::{apply_configs_dir_override, profile_json, profile_row};
-use crate::test_support::EnvGuard;
 
 fn sample_profile(name: &str, active: bool) -> ProfileInfo {
     ProfileInfo {
@@ -47,7 +47,7 @@ async fn configs_dir_override_round_trips_through_settings() {
 
     let result = async {
         apply_configs_dir_override(temp.path(), Some("cloud/profiles".to_string())).await?;
-        let runtime = crate::context::Runtime::with_home(temp.path().to_path_buf()).await?;
+        let runtime = Runtime::with_home(temp.path().to_path_buf()).await?;
         assert_eq!(
             runtime.settings.configs_dir.as_deref(),
             Some("cloud/profiles")
@@ -55,7 +55,7 @@ async fn configs_dir_override_round_trips_through_settings() {
         assert_eq!(runtime.configs_dir()?, temp.path().join("cloud/profiles"));
 
         apply_configs_dir_override(temp.path(), None).await?;
-        let runtime = crate::context::Runtime::with_home(temp.path().to_path_buf()).await?;
+        let runtime = Runtime::with_home(temp.path().to_path_buf()).await?;
         assert!(runtime.settings.configs_dir.is_none());
         assert_eq!(runtime.configs_dir()?, temp.path().join("configs"));
         anyhow::Ok(())
@@ -75,7 +75,7 @@ async fn profile_listing_follows_the_configs_dir_override() {
 
     let result = async {
         apply_configs_dir_override(temp.path(), Some("cloud".to_string())).await?;
-        let runtime = crate::context::Runtime::with_home(temp.path().to_path_buf()).await?;
+        let runtime = Runtime::with_home(temp.path().to_path_buf()).await?;
         runtime.config_manager()?.ensure_default_config().await?;
         assert!(temp.path().join("cloud").join("default.yaml").exists());
 

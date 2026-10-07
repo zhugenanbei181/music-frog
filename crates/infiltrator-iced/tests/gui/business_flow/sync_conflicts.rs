@@ -12,19 +12,36 @@
 //!
 //! test-intent: behavior
 
-use super::support::{SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast};
+use super::support::{
+    FakeTray, SAMPLE_PROFILE_YAML, TempHome, block_on, feed, fresh_state, last_toast,
+};
+use crate::configs_dir::config_manager;
+use crate::state::AppState;
 use crate::types::app::{SyncConflict, SyncSummary, ToastStatus};
 use crate::types::message::Message;
 use crate::types::options::SyncDiffBundle;
-use crate::types::runtime::{RebuildFlowState, RuntimeConfig, RuntimeStatus};
+use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
+use crate::update::core::profile_apply::save_profile_content;
+use axum::body::to_bytes;
 use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use iced_runtime::task::into_stream;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::mixin::merge_yaml_key_picks;
+use infiltrator_domain::runtime::{ConfigSnapshot, DnsSnapshot, SnifferSnapshot, TunSnapshot};
 use infiltrator_domain::sync::diff_yaml_configs;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+use std::fs::write;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::{fs, time};
+use tokio::fs::{read_to_string, remove_file};
+use tokio::net::TcpListener;
 use tokio::sync::oneshot;
+use tokio::time::timeout;
 
 // ---------------------------------------------------------------------------
 // Minimal WebDAV stub (journey 7)
@@ -74,7 +91,7 @@ async fn stub_dav(State(files): State<StubFiles>, request: Request) -> Response 
             None => StatusCode::NOT_FOUND.into_response(),
         },
         "PUT" => {
-            let body = axum::body::to_bytes(request.into_body(), 16 * 1024 * 1024)
+            let body = to_bytes(request.into_body(), 16 * 1024 * 1024)
                 .await
                 .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
                 .unwrap_or_default();
@@ -89,14 +106,14 @@ async fn stub_dav(State(files): State<StubFiles>, request: Request) -> Response 
 /// [`stub_dav`]. Graceful shutdown fires when the guard is dropped.
 struct StubServer {
     files: StubFiles,
-    addr: std::net::SocketAddr,
+    addr: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
 }
 
 impl StubServer {
     async fn spawn() -> Self {
         let files: StubFiles = Arc::new(Mutex::new(BTreeMap::new()));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let app = axum::Router::new()
             .fallback(stub_dav)
@@ -131,14 +148,10 @@ impl Drop for StubServer {
 /// depth 1 covers the worker outputs plus the `SyncFinished` completion
 /// batch (toast + LoadProfiles) while stopping short of side legs like the
 /// 5s `RemoveToast` expiry task. Returns every observed message.
-async fn drive_task(
-    state: &mut crate::state::AppState,
-    task: iced::Task<Message>,
-    depth: usize,
-) -> Vec<Message> {
+async fn drive_task(state: &mut AppState, task: iced::Task<Message>, depth: usize) -> Vec<Message> {
     use iced::futures::StreamExt;
     let mut observed = Vec::new();
-    let Some(mut stream) = iced_runtime::task::into_stream(task) else {
+    let Some(mut stream) = into_stream(task) else {
         return observed;
     };
     while let Some(action) = stream.next().await {
@@ -167,7 +180,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     let home = TempHome::acquire("sync-diff");
     home.seed_profile("alpha", LOCAL_YAML);
     let remote_path = home.join("alpha.remote-conflict.yaml");
-    std::fs::write(&remote_path, REMOTE_YAML).unwrap();
+    write(&remote_path, REMOTE_YAML).unwrap();
 
     let mut state = fresh_state();
     state.profile.sync_conflicts = vec![SyncConflict {
@@ -182,9 +195,9 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
 
     // Loader task body for real: local via manager + remote file + diff.
     let bundle: SyncDiffBundle = block_on(async {
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let local = manager.load("alpha").await.unwrap();
-        let remote = tokio::fs::read_to_string(&remote_path).await.unwrap();
+        let remote = read_to_string(&remote_path).await.unwrap();
         let summary = diff_yaml_configs(&local, &remote).unwrap();
         SyncDiffBundle {
             profile: "alpha".into(),
@@ -237,8 +250,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     // remote conflict file.
     let picks = state.profile.sync_diff.clone().unwrap();
     block_on(async {
-        let removed_keys: std::collections::HashSet<String> =
-            picks.bundle.removed.iter().cloned().collect();
+        let removed_keys: HashSet<String> = picks.bundle.removed.iter().cloned().collect();
         let mut take_remote = Vec::new();
         let mut accept_removals = Vec::new();
         for (key, pick) in &picks.picks {
@@ -251,26 +263,15 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
                 take_remote.push(key.clone());
             }
         }
-        let manager = crate::configs_dir::config_manager().await.unwrap();
+        let manager = config_manager().await.unwrap();
         let local = manager.load("alpha").await.unwrap();
-        let remote = tokio::fs::read_to_string(&remote_path).await.unwrap();
-        let merged = infiltrator_domain::mixin::merge_yaml_key_picks(
-            &local,
-            &remote,
-            &take_remote,
-            &accept_removals,
-        )
-        .unwrap();
-        infiltrator_domain::config::validate_yaml(&merged).unwrap();
-        crate::update::core::profile_apply::save_profile_content(
-            None,
-            "alpha".into(),
-            merged,
-            infiltrator_domain::apply::ApplyStrategy::PreferReload,
-        )
-        .await
-        .unwrap();
-        tokio::fs::remove_file(&remote_path).await.unwrap();
+        let remote = read_to_string(&remote_path).await.unwrap();
+        let merged = merge_yaml_key_picks(&local, &remote, &take_remote, &accept_removals).unwrap();
+        validate_yaml(&merged).unwrap();
+        save_profile_content(None, "alpha".into(), merged, ApplyStrategy::PreferReload)
+            .await
+            .unwrap();
+        remove_file(&remote_path).await.unwrap();
     });
 
     let units = feed(&mut state, Message::SyncDiffMerged(Ok("alpha".into())));
@@ -280,7 +281,7 @@ fn sync_diff_journey_merges_key_picks_into_the_local_file() {
     assert!(units >= 2, "LoadProfiles + success-toast legs");
 
     // Disk truth: mode came from remote, tun was adopted, log-level removed.
-    let merged = std::fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
+    let merged = fs::read_to_string(home.configs().join("alpha.yaml")).unwrap();
     assert!(
         merged.contains("mode: global"),
         "remote mode adopted: {merged}"
@@ -316,8 +317,8 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
 
         // ---- 上传腿：真实 SyncUpload worker 上传全部本地 profile --------
         let upload_task = state.update(Message::SyncUpload);
-        let observed = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+        let observed = timeout(
+            time::Duration::from_secs(30),
             drive_task(&mut state, upload_task, 1),
         )
         .await
@@ -366,8 +367,8 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
 
         // ---- 下载腿：真实 SyncDownload worker 发现内容冲突 --------------
         let download_task = state.update(Message::SyncDownload);
-        let observed = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+        let observed = timeout(
+            time::Duration::from_secs(30),
             drive_task(&mut state, download_task, 1),
         )
         .await
@@ -389,7 +390,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         let conflict_path = state.profile.sync_conflicts[0].remote_path.clone();
         assert!(conflict_path.parent() == Some(&home.configs()));
         assert_eq!(
-            std::fs::read_to_string(&conflict_path).unwrap(),
+            fs::read_to_string(&conflict_path).unwrap(),
             REMOTE_YAML,
             "conflict backup holds the remote content"
         );
@@ -403,17 +404,12 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         let units = feed(&mut state, Message::ResolveSyncConflict("alpha".into()));
         assert_eq!(units, 1);
         {
-            let content = tokio::fs::read_to_string(&conflict_path).await.unwrap();
-            infiltrator_domain::config::validate_yaml(&content).unwrap();
-            crate::update::core::profile_apply::save_profile_content(
-                None,
-                "alpha".into(),
-                content,
-                infiltrator_domain::apply::ApplyStrategy::PreferReload,
-            )
-            .await
-            .unwrap();
-            tokio::fs::remove_file(&conflict_path).await.unwrap();
+            let content = read_to_string(&conflict_path).await.unwrap();
+            validate_yaml(&content).unwrap();
+            save_profile_content(None, "alpha".into(), content, ApplyStrategy::PreferReload)
+                .await
+                .unwrap();
+            remove_file(&conflict_path).await.unwrap();
         }
         let units = feed(
             &mut state,
@@ -422,7 +418,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
         assert!(state.profile.sync_conflicts.is_empty());
         assert!(units >= 2, "LoadProfiles + success-toast legs");
         assert!(
-            std::fs::read_to_string(home.configs().join("alpha.yaml"))
+            fs::read_to_string(home.configs().join("alpha.yaml"))
                 .unwrap()
                 .contains("mode: global"),
             "resolve adopted the remote content"
@@ -435,8 +431,8 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
             .unwrap()
             .insert("/alpha.yaml".to_string(), CONFLICT2_YAML.to_string());
         let dismissal_task = state.update(Message::SyncDownload);
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+        let _ = timeout(
+            time::Duration::from_secs(30),
             drive_task(&mut state, dismissal_task, 1),
         )
         .await
@@ -446,7 +442,7 @@ fn sync_conflict_network_leg_upload_download_resolve_and_dismiss() {
 
         let units = feed(&mut state, Message::DismissSyncConflict("alpha".into()));
         assert_eq!(units, 1);
-        tokio::fs::remove_file(&conflict_path).await.unwrap();
+        remove_file(&conflict_path).await.unwrap();
         let units = feed(
             &mut state,
             Message::SyncConflictDismissed(Ok("alpha".into())),
@@ -466,11 +462,11 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     home.seed_profile("alpha", LOCAL_YAML);
     let mut state = fresh_state();
     state.shell.lang = "zh-CN".into();
-    let tray = super::support::FakeTray::install(&mut state);
+    let tray = FakeTray::install(&mut state);
 
     // Download worker reports the ACTIVE profile changed + one conflict.
     let conflict_path = home.join("alpha.remote-conflict-2.yaml");
-    std::fs::write(&conflict_path, REMOTE_YAML).unwrap();
+    write(&conflict_path, REMOTE_YAML).unwrap();
     let summary = SyncSummary {
         uploaded: 0,
         downloaded: 1,
@@ -519,27 +515,33 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     let units = feed(
         &mut state,
         Message::RuntimeConfigFetched(
-            Ok(RuntimeConfig {
+            Ok(ConfigSnapshot {
                 mode: "global".into(),
-                ipv6_enabled: true,
                 allow_lan: false,
                 mixed_port: 7890,
-                bind_address: "*".into(),
-                lan_allowed_ips: vec!["192.168.0.0/16".into()],
-                lan_disallowed_ips: vec![],
-                skip_auth_prefixes: vec!["127.0.0.0/8".into()],
-                authentication_enabled: false,
-                authentication_user_count: 0,
+                bind_address: Some("*".into()),
+                lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
+                lan_disallowed_ips: Some(vec![]),
+                skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
+                authentication_enabled: Some(false),
+                authentication_user_count: Some(0),
                 authentication_username: None,
-                script_block_present: true,
-                tun_enabled: false,
-                dns_nameservers: vec!["1.1.1.1".into()],
-                dns_fallback: vec![],
-                dns_enhanced_mode: "fake-ip".into(),
-                tun_stack: "gvisor".into(),
-                tun_auto_route: true,
-                tun_strict_route: false,
-                sniffer_enabled: true,
+                ipv6: Some(true),
+                script: Some(serde_json::json!({"code": "fixture"})),
+                tun: Some(TunSnapshot {
+                    enable: Some(false),
+                    stack: Some("gvisor".into()),
+                    auto_route: Some(true),
+                    strict_route: Some(false),
+                    ..Default::default()
+                }),
+                dns: Some(DnsSnapshot {
+                    nameserver: vec!["1.1.1.1".into()],
+                    fallback: vec![],
+                    enhanced_mode: "fake-ip".into(),
+                }),
+                sniffer: Some(SnifferSnapshot { enable: true }),
+                ..Default::default()
             }),
             generation,
         ),
@@ -557,27 +559,33 @@ fn mixed_profile_switch_rebuild_flow_and_runtime_refetch_chain() {
     let units = feed(
         &mut state,
         Message::RuntimeConfigFetched(
-            Ok(RuntimeConfig {
+            Ok(ConfigSnapshot {
                 mode: "direct".into(),
-                ipv6_enabled: true,
                 allow_lan: false,
                 mixed_port: 7890,
-                bind_address: "*".into(),
-                lan_allowed_ips: vec!["192.168.0.0/16".into()],
-                lan_disallowed_ips: vec![],
-                skip_auth_prefixes: vec!["127.0.0.0/8".into()],
-                authentication_enabled: false,
-                authentication_user_count: 0,
+                bind_address: Some("*".into()),
+                lan_allowed_ips: Some(vec!["192.168.0.0/16".into()]),
+                lan_disallowed_ips: Some(vec![]),
+                skip_auth_prefixes: Some(vec!["127.0.0.0/8".into()]),
+                authentication_enabled: Some(false),
+                authentication_user_count: Some(0),
                 authentication_username: None,
-                script_block_present: false,
-                tun_enabled: false,
-                dns_nameservers: vec![],
-                dns_fallback: vec![],
-                dns_enhanced_mode: String::new(),
-                tun_stack: String::new(),
-                tun_auto_route: false,
-                tun_strict_route: false,
-                sniffer_enabled: false,
+                ipv6: Some(true),
+                script: None,
+                tun: Some(TunSnapshot {
+                    enable: Some(false),
+                    stack: Some(String::new()),
+                    auto_route: Some(false),
+                    strict_route: Some(false),
+                    ..Default::default()
+                }),
+                dns: Some(DnsSnapshot {
+                    nameserver: vec![],
+                    fallback: vec![],
+                    enhanced_mode: String::new(),
+                }),
+                sniffer: Some(SnifferSnapshot { enable: false }),
+                ..Default::default()
             }),
             generation + 5,
         ),

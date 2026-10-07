@@ -3,9 +3,6 @@
 //! decoupling, and the theme-flip reskin of every page surface — on
 //! `MinimalPlugins` (no window, no render hardware).
 
-use std::sync::Arc;
-use std::time::Duration;
-
 use bevy::MinimalPlugins;
 use bevy::a11y::AccessibilityNode;
 use bevy::app::App;
@@ -22,25 +19,27 @@ use bevy::ui::BackgroundColor;
 use bevy::ui::prelude::{Display, Node};
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
+use infiltrator_application::shell_readout_projection::observed_rate;
 use infiltrator_bevy_ui::app::{ContentSlot, ShellPlugin, SidebarFoot};
 use infiltrator_bevy_ui::command::{CommandPumpPlugin, DemoCommandSink, UiCommand, UiCommandSink};
-use infiltrator_bevy_ui::history::{TrafficHistory, chart_series, demo_traffic_series};
+use infiltrator_bevy_ui::history::{TrafficHistory, demo_traffic_series};
 use infiltrator_bevy_ui::pages::overview::{
     CHART_HEIGHT_PX, CHART_WIDTH_PX, OnAccentText, OverviewCardState, OverviewChip,
     OverviewChipKind, OverviewLine, OverviewLineKind, OverviewModeChip, OverviewModePill,
     OverviewProjectionUpdated, OverviewReloadMask, OverviewReloadMaskText, OverviewStatusCard,
-    StatusDot, StopButton, format_memory, format_rate, subscription_quota_scene,
-    topology_chain_scene,
+    StatusDot, format_memory, format_rate, subscription_quota_scene, topology_chain_scene,
 };
 use infiltrator_bevy_ui::pages::overview_cards::{
     ActiveExitNodeCard, SystemProxyMasterCard, TunMasterCard,
 };
+use infiltrator_bevy_ui::pages::overview_lifecycle::CoreControlButton;
 use infiltrator_bevy_ui::pages::overview_public_ip::{
     PublicIpProbeCard, PublicIpRefreshButton, PublicIpText, PublicIpTextKind,
 };
 use infiltrator_bevy_ui::pages::overview_restamp::{
     ActiveExitText, ActiveExitTextKind, OverviewMasterSwitchButton, SubscriptionQuotaCard,
 };
+use infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestUrlField;
 use infiltrator_bevy_ui::pages::overview_topology::{
     TopologyChainCard, TopologyDrilldownFilter, TopologyStageButton, TopologyText, TopologyTextKind,
 };
@@ -60,11 +59,16 @@ use infiltrator_bevy_widgets::surface::SurfacePanel;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
-use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
+use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::proxy_mode::ProxyModeSnapshot;
+use infiltrator_contract::shell_readout::ShellReadoutSnapshot;
+use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::TrafficTopologyStage;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// The demo core's unavailability reason (projection.rs fixture).
 const DEMO_REASON: &str = "demo: external controller unreachable (connection refused)";
@@ -76,9 +80,10 @@ impl OverviewSource for StubSource {
     fn current(&self) -> OverviewProjection {
         OverviewProjection {
             state: OverviewState::Running,
-            mode: ProxyMode::Direct,
+            lifecycle: CoreLifecycle::Running,
             upload_bps: 250_000.0,
             download_bps: 4_047.0,
+            readout: fixture_readout(250_000.0, 4_047.0),
             active_connections: 3,
             memory_bytes: Some(70 * 1024 * 1024),
             sampled_at: Duration::from_secs(7),
@@ -97,7 +102,10 @@ impl OverviewSource for StubSource {
             system_toggles: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
-            proxy_mode: Default::default(),
+            proxy_mode: ProxyModeSnapshot {
+                current: Some(ProxyMode::Direct),
+                ..ProxyModeSnapshot::demo_fixture()
+            },
             speedtest: Default::default(),
         }
     }
@@ -164,14 +172,14 @@ fn chip_value(world: &mut World, kind: OverviewChipKind) -> (Entity, String) {
 /// info column).
 fn chip_value_id(world: &mut World, chip: Entity) -> Entity {
     let mut stack: Vec<Entity> = Vec::new();
-    if let Some(children) = world.get::<bevy::ecs::hierarchy::Children>(chip) {
+    if let Some(children) = world.get::<Children>(chip) {
         stack.extend(children.iter());
     }
     while let Some(entity) = stack.pop() {
         if world.get::<StatChipValue>(entity).is_some() {
             return entity;
         }
-        if let Some(children) = world.get::<bevy::ecs::hierarchy::Children>(entity) {
+        if let Some(children) = world.get::<Children>(entity) {
             stack.extend(children.iter());
         }
     }
@@ -182,14 +190,14 @@ fn chip_value_id(world: &mut World, chip: Entity) -> Entity {
 /// lookup — the plate sits inside the chip's icon tile).
 fn chip_icon_plate(world: &mut World, chip: Entity) -> IconId {
     let mut stack: Vec<Entity> = Vec::new();
-    if let Some(children) = world.get::<bevy::ecs::hierarchy::Children>(chip) {
+    if let Some(children) = world.get::<Children>(chip) {
         stack.extend(children.iter());
     }
     while let Some(entity) = stack.pop() {
         if let Some(plate) = world.get::<IconPlate>(entity) {
             return plate.0;
         }
-        if let Some(children) = world.get::<bevy::ecs::hierarchy::Children>(entity) {
+        if let Some(children) = world.get::<Children>(entity) {
             stack.extend(children.iter());
         }
     }
@@ -197,12 +205,12 @@ fn chip_icon_plate(world: &mut World, chip: Entity) -> IconId {
 }
 
 /// (entity, fill, stored state) of the status banner.
-fn card(world: &mut World) -> (Entity, Color, OverviewState) {
+fn card(world: &mut World) -> (Entity, Color, CoreLifecycle) {
     let mut cards = world.query::<(Entity, &OverviewStatusCard, &BackgroundColor)>();
     let (id, _, fill) = cards.single(world).expect("one status banner");
     let state = world
         .get::<OverviewCardState>(id)
-        .map(|stored| stored.0)
+        .and_then(|stored| stored.0.clone())
         .expect("banner stores its state");
     (id, fill.0, state)
 }
@@ -248,7 +256,7 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
         ids.extend(chip_inks.iter(world).map(|(id, _)| id));
     }
     {
-        let mut stops = world.query::<(Entity, &StopButton)>();
+        let mut stops = world.query::<(Entity, &CoreControlButton)>();
         ids.extend(stops.iter(world).map(|(id, _)| id));
     }
     {
@@ -261,482 +269,15 @@ fn overview_entity_ids(world: &mut World) -> Vec<Entity> {
 
 // ---- routing ----------------------------------------------------------------
 
-/// The route mounts the Overview page as a child of the shell's content
-/// slot, exactly once; the shell's title row shows the 核心概览 heading
-/// and the banner carries the running state.
-#[test]
-fn overview_mounts_under_the_content_slot() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-    let slot = content_slot(world);
-    let (root, route) = page_root(world);
-    assert_eq!(route, Route::Overview);
-    assert_eq!(
-        world.get::<ChildOf>(root).expect("page parented").0,
-        slot,
-        "page root is a direct child of the content slot"
-    );
-
-    let mut headings = world.query::<(&Text, &TextRole)>();
-    let title = headings
-        .iter(world)
-        .find(|(text, role)| role.0 == Role::Heading && text.0 == "核心概览");
-    assert!(
-        title.is_some(),
-        "the shell title row mounts the 核心概览 heading"
-    );
-
-    let (_, state_text, _) = line(world, OverviewLineKind::State);
-    assert_eq!(state_text, "运行中", "the banner spells the running state");
-}
-
-/// Re-triggering the same route must never stack pages: cross-frame it
-/// is a no-op (ids stable), and two triggers flushed in the same frame
-/// still converge on exactly one mounted page.
-#[test]
-fn repeated_same_route_triggers_do_not_stack() {
-    let mut app = mounted_default();
-    let (root_before, _) = page_root(app.world_mut());
-
-    app.world_mut()
-        .commands()
-        .trigger(RouteChanged(Route::Overview));
-    app.update();
-    let (root_after, _) = page_root(app.world_mut());
-    assert_eq!(
-        root_after, root_before,
-        "settled same-route trigger is a no-op"
-    );
-
-    let mut commands = app.world_mut().commands();
-    commands.trigger(RouteChanged(Route::Overview));
-    commands.trigger(RouteChanged(Route::Overview));
-    app.update();
-
-    let world = app.world_mut();
-    let mut roots = world.query::<&PageRoot>();
-    assert_eq!(
-        roots.iter(world).count(),
-        1,
-        "same-frame duplicate triggers converge on one page"
-    );
-    let (root_last, _) = page_root(world);
-    assert_eq!(
-        root_last, root_before,
-        "replacement stays under one root id set"
-    );
-}
-
 // ---- the tri-state projections ----------------------------------------------
-
-/// Running / Stopped / Unavailable each render a visible projection:
-/// state word, state ink token, failure copy and banner fill — all from
-/// the same injected seam.
-#[test]
-fn three_state_projections_are_visible() {
-    let palette = UiPalette::new(&Theme::dark());
-    for source in [
-        DemoOverviewSource::running(),
-        DemoOverviewSource::stopped(),
-        DemoOverviewSource::unavailable(),
-    ] {
-        let state = source.current().state;
-        let mut app = mounted_app_with(source);
-        let world = app.world_mut();
-
-        let (_, state_text, ink) = line(world, OverviewLineKind::State);
-        assert_eq!(
-            state_text,
-            match state {
-                OverviewState::Running => "运行中",
-                OverviewState::Stopped => "已停止",
-                OverviewState::Unavailable => "不可用",
-            }
-        );
-        let expected_ink = match state {
-            OverviewState::Running => palette.ink,
-            OverviewState::Stopped => palette.ink_dim,
-            OverviewState::Unavailable => palette.on_accent,
-        };
-        assert_eq!(ink.0, expected_ink, "{state:?} ink is the token one");
-
-        let (_, failure_text, _) = line(world, OverviewLineKind::Failure);
-        match state {
-            OverviewState::Unavailable => {
-                assert_eq!(failure_text, DEMO_REASON, "the reason is visible");
-            }
-            _ => assert_eq!(failure_text, "", "no fabricated status"),
-        }
-
-        let (_, fill, stored) = card(world);
-        let expected_fill = if state == OverviewState::Unavailable {
-            palette.danger
-        } else {
-            palette.accent_container
-        };
-        assert_eq!(
-            fill, expected_fill,
-            "{state:?} banner fill is the token one"
-        );
-        assert_eq!(stored, state, "the banner stores its projection state");
-
-        let (_, upload, _) = line(world, OverviewLineKind::Upload);
-        let (_, connections) = chip_value(world, OverviewChipKind::Connections);
-        let (_, memory) = chip_value(world, OverviewChipKind::Memory);
-        if state == OverviewState::Running {
-            assert_eq!(upload, "↑ 1.40 MB/s");
-            assert_eq!(connections, "12");
-            assert_eq!(memory, "96.00 MB");
-        } else {
-            assert_eq!(upload, "↑ 0 B/s", "no traffic is stated as zero");
-            assert_eq!(connections, "0");
-            assert_eq!(memory, "—", "no memory reading is stated as absent");
-        }
-    }
-}
 
 // ---- the refresh seam -------------------------------------------------------
 
-/// A projection event restamps texts, inks, pill selection, the banner's
-/// stored state and the chip values in place — every restampable entity
-/// keeps its id.
-#[test]
-fn projection_updates_restamp_in_place() {
-    let palette = UiPalette::new(&Theme::dark());
-    let mut app = mounted_app_with(DemoOverviewSource::running());
-    let ids_before = overview_entity_ids(app.world_mut());
-
-    let stopped = OverviewProjection {
-        state: OverviewState::Stopped,
-        mode: ProxyMode::Global,
-        upload_bps: 0.0,
-        download_bps: 0.0,
-        active_connections: 0,
-        memory_bytes: None,
-        sampled_at: Duration::from_secs(9),
-        failure: None,
-        origin: OverviewOrigin::Demo,
-        core_version: None,
-        traffic_waveform: Default::default(),
-        traffic_scale: Default::default(),
-        traffic_topology: Default::default(),
-        active_exit: Default::default(),
-        public_ip: Default::default(),
-        layout: Default::default(),
-        reconnect_mask: Default::default(),
-        viewport: Default::default(),
-        subscription_quota: Default::default(),
-        system_toggles: Default::default(),
-        cpu_percent: None,
-        total_traffic_bytes: None,
-        proxy_mode: Default::default(),
-        speedtest: Default::default(),
-    };
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(stopped));
-    app.update();
-
-    let world = app.world_mut();
-    assert_eq!(
-        overview_entity_ids(world),
-        ids_before,
-        "refresh never remounts: ids unchanged"
-    );
-    let (_, state_text, ink) = line(world, OverviewLineKind::State);
-    assert_eq!(state_text, "已停止");
-    assert_eq!(ink.0, palette.ink_dim, "stopped ink restamped");
-    let (_, upload, _) = line(world, OverviewLineKind::Upload);
-    assert_eq!(upload, "↑ 0 B/s");
-    let (_, mode_chip, _) = line(world, OverviewLineKind::ModeChip);
-    assert_eq!(mode_chip, "全局模式", "the banner chip renames the mode");
-    assert!(
-        pill_selected(world, ProxyMode::Global),
-        "Global pill selected"
-    );
-    assert!(
-        !pill_selected(world, ProxyMode::Rule),
-        "Rule pill deselected"
-    );
-    let (_, fill, stored) = card(world);
-    assert_eq!(stored, OverviewState::Stopped);
-    assert_eq!(
-        fill, palette.accent_container,
-        "stopped keeps the accent container banner"
-    );
-    let (_, memory) = chip_value(world, OverviewChipKind::Memory);
-    assert_eq!(memory, "—");
-
-    let unavailable = OverviewProjection {
-        state: OverviewState::Unavailable,
-        mode: ProxyMode::Global,
-        upload_bps: 0.0,
-        download_bps: 0.0,
-        active_connections: 0,
-        memory_bytes: None,
-        sampled_at: Duration::from_secs(10),
-        failure: Some("refused".to_owned()),
-        origin: OverviewOrigin::LiveCore,
-        core_version: Some("v1.19.18".to_owned()),
-        traffic_waveform: Default::default(),
-        traffic_scale: Default::default(),
-        traffic_topology: Default::default(),
-        active_exit: Default::default(),
-        public_ip: Default::default(),
-        layout: Default::default(),
-        reconnect_mask: Default::default(),
-        viewport: Default::default(),
-        subscription_quota: Default::default(),
-        system_toggles: Default::default(),
-        cpu_percent: None,
-        total_traffic_bytes: None,
-        proxy_mode: Default::default(),
-        speedtest: Default::default(),
-    };
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(unavailable));
-    app.update();
-
-    let world = app.world_mut();
-    assert_eq!(
-        overview_entity_ids(world),
-        ids_before,
-        "still zero remounts"
-    );
-    let (_, failure_text, _) = line(world, OverviewLineKind::Failure);
-    assert_eq!(failure_text, "refused");
-    let (_, fill, _) = card(world);
-    assert_eq!(
-        fill, palette.danger,
-        "unavailable flips the banner to danger"
-    );
-    let (_, state_text, ink) = line(world, OverviewLineKind::State);
-    assert_eq!(state_text, "不可用");
-    assert_eq!(
-        ink.0, palette.on_accent,
-        "state ink readable on the danger banner"
-    );
-}
-
-/// The page renders whatever source the shell injects — proof that the
-/// demo fixture and the real (future) source share one seam and nothing
-/// on the page is welded to the fixture.
-#[test]
-fn injected_source_drives_the_page_not_the_demo_fixture() {
-    let mut app = mounted_app_with(StubSource);
-    let world = app.world_mut();
-    let (_, upload, _) = line(world, OverviewLineKind::Upload);
-    assert_eq!(upload, "↑ 244.14 KB/s", "stub rate, not the demo 1.40 MB/s");
-    let (_, connections) = chip_value(world, OverviewChipKind::Connections);
-    assert_eq!(connections, "3", "stub count, not the demo 12");
-    let (_, memory) = chip_value(world, OverviewChipKind::Memory);
-    assert_eq!(memory, "70.00 MB", "stub memory, not the demo 96");
-    let (_, download) = chip_value(world, OverviewChipKind::Download);
-    assert_eq!(download, "3.95 KB/s");
-    assert!(
-        pill_selected(world, ProxyMode::Direct),
-        "stub mode selected"
-    );
-}
-
-/// The metrics band draws semantic plates: 上传 the up arrow, 下载 the
-/// down arrow (never the Plus/FileText stand-ins), connections the
-/// activity pulse and memory the zap.
-#[test]
-fn chips_carry_their_semantic_icon_plates() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-    let mut chips = world.query::<(Entity, &OverviewChip)>();
-    let mounted: Vec<(Entity, OverviewChipKind)> =
-        chips.iter(world).map(|(id, chip)| (id, chip.0)).collect();
-    let expected = [
-        (OverviewChipKind::Connections, IconId::Activity),
-        (OverviewChipKind::Memory, IconId::Zap),
-        (OverviewChipKind::Cpu, IconId::Settings),
-        (OverviewChipKind::Upload, IconId::ArrowUp),
-        (OverviewChipKind::Download, IconId::ArrowDown),
-        (OverviewChipKind::TotalTraffic, IconId::Globe),
-    ];
-    for (kind, want) in expected {
-        let (chip_id, _) = mounted
-            .iter()
-            .find(|(_, mounted_kind)| *mounted_kind == kind)
-            .unwrap_or_else(|| panic!("no {kind:?} chip mounted"));
-        assert_eq!(
-            chip_icon_plate(world, *chip_id),
-            want,
-            "{kind:?} chip draws its semantic plate"
-        );
-    }
-}
-
 // ---- the theme-flip reskin --------------------------------------------------
-
-/// Triggering `ThemeSwitch` repaints every token-filled page surface
-/// (banner, dot, mode chip, stop button, stat chips) from the new palette
-/// and keeps every entity id.
-#[test]
-fn theme_flip_repaints_every_page_surface_in_place() {
-    let mut app = mounted_default();
-    let ids_before = overview_entity_ids(app.world_mut());
-
-    app.world_mut()
-        .commands()
-        .trigger(ThemeSwitch(ThemeSkin::Light));
-    app.update();
-
-    let light = UiPalette::new(&Theme::light());
-    let world = app.world_mut();
-
-    let (_, banner_fill, _) = card(world);
-    assert_eq!(
-        banner_fill, light.accent_container,
-        "banner fill re-derived from the light tokens"
-    );
-
-    let mut dots = world.query::<(Entity, &StatusDot, &BackgroundColor)>();
-    let (_, _, dot_fill) = dots.iter(world).next().expect("status dot mounted");
-    assert_eq!(dot_fill.0, light.success, "dot restamped");
-
-    let mut chip_inks = world.query::<(Entity, &OverviewModeChip, &BackgroundColor)>();
-    let (_, _, chip_fill) = chip_inks.iter(world).next().expect("mode chip mounted");
-    assert_eq!(chip_fill.0, light.accent, "mode chip restamped");
-
-    let mut stops = world.query::<(Entity, &StopButton, &BackgroundColor)>();
-    let (_, _, stop_fill) = stops.iter(world).next().expect("stop button mounted");
-    assert_eq!(stop_fill.0, light.danger, "stop button restamped");
-
-    let mut chips = world.query::<(Entity, &OverviewChip, &BackgroundColor)>();
-    for (_, _, fill) in chips.iter(world) {
-        assert_eq!(fill.0, light.surface, "stat chip fill follows the theme");
-    }
-
-    let world = app.world_mut();
-    assert_eq!(
-        overview_entity_ids(world),
-        ids_before,
-        "the reskin never remounts"
-    );
-}
 
 // ---- pure formatting --------------------------------------------------------
 
-/// The rate formatter: the iced reference ladder (B / KB / MB / GB labels
-/// over 1024-based divisors, two decimals from KB up — see
-/// `crates/infiltrator-iced/src/utils.rs:3-17`), `/s`-suffixed, with an
-/// honest zero for absent traffic and non-finite input.
-#[test]
-fn format_rate_spans_the_unit_ladder() {
-    assert_eq!(format_rate(0.0), "0 B/s");
-    assert_eq!(format_rate(-3.0), "0 B/s");
-    assert_eq!(format_rate(f64::NAN), "0 B/s");
-    assert_eq!(format_rate(512.4), "512 B/s");
-    assert_eq!(format_rate(1023.9), "1023 B/s");
-    assert_eq!(format_rate(1024.0), "1.00 KB/s");
-    assert_eq!(format_rate(250_000.0), "244.14 KB/s");
-    assert_eq!(format_rate(999.0 * 1024.0), "999.00 KB/s");
-    assert_eq!(format_rate(1024.0 * 1024.0), "1.00 MB/s");
-    assert_eq!(format_rate(3.95 * 1024.0 * 1024.0), "3.95 MB/s");
-    assert_eq!(format_rate(2.5 * 1024.0 * 1024.0), "2.50 MB/s");
-    assert_eq!(format_rate(1.3 * 1024.0 * 1024.0 * 1024.0), "1.30 GB/s");
-    assert_eq!(
-        format_rate(3.0 * 1024.0 * 1024.0 * 1024.0),
-        "3.00 GB/s",
-        "GB is the ladder's top tier, exactly as the reference formatter"
-    );
-}
-
-/// The memory formatter: the shared reference ladder with two decimals,
-/// and an honest em-dash for an absent reading.
-#[test]
-fn format_memory_spans_the_unit_ladder() {
-    assert_eq!(format_memory(None), "—");
-    assert_eq!(format_memory(Some(0)), "0 B");
-    assert_eq!(format_memory(Some(1023)), "1023 B");
-    assert_eq!(format_memory(Some(1024)), "1.00 KB");
-    assert_eq!(format_memory(Some(96 * 1024 * 1024)), "96.00 MB");
-    assert_eq!(format_memory(Some(3 * 1024 * 1024 * 1024)), "3.00 GB");
-}
-
 // ---- the theme-switch state-ink replay ---------------------------------------
-
-/// A `ThemeSwitch` must not paint role ink over state semantics: after the
-/// switch and the page's same-frame replay of its last projection, the
-/// unavailable banner keeps the danger fill, the state word its readable
-/// `on_accent` ink (not the `Display` role's plain ink a bare `apply_theme`
-/// restamp would leave behind) and the uplink its success ink — with every
-/// entity id intact.
-#[test]
-fn theme_switch_keeps_the_unavailable_state_inks_and_ids() {
-    let dark = UiPalette::new(&Theme::dark());
-    let mut app = mounted_app_with(DemoOverviewSource::unavailable());
-    let ids_before = overview_entity_ids(app.world_mut());
-    let (state_id, state_text, ink) = line(app.world_mut(), OverviewLineKind::State);
-    assert_eq!(state_text, "不可用");
-    assert_eq!(ink.0, dark.on_accent, "precondition: the danger ink is on");
-
-    app.world_mut()
-        .commands()
-        .trigger(ThemeSwitch(ThemeSkin::Light));
-    app.update();
-
-    let light = UiPalette::new(&Theme::light());
-    let world = app.world_mut();
-    assert_eq!(
-        overview_entity_ids(world),
-        ids_before,
-        "the replay is a restamp, never a remount"
-    );
-    let (state_id_after, state_text, ink) = line(world, OverviewLineKind::State);
-    assert_eq!(state_id_after, state_id, "the state line keeps its id");
-    assert_eq!(state_text, "不可用", "the verdict survives the switch");
-    assert_eq!(
-        ink.0, light.on_accent,
-        "the state ink stays semantic after the switch"
-    );
-    assert_ne!(ink.0, light.ink, "role ink must not win over state ink");
-
-    let (_, upload, upload_ink) = line(world, OverviewLineKind::Upload);
-    assert_eq!(upload, "↑ 0 B/s");
-    assert_eq!(
-        upload_ink.0, light.success,
-        "the uplink ink stays the success token"
-    );
-
-    let mut accents = world.query::<(&OnAccentText, &TextColor)>();
-    for (_, accent) in accents.iter(world) {
-        assert_eq!(
-            accent.0, light.on_accent,
-            "on-accent copy stays readable on its accent fill"
-        );
-    }
-
-    let (_, fill, stored) = card(world);
-    assert_eq!(stored, OverviewState::Unavailable);
-    assert_eq!(
-        fill, light.danger,
-        "the banner fill re-derives from the new palette"
-    );
-}
-
-/// Same contract for the stopped state: the state word's dim ink survives
-/// the switch instead of snapping to the role's full ink.
-#[test]
-fn theme_switch_keeps_the_stopped_state_ink_dim() {
-    let mut app = mounted_app_with(DemoOverviewSource::stopped());
-    app.world_mut()
-        .commands()
-        .trigger(ThemeSwitch(ThemeSkin::Light));
-    app.update();
-
-    let light = UiPalette::new(&Theme::light());
-    let world = app.world_mut();
-    let (_, state_text, ink) = line(world, OverviewLineKind::State);
-    assert_eq!(state_text, "已停止");
-    assert_eq!(ink.0, light.ink_dim);
-    assert_ne!(ink.0, light.ink);
-}
 
 // ---- the traffic card's trend chart ------------------------------------------
 
@@ -744,9 +285,10 @@ fn theme_switch_keeps_the_stopped_state_ink_dim() {
 fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
     OverviewProjection {
         state: OverviewState::Running,
-        mode: ProxyMode::Rule,
+        lifecycle: CoreLifecycle::Running,
         upload_bps,
         download_bps,
+        readout: fixture_readout(upload_bps, download_bps),
         active_connections: 1,
         memory_bytes: None,
         sampled_at: Duration::from_secs(3),
@@ -765,7 +307,10 @@ fn live_projection(upload_bps: f64, download_bps: f64) -> OverviewProjection {
         system_toggles: Default::default(),
         cpu_percent: None,
         total_traffic_bytes: None,
-        proxy_mode: Default::default(),
+        proxy_mode: ProxyModeSnapshot {
+            current: Some(ProxyMode::Rule),
+            ..ProxyModeSnapshot::demo_fixture()
+        },
         speedtest: Default::default(),
     }
 }
@@ -793,234 +338,6 @@ fn descendants(world: &World, root: Entity) -> Vec<Entity> {
     out
 }
 
-/// The traffic card mounts a real chart node: the plate carries the fixed
-/// token box, the demo fixture's synthetic series, lives inside the card
-/// whose caption is 实时流量, and has actually been rasterized (the
-/// widget's sync_charts stamped its ImageNode).
-#[test]
-fn traffic_card_mounts_the_trend_chart() {
-    let mut app = mounted_default();
-    app.update(); // the frame sync_charts stamps the raster on
-    let world = app.world_mut();
-    let (plate_id, plate) = chart_plate(world);
-
-    assert_eq!(
-        plate.0.width,
-        CHART_WIDTH_PX.round() as u32,
-        "full-card box"
-    );
-    assert_eq!(plate.0.height, CHART_HEIGHT_PX.round() as u32);
-    let (demo_up, demo_down) = demo_traffic_series();
-    assert_eq!(plate.0.up, demo_up, "demo origin draws the fixture waves");
-    assert_eq!(plate.0.down, demo_down);
-
-    let mut cards = world.query::<(Entity, &SurfacePanel)>();
-    let card_ids: Vec<Entity> = cards.iter(world).map(|(id, _)| id).collect();
-    let traffic_card = card_ids
-        .iter()
-        .copied()
-        .find(|id| {
-            descendants(world, *id)
-                .iter()
-                .any(|e| world.get::<Text>(*e).is_some_and(|t| t.0 == "实时流量"))
-        })
-        .expect("the traffic card is mounted");
-    assert!(
-        descendants(world, traffic_card).contains(&plate_id),
-        "the chart node lives inside the traffic card"
-    );
-    assert!(
-        world.get::<ImageNode>(plate_id).is_some(),
-        "sync_charts rasterized the plate on mount"
-    );
-}
-
-/// A projection update re-derives the chart series (demo waves → the live
-/// ring) and restamps the plate in place — same entity, same handle
-/// contract with sync_charts.
-#[test]
-fn projection_updates_refresh_the_chart_series() {
-    let mut app = mounted_default();
-    let (plate_id, before) = chart_plate(app.world_mut());
-    let (demo_up, _) = demo_traffic_series();
-    assert_eq!(before.0.up, demo_up, "precondition: the demo trend mounted");
-
-    // A live projection plus a recorded ring (in production the drain
-    // appends at the drain site; here the ring is injected directly).
-    let mut history = TrafficHistory::default();
-    history.push(1.0, 2.0);
-    history.push(3.0, 4.0);
-    {
-        let world = app.world_mut();
-        world.insert_resource(history);
-        world
-            .commands()
-            .trigger(OverviewProjectionUpdated(live_projection(5.0, 6.0)));
-    }
-    app.update();
-
-    let world = app.world_mut();
-    let (plate_id_after, after) = chart_plate(world);
-    assert_eq!(plate_id_after, plate_id, "the chart never remounts");
-    assert_eq!(after.0.up, vec![1.0, 3.0], "the series follows the ring");
-    assert_eq!(after.0.down, vec![2.0, 4.0]);
-    let (want_up, want_down) =
-        chart_series(OverviewOrigin::LiveCore, world.resource::<TrafficHistory>());
-    assert_eq!((after.0.up, after.0.down), (want_up, want_down));
-}
-
-#[test]
-fn live_surface_waveform_uses_shared_bezier_value_projection() {
-    let mut app = mounted_default();
-    let mut projection = live_projection(5.0, 6.0);
-    projection.traffic_waveform = TrafficWaveformSnapshot {
-        generation: 2,
-        revision: 3,
-        samples: vec![
-            TrafficSample {
-                sampled_at_epoch_ms: Some(1),
-                upload_bps: 1.0,
-                download_bps: 3.0,
-            },
-            TrafficSample {
-                sampled_at_epoch_ms: Some(2),
-                upload_bps: 9.0,
-                download_bps: 6.0,
-            },
-            TrafficSample {
-                sampled_at_epoch_ms: Some(3),
-                upload_bps: 4.0,
-                download_bps: 12.0,
-            },
-        ],
-    };
-    projection.traffic_scale = infiltrator_contract::traffic_scale::TrafficScaleSnapshot {
-        peak_bps: 12.0,
-        max_bps: 12.6,
-        unit: infiltrator_contract::traffic_scale::TrafficRateUnit::Bytes,
-        unit_factor: 1.0,
-        ticks: vec![0.0, 0.5, 1.0],
-        revision: 3,
-    };
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-
-    let (_, plate) = chart_plate(app.world_mut());
-    assert_eq!(plate.0.up.len(), 9, "three live samples, four Bezier steps");
-    assert_eq!(plate.0.down.len(), 9);
-    assert!(
-        !plate.0.smooth,
-        "shared adapter already densified the values"
-    );
-    assert!(matches!(
-        plate.0.scale_mode,
-        infiltrator_bevy_widgets::chart::bezier::ScaleMode::Fixed(value)
-            if (value - 12.6).abs() < f32::EPSILON
-    ));
-}
-
-/// A `ThemeSwitch` re-rasterizes the chart under the SAME image handle
-/// (chart.rs's write-back contract): entity id stable, asset id stable,
-/// pixels re-derived from the new palette.
-#[test]
-fn theme_flip_rerasterizes_the_chart_in_place() {
-    let mut app = mounted_default();
-    app.update(); // the frame sync_charts stamps the raster on
-    let (plate_id, _) = chart_plate(app.world_mut());
-    let handle = app
-        .world()
-        .get::<ImageNode>(plate_id)
-        .expect("chart rasterized on mount")
-        .image
-        .clone();
-    let data_before = app
-        .world()
-        .resource::<Assets<Image>>()
-        .get(&handle)
-        .expect("chart asset")
-        .data
-        .clone();
-
-    app.world_mut()
-        .commands()
-        .trigger(ThemeSwitch(ThemeSkin::Light));
-    app.update();
-
-    let world = app.world_mut();
-    assert!(
-        world.get::<ChartPlate>(plate_id).is_some(),
-        "the chart keeps its entity id"
-    );
-    let node = world.get::<ImageNode>(plate_id).expect("the node survives");
-    assert_eq!(
-        node.image.id(),
-        handle.id(),
-        "same handle — write-back, never a swap"
-    );
-    let data_after = world
-        .resource::<Assets<Image>>()
-        .get(&node.image)
-        .expect("chart asset")
-        .data
-        .clone();
-    assert_ne!(data_before, data_after, "the chart inks follow the theme");
-}
-
-/// Hovering the traffic chart activates interactive crosshair inspection
-/// with snapped sample instantaneous rates (UI-04-04).
-#[test]
-fn overview_traffic_chart_crosshair_hover_activation() {
-    let mut app = mounted_default();
-    let (plate_id, _) = chart_plate(app.world_mut());
-
-    // Verify ChartCrosshairTracked is attached on the chart entity
-    assert!(
-        app.world().get::<ChartCrosshairTracked>(plate_id).is_some(),
-        "chart node must have ChartCrosshairTracked"
-    );
-
-    // Initial state: crosshair is None
-    let plate_before = app.world().get::<ChartPlate>(plate_id).unwrap();
-    assert!(plate_before.0.crosshair.is_none());
-
-    // Simulate Hovered pointer interaction
-    app.world_mut()
-        .entity_mut(plate_id)
-        .insert(PickingInteraction::Hovered);
-    app.update();
-
-    let plate_hovered = app.world().get::<ChartPlate>(plate_id).unwrap();
-    let crosshair = plate_hovered
-        .0
-        .crosshair
-        .as_ref()
-        .expect("hovering the chart must activate crosshair inspection");
-    assert!(crosshair.active);
-    let snapped_idx = crosshair
-        .snapped_index
-        .expect("crosshair should snap to nearest sample point");
-
-    // Compute instantaneous rates from snapped sample index
-    let instant = compute_instant_rates(&plate_hovered.0.up, &plate_hovered.0.down, snapped_idx)
-        .expect("must extract valid instant rates");
-    assert!(instant.upload_bps >= 0.0);
-    assert!(instant.download_bps >= 0.0);
-
-    // Simulate pointer leaving (None interaction)
-    app.world_mut()
-        .entity_mut(plate_id)
-        .insert(PickingInteraction::None);
-    app.update();
-
-    let plate_after = app.world().get::<ChartPlate>(plate_id).unwrap();
-    assert!(
-        plate_after.0.crosshair.is_none(),
-        "leaving hover must dismiss crosshair"
-    );
-}
-
 // ---- the sidebar foot (source kind) ------------------------------------------
 
 /// The sidebar foot caption text.
@@ -1042,9 +359,10 @@ impl OverviewSource for LiveFootStub {
     fn current(&self) -> OverviewProjection {
         OverviewProjection {
             state: OverviewState::Running,
-            mode: ProxyMode::Rule,
+            lifecycle: CoreLifecycle::Running,
             upload_bps: 0.0,
             download_bps: 0.0,
+            readout: fixture_readout(0.0, 0.0),
             active_connections: 0,
             memory_bytes: None,
             sampled_at: Duration::from_secs(1),
@@ -1063,7 +381,10 @@ impl OverviewSource for LiveFootStub {
             system_toggles: Default::default(),
             cpu_percent: None,
             total_traffic_bytes: None,
-            proxy_mode: Default::default(),
+            proxy_mode: ProxyModeSnapshot {
+                current: Some(ProxyMode::Rule),
+                ..ProxyModeSnapshot::demo_fixture()
+            },
             speedtest: Default::default(),
         }
     }
@@ -1073,1313 +394,93 @@ impl OverviewSource for LiveFootStub {
     }
 }
 
-/// The foot names the data source: the demo milestone caption under the
-/// fixture, the real core version under the live pump (and an honest
-/// placeholder while the version has not been read yet).
-#[test]
-fn sidebar_foot_follows_the_source_kind() {
-    let mut app = mounted_app_with(DemoOverviewSource::running());
-    assert_eq!(
-        foot_text(app.world_mut()),
-        "0.30 demo",
-        "demo keeps its caption"
-    );
-
-    let mut app = mounted_app_with(LiveFootStub {
-        version: Some("v1.19.18"),
-    });
-    assert_eq!(
-        foot_text(app.world_mut()),
-        "实时内核 · v1.19.18",
-        "a live core names the version it reported"
-    );
-
-    let mut app = mounted_app_with(LiveFootStub { version: None });
-    assert_eq!(
-        foot_text(app.world_mut()),
-        "实时内核 · 版本读取中",
-        "an unread version stays honest"
-    );
-}
-
 // ---- accessibility semantics --------------------------------------------------
 
-/// The four stat chips carry labeled Group semantics ("name value") that
-/// the refresh observer restamps, and the banner's state word carries a
-/// Status semantic that follows the run state.
-#[test]
-fn stat_chips_and_banner_status_carry_accesskit_semantics() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut chips = world.query::<(&OverviewChip, &AccessibilityNode)>();
-    let mut labels: Vec<(OverviewChipKind, String)> = Vec::new();
-    for (chip, node) in chips.iter(world) {
-        assert_eq!(node.role(), accesskit::Role::Group);
-        labels.push((chip.0, node.label().expect("chip group label").to_owned()));
-    }
-    assert_eq!(labels.len(), 6, "every chip carries one group node");
-    assert!(labels.contains(&(OverviewChipKind::Connections, "连接数 12".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::Memory, "内存 96.00 MB".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::Cpu, "CPU 2.4%".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::Upload, "上传 1.40 MB/s".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::Download, "下载 8.60 MB/s".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::TotalTraffic, "总流量 98.32 MB".to_owned())));
-
-    let mut lines = world.query::<(&OverviewLine, &AccessibilityNode)>();
-    let (_, status) = lines
-        .iter(world)
-        .find(|(line, _)| line.0 == OverviewLineKind::State)
-        .expect("the state line carries semantics");
-    assert_eq!(status.role(), accesskit::Role::Status);
-    assert_eq!(status.label(), Some("运行中"));
-
-    // A refresh restamps the semantics alongside the visible texts.
-    let stopped = OverviewProjection {
-        state: OverviewState::Stopped,
-        mode: ProxyMode::Rule,
-        upload_bps: 0.0,
-        download_bps: 0.0,
-        active_connections: 0,
-        memory_bytes: None,
-        sampled_at: Duration::from_secs(9),
-        failure: None,
-        origin: OverviewOrigin::Demo,
-        core_version: None,
-        traffic_waveform: Default::default(),
-        traffic_scale: Default::default(),
-        traffic_topology: Default::default(),
-        active_exit: Default::default(),
-        public_ip: Default::default(),
-        layout: Default::default(),
-        reconnect_mask: Default::default(),
-        viewport: Default::default(),
-        subscription_quota: Default::default(),
-        system_toggles: Default::default(),
-        cpu_percent: None,
-        total_traffic_bytes: None,
-        proxy_mode: Default::default(),
-        speedtest: Default::default(),
-    };
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(stopped));
-    app.update();
-
-    let world = app.world_mut();
-    let mut chips = world.query::<(&OverviewChip, &AccessibilityNode)>();
-    let mut labels: Vec<(OverviewChipKind, String)> = Vec::new();
-    for (chip, node) in chips.iter(world) {
-        labels.push((chip.0, node.label().expect("chip group label").to_owned()));
-    }
-    assert!(labels.contains(&(OverviewChipKind::Connections, "连接数 0".to_owned())));
-    assert!(labels.contains(&(OverviewChipKind::Memory, "内存 —".to_owned())));
-    let mut lines = world.query::<(&OverviewLine, &AccessibilityNode)>();
-    let (_, status) = lines
-        .iter(world)
-        .find(|(line, _)| line.0 == OverviewLineKind::State)
-        .expect("the state line carries semantics");
-    assert_eq!(status.label(), Some("已停止"), "the status word follows");
-}
-
-/// Navigating across multiple routes replaces the bounded subtree below ContentSlot
-/// and stamps the corresponding PageRoot marker.
-#[test]
-fn route_switching_mounts_target_page_scene_idempotently() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut roots = world.query::<&PageRoot>();
-    assert_eq!(
-        roots.iter(world).next().expect("overview page root").0,
-        Route::Overview
-    );
-
-    // Navigate to Proxies route.
-    app.world_mut()
-        .commands()
-        .trigger(RouteChanged(Route::Proxies));
-    app.update();
-
-    let world = app.world_mut();
-    let mut roots = world.query::<&PageRoot>();
-    assert_eq!(
-        roots.iter(world).next().expect("proxies page root").0,
-        Route::Proxies
-    );
-
-    // Navigate to Rules route.
-    app.world_mut()
-        .commands()
-        .trigger(RouteChanged(Route::Rules));
-    app.update();
-
-    let world = app.world_mut();
-    let mut roots = world.query::<&PageRoot>();
-    assert_eq!(
-        roots.iter(world).next().expect("rules page root").0,
-        Route::Rules
-    );
-
-    // Navigate back to Overview.
-    app.world_mut()
-        .commands()
-        .trigger(RouteChanged(Route::Overview));
-    app.update();
-
-    let world = app.world_mut();
-    let mut roots = world.query::<&PageRoot>();
-    assert_eq!(
-        roots.iter(world).next().expect("back to overview").0,
-        Route::Overview
-    );
-}
-
-/// The Overview page uses responsive wrapping for stat chips and scrollable viewport,
-/// ensuring 4 chips wrap into a clean 2x2 grid on compact mobile screens (<600px).
-#[test]
-fn overview_page_chips_and_container_responsive_wrapping() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut chips = world.query::<(&OverviewChip, &bevy::ui::Node)>();
-    let count = chips.iter(world).count();
-    assert_eq!(count, 6, "exactly six stat chips mounted");
-
-    // Default window (1180px) is the Expanded tier: six tiles in one row.
-    let expanded_basis = bevy::ui::Val::Percent(
-        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(6),
-    );
-    for (_, node) in chips.iter(world) {
-        assert_eq!(
-            node.flex_grow, 1.0,
-            "chips share width evenly via flex_grow"
-        );
-        assert_eq!(
-            node.flex_basis, expanded_basis,
-            "chips carry the shared Expanded-tier 6-column basis"
-        );
-    }
-
-    // Narrowing to the Medium tier must reflow the band to three columns.
-    app.world_mut()
-        .resource_mut::<infiltrator_bevy_widgets::responsive::ResponsiveContext>()
-        .set_dimensions(700.0, 900.0);
-    app.update();
-    let medium_basis = bevy::ui::Val::Percent(
-        infiltrator_bevy_widgets::fluid_grid::FluidCardGrid::wrapped_item_percent(3),
-    );
-    let world = app.world_mut();
-    let mut chips = world.query::<(&OverviewChip, &bevy::ui::Node)>();
-    for (_, node) in chips.iter(world) {
-        assert_eq!(
-            node.flex_basis, medium_basis,
-            "chips reflow to the 3-column Medium basis"
-        );
-    }
-}
-
-/// The Overview page mounts the shared five-stage traffic topology card with
-/// a real widget flow plate and four connecting arrows.
-#[test]
-fn test_topology_chain_card_mounts_with_five_stages_and_flow_plate() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut query = world.query::<(Entity, &TopologyChainCard)>();
-    let (card_entity, _) = query
-        .iter(world)
-        .next()
-        .expect("TopologyChainCard must be mounted in overview page");
-
-    let all_descendants = descendants(world, card_entity);
-    let texts: Vec<String> = all_descendants
+fn native_url_field(world: &mut World) -> Entity {
+    let parent = world
+        .query::<(Entity, &OverviewSpeedtestUrlField)>()
+        .single(world)
+        .expect("one native speedtest URL owner")
+        .0;
+    let field = world
+        .get::<Children>(parent)
+        .unwrap()
         .iter()
-        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
-        .collect();
-
-    // Card title & badge
+        .copied()
+        .find(|entity| world.get::<TextField>(*entity).is_some())
+        .expect("the actual controlled URL field");
     assert!(
-        texts.iter().any(|t| t == "分流网络拓扑 (Traffic Topology)"),
-        "card contains title"
+        world.get::<NativeTextField>(field).is_some(),
+        "URL field has a native input owner"
     );
-    assert!(
-        texts.iter().any(|t| t == "12 连接 · flowing"),
-        "card contains connection count badge"
-    );
-
-    // Stage 1: Client / Inbound
-    assert!(texts.iter().any(|t| t == "Client / Inbound"));
-    assert!(texts.iter().any(|t| t == "Mixed :7890"));
-    assert!(texts.iter().any(|t| t == "12 conns"));
-
-    // Stage 2: Sniffer
-    assert!(texts.iter().any(|t| t == "Sniffer"));
-    assert!(texts.iter().any(|t| t == "enabled"));
-    assert!(texts.iter().any(|t| t == "On"));
-
-    // Stage 3: RuleSet
-    assert!(texts.iter().any(|t| t == "RuleSet"));
-    assert!(texts.iter().any(|t| t == "MRS / GeoIP"));
-
-    // Stage 4: Proxy Group
-    assert!(texts.iter().any(|t| t == "Proxy Group"));
-    assert!(texts.iter().any(|t| t == "GLOBAL / PROXIES"));
-
-    // Stage 5: Outbound Node
-    assert!(texts.iter().any(|t| t == "Outbound Node"));
-    assert!(texts.iter().any(|t| t == "香港 01 · BGP 专线"));
-
-    // Connecting arrows
-    let arrow_count = texts.iter().filter(|t| t.as_str() == ">").count();
-    assert_eq!(
-        arrow_count, 4,
-        "must have exactly 4 connecting arrows between the 5 stages"
-    );
-
-    let mut plates = world.query::<&infiltrator_bevy_widgets::chart::topology::TopologyPlate>();
-    let plate = plates.single(world).expect("topology flow plate mounted");
-    assert_eq!(plate.0.nodes.len(), 5);
-    assert_eq!(plate.0.links.len(), 4);
-    assert!(plate.0.links.iter().all(|link| link.highlighted));
-
-    // Standalone scene creation test
-    let palette = UiPalette::new(&Theme::dark());
-    let _scene = topology_chain_scene(&palette);
+    field
 }
 
-#[test]
-fn topology_projection_updates_text_and_flow_plate_in_place() {
-    let mut app = mounted_default();
-    let plate_id = {
-        let world = app.world_mut();
-        let mut ids = world.query::<(
-            Entity,
-            &infiltrator_bevy_widgets::chart::topology::TopologyPlate,
-        )>();
-        ids.single(world).expect("topology plate entity").0
-    };
+#[path = "overview_tests/active.rs"]
+mod active;
+#[path = "overview_tests/chips.rs"]
+mod chips;
+#[path = "overview_tests/format.rs"]
+mod format;
+#[path = "overview_tests/injected.rs"]
+mod injected;
+#[path = "overview_tests/live.rs"]
+mod live;
+#[path = "overview_tests/overview_card.rs"]
+mod overview_card;
+#[path = "overview_tests/overview_master.rs"]
+mod overview_master;
+#[path = "overview_tests/overview_mode.rs"]
+mod overview_mode;
+#[path = "overview_tests/overview_mounts.rs"]
+mod overview_mounts;
+#[path = "overview_tests/overview_page.rs"]
+mod overview_page;
+#[path = "overview_tests/overview_public.rs"]
+mod overview_public;
+#[path = "overview_tests/overview_reload.rs"]
+mod overview_reload;
+#[path = "overview_tests/overview_responsive.rs"]
+mod overview_responsive;
+#[path = "overview_tests/overview_six.rs"]
+mod overview_six;
+#[path = "overview_tests/overview_speedtest.rs"]
+mod overview_speedtest;
+#[path = "overview_tests/overview_topology.rs"]
+mod overview_topology;
+#[path = "overview_tests/overview_traffic.rs"]
+mod overview_traffic;
+#[path = "overview_tests/projection.rs"]
+mod projection;
+#[path = "overview_tests/repeated.rs"]
+mod repeated;
+#[path = "overview_tests/route.rs"]
+mod route;
+#[path = "overview_tests/sidebar.rs"]
+mod sidebar;
+#[path = "overview_tests/stat.rs"]
+mod stat;
+#[path = "overview_tests/subscription.rs"]
+mod subscription;
+#[path = "overview_tests/theme.rs"]
+mod theme;
+#[path = "overview_tests/three.rs"]
+mod three;
+#[path = "overview_tests/topology.rs"]
+mod topology;
+#[path = "overview_tests/traffic.rs"]
+mod traffic;
 
-    let mut topology =
-        infiltrator_contract::traffic_topology::TrafficTopologySnapshot::demo_fixture();
-    topology.active_connections = 2;
-    topology.flow_bps = 2_048.0;
-    topology.nodes[0].detail = "TUN · gvisor".to_owned();
-    for link in &mut topology.links {
-        link.active_connections = 2;
-        link.flow_bps = 2_048.0;
+#[path = "overview_tests/speedtest_details.rs"]
+mod speedtest_details;
+
+fn fixture_readout(upload: f64, download: f64) -> ShellReadoutSnapshot {
+    ShellReadoutSnapshot {
+        upload_bps: observed_rate(Some(upload)),
+        download_bps: observed_rate(Some(download)),
+        ..Default::default()
     }
-    let mut projection = DemoOverviewSource::running().current();
-    projection.active_connections = 2;
-    projection.traffic_topology = topology;
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-
-    let world = app.world_mut();
-    assert!(
-        world.get_entity(plate_id).is_ok(),
-        "flow plate keeps its entity"
-    );
-    let mut details = world.query::<(&TopologyText, &Text)>();
-    assert!(details.iter(world).any(|(marker, text)| {
-        marker.stage == infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound
-            && marker.kind == TopologyTextKind::Detail
-            && text.0 == "TUN · gvisor"
-    }));
-    let plate = world
-        .get::<infiltrator_bevy_widgets::chart::topology::TopologyPlate>(plate_id)
-        .expect("topology plate survives");
-    assert_eq!(plate.0.links.len(), 4);
-    assert!(plate.0.links.iter().all(|link| link.active_conns == 2));
 }
 
-#[test]
-fn topology_stage_activation_uses_shared_navigation_targets() {
-    let targets = [
-        (
-            infiltrator_contract::traffic_topology::TrafficTopologyStage::Inbound,
-            Route::Settings,
-        ),
-        (
-            infiltrator_contract::traffic_topology::TrafficTopologyStage::Sniffer,
-            Route::Settings,
-        ),
-        (
-            infiltrator_contract::traffic_topology::TrafficTopologyStage::RuleSet,
-            Route::Rules,
-        ),
-        (
-            infiltrator_contract::traffic_topology::TrafficTopologyStage::ProxyGroup,
-            Route::Proxies,
-        ),
-    ];
-    for (stage, target) in targets {
-        let mut app = mounted_default();
-        let button = {
-            let world = app.world_mut();
-            let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
-            buttons
-                .iter(world)
-                .find(|(_, button)| button.stage == stage && button.enabled)
-                .expect("enabled topology stage button")
-                .0
-        };
-        app.world_mut()
-            .commands()
-            .trigger(Activate { entity: button });
-        app.update();
-        assert_eq!(page_root(app.world_mut()).1, target);
-    }
-
-    let mut unavailable = mounted_app_with(StubSource);
-    let button = {
-        let world = unavailable.world_mut();
-        let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
-        buttons
-            .iter(world)
-            .find(|(_, button)| !button.enabled)
-            .expect("unavailable topology stage is gated")
-            .0
-    };
-    unavailable
-        .world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    unavailable.update();
-    assert_eq!(page_root(unavailable.world_mut()).1, Route::Overview);
-}
-
-/// The Overview page mounts the subscription quota card (BEVY-GAP-020)
-/// with title, header, subtitle/stats and visual progress bar.
-#[test]
-fn test_subscription_quota_card_mounts_with_progress_bar() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut query = world.query::<(Entity, &SubscriptionQuotaCard)>();
-    let (card_entity, _) = query
-        .iter(world)
-        .next()
-        .expect("SubscriptionQuotaCard must be mounted in overview page");
-
-    let all_descendants = descendants(world, card_entity);
-    let texts: Vec<String> = all_descendants
-        .iter()
-        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
-        .collect();
-
-    // Card title
-    assert!(texts.iter().any(|t| t == "订阅配额"), "contains 订阅配额");
-
-    // Header uses the application-owned profile and expiry facts.
-    assert!(
-        texts.iter().any(|t| t == "主力高速订阅"),
-        "contains active profile name"
-    );
-    assert!(
-        texts
-            .iter()
-            .any(|t| t.contains("2026-10-01") && t.contains("25d")),
-        "contains expiry and remaining days"
-    );
-
-    // Metrics include real used/total bytes and the shared usage percentage.
-    assert!(
-        texts
-            .iter()
-            .any(|t| t.contains("used") && t.contains("24.9%")),
-        "contains stats"
-    );
-    assert!(
-        texts.iter().any(|t| t == "reset not reported"),
-        "does not infer a billing reset from expiry"
-    );
-
-    // Visual progress bar: height ~8px, inner fill width 25% with palette.accent
-    let mut found_bar = false;
-    for e in &all_descendants {
-        if let Some(node) = world.get::<bevy::ui::Node>(*e)
-            && node.height == bevy::ui::Val::Px(8.0)
-        {
-            let bar_descendants = descendants(world, *e);
-            for child in bar_descendants {
-                if let Some(inner_node) = world.get::<bevy::ui::Node>(child)
-                    && matches!(inner_node.width, bevy::ui::Val::Percent(value) if (value - 24.9).abs() < 0.1)
-                {
-                    found_bar = true;
-                    break;
-                }
-            }
-        }
-    }
-    assert!(
-        found_bar,
-        "visual progress bar with 8px height and 25% fill mounted"
-    );
-
-    // Standalone scene creation test
-    let palette = UiPalette::new(&Theme::dark());
-    let _scene = subscription_quota_scene(&palette);
-}
-
-/// UI-04-05: Overview topology hover activates full-chain highlight and
-/// activation penetrates with filter query down to target page.
-#[test]
-fn overview_topology_hover_chain_highlight_and_activation_drilldown() {
-    let mut app = mounted_default();
-
-    // 1. Verify TopologyPlate is mounted and initially has no hovered stage.
-    let plate_entity = {
-        let world = app.world_mut();
-        let mut plates = world.query::<(Entity, &TopologyPlate)>();
-        let (entity, plate) = plates.single(world).expect("mounted topology plate");
-        assert_eq!(plate.0.hovered_stage, None);
-        entity
-    };
-
-    // 2. Find RuleSet stage button.
-    let ruleset_button_entity = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(Entity, &TopologyStageButton)>();
-        buttons
-            .iter(world)
-            .find(|(_, btn)| btn.stage == TrafficTopologyStage::RuleSet && btn.enabled)
-            .expect("enabled ruleset stage button")
-            .0
-    };
-
-    // 3. Hover the RuleSet button and verify plate hovered_stage is updated.
-    app.world_mut()
-        .entity_mut(ruleset_button_entity)
-        .insert(PickingInteraction::Hovered);
-    app.update();
-
-    {
-        let world = app.world_mut();
-        let plate = world
-            .get::<TopologyPlate>(plate_entity)
-            .expect("plate survives");
-        assert_eq!(plate.0.hovered_stage.as_deref(), Some("rule_set"));
-    }
-
-    // 4. Unhover and verify plate hovered_stage returns to None.
-    app.world_mut()
-        .entity_mut(ruleset_button_entity)
-        .insert(PickingInteraction::None);
-    app.update();
-
-    {
-        let world = app.world_mut();
-        let plate = world
-            .get::<TopologyPlate>(plate_entity)
-            .expect("plate survives");
-        assert_eq!(plate.0.hovered_stage, None);
-    }
-
-    // 5. Activate the RuleSet button and verify drilldown navigation and filter injection.
-    app.world_mut().commands().trigger(Activate {
-        entity: ruleset_button_entity,
-    });
-    app.update();
-
-    // Verify navigation landed on Rules page
-    assert_eq!(page_root(app.world_mut()).1, Route::Rules);
-
-    // Verify TopologyDrilldownFilter resource contains RuleSet stage and demo detail query
-    let drilldown = app.world().resource::<TopologyDrilldownFilter>();
-    assert_eq!(drilldown.stage, Some(TrafficTopologyStage::RuleSet));
-    assert_eq!(drilldown.filter_query.as_deref(), Some("MRS / GeoIP"));
-}
-
-#[test]
-fn test_overview_master_switches_and_exit_node_cards() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-
-    let mut exit_query = world.query::<(Entity, &ActiveExitNodeCard)>();
-    let (exit_entity, _) = exit_query
-        .iter(world)
-        .next()
-        .expect("ActiveExitNodeCard must be mounted");
-    let exit_descendants = descendants(world, exit_entity);
-    let exit_texts: Vec<String> = exit_descendants
-        .iter()
-        .filter_map(|e| world.get::<Text>(*e).map(|t| t.0.clone()))
-        .collect();
-    assert!(exit_texts.iter().any(|t| t.contains("当前主出口节点")));
-    assert!(exit_texts.iter().any(|t| t.contains("🇭🇰")));
-    assert!(exit_texts.iter().any(|t| t.contains("香港 IPLC 01")));
-    assert!(exit_texts.iter().any(|t| t.contains("VLESS · Reality")));
-    assert!(exit_texts.iter().any(|t| t.contains("38 ms")));
-
-    let mut proxy_query = world.query::<(Entity, &SystemProxyMasterCard)>();
-    assert!(
-        proxy_query.iter(world).next().is_some(),
-        "SystemProxyMasterCard must be mounted"
-    );
-
-    let mut tun_query = world.query::<(Entity, &TunMasterCard)>();
-    assert!(
-        tun_query.iter(world).next().is_some(),
-        "TunMasterCard must be mounted"
-    );
-}
-
-#[test]
-fn overview_master_switch_uses_shared_toggle_policy_and_command_sink() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(Entity, &OverviewMasterSwitchButton)>();
-        buttons
-            .iter(world)
-            .find(|(_, button)| {
-                button.toggle == infiltrator_contract::system_toggle::SystemToggle::SystemProxy
-                    && button.can_toggle
-                    && button.enabled
-            })
-            .expect("system proxy master switch is enabled and actionable")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-    assert!(
-        sink.submitted()
-            .contains(&UiCommand::SetSystemProxy { enabled: false })
-    );
-}
-
-#[test]
-fn active_exit_projection_restsamps_facts_and_failure_in_place() {
-    let mut app = mounted_default();
-    let exit_id = {
-        let world = app.world_mut();
-        let mut exits = world.query::<(Entity, &ActiveExitNodeCard)>();
-        exits.single(world).expect("active exit card").0
-    };
-    let mut projection = DemoOverviewSource::running().current();
-    projection.active_exit =
-        infiltrator_contract::active_exit::ActiveExitSnapshot::failed(1, 2, "proxy read failed");
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-
-    let world = app.world_mut();
-    let mut facts = world.query::<(&ActiveExitText, &Text)>();
-    assert!(facts.iter(world).any(|(marker, text)| {
-        marker.0 == ActiveExitTextKind::Status && text.0 == "proxy read failed"
-    }));
-    assert!(world.get_entity(exit_id).is_ok(), "exit card stays mounted");
-}
-
-#[test]
-fn overview_mode_segment_uses_shared_policy_and_command_sink() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill,
-        )>();
-        buttons
-            .iter(world)
-            .find(|(_, pill)| pill.0 == infiltrator_contract::command::ProxyMode::Global)
-            .expect("global mode pill mounted")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-    assert!(sink.submitted().contains(&UiCommand::SetProxyMode(
-        infiltrator_contract::command::ProxyMode::Global
-    )));
-}
-
-#[test]
-fn overview_mode_segment_card_is_mounted_with_four_pills() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-    let mut card_query =
-        world.query::<&infiltrator_bevy_ui::pages::overview_cards::ProxyModeSegmentCard>();
-    assert!(
-        card_query.iter(world).next().is_some(),
-        "ProxyModeSegmentCard must be mounted"
-    );
-
-    let mut pills_query =
-        world.query::<&infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill>();
-    let modes: Vec<infiltrator_contract::command::ProxyMode> =
-        pills_query.iter(world).map(|p| p.0).collect();
-    assert_eq!(modes.len(), 4);
-    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Rule));
-    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Global));
-    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Direct));
-    assert!(modes.contains(&infiltrator_contract::command::ProxyMode::Script));
-}
-
-#[test]
-fn overview_speedtest_button_submits_test_all_proxy_groups() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
-        )>();
-        buttons
-            .iter(world)
-            .find(|(_, btn)| !btn.testing)
-            .expect("speedtest button mounted")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-    assert!(sink.submitted().contains(&UiCommand::TestAllProxyGroups));
-}
-
-#[test]
-fn overview_speedtest_button_reflects_shared_engine_phase() {
-    // The button and its caption must follow the shared engine snapshot, so a
-    // running batch reads "测速中 n/m" on both surfaces instead of a static label.
-    let mut app = mounted_default();
-
-    let read_caption = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest caption mounted")
-    };
-    let read_testing = |app: &mut App| -> bool {
-        let world = app.world_mut();
-        let mut buttons = world
-            .query::<&infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton>(
-        );
-        buttons
-            .iter(world)
-            .next()
-            .map(|b| b.testing)
-            .unwrap_or(false)
-    };
-
-    // Idle: default caption, not testing.
-    assert_eq!(read_caption(&mut app), "一键测速");
-    assert!(!read_testing(&mut app));
-
-    // Running snapshot with progress must flip both label and marker.
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest.phase = infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
-    projection.speedtest.progress.completed_nodes = 12;
-    projection.speedtest.progress.total_nodes = 30;
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-
-    assert_eq!(read_caption(&mut app), "测速中 12/30");
-    assert!(read_testing(&mut app));
-}
-
-#[test]
-fn overview_speedtest_metrics_follow_shared_engine() {
-    // Jitter / packet-loss / star / bandwidth of the fastest node must come
-    // from the same shared snapshot Iced renders, never a Bevy-local value.
-    let mut app = mounted_default();
-
-    let read_metrics = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestMetricsText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest metrics caption mounted")
-    };
-    let read_dead = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDeadText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest dead archive caption mounted")
-    };
-
-    // Idle: honest placeholder, no fabricated numbers.
-    assert_eq!(read_metrics(&mut app), "—");
-    assert_eq!(read_dead(&mut app), "—");
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-
-    let metrics = read_metrics(&mut app);
-    assert!(metrics.contains("抖动"), "metrics={metrics}");
-    assert!(metrics.contains("Mbps"), "metrics={metrics}");
-    assert!(metrics.contains('★'), "metrics={metrics}");
-
-    // The demo fixture carries exactly one dead node; it must be archived
-    // honestly rather than hidden.
-    let dead = read_dead(&mut app);
-    assert!(dead.contains("超时归档 1"), "dead={dead}");
-    assert!(dead.contains("超时不可用节点"), "dead={dead}");
-}
-
-#[test]
-fn overview_speedtest_history_follows_shared_engine() {
-    // The persisted run history must render from the same shared snapshot
-    // Iced reads (`recent_history`), never a Bevy-local record.
-    let mut app = mounted_default();
-
-    let read_history = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestHistoryText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest history caption mounted")
-    };
-
-    // Idle: honest placeholder, no fabricated run.
-    assert_eq!(read_history(&mut app), "—");
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-
-    let history = read_history(&mut app);
-    assert!(history.contains("最近测速"), "history={history}");
-    assert!(history.contains("全部节点"), "history={history}");
-    assert!(history.contains("平均带宽 154.8Mbps"), "history={history}");
-    assert!(history.contains("★5"), "history={history}");
-}
-
-#[test]
-fn overview_speedtest_running_button_submits_cancel() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest.phase = infiltrator_contract::speedtest::SpeedtestPhase::ProbingLatency;
-    projection.speedtest.progress.completed_nodes = 1;
-    projection.speedtest.progress.total_nodes = 4;
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
-        )>();
-        buttons
-            .iter(world)
-            .find(|(_, btn)| btn.testing)
-            .expect("running speedtest button mounted")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-
-    assert!(sink.submitted().contains(&UiCommand::CancelSpeedtest));
-}
-
-#[test]
-fn overview_speedtest_typed_url_reaches_the_shared_intent() {
-    // DUAL-06-03: the URL typed in the Overview field must ride into the
-    // shared `TestDelay { url: Some(..) }` intent, not a Bevy-local target.
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let custom_url = "https://cp.cloudflare.com/generate_204";
-    {
-        let world = app.world_mut();
-        let mut fields = world.query::<&mut TextField>();
-        for mut field in fields.iter_mut(world) {
-            field
-                .0
-                .apply(TextFieldInput::SetText(custom_url.to_owned()));
-        }
-    }
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestButton,
-        )>();
-        buttons
-            .iter(world)
-            .find(|(_, btn)| !btn.testing)
-            .expect("speedtest button mounted")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-
-    assert!(
-        sink.submitted()
-            .contains(&UiCommand::TestAllProxyGroupsWithUrl {
-                url: custom_url.to_owned(),
-            }),
-        "submitted={:?}",
-        sink.submitted()
-    );
-    // The typed URL reaches the shared delay intent verbatim.
-    assert_eq!(
-        UiCommand::TestAllProxyGroupsWithUrl {
-            url: custom_url.to_owned(),
-        }
-        .to_intent(),
-        Some(infiltrator_contract::command::CommandIntent::TestDelay {
-            group: None,
-            url: Some(custom_url.to_owned()),
-            timeout_ms: None,
-        })
-    );
-}
-
-#[test]
-fn overview_speedtest_concurrency_stepper_submits_shared_intent() {
-    // DUAL-06-01: the +/- stepper reads the live bound from the shared
-    // snapshot and submits the shared concurrency intent; the UI owns no
-    // concurrency fact of its own.
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let step_entity = |app: &mut App, delta: i64| -> Entity {
-        let world = app.world_mut();
-        let mut steps = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestConcurrencyStep,
-        )>();
-        steps
-            .iter(world)
-            .find(|(_, step)| step.0 == delta)
-            .expect("concurrency step mounted")
-            .0
-    };
-
-    // The demo fixture bound is 30; +5 -> 35.
-    let up = step_entity(&mut app, 5);
-    app.world_mut().commands().trigger(Activate { entity: up });
-    app.update();
-    assert!(
-        sink.submitted()
-            .contains(&UiCommand::SetSpeedtestConcurrency { limit: 35 }),
-        "submitted={:?}",
-        sink.submitted()
-    );
-
-    // Clamp: a shared bound of 2 stepped down by 5 stays at 1 (never zero).
-    app.world_mut()
-        .resource_mut::<infiltrator_bevy_ui::surface::LatestSurfaceSnapshot>()
-        .0
-        .speedtest
-        .config
-        .concurrency = 2;
-    let down = step_entity(&mut app, -5);
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: down });
-    app.update();
-    assert!(
-        sink.submitted()
-            .contains(&UiCommand::SetSpeedtestConcurrency { limit: 1 }),
-        "submitted={:?}",
-        sink.submitted()
-    );
-}
-
-#[test]
-fn overview_speedtest_concurrency_text_follows_shared_engine() {
-    // The concurrency caption is restamped from the shared snapshot's
-    // `config.concurrency`, never a Bevy-local constant.
-    let mut app = mounted_default();
-
-    let read = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestConcurrencyText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("concurrency caption mounted")
-    };
-
-    assert_eq!(read(&mut app), "30");
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest.config.concurrency = 12;
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-    assert_eq!(read(&mut app), "12");
-}
-
-#[test]
-fn overview_six_item_metrics_grid_mounts_and_updates_in_place() {
-    let mut app = mounted_default();
-    let world = app.world_mut();
-    let mut chips_query = world.query::<&infiltrator_bevy_ui::pages::overview::OverviewChip>();
-    let chip_kinds: Vec<infiltrator_bevy_ui::pages::overview::OverviewChipKind> =
-        chips_query.iter(world).map(|c| c.0).collect();
-    assert_eq!(chip_kinds.len(), 6);
-    assert!(
-        chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Connections)
-    );
-    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Memory));
-    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Cpu));
-    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Upload));
-    assert!(chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::Download));
-    assert!(
-        chip_kinds.contains(&infiltrator_bevy_ui::pages::overview::OverviewChipKind::TotalTraffic)
-    );
-}
-
-#[test]
-fn overview_public_ip_probe_card_mounts_and_updates_in_place() {
-    let mut app = mounted_default();
-    let card_entity = {
-        let world = app.world_mut();
-        let mut cards = world.query::<(Entity, &PublicIpProbeCard)>();
-        cards.single(world).expect("public ip probe card").0
-    };
-    assert!(card_entity != Entity::PLACEHOLDER);
-
-    {
-        let world = app.world_mut();
-        let mut texts = world.query::<(&PublicIpText, &Text)>();
-        assert!(
-            texts.iter(world).any(|(marker, text)| {
-                marker.0 == PublicIpTextKind::Ip && text.0 == "203.0.113.7"
-            })
-        );
-    }
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.public_ip =
-        infiltrator_contract::public_ip::PublicIpProbeSnapshot::failed(1, 2, "network timeout");
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-
-    let world = app.world_mut();
-    let mut texts = world.query::<(&PublicIpText, &Text)>();
-    assert!(texts.iter(world).any(|(marker, text)| {
-        marker.0 == PublicIpTextKind::Status && text.0 == "network timeout"
-    }));
-}
-
-#[test]
-fn overview_public_ip_refresh_button_submits_refresh_command() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins((AssetPlugin::default(), ScenePlugin));
-    app.init_asset::<Image>();
-    app.add_plugins(ShellPlugin::default());
-    app.add_plugins(PagesPlugin::demo());
-    app.add_plugins(CommandPumpPlugin::new(sink.clone()));
-    app.update();
-
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(Entity, &PublicIpRefreshButton)>();
-        buttons
-            .iter(world)
-            .next()
-            .expect("public ip refresh button")
-            .0
-    };
-
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-
-    assert!(sink.submitted().contains(&UiCommand::RefreshPublicIpProbe));
-}
-
-#[test]
-fn overview_card_reorder_actions_submit_commands() {
-    let sink = Arc::new(DemoCommandSink::accepting());
-    sink.submit(UiCommand::MoveOverviewCardUp(
-        infiltrator_contract::overview_layout::OverviewCardKind::Traffic,
-    ));
-    sink.submit(UiCommand::MoveOverviewCardDown(
-        infiltrator_contract::overview_layout::OverviewCardKind::Metrics,
-    ));
-    sink.submit(UiCommand::ResetOverviewCardOrder);
-
-    let items = sink.submitted();
-    assert_eq!(items.len(), 3);
-    assert_eq!(
-        items[0],
-        UiCommand::MoveOverviewCardUp(
-            infiltrator_contract::overview_layout::OverviewCardKind::Traffic
-        )
-    );
-    assert_eq!(
-        items[1],
-        UiCommand::MoveOverviewCardDown(
-            infiltrator_contract::overview_layout::OverviewCardKind::Metrics
-        )
-    );
-    assert_eq!(items[2], UiCommand::ResetOverviewCardOrder);
-}
-
-#[test]
-fn overview_reload_mask_activates_and_preserves_facts() {
-    let mut app = mounted_default();
-    let mask_entity = {
-        let world = app.world_mut();
-        let mut masks = world.query::<(Entity, &OverviewReloadMask)>();
-        masks.single(world).expect("reload mask").0
-    };
-    assert!(mask_entity != Entity::PLACEHOLDER);
-
-    {
-        let world = app.world_mut();
-        let node = world.get::<Node>(mask_entity).expect("node on mask");
-        assert_eq!(node.display, Display::None);
-    }
-
-    let mut projection = DemoOverviewSource::running().current();
-    projection.reconnect_mask =
-        infiltrator_contract::reconnect_mask::ReconnectMaskSnapshot::reloading(
-            "配置热重载中，保持画面",
-        );
-    app.world_mut()
-        .commands()
-        .trigger(OverviewProjectionUpdated(projection));
-    app.update();
-
-    let world = app.world_mut();
-    let node = world.get::<Node>(mask_entity).expect("node on mask");
-    assert_eq!(node.display, Display::Flex);
-
-    let mut texts = world.query::<(&OverviewReloadMaskText, &Text)>();
-    assert!(
-        texts
-            .iter(world)
-            .any(|(_, text)| text.0 == "配置热重载中，保持画面")
-    );
-}
-
-#[test]
-fn test_overview_responsive_four_tier_viewport_parity() {
-    use infiltrator_contract::responsive_viewport::{ResponsiveViewportSnapshot, ViewportTier};
-
-    let mobile = ResponsiveViewportSnapshot::from_dimensions(390.0, 844.0);
-    assert_eq!(mobile.tier, ViewportTier::Compact);
-    assert_eq!(mobile.card_columns, 1);
-    assert_eq!(mobile.metrics_columns, 2);
-
-    let tablet = ResponsiveViewportSnapshot::from_dimensions(768.0, 1024.0);
-    assert_eq!(tablet.tier, ViewportTier::Medium);
-    assert_eq!(tablet.card_columns, 2);
-    assert_eq!(tablet.metrics_columns, 3);
-
-    let desktop = ResponsiveViewportSnapshot::from_dimensions(1180.0, 780.0);
-    assert_eq!(desktop.tier, ViewportTier::Expanded);
-    assert_eq!(desktop.card_columns, 2);
-    assert_eq!(desktop.metrics_columns, 6);
-
-    let wide = ResponsiveViewportSnapshot::from_dimensions(1920.0, 1080.0);
-    assert_eq!(wide.tier, ViewportTier::Ultra);
-    assert_eq!(wide.card_columns, 3);
-    assert_eq!(wide.metrics_columns, 6);
-}
-
-#[test]
-fn test_overview_dual_surface_headless_regression_matrix_full_coverage() {
-    let report =
-        infiltrator_contract::overview_matrix::OverviewRegressionMatrixReport::run_deterministic_matrix();
-    assert!(report.is_all_passed());
-    assert_eq!(report.total_scenarios, 14);
-    assert_eq!(report.passed_scenarios, 14);
-}
-
-#[test]
-fn overview_speedtest_egress_and_detail_modal_follow_shared_engine() {
-    // DUAL-06-12/13/14: the egress comparison caption and the detail modal
-    // must both restamp from the one shared snapshot Iced reads.
-    let mut app = mounted_default();
-
-    let read_egress = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestEgressText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest egress caption mounted")
-    };
-    let read_body = |app: &mut App| -> String {
-        let world = app.world_mut();
-        let mut texts = world.query_filtered::<&Text, bevy::ecs::query::With<
-            infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDetailBodyText,
-        >>();
-        texts
-            .iter(world)
-            .next()
-            .map(|t| t.0.clone())
-            .expect("speedtest detail body mounted")
-    };
-
-    // Honest empty state: no fabricated node, no fabricated egress.
-    let mut projection = DemoOverviewSource::running().current();
-    projection.speedtest = infiltrator_contract::speedtest::SpeedtestSnapshot::default();
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-    assert_eq!(read_egress(&mut app), "—");
-    assert!(read_body(&mut app).contains("暂无测速结果"));
-
-    // A HK-labelled node reporting a US egress is an honest mismatch.
-    let mut projection = DemoOverviewSource::running().current();
-    let mut snapshot = infiltrator_contract::speedtest::SpeedtestSnapshot::demo_fixture();
-    if let Some(node) = snapshot.node_results.get_mut("💀 超时不可用节点 01") {
-        node.is_alive = true;
-        node.delay_ms = Some(20);
-        node.star_rating = 2;
-        node.label_country = Some("HK".to_owned());
-        node.outbound_ip = Some("45.32.1.9".to_owned());
-        node.outbound_country = Some("US".to_owned());
-    }
-    projection.speedtest = snapshot;
-    app.world_mut()
-        .commands()
-        .trigger(infiltrator_bevy_ui::pages::overview::OverviewProjectionUpdated(projection));
-    app.update();
-
-    let egress = read_egress(&mut app);
-    assert!(egress.contains("45.32.1.9 (US)"), "egress={egress}");
-    assert!(egress.contains("归属不一致"), "egress={egress}");
-
-    let body = read_body(&mut app);
-    assert!(body.contains("出口状态"), "body={body}");
-    assert!(body.contains("归属不一致"), "body={body}");
-    assert!(body.contains("20ms"), "body={body}");
-
-    // The modal is closed by default and opens from its shared-intent button.
-    assert!(
-        !app.world()
-            .resource::<infiltrator_bevy_widgets::adaptive_modal::ModalState>()
-            .is_open
-    );
-    let button = {
-        let world = app.world_mut();
-        let mut buttons = world.query::<(
-            Entity,
-            &infiltrator_bevy_ui::pages::overview_speedtest::OverviewSpeedtestDetailButton,
-        )>();
-        buttons
-            .iter(world)
-            .next()
-            .expect("speedtest detail button mounted")
-            .0
-    };
-    app.world_mut()
-        .commands()
-        .trigger(Activate { entity: button });
-    app.update();
-    assert!(
-        app.world()
-            .resource::<infiltrator_bevy_widgets::adaptive_modal::ModalState>()
-            .is_open
-    );
-
-    // DUAL-06-14: both surfaces are driven by the one shared matrix report.
-    let report =
-        infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport::run_deterministic_matrix();
-    assert!(report.is_all_passed());
-    assert_eq!(report.total_scenarios, 15);
-}
+#[path = "overview_tests/copy.rs"]
+mod copy;

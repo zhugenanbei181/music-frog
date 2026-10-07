@@ -1,7 +1,7 @@
+use crate::sub_rules;
+use crate::sub_rules::LogicalRule;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-
-use crate::sub_rules::{self, LogicalRule};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleType {
@@ -13,6 +13,7 @@ pub enum RuleType {
     IpCidr(String),
     IpCidr6(String),
     IpSuffix(String),
+    SrcIpSuffix(String),
     IpAsn(String),
     GeoIp(String),
     SrcGeoIp(String),
@@ -49,6 +50,7 @@ impl RuleType {
             Self::IpCidr(_) => "IP-CIDR",
             Self::IpCidr6(_) => "IP-CIDR6",
             Self::IpSuffix(_) => "IP-SUFFIX",
+            Self::SrcIpSuffix(_) => "SRC-IP-SUFFIX",
             Self::IpAsn(_) => "IP-ASN",
             Self::GeoIp(_) => "GEOIP",
             Self::SrcGeoIp(_) => "SRC-GEOIP",
@@ -91,6 +93,7 @@ impl RuleType {
             | Self::IpCidr(p)
             | Self::IpCidr6(p)
             | Self::IpSuffix(p)
+            | Self::SrcIpSuffix(p)
             | Self::IpAsn(p)
             | Self::GeoIp(p)
             | Self::SrcGeoIp(p)
@@ -122,80 +125,104 @@ pub struct ParsedRule {
     pub rule_type: RuleType,
     pub target: String,
     pub no_resolve: bool,
+    #[serde(default)]
+    pub source_ip: bool,
 }
 
-pub fn parse_rule_str(rule_str: &str) -> Result<ParsedRule> {
-    let trimmed = rule_str.trim();
-    if trimmed.is_empty() {
-        return Err(anyhow!("Empty rule string"));
-    }
-
-    // Check logical rules first: AND, OR, NOT, SUB-RULE
-    if trimmed.starts_with("AND(")
-        || trimmed.starts_with("OR(")
-        || trimmed.starts_with("NOT(")
-        || trimmed.starts_with("SUB-RULE(")
-    {
-        let logical = sub_rules::parse_logical_rule(trimmed)?;
+pub fn parse_rule_str(source: &str) -> Result<ParsedRule> {
+    let trimmed = source.trim();
+    let kind = trimmed.split(',').next().unwrap_or("").to_ascii_uppercase();
+    if ["AND", "OR", "NOT", "SUB-RULE"].contains(&kind.as_str()) {
+        let logical = sub_rules::parse_logical_rule(&format!("{kind}{}", &trimmed[kind.len()..]))?;
         return Ok(ParsedRule {
             target: logical.target.clone(),
-            no_resolve: logical.no_resolve,
+            no_resolve: false,
+            source_ip: false,
             rule_type: RuleType::Logical(logical),
         });
     }
+    parse_atomic_rule(trimmed, true)
+}
 
-    let mut parts: Vec<&str> = trimmed.split(',').map(str::trim).collect();
-    let mut no_resolve = false;
+pub fn parse_rule_condition(source: &str) -> Result<ParsedRule> {
+    parse_atomic_rule(source.trim(), false)
+}
 
-    if let Some(last) = parts.last()
-        && last.eq_ignore_ascii_case("no-resolve")
-    {
-        no_resolve = true;
-        parts.pop();
-    }
-
-    if parts.is_empty() {
-        return Err(anyhow!("Invalid rule: {}", rule_str));
-    }
-
+fn parse_atomic_rule(source: &str, needs_target: bool) -> Result<ParsedRule> {
+    let parts: Vec<&str> = source.split(',').map(str::trim).collect();
     let type_str = parts[0].to_ascii_uppercase();
-
     if type_str == "MATCH" {
-        let target = if parts.len() >= 2 {
-            parts[1].to_string()
-        } else {
-            "DIRECT".to_string()
-        };
+        if !needs_target || parts.len() < 2 || parts[1].is_empty() {
+            return Err(anyhow!("MATCH requires an outbound target"));
+        }
         return Ok(ParsedRule {
             rule_type: RuleType::Match,
-            target,
-            no_resolve,
+            target: parts[1].into(),
+            no_resolve: false,
+            source_ip: false,
         });
     }
-
-    if parts.len() < 3 {
+    let minimum = if needs_target { 3 } else { 2 };
+    if parts.len() < minimum || parts[0].is_empty() || parts[1].is_empty() {
         return Err(anyhow!(
-            "Rule requires at least TYPE,PAYLOAD,TARGET: {}",
-            rule_str
+            "Rule has a missing type, payload or target: {source}"
         ));
     }
-
-    let target = parts.pop().unwrap().to_string();
-    let payload = parts[1..].join(",");
-
+    let regex =
+        ["DOMAIN-REGEX", "PROCESS-NAME-REGEX", "PROCESS-PATH-REGEX"].contains(&type_str.as_str());
+    let (target, payload, params) = if regex {
+        let end = parts.len() - usize::from(needs_target);
+        (
+            if needs_target {
+                parts[end].to_owned()
+            } else {
+                String::new()
+            },
+            parts[1..end].join(","),
+            &parts[parts.len()..],
+        )
+    } else {
+        let end = if needs_target { 3 } else { 2 };
+        (
+            if needs_target {
+                parts[2].to_owned()
+            } else {
+                String::new()
+            },
+            parts[1].to_owned(),
+            &parts[end..],
+        )
+    };
+    if needs_target && target.is_empty() {
+        return Err(anyhow!("Rule has an empty outbound target"));
+    }
+    let parameterized = [
+        "IP-CIDR",
+        "IP-CIDR6",
+        "IP-SUFFIX",
+        "IP-ASN",
+        "GEOIP",
+        "RULE-SET",
+    ]
+    .contains(&type_str.as_str());
+    let source_ip = type_str.starts_with("SRC-")
+        && ["SRC-IP-CIDR", "SRC-IP-SUFFIX", "SRC-IP-ASN", "SRC-GEOIP"].contains(&type_str.as_str())
+        || parameterized && params.contains(&"src");
+    let no_resolve = source_ip || parameterized && params.contains(&"no-resolve");
     let rule_type = match type_str.as_str() {
         "DOMAIN" => RuleType::Domain(payload),
         "DOMAIN-SUFFIX" => RuleType::DomainSuffix(payload),
         "DOMAIN-KEYWORD" => RuleType::DomainKeyword(payload),
         "DOMAIN-REGEX" => RuleType::DomainRegex(payload),
         "GEOSITE" => RuleType::Geosite(payload),
-        "IP-CIDR" | "IP-CIDR4" => RuleType::IpCidr(payload),
+        "IP-CIDR" => RuleType::IpCidr(payload),
         "IP-CIDR6" => RuleType::IpCidr6(payload),
         "IP-SUFFIX" => RuleType::IpSuffix(payload),
+        "SRC-IP-SUFFIX" => RuleType::SrcIpSuffix(payload),
         "IP-ASN" => RuleType::IpAsn(payload),
         "GEOIP" => RuleType::GeoIp(payload),
         "SRC-GEOIP" => RuleType::SrcGeoIp(payload),
-        "SRC-IP-CIDR" | "SRC-IP-CIDR4" => RuleType::SrcIpCidr(payload),
+        "SRC-IP-CIDR" => RuleType::SrcIpCidr(payload),
         "SRC-IP-ASN" => RuleType::SrcIpAsn(payload),
         "DST-PORT" => RuleType::DstPort(payload),
         "SRC-PORT" => RuleType::SrcPort(payload),
@@ -219,12 +246,15 @@ pub fn parse_rule_str(rule_str: &str) -> Result<ParsedRule> {
         rule_type,
         target,
         no_resolve,
+        source_ip,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::RuleEntry;
+    #[cfg(test)]
+    use super::super::format_rule_entry;
     use super::*;
 
     #[test]
@@ -243,7 +273,7 @@ mod tests {
             rule: "DIRECT".to_string(),
             enabled: false,
         };
-        assert_eq!(super::super::format_rule_entry(&entry), "# DIRECT");
+        assert_eq!(format_rule_entry(&entry), "# DIRECT");
     }
 
     #[test]
@@ -295,9 +325,10 @@ mod tests {
     #[test]
     fn test_parse_logical_rules() {
         let r =
-            parse_rule_str("AND((DOMAIN,example.com),(DST-PORT,443),SECURE,no-resolve)").unwrap();
+            parse_rule_str("AND,((DOMAIN,example.com),(IP-CIDR,192.0.2.0/24,no-resolve)),SECURE")
+                .unwrap();
         assert_eq!(r.target, "SECURE");
-        assert!(r.no_resolve);
+        assert!(!r.no_resolve);
         assert!(matches!(r.rule_type, RuleType::Logical(_)));
     }
 }

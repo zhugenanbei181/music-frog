@@ -6,11 +6,10 @@
 //! [`SubscriptionNotification`]; this adapter is the single place that turns
 //! that into an OS notification.
 
+use crate::notify::{NotificationLevel, SystemNotification, SystemNotifier};
 use infiltrator_ports::subscription_notification::{
     SubscriptionNotification, SubscriptionNotificationKind, SubscriptionNotificationPort,
 };
-
-use crate::notify::{NotificationLevel, SystemNotification, SystemNotifier};
 
 /// Desktop-backed subscription notifier.
 #[derive(Clone, Copy, Debug, Default)]

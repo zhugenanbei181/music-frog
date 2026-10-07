@@ -25,20 +25,22 @@
 //! identity. The address decoding and the wire transaction id are shared with
 //! the DUAL-14-10 latency prober.
 
+use crate::dns_latency_io::{ProbePlan, next_query_id, plan_for, resolve_target};
+use crate::dns_wire;
+use crate::dns_wire::{DnsQuestion, MAX_RESPONSE_BYTES};
 use infiltrator_contract::dns_leak::{
     DnsLeakEchoProbe, DnsLeakEchoRecord, DnsLeakEchoReport, DnsLeakEchoRequest, DnsLeakObservation,
     DnsLeakObservationOutcome, DnsLeakProbeTransport,
 };
 use infiltrator_http::HttpClient;
+use infiltrator_http::reqwest::header::{ACCEPT, CONTENT_TYPE};
 use infiltrator_ports::dns_leak::DnsLeakEchoPort;
 use infiltrator_ports::error::PortError;
+use std::fs::read_to_string;
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
-use tokio::net::UdpSocket;
+use tokio::net::{UdpSocket, lookup_host};
 use tokio::time::timeout;
-
-use crate::dns_latency_io::{ProbePlan, next_query_id, plan_for, resolve_target};
-use crate::dns_wire::{self, DnsQuestion, MAX_RESPONSE_BYTES};
 
 /// The mihomo `Content-Type`/`Accept` for a wire-format DoH exchange.
 const DOH_CONTENT_TYPE: &str = "application/dns-message";
@@ -147,11 +149,8 @@ impl HttpDnsLeakEchoProbe {
         let response = match self
             .client
             .post(url)
-            .header(
-                infiltrator_http::reqwest::header::CONTENT_TYPE,
-                DOH_CONTENT_TYPE,
-            )
-            .header(infiltrator_http::reqwest::header::ACCEPT, DOH_CONTENT_TYPE)
+            .header(CONTENT_TYPE, DOH_CONTENT_TYPE)
+            .header(ACCEPT, DOH_CONTENT_TYPE)
             .timeout(deadline)
             .body(query)
             .send()
@@ -207,12 +206,7 @@ impl HttpDnsLeakEchoProbe {
         // The platform resolver is the path a leak actually flows through,
         // but the OS may answer from its own cache; a cached answer is still
         // an identity some resolver observed, never an invented one.
-        match timeout(
-            deadline,
-            tokio::net::lookup_host((probe.question.as_str(), 53)),
-        )
-        .await
-        {
+        match timeout(deadline, lookup_host((probe.question.as_str(), 53))).await {
             Err(_) => DnsLeakObservationOutcome::TimedOut,
             Ok(Err(error)) => DnsLeakObservationOutcome::Failed {
                 message: format!(
@@ -514,7 +508,7 @@ fn validate_resolver_identity(value: &str) -> Result<String, String> {
 /// `/etc/resolv.conf`. An unreadable or empty configuration is an honest "no
 /// addressable platform resolver", never a fallback to a guessed resolver.
 fn system_nameservers() -> Vec<IpAddr> {
-    match std::fs::read_to_string("/etc/resolv.conf") {
+    match read_to_string("/etc/resolv.conf") {
         Ok(text) => parse_resolv_conf(&text),
         Err(_) => Vec::new(),
     }

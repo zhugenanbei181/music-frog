@@ -1,7 +1,15 @@
 //! Projection restamping for TUN checkboxes.
 
+use super::settings_core::{
+    SettingsLine, SettingsLineKind, SettingsProjection, TunEnableToggle, TunRouteToggle,
+    TunRouteToggleKind, mtu_row_scene, tun_enable_toggle_scene, tun_route_toggle_scene,
+    tun_stack_selector_scene,
+};
+use super::settings_system::SystemProxyToggle;
+use super::{SettingsProjectionUpdated, settings_ipv6};
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
 use bevy::ecs::system::{Commands, Query};
 use bevy::scene::{Scene, bsn};
@@ -11,21 +19,15 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Checkbox;
+use infiltrator_application::settings_status_projection::optional_copy;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 
-use super::SettingsProjectionUpdated;
-use super::settings_core::{
-    SettingsLine, SettingsLineKind, SettingsProjection, TunEnableToggle, TunRouteToggle,
-    TunRouteToggleKind,
-};
-use super::settings_ipv6;
-use super::settings_system::SystemProxyToggle;
-
 pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let stack_str = projection.tun_stack.clone();
+    let stack_str = optional_copy(projection.tun_stack.as_ref(), UiLocale::default().code());
 
     surface_scene(
         vec![
@@ -35,7 +37,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "虚拟网卡模式 (TUN Mode)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("settings_tun_mode_title") TextRole(Role::BodyStrong)
                             ]
             }),
             Box::new(bsn! {
@@ -45,17 +47,17 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                 row_gap: Val::Px(space::S8),
                             }
                             Children [
-                                @{ super::settings_core::tun_enable_toggle_scene(projection.tun_enabled, palette) }
+                                @{ tun_enable_toggle_scene(projection.tun_enabled, palette) }
                                 --
-                                @{ super::settings_core::tun_stack_selector_scene(projection, palette) }
+                                @{ tun_stack_selector_scene(projection, palette) }
                                 --
-                                @{ super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::AutoRoute, "自动路由 (Auto Route)", projection.tun_auto_route, palette) }
+                                @{ tun_route_toggle_scene(TunRouteToggleKind::AutoRoute, "tun_auto_route", projection.tun_auto_route, palette) }
                                 --
-                                @{ super::settings_core::tun_route_toggle_scene(TunRouteToggleKind::StrictRoute, "严格路由 (Strict Route)", projection.tun_strict_route, palette) }
+                                @{ tun_route_toggle_scene(TunRouteToggleKind::StrictRoute, "tun_strict_route", projection.tun_strict_route, palette) }
                                 --
                                 @{ settings_ipv6::scene(projection, palette) }
                                 --
-                                @{ super::settings_core::mtu_row_scene(&projection.mtu, palette) }
+                                @{ mtu_row_scene(&projection.mtu, palette) }
                                 --
                                 Node {
                                     width: percent(100),
@@ -65,7 +67,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
                                 }
                                 BackgroundColor({ palette.surface_elevated })
                                 Children [
-                                    Text({ "TUN 协议栈 (TUN Stack)".to_owned() }) TextRole(Role::Body)
+                                    LocalizedText::plain("settings_tun_stack_title") TextRole(Role::Body)
                                     --
                                     Text(stack_str) SettingsLine(SettingsLineKind::TunStack) TextRole(Role::Body)
                                 ]
@@ -77,7 +79,7 @@ pub(super) fn card(projection: &SettingsProjection, palette: &UiPalette) -> impl
 }
 
 pub(super) fn apply_tun_toggle_projection(
-    update: bevy::ecs::observer::On<SettingsProjectionUpdated>,
+    update: On<SettingsProjectionUpdated>,
     mut route_toggles: Query<(&TunRouteToggle, &Children)>,
     mut enable_toggles: Query<&Children, With<TunEnableToggle>>,
     mut system_proxy_toggles: Query<&Children, With<SystemProxyToggle>>,
@@ -100,7 +102,7 @@ pub(super) fn apply_tun_toggle_projection(
             &mut commands,
             &checkboxes,
             children,
-            projection.system_proxy,
+            Some(projection.system_proxy),
         );
     }
 }
@@ -109,13 +111,13 @@ fn restamp_checkbox(
     commands: &mut Commands,
     checkboxes: &Query<(Entity, Has<Checked>), With<Checkbox>>,
     children: &Children,
-    wanted: bool,
+    wanted: Option<bool>,
 ) {
     for child in children.iter() {
         if let Ok((entity, checked)) = checkboxes.get(*child)
-            && checked != wanted
+            && checked != (wanted == Some(true))
         {
-            if wanted {
+            if wanted == Some(true) {
                 commands.entity(entity).insert(Checked);
             } else {
                 commands.entity(entity).remove::<Checked>();

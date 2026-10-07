@@ -1,52 +1,54 @@
 //! Adapter from the concrete doctor implementation to the application port.
 
+use crate::bootstrap::ensure_bootstrap_at;
+use crate::doctor::{DoctorEnv, explain_check, fix_with, list_checks, run_with};
+use crate::{bootstrap, doctor};
+use infiltrator_contract::doctor::{
+    BootstrapReport, BootstrapStep, DoctorCheckMeta, DoctorCheckResult, DoctorFixAction,
+    DoctorFixReport, DoctorReport, DoctorStatus,
+};
 use infiltrator_ports::doctor::DoctorPort;
 use infiltrator_ports::error::PortError;
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
 pub struct MihomoDoctor {
-    environment: crate::doctor::DoctorEnv,
+    environment: DoctorEnv,
 }
 
 impl MihomoDoctor {
     pub fn detect() -> anyhow::Result<Self> {
         Ok(Self {
-            environment: crate::doctor::DoctorEnv::detect()?,
+            environment: DoctorEnv::detect()?,
         })
     }
 
     pub fn with_home(home: PathBuf) -> Self {
         Self {
-            environment: crate::doctor::DoctorEnv::with_home(home),
+            environment: DoctorEnv::with_home(home),
         }
     }
 }
 
 #[async_trait::async_trait]
 impl DoctorPort for MihomoDoctor {
-    async fn run(
-        &self,
-        filter: Option<String>,
-    ) -> Result<infiltrator_contract::doctor::DoctorReport, PortError> {
+    async fn run(&self, filter: Option<String>) -> Result<DoctorReport, PortError> {
         Ok(convert_report(
-            crate::doctor::run_with(&self.environment, filter.as_deref()).await,
+            run_with(&self.environment, filter.as_deref()).await,
         ))
     }
 
-    async fn fix(
-        &self,
-        filter: Option<String>,
-    ) -> Result<infiltrator_contract::doctor::DoctorFixReport, PortError> {
-        crate::doctor::fix_with(&self.environment, filter.as_deref())
+    async fn fix(&self, filter: Option<String>) -> Result<DoctorFixReport, PortError> {
+        fix_with(&self.environment, filter.as_deref())
             .await
             .map(convert_fix_report)
             .map_err(adapter_error)
     }
 
-    fn list_checks(&self) -> Vec<infiltrator_contract::doctor::DoctorCheckMeta> {
-        crate::doctor::list_checks()
+    fn list_checks(&self) -> Vec<DoctorCheckMeta> {
+        list_checks()
             .iter()
-            .map(|meta| infiltrator_contract::doctor::DoctorCheckMeta {
+            .map(|meta| DoctorCheckMeta {
                 id: meta.id.to_owned(),
                 category: meta.category.to_owned(),
                 summary: meta.summary.to_owned(),
@@ -59,12 +61,9 @@ impl DoctorPort for MihomoDoctor {
             .collect()
     }
 
-    fn explain(
-        &self,
-        check_id: &str,
-    ) -> Result<infiltrator_contract::doctor::DoctorCheckMeta, PortError> {
-        let meta = crate::doctor::explain_check(check_id).map_err(adapter_error)?;
-        Ok(infiltrator_contract::doctor::DoctorCheckMeta {
+    fn explain(&self, check_id: &str) -> Result<DoctorCheckMeta, PortError> {
+        let meta = explain_check(check_id).map_err(adapter_error)?;
+        Ok(DoctorCheckMeta {
             id: meta.id.to_owned(),
             category: meta.category.to_owned(),
             summary: meta.summary.to_owned(),
@@ -76,43 +75,46 @@ impl DoctorPort for MihomoDoctor {
         })
     }
 
-    async fn bootstrap(&self) -> Result<infiltrator_contract::doctor::BootstrapReport, PortError> {
-        crate::bootstrap::ensure_bootstrap_at(self.environment.home())
+    async fn bootstrap(&self) -> Result<BootstrapReport, PortError> {
+        ensure_bootstrap_at(self.environment.home())
             .await
             .map(convert_bootstrap_report)
             .map_err(adapter_error)
     }
 }
 
-fn adapter_error(error: impl std::fmt::Display) -> PortError {
-    PortError::Failed(error.to_string())
+fn adapter_error(error: anyhow::Error) -> PortError {
+    if let Some(failure) = error.downcast_ref::<PortError>() {
+        return failure.clone();
+    }
+    let message = format!("{error:#}");
+    match error
+        .chain()
+        .find_map(|cause| cause.downcast_ref::<Error>())
+        .map(Error::kind)
+    {
+        Some(ErrorKind::PermissionDenied) => PortError::PermissionDenied(message),
+        Some(ErrorKind::NotFound) => PortError::NotFound(message),
+        Some(_) => PortError::Io(message),
+        None => PortError::Failed(message),
+    }
 }
 
-fn convert_report(
-    report: crate::doctor::DoctorReport,
-) -> infiltrator_contract::doctor::DoctorReport {
-    infiltrator_contract::doctor::DoctorReport {
+fn convert_report(report: doctor::DoctorReport) -> DoctorReport {
+    DoctorReport {
         started_at: report.started_at,
         finished_at: report.finished_at,
         checks: report
             .checks
             .into_iter()
-            .map(|check| infiltrator_contract::doctor::DoctorCheckResult {
+            .map(|check| DoctorCheckResult {
                 id: check.id,
                 category: check.category,
                 status: match check.status {
-                    crate::doctor::DoctorStatus::Pass => {
-                        infiltrator_contract::doctor::DoctorStatus::Pass
-                    }
-                    crate::doctor::DoctorStatus::Warn => {
-                        infiltrator_contract::doctor::DoctorStatus::Warn
-                    }
-                    crate::doctor::DoctorStatus::Fail => {
-                        infiltrator_contract::doctor::DoctorStatus::Fail
-                    }
-                    crate::doctor::DoctorStatus::Skip => {
-                        infiltrator_contract::doctor::DoctorStatus::Skip
-                    }
+                    doctor::DoctorStatus::Pass => DoctorStatus::Pass,
+                    doctor::DoctorStatus::Warn => DoctorStatus::Warn,
+                    doctor::DoctorStatus::Fail => DoctorStatus::Fail,
+                    doctor::DoctorStatus::Skip => DoctorStatus::Skip,
                 },
                 summary: check.summary,
                 detail: check.detail,
@@ -122,14 +124,12 @@ fn convert_report(
     }
 }
 
-fn convert_fix_report(
-    report: crate::doctor::DoctorFixReport,
-) -> infiltrator_contract::doctor::DoctorFixReport {
-    infiltrator_contract::doctor::DoctorFixReport {
+fn convert_fix_report(report: doctor::DoctorFixReport) -> DoctorFixReport {
+    DoctorFixReport {
         actions: report
             .actions
             .into_iter()
-            .map(|action| infiltrator_contract::doctor::DoctorFixAction {
+            .map(|action| DoctorFixAction {
                 id: action.id,
                 summary: action.summary,
             })
@@ -137,14 +137,12 @@ fn convert_fix_report(
     }
 }
 
-fn convert_bootstrap_report(
-    report: crate::bootstrap::BootstrapReport,
-) -> infiltrator_contract::doctor::BootstrapReport {
-    infiltrator_contract::doctor::BootstrapReport {
+fn convert_bootstrap_report(report: bootstrap::BootstrapReport) -> BootstrapReport {
+    BootstrapReport {
         steps: report
             .steps
             .into_iter()
-            .map(|step| infiltrator_contract::doctor::BootstrapStep {
+            .map(|step| BootstrapStep {
                 id: step.id.to_owned(),
                 executed: step.executed,
                 detail: step.detail,
@@ -152,3 +150,7 @@ fn convert_bootstrap_report(
             .collect(),
     }
 }
+
+#[cfg(test)]
+#[path = "doctor_port_test.rs"]
+mod tests;

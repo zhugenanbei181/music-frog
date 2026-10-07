@@ -3,13 +3,12 @@
 //! Provides Unicode-grapheme safe tail truncation, middle truncation (e.g. for URLs,
 //! IPs, hashes, proxy node names), path truncation, and breakpoint-adaptive rule application.
 
+use crate::responsive::ResponsiveContext;
+use crate::theme::Breakpoint;
 use bevy::ecs::component::Component;
 use bevy::ecs::system::{Query, Res};
 use bevy::ui::widget::Text;
 use unicode_segmentation::UnicodeSegmentation;
-
-use crate::responsive::ResponsiveContext;
-use crate::theme::Breakpoint;
 
 /// Rules for smart text truncation.
 #[derive(Clone, Debug, PartialEq, Eq)]

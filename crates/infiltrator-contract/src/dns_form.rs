@@ -10,6 +10,7 @@ use crate::dns::{
     DnsSwitchField, DnsUpstreamProtocol, join_server_list, parse_server_list,
 };
 use crate::surface_snapshot::DnsPageSnapshot;
+use std::net::{IpAddr, Ipv4Addr};
 
 /// One editable field of the shared DNS workbench form.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -230,6 +231,9 @@ impl DnsWorkbenchForm {
     pub fn patch(&self) -> DnsSettingsPatch {
         let fake_ip_range = self.fake_ip_range.trim();
         DnsSettingsPatch {
+            expected_profile: None,
+            expected_hosts: None,
+            remove_legacy_hosts: false,
             switches: Some(self.switches),
             enhanced_mode: Some(self.enhanced_mode),
             filter_mode: Some(self.filter_mode),
@@ -350,16 +354,14 @@ pub fn is_ip_literal(entry: &str) -> bool {
         let Some(closing) = host.find(']') else {
             return false;
         };
-        return host[1..closing].parse::<std::net::IpAddr>().is_ok();
+        return host[1..closing].parse::<IpAddr>().is_ok();
     }
-    if host.parse::<std::net::IpAddr>().is_ok() {
+    if host.parse::<IpAddr>().is_ok() {
         return true;
     }
     match host.rsplit_once(':') {
         Some((head, port)) if !head.contains(':') => {
-            !port.is_empty()
-                && port.parse::<u16>().is_ok()
-                && head.parse::<std::net::Ipv4Addr>().is_ok()
+            !port.is_empty() && port.parse::<u16>().is_ok() && head.parse::<Ipv4Addr>().is_ok()
         }
         // A bare IPv6 literal contains colons and is accepted by the host.
         Some(_) => true,
@@ -375,9 +377,9 @@ pub fn is_cidr_literal(entry: &str) -> bool {
     let Ok(prefix) = prefix.trim().parse::<u8>() else {
         return false;
     };
-    match address.trim().parse::<std::net::IpAddr>() {
-        Ok(std::net::IpAddr::V4(_)) => prefix <= 32,
-        Ok(std::net::IpAddr::V6(_)) => prefix <= 128,
+    match address.trim().parse::<IpAddr>() {
+        Ok(IpAddr::V4(_)) => prefix <= 32,
+        Ok(IpAddr::V6(_)) => prefix <= 128,
         Err(_) => false,
     }
 }

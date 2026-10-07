@@ -5,10 +5,16 @@ use std::borrow::Cow;
 
 pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
     match key {
+        "proxies_test_group" => "组测速".into(),
+        "proxies_summary" => "代理策略 · 共 {groups} 个策略组 ({nodes} 个节点)".into(),
+        "proxies_testing" => "正在全面测速中...".into(),
+        "proxies_test_ready" => "测速就绪".into(),
+        "proxies_active_exit_label" => "当前出口:".into(),
+        "proxies_group_current" => "选中: {node}".into(),
         // Category 1: DNS leak cross-source probe (DUAL-14-08)
         "dns_leak_probe_title" => "DNS 泄漏多源交叉探测".into(),
         "dns_leak_probe_desc" => {
-            "向每个已配置的回显权威区发起随机子域解析，交叉比对观测到的解析器身份；不一致时只列出事实，不下结论"
+            "查询每个已配置的回显权威并交叉比对观测到的解析器身份；不一致时只列出事实，不下结论"
                 .into()
         }
         "dns_leak_btn_run" => "发起交叉探测".into(),
@@ -51,6 +57,14 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_flush_failed" => "清理失败".into(),
 
         // Category 1c: Fake-IP pool, hosts editor & latency policy (DUAL-14-06/10/11)
+        "dns_fakeip_pool_no_matches" => "没有匹配的映射".into(),
+        "dns_fakeip_pool_unsupported_detail" => "宿主未提供映射事实 ({reason})".into(),
+        "dns_fakeip_pool_unavailable" => "内核连接表不可用 ({reason})".into(),
+        "dns_fakeip_pool_count_range" => "显示 {shown} / 共观测 {total} 条 (网段 {range})".into(),
+        "dns_latency_unsupported_detail" => "宿主未提供逐 Nameserver 延迟事实，不填充假延迟 ({reason})".into(),
+        "dns_self_heal_fix_listen" => "修复 DNS 监听端口".into(),
+        "dns_self_heal_fix_probe" => "重新探测上游".into(),
+        "dns_self_heal_fix_settings" => "应用 DNS 设置".into(),
         "dns_fakeip_pool_title" => "Fake-IP 映射池实时检索".into(),
         "dns_fakeip_pool_desc" => "检索运行中内核实时连接的域名 ↔ 虚拟 IP 绑定".into(),
         "dns_fakeip_pool_search" => "搜索域名或虚拟 IP".into(),
@@ -86,7 +100,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "dns_self_heal_topology" => "拓扑抗泄漏审计".into(),
         "dns_self_heal_fix" => "建议修复: {fix}".into(),
         "dns_hosts_title" => "自定义 Hosts 映射编辑".into(),
-        "dns_hosts_desc" => "写入 dns.hosts：值为 IP、lan 或别名域名；同一域名可配置多个 IP".into(),
+        "dns_hosts_desc" => "配置静态 Hosts：值为 IP、lan 或别名域名；多地址映射须全部为 IP".into(),
         "dns_hosts_address" => "地址 (IP / lan / 别名域名)".into(),
         "dns_hosts_domain" => "域名".into(),
         "dns_hosts_add" => "添加映射".into(),
@@ -324,6 +338,8 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "speedtest_target_url_placeholder" => "留空使用共享引擎默认目标".into(),
         "speedtest_concurrency_label" => "并发数".into(),
         "speedtest_detail_open" => "结果透视".into(),
+        "speedtest_detail_unsupported" => "宿主不支持测速".into(),
+        "speedtest_detail_unavailable" => "测速引擎不可用".into(),
         "speedtest_detail_title" => "测速结果明细".into(),
         "speedtest_detail_empty" => "暂无测速结果".into(),
         "speedtest_detail_failed" => "测速失败".into(),
@@ -457,9 +473,9 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "pac_btn_compile" => "编译并验证 PAC".into(),
         "pac_compile_success" => "PAC 脚本编译成功并已热加载".into(),
         // Wave 5 Category 1: Rule Hit Counter & Stale Rule Analyzer
-        "rule_hit_title" => "分流规则命中统计与冷门审计".into(),
+        "rule_hit_title" => "本地追踪命中统计与规则审计".into(),
         "rule_hit_desc" => {
-            "统计当前会话各规则累计命中频次，快速识别并清理 0 次命中的冷门规则".into()
+            "计数与耗时来自当前配置文档的本地模拟。零次本地命中不代表规则未被真实流量使用。".into()
         }
         "rule_hit_btn_audit" => "审计冷门规则".into(),
         "rule_hit_btn_clean" => "一键停用 0 命中规则".into(),
@@ -470,7 +486,7 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_cidr_conflicts" => "CIDR 掩码重叠".into(),
         "rule_hit_match_latency" => "平均匹配耗时".into(),
         "rule_hit_last_hit" => "最近命中规则".into(),
-        "rule_hit_none" => "暂无命中数据".into(),
+        "rule_hit_none" => "暂无本地追踪命中".into(),
 
         // Wave 5 Category 2: Latency Time-Series & Stability Radar
         "latency_radar_title" => "节点时序延迟与稳定性雷达".into(),
@@ -728,6 +744,22 @@ pub(super) fn translate_zh_cn_ext(key: &str) -> Cow<'static, str> {
         "conn_drawer_kernel_geo" => "目标地理归属（/connections destinationGeoIP）".into(),
         "conn_drawer_kernel_not_evaluated" => "内核未对本次连接求值（需 GEOIP/IP-ASN 规则）".into(),
         "conn_drawer_kernel_no_result" => "内核已求值 · 无该 IP 的记录".into(),
+        "protocol_form_no_draft" => "尚无节点草稿".into(),
+        "protocol_form_valid" => "协议校验通过".into(),
+        "protocol_form_notes_empty" => "无跨版本提示".into(),
+        "protocol_form_no_codec" => "尚未执行编解码转换".into(),
+        "protocol_form_no_preview" => "尚无分享链接预览".into(),
+        "protocol_form_no_gaps" => "分享链接可完整表达当前草稿".into(),
+        "protocol_form_gaps" => "分享链接不携带: {fields}".into(),
+        "protocol_form_chain_empty" => "无前置跳板链路".into(),
+        "protocol_form_trust_empty" => "未配置自定义证书信任".into(),
+        "protocol_form_lossless" => "结构保真".into(),
+        "protocol_form_lossy" => "结构有损".into(),
+        "protocol_form_saving" => "正在保存节点…".into(),
+        "protocol_form_audit" => "{detail} · {nodes} 节点 · 未知字段 {unknown} · {verdict}".into(),
+        "custom_node_tls" => "TLS".into(),
+        "mini_hud_empty_exit" => "未选择出口节点".into(),
+        "protocol_form_no_feedback" => "宿主命令通道不提供终态回执，未提交操作".into(),
         _ => key.to_string().into(),
     }
 }

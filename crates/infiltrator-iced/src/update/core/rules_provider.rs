@@ -12,13 +12,17 @@ use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
-use infiltrator_application::rule_provider_application::RuleProviderApplication;
+use infiltrator_application::rule_provider_application::{
+    ProviderUnpackPlan, RuleProviderApplication,
+};
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::provider_cache::ProviderCachePurge;
-use infiltrator_domain::rules::RuleProviders;
+use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
 use infiltrator_domain::rules::provider_store::{
-    RuleProviderDeclaration, parse_rule_provider_declarations,
+    RuleProviderDeclaration, deconstruct_provider_payload, parse_rule_provider_declarations,
 };
+use infiltrator_domain::rules::{RuleProviders, diff_rule_provider_contents};
+use infiltrator_ports::runtime_gateway::RuntimeGateway;
 
 impl AppState {
     /// DUAL-11-06/07: the single entry point for every provider maintenance
@@ -80,16 +84,14 @@ impl AppState {
         };
         let cache = self.runtime.rule_provider_cache_port.clone();
         let gateway = self.runtime.runtime.clone();
-        let target = infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET.to_owned();
+        let target = DEFAULT_RULE_TARGET.to_owned();
         Task::perform(
             async move {
                 let application = RuleProviderApplication::new(cache);
-                let view: Option<&dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-                    match gateway.as_ref() {
-                        Some(runtime) => Some(runtime.as_ref()
-                            as &dyn infiltrator_ports::runtime_gateway::RuntimeGateway),
-                        None => None,
-                    };
+                let view: Option<&dyn RuntimeGateway> = match gateway.as_ref() {
+                    Some(runtime) => Some(runtime.as_ref() as &dyn RuntimeGateway),
+                    None => None,
+                };
                 application
                     .deconstruct(&declaration, &target, view)
                     .await
@@ -101,23 +103,18 @@ impl AppState {
 
     fn finish_rule_provider_unpack(
         &mut self,
-        result: Result<
-            infiltrator_application::rule_provider_application::ProviderUnpackPlan,
-            InfiltratorError,
-        >,
+        result: Result<ProviderUnpackPlan, InfiltratorError>,
     ) -> Task<Message> {
         self.editor.provider_unpack.is_unpacking = false;
         match result {
             Ok(plan) => {
+                if !self.editor.rule_list.prepend(plan.entries.iter().cloned()) {
+                    return Task::none();
+                }
                 let imported = plan.imported();
                 let origin = plan.origin.as_str();
                 // Same shared reduction as the application path: unpacked
                 // provider rules take the highest priority slot.
-                infiltrator_domain::rules::edit::prepend_rules(
-                    &mut self.editor.rules,
-                    plan.entries.iter().cloned(),
-                );
-                self.editor.rules_dirty = true;
                 self.rebuild_rules_render_cache();
                 self.apply_rules_filter();
                 self.editor.provider_unpack.unpacked_rules_count = self
@@ -202,21 +199,19 @@ impl AppState {
             async move {
                 let local = match cache.as_ref() {
                     Some(cache) => match cache.read_provider(&declaration).await {
-                        Ok(Some(entry)) => {
-                            infiltrator_domain::rules::provider_store::deconstruct_provider_payload(
-                                &entry.bytes,
-                                &declaration,
-                                infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET,
-                            )
-                            .map(|deconstructed| {
-                                deconstructed
-                                    .entries
-                                    .into_iter()
-                                    .map(|entry| entry.rule)
-                                    .collect::<Vec<String>>()
-                            })
-                            .map_err(|error| InfiltratorError::Config(error.to_string()))?
-                        }
+                        Ok(Some(entry)) => deconstruct_provider_payload(
+                            &entry.bytes,
+                            &declaration,
+                            DEFAULT_RULE_TARGET,
+                        )
+                        .map(|deconstructed| {
+                            deconstructed
+                                .entries
+                                .into_iter()
+                                .map(|entry| entry.rule)
+                                .collect::<Vec<String>>()
+                        })
+                        .map_err(|error| InfiltratorError::Config(error.to_string()))?,
                         Ok(None) => Vec::new(),
                         Err(error) => return Err(InfiltratorError::Config(error.to_string())),
                     },
@@ -235,7 +230,7 @@ impl AppState {
                         declaration.name
                     )));
                 };
-                Ok(infiltrator_domain::rules::diff_rule_provider_contents(
+                Ok(diff_rule_provider_contents(
                     &declaration.name,
                     &local,
                     &remote,

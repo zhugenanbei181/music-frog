@@ -1,4 +1,6 @@
+use crate::runtime_proxy::deserialize_proxy_map;
 use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::runtime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -49,13 +51,13 @@ pub struct DnsConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct TunConfig {
     #[serde(default)]
-    pub enable: bool,
+    pub enable: Option<bool>,
     #[serde(default)]
-    pub stack: String,
+    pub stack: Option<String>,
     #[serde(rename = "auto-route", default)]
-    pub auto_route: bool,
+    pub auto_route: Option<bool>,
     #[serde(rename = "strict-route", default)]
-    pub strict_route: bool,
+    pub strict_route: Option<bool>,
     #[serde(default)]
     pub mtu: Option<u32>,
 }
@@ -82,34 +84,27 @@ pub struct ConfigResponse {
     pub log_level: String,
     #[serde(rename = "allow-lan")]
     pub allow_lan: bool,
-    #[serde(default = "default_ipv6_enabled")]
-    pub ipv6: bool,
-    #[serde(rename = "bind-address", default = "default_bind_address")]
-    pub bind_address: String,
-    #[serde(rename = "lan-allowed-ips", default)]
-    pub lan_allowed_ips: Vec<String>,
-    #[serde(rename = "lan-disallowed-ips", default)]
-    pub lan_disallowed_ips: Vec<String>,
-    #[serde(rename = "skip-auth-prefixes", default)]
-    pub skip_auth_prefixes: Vec<String>,
     #[serde(default)]
-    pub authentication: Vec<String>,
+    pub ipv6: Option<bool>,
+    #[serde(rename = "bind-address", default)]
+    pub bind_address: Option<String>,
+    #[serde(rename = "lan-allowed-ips", default)]
+    pub lan_allowed_ips: Option<Vec<String>>,
+    #[serde(rename = "lan-disallowed-ips", default)]
+    pub lan_disallowed_ips: Option<Vec<String>>,
+    #[serde(rename = "skip-auth-prefixes", default)]
+    pub skip_auth_prefixes: Option<Vec<String>>,
+    #[serde(default)]
+    pub authentication: Option<Vec<String>>,
     pub tun: Option<TunConfig>,
     pub sniffer: Option<SnifferConfig>,
     pub dns: Option<DnsConfig>,
     pub script: Option<serde_json::Value>,
 }
 
-fn default_bind_address() -> String {
-    "*".to_owned()
-}
-
-fn default_ipv6_enabled() -> bool {
-    true
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ProxiesResponse {
+    #[serde(deserialize_with = "deserialize_proxy_map")]
     pub proxies: HashMap<String, Proxy>,
 }
 
@@ -248,7 +243,7 @@ where
     Ok(opt.unwrap_or_default())
 }
 
-impl From<TrafficData> for infiltrator_domain::runtime::TrafficData {
+impl From<TrafficData> for runtime::TrafficData {
     fn from(value: TrafficData) -> Self {
         Self {
             up: value.up,
@@ -257,7 +252,7 @@ impl From<TrafficData> for infiltrator_domain::runtime::TrafficData {
     }
 }
 
-impl From<MemoryData> for infiltrator_domain::runtime::MemoryData {
+impl From<MemoryData> for runtime::MemoryData {
     fn from(value: MemoryData) -> Self {
         Self {
             in_use: value.in_use,
@@ -266,7 +261,7 @@ impl From<MemoryData> for infiltrator_domain::runtime::MemoryData {
     }
 }
 
-impl From<ConnectionMetadata> for infiltrator_domain::runtime::ConnectionMetadata {
+impl From<ConnectionMetadata> for runtime::ConnectionMetadata {
     fn from(value: ConnectionMetadata) -> Self {
         Self {
             network: value.network,
@@ -285,7 +280,7 @@ impl From<ConnectionMetadata> for infiltrator_domain::runtime::ConnectionMetadat
     }
 }
 
-impl From<Connection> for infiltrator_domain::runtime::Connection {
+impl From<Connection> for runtime::Connection {
     fn from(value: Connection) -> Self {
         Self {
             id: value.id,
@@ -300,7 +295,7 @@ impl From<Connection> for infiltrator_domain::runtime::Connection {
     }
 }
 
-impl From<ConnectionSnapshot> for infiltrator_domain::runtime::ConnectionSnapshot {
+impl From<ConnectionSnapshot> for runtime::ConnectionSnapshot {
     fn from(value: ConnectionSnapshot) -> Self {
         Self {
             download_total: value.download_total,
@@ -310,7 +305,7 @@ impl From<ConnectionSnapshot> for infiltrator_domain::runtime::ConnectionSnapsho
     }
 }
 
-impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionsResponse {
+impl From<ConnectionsResponse> for runtime::ConnectionsResponse {
     fn from(value: ConnectionsResponse) -> Self {
         Self {
             download_total: value.download_total,
@@ -320,7 +315,7 @@ impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionsRespo
     }
 }
 
-impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionSnapshot {
+impl From<ConnectionsResponse> for runtime::ConnectionSnapshot {
     fn from(value: ConnectionsResponse) -> Self {
         Self {
             download_total: value.download_total,
@@ -330,7 +325,7 @@ impl From<ConnectionsResponse> for infiltrator_domain::runtime::ConnectionSnapsh
     }
 }
 
-impl From<ProxyProvider> for infiltrator_domain::runtime::ProxyProvider {
+impl From<ProxyProvider> for runtime::ProxyProvider {
     fn from(value: ProxyProvider) -> Self {
         Self {
             name: value.name,
@@ -341,7 +336,7 @@ impl From<ProxyProvider> for infiltrator_domain::runtime::ProxyProvider {
     }
 }
 
-impl From<RuleProvider> for infiltrator_domain::runtime::RuleProvider {
+impl From<RuleProvider> for runtime::RuleProvider {
     fn from(value: RuleProvider) -> Self {
         Self {
             name: value.name,
@@ -354,7 +349,7 @@ impl From<RuleProvider> for infiltrator_domain::runtime::RuleProvider {
     }
 }
 
-impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
+impl From<ConfigResponse> for runtime::ConfigSnapshot {
     fn from(value: ConfigResponse) -> Self {
         Self {
             mode: value.mode,
@@ -367,34 +362,32 @@ impl From<ConfigResponse> for infiltrator_domain::runtime::ConfigSnapshot {
             lan_allowed_ips: value.lan_allowed_ips,
             lan_disallowed_ips: value.lan_disallowed_ips,
             skip_auth_prefixes: value.skip_auth_prefixes,
-            authentication_enabled: !value.authentication.is_empty(),
-            authentication_user_count: value.authentication.len(),
+            authentication_enabled: value
+                .authentication
+                .as_ref()
+                .map(|entries| !entries.is_empty()),
+            authentication_user_count: value.authentication.as_ref().map(Vec::len),
             authentication_username: value
                 .authentication
-                .first()
+                .as_ref()
+                .and_then(|entries| entries.first())
                 .and_then(|entry| entry.split_once(':'))
                 .map(|(username, _)| username.to_owned()),
-            tun: value
-                .tun
-                .map(|tun| infiltrator_domain::runtime::TunSnapshot {
-                    enable: tun.enable,
-                    stack: tun.stack,
-                    auto_route: tun.auto_route,
-                    strict_route: tun.strict_route,
-                    mtu: tun.mtu,
-                }),
-            dns: value
-                .dns
-                .map(|dns| infiltrator_domain::runtime::DnsSnapshot {
-                    nameserver: dns.nameserver,
-                    fallback: dns.fallback.unwrap_or_default(),
-                    enhanced_mode: dns.enhanced_mode,
-                }),
-            sniffer: value
-                .sniffer
-                .map(|sniffer| infiltrator_domain::runtime::SnifferSnapshot {
-                    enable: sniffer.enable,
-                }),
+            tun: value.tun.map(|tun| runtime::TunSnapshot {
+                enable: tun.enable,
+                stack: tun.stack,
+                auto_route: tun.auto_route,
+                strict_route: tun.strict_route,
+                mtu: tun.mtu,
+            }),
+            dns: value.dns.map(|dns| runtime::DnsSnapshot {
+                nameserver: dns.nameserver,
+                fallback: dns.fallback.unwrap_or_default(),
+                enhanced_mode: dns.enhanced_mode,
+            }),
+            sniffer: value.sniffer.map(|sniffer| runtime::SnifferSnapshot {
+                enable: sniffer.enable,
+            }),
             script: value.script,
         }
     }

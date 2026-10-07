@@ -12,9 +12,8 @@
 //! [`DialerChainView::chain_line`] renders the real loop path with a warning
 //! marker instead of a clean arrow chain.
 
-use serde::{Deserialize, Serialize};
-
 use crate::protocol_fidelity::ProtocolFamily;
+use serde::{Deserialize, Serialize};
 
 /// What a chain hop points at.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

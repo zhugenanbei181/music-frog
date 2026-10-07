@@ -15,6 +15,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::vpn_service::VpnServicePort;
 use mihomo_platform::android_bridge::{AndroidBridge, get_android_bridge};
 use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(target_os = "android")]
+use std::thread::Builder;
 
 static SHARED_VPN_STATE: OnceLock<Arc<Mutex<VpnSessionSnapshot>>> = OnceLock::new();
 
@@ -116,7 +118,7 @@ impl AndroidVpnServicePort {
             true,
         ));
         let state = self.clone();
-        let spawn_result = std::thread::Builder::new()
+        let spawn_result = Builder::new()
             .name("infiltrator-android-vpn".to_owned())
             .spawn(move || {
                 let exit_code = tun2proxy::mobile_run(args, mtu, false);

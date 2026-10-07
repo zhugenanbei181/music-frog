@@ -1,12 +1,11 @@
 //! Canonical shell design tokens shared by both surfaces (DUAL-15-14).
 //!
-//! The Iced desktop look is the product reference. This module carries the
+//! Both peer products share this neutral authority. This module carries the
 //! numbers once: Iced builds its `view::theme` token constants directly from
 //! [`skin_core`] and the spacing/radius/metric ladders below (compiler-bound),
 //! while the business-agnostic Bevy widget layer — which by charter cannot
 //! depend on this crate — mirrors the same numbers, enforced by the dual
-//! headless test `the_widget_palette_mirrors_the_shared_design_tokens` and the
-//! numeric source scan in `scripts/quality/multimodal-shell-guard.py`.
+//! headless test `the_widget_palette_mirrors_the_shared_design_tokens`.
 //!
 //! The scope is deliberately the tokens both surfaces actually consume:
 //! the core skin palette (canvas / surfaces / ink / accent / semantic colors),
@@ -52,7 +51,7 @@ pub struct SkinCorePalette {
     pub control_bg: RgbaToken,
     /// Primary reading ink.
     pub ink: RgbaToken,
-    /// Dimmed ink (captions, secondary labels); carries its own alpha.
+    /// Secondary reading ink; the light skin stays opaque for readable contrast.
     pub ink_dim: RgbaToken,
     /// Accent fill / accent ink.
     pub accent: RgbaToken,
@@ -87,7 +86,7 @@ pub const fn skin_core(skin: ThemeSkin) -> SkinCorePalette {
             card_border: RgbaToken::rgba(0.18, 0.22, 0.20, 0.10),
             control_bg: RgbaToken::rgba(0.0, 0.0, 0.0, 0.05),
             ink: RgbaToken::rgb(0.12, 0.15, 0.14),
-            ink_dim: RgbaToken::rgba(0.24, 0.28, 0.26, 0.65),
+            ink_dim: RgbaToken::rgb(0.24, 0.28, 0.26),
             accent: RgbaToken::rgb(0.04, 0.44, 0.88),
             on_accent: RgbaToken::rgb(1.0, 1.0, 1.0),
             success: RgbaToken::rgb(0.18, 0.68, 0.38),

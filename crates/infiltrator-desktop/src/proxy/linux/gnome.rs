@@ -1,6 +1,8 @@
 use super::{SystemProxyState, parse_endpoint};
 use anyhow::anyhow;
+use std::fmt::{Display, Formatter};
 use std::process::Command;
+use std::{error, fmt};
 
 /// Linux 桌面环境不受支持错误（保留兼容）。
 #[derive(Debug)]
@@ -9,8 +11,8 @@ pub struct UnsupportedDesktopError {
     pub backend: &'static str,
 }
 
-impl std::fmt::Display for UnsupportedDesktopError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for UnsupportedDesktopError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "system proxy control requires GNOME ({0} not found); \
@@ -21,7 +23,7 @@ impl std::fmt::Display for UnsupportedDesktopError {
     }
 }
 
-impl std::error::Error for UnsupportedDesktopError {}
+impl error::Error for UnsupportedDesktopError {}
 
 /// GNOME 桌面环境代理后端（基于 `gsettings`）。
 /// 检查 `gsettings` 是否在系统中可用。

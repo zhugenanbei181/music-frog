@@ -1,13 +1,12 @@
-//! GPU accelerated 2D vertex mesh generation and WGSL shader pipeline for telemetry.
+//! 2D vertex mesh generation and modular WESL telemetry shader prototype.
 //!
-//! Provides zero-cost geometry compilation from high-level telemetry data into
+//! Compiles high-level telemetry geometry into
 //! standard Bevy `Mesh` buffers (`TriangleList`) with positions, vertex colors,
 //! and texture coordinates for hardware-accelerated rendering.
 
+use super::bezier::PlotPoint;
 use bevy::asset::RenderAssetUsages;
 use bevy::render::mesh::{Indices, Mesh, PrimitiveTopology};
-
-use super::bezier::PlotPoint;
 
 /// A single vertex for 2D GPU telemetry rendering.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -275,33 +274,5 @@ pub fn build_bar_mesh(
     mesh
 }
 
-/// WGSL shader source code for custom GPU telemetry rendering pipelines.
-pub const TELEMETRY_SHADER_WGSL: &str = r#"
-struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) color: vec4<f32>,
-    @location(2) uv: vec2<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-    @location(1) uv: vec2<f32>,
-};
-
-@vertex
-fn vertex(in: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    out.clip_position = vec4<f32>(in.position, 1.0);
-    out.color = in.color;
-    out.uv = in.uv;
-    return out;
-}
-
-@fragment
-fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Smooth gradient fade and subtle scanline / edge glow
-    var alpha = in.color.a * (1.0 - in.uv.y * 0.75);
-    return vec4<f32>(in.color.rgb, alpha);
-}
-"#;
+/// Modular shader prototype; its source is not an installed GPU pipeline.
+pub const TELEMETRY_SHADER_WESL: &str = include_str!("../shaders/telemetry.wesl");

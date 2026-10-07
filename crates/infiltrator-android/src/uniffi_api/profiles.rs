@@ -2,15 +2,16 @@
 //! deleting profiles, plus subscription metadata management. Selection and
 //! save go through the session apply transaction in [`super::session`].
 
-use chrono::Utc;
-
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_session::apply_current_profile_status;
 use crate::host_support::{
     build_config_manager, get_runtime, map_anyhow_error, map_application_failure,
     subscription_source,
 };
+use chrono::Utc;
 use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_domain::config::validate_yaml;
+use infiltrator_domain::profiles;
 use infiltrator_domain::profiles::{ProfileInfo, sanitize_profile_name};
 use std::sync::Arc;
 
@@ -190,7 +191,7 @@ pub async fn profile_save(name: String, content: String, activate: bool) -> FfiS
                 Ok(value) => value,
                 Err(err) => return map_anyhow_error(err),
             };
-            if let Err(err) = infiltrator_domain::config::validate_yaml(&content) {
+            if let Err(err) = validate_yaml(&content) {
                 return map_anyhow_error(err);
             }
 
@@ -359,7 +360,7 @@ fn profile_to_summary(profile: ProfileInfo) -> ProfileSummary {
     }
 }
 
-fn profile_detail_to_record(profile: infiltrator_domain::profiles::ProfileDetail) -> ProfileDetail {
+fn profile_detail_to_record(profile: profiles::ProfileDetail) -> ProfileDetail {
     ProfileDetail {
         name: profile.name,
         active: profile.active,

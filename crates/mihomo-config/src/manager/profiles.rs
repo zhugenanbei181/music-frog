@@ -1,13 +1,6 @@
 //! Profile CRUD: load/save/list/delete profile YAML files and read/write
 //! per-profile metadata.
 
-use std::path::PathBuf;
-
-use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::{MihomoError, Result};
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
-
 use super::ConfigManager;
 use super::metadata::{
     apply_profile_metadata, ensure_table, set_bool, set_optional_datetime, set_optional_i64,
@@ -17,6 +10,17 @@ use super::paths::sanitized_profile_key;
 use super::subscription_store::{delete_subscription_url, store_subscription_url};
 use crate::profile::Profile;
 use crate::yaml;
+use infiltrator_ports::secure_store::SecureStore;
+use mihomo_api::error::{MihomoError, Result};
+use std::io::ErrorKind;
+use std::path::PathBuf;
+use std::process::id;
+use std::str::from_utf8;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{io, path};
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
+use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn load(&self, profile: &str) -> Result<String> {
@@ -32,12 +36,13 @@ impl<S: SecureStore> ConfigManager<S> {
         let path = self.profile_yaml_path(profile).await?;
         match fs::read_to_string(backup_path(&path)).await {
             Ok(content) => Ok(Some(content)),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error.into()),
         }
     }
 
     pub async fn save(&self, profile: &str, content: &str) -> Result<()> {
+        let _guard = self.lock_profile_writes().await;
         yaml::validate(content)?;
         let path = self.profile_yaml_path(profile).await?;
         if fs::try_exists(&path).await? {
@@ -55,13 +60,14 @@ impl<S: SecureStore> ConfigManager<S> {
     /// backup is deliberately one-shot and is cleared after the caller has
     /// successfully applied/rebuilt the new configuration.
     pub async fn restore_backup(&self, profile: &str) -> Result<bool> {
+        let _guard = self.lock_profile_writes().await;
         let path = self.profile_yaml_path(profile).await?;
         let backup = backup_path(&path);
         if !fs::try_exists(&backup).await? {
             return Ok(false);
         }
         let previous = fs::read(&backup).await?;
-        yaml::validate(std::str::from_utf8(&previous).map_err(|error| {
+        yaml::validate(from_utf8(&previous).map_err(|error| {
             MihomoError::Config(format!("profile backup is not UTF-8: {error}"))
         })?)?;
         atomic_write(&path, &previous).await?;
@@ -71,10 +77,11 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Remove the transient last-save backup once the new configuration is
     /// known to be live (or when a save did not require a runtime rebuild).
     pub async fn clear_backup(&self, profile: &str) -> Result<()> {
+        let _guard = self.lock_profile_writes().await;
         let path = self.profile_yaml_path(profile).await?;
         match fs::remove_file(backup_path(&path)).await {
             Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error.into()),
         }
     }
@@ -121,6 +128,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn delete_profile(&self, profile: &str) -> Result<()> {
+        let _guard = self.lock_profile_writes().await;
         let path = self.existing_profile_yaml_path(profile).await?;
         let current = self.get_current().await.ok();
         if current.as_ref() == Some(&profile.to_string()) {
@@ -130,6 +138,10 @@ impl<S: SecureStore> ConfigManager<S> {
         }
 
         fs::remove_file(path).await?;
+        self.apply_observations
+            .write()
+            .expect("apply observations")
+            .remove(profile);
         if let Err(err) = delete_subscription_url(&self.credential_store, profile).await {
             log::warn!("failed to delete subscription entry: {err}");
         }
@@ -161,16 +173,17 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn update_profile_metadata(&self, profile: &str, metadata: &Profile) -> Result<()> {
+        let _guard = self.lock_profile_writes().await;
         let key = sanitized_profile_key(profile)?;
         let mut settings = self.read_settings_value().await?;
         let root_table = ensure_table(&mut settings)?;
         let profiles_value = root_table
             .entry("profiles".to_string())
-            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+            .or_insert_with(|| toml::Value::Table(Map::new()));
         let profiles_table = ensure_table(profiles_value)?;
         let profile_value = profiles_table
             .entry(key.clone())
-            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+            .or_insert_with(|| toml::Value::Table(Map::new()));
         let profile_table = ensure_table(profile_value)?;
 
         let mut subscription_key = None;
@@ -238,7 +251,7 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 }
 
-fn backup_path(path: &std::path::Path) -> PathBuf {
+pub(crate) fn backup_path(path: &path::Path) -> PathBuf {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -246,7 +259,7 @@ fn backup_path(path: &std::path::Path) -> PathBuf {
     path.with_file_name(format!("{file_name}.bak"))
 }
 
-async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
+async fn atomic_write(path: &path::Path, content: &[u8]) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
         MihomoError::Config(format!("profile path has no parent: {}", path.display()))
     })?;
@@ -255,11 +268,11 @@ async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("profile");
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let temporary = parent.join(format!(".{file_name}.tmp-{}-{stamp}", std::process::id()));
+    let temporary = parent.join(format!(".{file_name}.tmp-{}-{stamp}", id()));
 
     let result = async {
         let mut file = fs::OpenOptions::new()
@@ -278,7 +291,7 @@ async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
             fs::remove_file(path).await?;
         }
         fs::rename(&temporary, path).await?;
-        Ok::<(), std::io::Error>(())
+        Ok::<(), io::Error>(())
     }
     .await;
 

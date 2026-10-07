@@ -6,12 +6,15 @@
 //! module owns only the Bevy-side resource, the timeout pills and sweep
 //! button, and the honest last-sweep status line.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::connections::LastConnectionsProjection;
+use crate::pages::connections_view::ConnectionsViewState;
 use bevy::ecs::component::Component;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -19,15 +22,15 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_domain::connection_activity::{
     ConnectionActivityTracker, DEFAULT_IDLE_TIMEOUT_SECS, IDLE_TIMEOUT_CHOICES,
+    idle_timeout_minutes_label,
 };
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::connections::LastConnectionsProjection;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// DUAL-13-11: byte-change tracker, configured timeout, and honest last-sweep
 /// result for the connections idle sweeper.
@@ -80,7 +83,7 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
                 column_gap: Val::Px(space::S8),
             }
             Children [
-                Text({ "空闲超时: ".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("dns_fake_ip_idle_label") TextRole(Role::Caption)
                 --
                 Node {
                     align_items: AlignItems::Center,
@@ -101,10 +104,10 @@ pub fn conn_idle_controls_scene(palette: &UiPalette) -> impl Scene + use<> {
                 Button
                 ConnIdleSweepButton
                 Children [
-                    Text({ "清理空闲连接".to_owned() }) TextRole(Role::Caption)
+                    LocalizedText::plain("conn_idle_sweep_btn") TextRole(Role::Caption)
                 ]
                 --
-                Text({ "上次清理: 尚未执行".to_owned() }) ConnIdleStatus TextRole(Role::Caption)
+                LocalizedText::plain("conn_idle_last_sweep_none") ConnIdleStatus TextRole(Role::Caption)
             ]
     }
 }
@@ -115,7 +118,7 @@ fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl 
     } else {
         (palette.surface, palette.ink_dim)
     };
-    let label = infiltrator_domain::connection_activity::idle_timeout_minutes_label(secs);
+    let label = idle_timeout_minutes_label(secs);
 
     bsn! {
             Node {
@@ -134,26 +137,37 @@ fn conn_idle_timeout_pill(secs: u64, active: bool, palette: &UiPalette) -> impl 
 
 /// DUAL-13-11: switch the idle timeout or run a manual sweep. The sweep
 /// restamps the honest last-sweep status and submits one close per idle id.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
-pub(crate) fn on_connections_idle_activated(
-    activate: On<Activate>,
-    timeout_pills: Query<&ConnIdleTimeoutPill>,
-    sweep_buttons: Query<(), With<ConnIdleSweepButton>>,
-    last: Option<Res<LastConnectionsProjection>>,
-    mut idle: Option<ResMut<ConnectionsIdleState>>,
-    palette: Res<UiPalette>,
-    mut pill_fills: Query<(&mut BackgroundColor, &ConnIdleTimeoutPill), Without<ConnIdleStatus>>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<ConnIdleStatus>,
-            Without<ConnIdleTimeoutPill>,
-            Without<ConnIdleSweepButton>,
-        ),
+#[derive(SystemParam)]
+pub(crate) struct IdleControls<'w, 's> {
+    timeout_pills: Query<'w, 's, &'static ConnIdleTimeoutPill>,
+    sweep_buttons: Query<'w, 's, (), With<ConnIdleSweepButton>>,
+    last: Option<Res<'w, LastConnectionsProjection>>,
+    idle: Option<ResMut<'w, ConnectionsIdleState>>,
+    palette: Res<'w, UiPalette>,
+    pill_fills: Query<
+        'w,
+        's,
+        (&'static mut BackgroundColor, &'static ConnIdleTimeoutPill),
+        Without<ConnIdleStatus>,
     >,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
+    status: Query<'w, 's, (&'static mut Text, &'static mut LocalizedText), With<ConnIdleStatus>>,
+    handle: Option<Res<'w, CommandSinkHandle>>,
+    locale: Res<'w, UiLocale>,
+    view: Res<'w, ConnectionsViewState>,
+}
+pub(crate) fn on_connections_idle_activated(activate: On<Activate>, controls: IdleControls) {
+    let IdleControls {
+        timeout_pills,
+        sweep_buttons,
+        last,
+        mut idle,
+        palette,
+        mut pill_fills,
+        mut status,
+        handle,
+        locale,
+        view,
+    } = controls;
     if let Ok(pill) = timeout_pills.get(activate.entity) {
         if let Some(state) = idle.as_deref_mut() {
             state.timeout_secs = pill.0;
@@ -161,7 +175,7 @@ pub(crate) fn on_connections_idle_activated(
         restamp_idle_pills(&palette, &mut pill_fills, pill.0);
         return;
     }
-    if !sweep_buttons.contains(activate.entity) {
+    if !sweep_buttons.contains(activate.entity) || !view.groups.source_current() {
         return;
     }
     let Some(state) = idle.as_deref_mut() else {
@@ -173,9 +187,13 @@ pub(crate) fn on_connections_idle_activated(
     }
     let idle_ids = state.tracker.idle_ids(now, state.timeout_secs);
     state.last_sweep_idle = Some(idle_ids.len());
-    let label = idle_status_label(state.last_sweep_idle);
-    for mut text in &mut status {
-        text.0 = label.clone();
+    let copy = LocalizedText::new(
+        "conn_idle_last_sweep",
+        vec![("count", idle_ids.len().to_string())],
+    );
+    for (mut text, mut label) in &mut status {
+        *label = copy.clone();
+        text.0 = label.render(&locale);
     }
     if let Some(handle) = handle {
         for id in idle_ids {
@@ -185,7 +203,7 @@ pub(crate) fn on_connections_idle_activated(
 }
 
 /// Restamp every idle-timeout pill fill for the active timeout.
-pub(crate) fn restamp_idle_pills<F: bevy::ecs::query::QueryFilter>(
+pub(crate) fn restamp_idle_pills<F: QueryFilter>(
     palette: &UiPalette,
     pills: &mut Query<(&mut BackgroundColor, &ConnIdleTimeoutPill), F>,
     active: u64,
@@ -199,18 +217,10 @@ pub(crate) fn restamp_idle_pills<F: bevy::ecs::query::QueryFilter>(
     }
 }
 
-/// Bare-Chinese last-sweep status line (DUAL-13-11).
-pub(crate) fn idle_status_label(last: Option<usize>) -> String {
-    match last {
-        Some(count) => format!("上次清理: {count} 条空闲连接"),
-        None => "上次清理: 尚未执行".to_owned(),
-    }
-}
-
 /// Wall-clock seconds for activity observations.
 pub(crate) fn current_unix_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
 }

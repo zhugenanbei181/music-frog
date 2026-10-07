@@ -5,9 +5,15 @@ use std::borrow::Cow;
 
 pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
     match key {
+        "proxies_test_group" => "Test group".into(),
+        "proxies_summary" => "Proxy selection · {groups} groups ({nodes} nodes)".into(),
+        "proxies_testing" => "Testing all groups...".into(),
+        "proxies_test_ready" => "Ready to test".into(),
+        "proxies_active_exit_label" => "Active exit:".into(),
+        "proxies_group_current" => "Selected: {node}".into(),
         // Category 1: DNS leak cross-source probe (DUAL-14-08)
         "dns_leak_probe_title" => "DNS Leak Cross-Source Probe".into(),
-        "dns_leak_probe_desc" => "Resolves a random subdomain under every configured echo authority and cross-checks the observed resolver identities; a mismatch lists the facts only".into(),
+        "dns_leak_probe_desc" => "Queries every configured echo authority and cross-checks the observed resolver identities; a mismatch lists the facts only".into(),
         "dns_leak_btn_run" => "Run Cross-Source Probe".into(),
         "dns_leak_probing" => "Cross-source probing...".into(),
         "dns_leak_unknown" => "No cross-source conclusion yet: fewer than two real observations".into(),
@@ -48,6 +54,14 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "dns_flush_failed" => "flush failed".into(),
 
         // Category 1c: Fake-IP pool, hosts editor & latency policy (DUAL-14-06/10/11)
+        "dns_fakeip_pool_no_matches" => "No mappings match the search".into(),
+        "dns_fakeip_pool_unsupported_detail" => "This host publishes no mapping facts ({reason})".into(),
+        "dns_fakeip_pool_unavailable" => "The core connection table is unavailable ({reason})".into(),
+        "dns_fakeip_pool_count_range" => "Showing {shown} of {total} observed (range {range})".into(),
+        "dns_latency_unsupported_detail" => "No per-nameserver latency fact exists on this host; none is invented ({reason})".into(),
+        "dns_self_heal_fix_listen" => "Repair the DNS listen port".into(),
+        "dns_self_heal_fix_probe" => "Probe upstreams again".into(),
+        "dns_self_heal_fix_settings" => "Apply DNS settings".into(),
         "dns_fakeip_pool_title" => "Live Fake-IP Mapping Search".into(),
         "dns_fakeip_pool_desc" => "Search the running core's observed domain <-> virtual IP bindings".into(),
         "dns_fakeip_pool_search" => "Search domain or virtual IP".into(),
@@ -83,7 +97,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "dns_self_heal_topology" => "Anti-leak topology audit".into(),
         "dns_self_heal_fix" => "Suggested fix: {fix}".into(),
         "dns_hosts_title" => "Custom Hosts Mapping Editor".into(),
-        "dns_hosts_desc" => "Writes dns.hosts: the value is an IP, lan, or an alias domain; a domain may carry several IPs".into(),
+        "dns_hosts_desc" => "Configure static Hosts using an IP, lan or an alias domain; multiple values must all be IPs".into(),
         "dns_hosts_address" => "Address (IP / lan / alias domain)".into(),
         "dns_hosts_domain" => "Domain".into(),
         "dns_hosts_add" => "Add Mapping".into(),
@@ -316,6 +330,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "speedtest_target_url_placeholder" => "Blank uses the shared engine default".into(),
         "speedtest_concurrency_label" => "Concurrency".into(),
         "speedtest_detail_open" => "Result details".into(),
+        "speedtest_detail_unsupported" => "Speedtest unsupported by this host".into(),
+        "speedtest_detail_unavailable" => "Speedtest engine unavailable".into(),
         "speedtest_detail_title" => "Speedtest result details".into(),
         "speedtest_detail_empty" => "No speedtest results yet".into(),
         "speedtest_detail_failed" => "Speedtest failed".into(),
@@ -445,8 +461,8 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "pac_btn_compile" => "Compile & Validate PAC".into(),
         "pac_compile_success" => "PAC script compiled and loaded successfully".into(),
         // Wave 5 Category 1: Rule Hit Counter & Stale Rule Analyzer
-        "rule_hit_title" => "Rule Hit Counter & Stale Rule Audit".into(),
-        "rule_hit_desc" => "Track hit counts per rule in current session and audit zero-hit stale rules.".into(),
+        "rule_hit_title" => "Local Trace Counts & Rule Audit".into(),
+        "rule_hit_desc" => "Counts and timing come from local simulations for this exact profile document. Zero local hits do not prove a rule is unused by live traffic.".into(),
         "rule_hit_btn_audit" => "Audit Stale Rules".into(),
         "rule_hit_btn_clean" => "Disable 0-Hit Rules".into(),
         "rule_hit_total_hits" => "Total Rule Hits".into(),
@@ -456,7 +472,7 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
         "rule_hit_cidr_conflicts" => "CIDR Mask Overlaps".into(),
         "rule_hit_match_latency" => "Avg Match Latency".into(),
         "rule_hit_last_hit" => "Most Recent Hit".into(),
-        "rule_hit_none" => "No hit data yet".into(),
+        "rule_hit_none" => "No local trace hits".into(),
 
         // Wave 5 Category 2: Latency Time-Series & Stability Radar
         "latency_radar_title" => "Latency Time-Series & Stability Radar".into(),
@@ -716,6 +732,22 @@ pub(super) fn translate_en_ext(key: &str) -> Cow<'static, str> {
             "kernel did not evaluate this connection (needs a GEOIP/IP-ASN rule)".into()
         }
         "conn_drawer_kernel_no_result" => "kernel evaluated · no record for this IP".into(),
+        "protocol_form_no_draft" => "No node draft yet".into(),
+        "protocol_form_valid" => "Protocol validation passed".into(),
+        "protocol_form_notes_empty" => "No compatibility notes".into(),
+        "protocol_form_no_codec" => "No codec conversion yet".into(),
+        "protocol_form_no_preview" => "No share-link preview yet".into(),
+        "protocol_form_no_gaps" => "The share link expresses every draft field".into(),
+        "protocol_form_gaps" => "Share link omits: {fields}".into(),
+        "protocol_form_chain_empty" => "No dialer chain".into(),
+        "protocol_form_trust_empty" => "No custom certificate trust configured".into(),
+        "protocol_form_lossless" => "Structure preserved".into(),
+        "protocol_form_lossy" => "Structure changed".into(),
+        "protocol_form_saving" => "Saving node…".into(),
+        "protocol_form_audit" => "{detail} · {nodes} nodes · unknown fields {unknown} · {verdict}".into(),
+        "custom_node_tls" => "TLS".into(),
+        "mini_hud_empty_exit" => "No exit node selected".into(),
+        "protocol_form_no_feedback" => "The host does not provide terminal acknowledgments; operation was not submitted".into(),
         _ => key.to_string().into(),
     }
 }

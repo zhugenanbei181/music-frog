@@ -1,18 +1,19 @@
 //! Mihomo kernel (core binary) version management endpoints
 //! (`/admin/api/core/*`).
 
-use axum::{Json, http::StatusCode};
-use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
-use infiltrator_contract::version::CoreReleaseChannel;
-
+use super::schedule_rebuild;
 use crate::admin_api::events::{AdminEvent, EVENT_CORE_CHANGED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
-
-use super::schedule_rebuild;
+use axum::http::StatusCode;
+use axum::{Json, extract};
+use infiltrator_application::version_application::{QuietVersionProgress, VersionApplication};
+use infiltrator_contract::version::CoreReleaseChannel;
+use std::cmp::Ordering;
+use std::sync::Arc;
 
 pub async fn list_core_versions_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreVersionsResponse>, ApiError> {
     let application = state
         .ctx
@@ -39,7 +40,7 @@ pub async fn list_core_versions_http<C: AdminApiContext>(
 }
 
 pub async fn get_latest_stable_core_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreLatestStableResponse>, ApiError> {
     let (version, release_date) = state
         .ctx
@@ -57,7 +58,7 @@ pub async fn get_latest_stable_core_http<C: AdminApiContext>(
 }
 
 pub async fn download_core_version_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<CoreDownloadPayload>,
 ) -> Result<Json<CoreDownloadResponse>, ApiError> {
     let version = payload.version.trim().to_string();
@@ -79,7 +80,7 @@ pub async fn download_core_version_http<C: AdminApiContext>(
 }
 
 pub async fn update_stable_core_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<CoreUpdateStableResponse>, ApiError> {
     let release = state
         .ctx
@@ -115,7 +116,7 @@ pub async fn update_stable_core_http<C: AdminApiContext>(
 }
 
 pub async fn activate_core_version_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<CoreActivatePayload>,
 ) -> Result<StatusCode, ApiError> {
     let version = payload.version.trim();
@@ -159,10 +160,7 @@ async fn ensure_core_version_installed(
     }
 
     if let Err(failure) = application
-        .install(
-            version.to_string(),
-            std::sync::Arc::new(QuietVersionProgress),
-        )
+        .install(version.to_string(), Arc::new(QuietVersionProgress))
         .await
     {
         let installed_after = application
@@ -188,13 +186,13 @@ pub(super) fn sort_versions_desc(list: &mut [String]) {
     list.sort_by(|a, b| compare_versions_desc(a, b));
 }
 
-pub(super) fn compare_versions_desc(a: &str, b: &str) -> std::cmp::Ordering {
+pub(super) fn compare_versions_desc(a: &str, b: &str) -> Ordering {
     let va = parse_version(a);
     let vb = parse_version(b);
     match (va, vb) {
         (Some(va), Some(vb)) => vb.cmp(&va),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
         (None, None) => b.cmp(a),
     }
 }

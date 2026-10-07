@@ -3,11 +3,17 @@
 
 #[cfg(test)]
 mod tests {
+    #[cfg(test)]
+    use crate::endpoint::ProfileEndpointSource;
     use crate::manager::ConfigManager;
     use crate::profile::Profile;
     use infiltrator_ports::endpoint::EndpointSource;
+    #[cfg(test)]
+    use infiltrator_ports::error::PortError;
     use infiltrator_ports::secure_store::SecureStore;
     use std::path::PathBuf;
+    #[cfg(test)]
+    use std::result;
     use std::sync::Arc;
     use tempfile::TempDir;
     use tokio::fs;
@@ -20,7 +26,7 @@ mod tests {
             &self,
             _namespace: &str,
             _key: &str,
-        ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError> {
+        ) -> result::Result<Option<String>, PortError> {
             Ok(None)
         }
 
@@ -29,15 +35,11 @@ mod tests {
             _namespace: &str,
             _key: &str,
             _value: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        ) -> result::Result<(), PortError> {
             Ok(())
         }
 
-        async fn delete(
-            &self,
-            _namespace: &str,
-            _key: &str,
-        ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+        async fn delete(&self, _namespace: &str, _key: &str) -> result::Result<(), PortError> {
             Ok(())
         }
     }
@@ -403,7 +405,7 @@ external-controller: http://127.0.0.1:9090
             .unwrap();
         manager.ensure_external_controller().await.unwrap();
 
-        let source = crate::endpoint::ProfileEndpointSource::new(Arc::new(manager));
+        let source = ProfileEndpointSource::new(Arc::new(manager));
         let endpoint = source.resolve().await.unwrap();
         assert_eq!(endpoint.url, "http://127.0.0.1:19091");
         assert_eq!(endpoint.secret.as_deref(), Some("generated-by-host"));
@@ -467,27 +469,17 @@ external-controller: http://127.0.0.1:9090
                 &self,
                 _svc: &str,
                 key: &str,
-            ) -> std::result::Result<Option<String>, infiltrator_ports::error::PortError>
-            {
+            ) -> result::Result<Option<String>, PortError> {
                 Ok(self.data.lock().unwrap().get(key).cloned())
             }
-            async fn set(
-                &self,
-                _svc: &str,
-                key: &str,
-                val: &str,
-            ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            async fn set(&self, _svc: &str, key: &str, val: &str) -> result::Result<(), PortError> {
                 self.data
                     .lock()
                     .unwrap()
                     .insert(key.to_string(), val.to_string());
                 Ok(())
             }
-            async fn delete(
-                &self,
-                _svc: &str,
-                key: &str,
-            ) -> std::result::Result<(), infiltrator_ports::error::PortError> {
+            async fn delete(&self, _svc: &str, key: &str) -> result::Result<(), PortError> {
                 self.data.lock().unwrap().remove(key);
                 Ok(())
             }

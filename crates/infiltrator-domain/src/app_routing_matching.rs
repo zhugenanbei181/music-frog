@@ -1,8 +1,7 @@
 //! Linux cgroup matching and canonical application route tables.
 
-use crate::rules::RuleEntry;
-
 use super::{CanonicalAppRule, CgroupV2Classifier};
+use crate::rules::RuleEntry;
 
 impl CgroupV2Classifier {
     /// Extracts an application or service identifier from a raw cgroup v2 path.

@@ -12,9 +12,13 @@
 //! unsupported the application publishes — instead of claiming a refresh.
 
 use async_trait::async_trait;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::system_dns_cache::SystemDnsCachePort;
-use std::process::Command;
+use std::env::consts::OS;
+use std::io::{self, ErrorKind};
+use std::process::{Command, Output};
+use tokio::task::spawn_blocking;
 
 /// Stateless desktop adapter; the host composition shares one instance.
 #[derive(Clone, Copy, Debug, Default)]
@@ -29,44 +33,112 @@ impl DesktopSystemDnsCache {
 #[async_trait]
 impl SystemDnsCachePort for DesktopSystemDnsCache {
     async fn flush_system_cache(&self) -> Result<bool, PortError> {
-        tokio::task::spawn_blocking(flush_sync)
+        spawn_blocking(flush_sync)
             .await
             .map_err(|error| PortError::Io(format!("DNS cache flush worker failed: {error}")))?
     }
 }
 
 fn flush_sync() -> Result<bool, PortError> {
-    let invocations = flush_invocations(std::env::consts::OS);
+    flush_with(OS, |program, args| {
+        Command::new(program).args(args).output()
+    })
+}
+
+/// Linux tools are alternatives; both macOS cache layers must complete.
+fn flush_with(
+    target: &str,
+    mut execute: impl FnMut(&str, &[&str]) -> io::Result<Output>,
+) -> Result<bool, PortError> {
+    let invocations = flush_invocations(target);
     if invocations.is_empty() {
         return Ok(false);
     }
-    let mut last_error = None;
-    let mut spawned_any = false;
+    let sequence = target == "macos";
+    let mut completed = 0;
+    let mut first_failure = None;
     for (program, args) in invocations {
-        match Command::new(program).args(args).output() {
-            Ok(output) if output.status.success() => return Ok(true),
+        match execute(program, args) {
+            Ok(output) if output.status.success() => {
+                completed += 1;
+                if !sequence {
+                    return Ok(true);
+                }
+            }
             Ok(output) => {
-                spawned_any = true;
-                last_error = Some(format!(
-                    "{program} exited with {}",
+                let detail: String = String::from_utf8_lossy(&output.stderr)
+                    .trim()
+                    .chars()
+                    .take(512)
+                    .collect();
+                let message = format!(
+                    "{program} exited with {}: {detail}",
                     output
                         .status
                         .code()
-                        .map_or_else(|| "a signal".to_owned(), |code| code.to_string())
-                ));
+                        .map_or_else(|| "a signal".into(), |code| code.to_string())
+                );
+                let folded = detail.to_lowercase();
+                let permission = [
+                    "permission denied",
+                    "access denied",
+                    "access is denied",
+                    "not authorized",
+                    "not authorised",
+                    "operation not permitted",
+                    "authentication is required",
+                ]
+                .iter()
+                .any(|needle| folded.contains(needle));
+                let failure = if permission {
+                    PortError::PermissionDenied(message)
+                } else {
+                    PortError::Rejected(Failure::new(ErrorCode::Internal, message, true))
+                };
+                if sequence || permission {
+                    return Err(failure);
+                }
+                if first_failure.is_none() {
+                    first_failure = Some(failure);
+                }
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                if sequence {
+                    return if completed == 0 {
+                        Ok(false)
+                    } else {
+                        Err(PortError::Rejected(Failure::new(
+                            ErrorCode::NotReady,
+                            format!(
+                                "system cache clearing partly completed, but {program} is unavailable"
+                            ),
+                            true,
+                        )))
+                    };
+                }
             }
             Err(error) => {
-                last_error = Some(format!("{program} is not available: {error}"));
+                let failure = if error.kind() == ErrorKind::PermissionDenied {
+                    PortError::PermissionDenied(format!("{program}: {error}"))
+                } else {
+                    PortError::Io(format!("{program}: {error}"))
+                };
+                if sequence || error.kind() == ErrorKind::PermissionDenied {
+                    return Err(failure);
+                }
+                if first_failure.is_none() {
+                    first_failure = Some(failure);
+                }
             }
         }
     }
-    if spawned_any {
-        return Err(PortError::Failed(
-            last_error.unwrap_or_else(|| "OS DNS cache flush failed".to_owned()),
-        ));
+    if sequence || completed > 0 {
+        Ok(true)
+    } else if let Some(failure) = first_failure {
+        Err(failure)
+    } else {
+        Ok(false)
     }
-    // No platform tool exists on this host: an honest typed unsupported.
-    Ok(false)
 }
 
 /// The platform flush commands in preference order, selected by target OS.
@@ -86,34 +158,5 @@ pub(crate) fn flush_invocations(target: &str) -> Vec<(&'static str, &'static [&'
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn linux_flush_prefers_resolvectl() {
-        let invocations = flush_invocations("linux");
-        assert_eq!(invocations[0], ("resolvectl", &["flush-caches"][..]));
-        assert_eq!(invocations[1], ("systemd-resolve", &["--flush-caches"][..]));
-    }
-
-    #[test]
-    fn macos_flush_covers_dscacheutil_and_mdnsresponder() {
-        let invocations = flush_invocations("macos");
-        assert_eq!(invocations[0], ("dscacheutil", &["-flushcache"][..]));
-        assert_eq!(invocations[1], ("killall", &["-HUP", "mDNSResponder"][..]));
-    }
-
-    #[test]
-    fn windows_flush_uses_ipconfig() {
-        assert_eq!(
-            flush_invocations("windows"),
-            vec![("ipconfig", &["/flushdns"][..])]
-        );
-    }
-
-    #[test]
-    fn an_unknown_platform_reports_typed_unsupported() {
-        assert!(flush_invocations("redox").is_empty());
-        assert!(flush_invocations("").is_empty());
-    }
-}
+#[path = "system_dns_cache_test.rs"]
+mod tests;

@@ -1,6 +1,10 @@
 //! Subscription handlers: per-profile subscription settings, manual and
 //! scheduled (tick) updates, plus the subscription-editor sync helper.
 
+use crate::configs_dir::config_manager;
+use crate::host::runtime::{application_runtime, subscription_notifier};
+use crate::host::storage::subscription_source;
+use crate::notify::NotifyUrgency;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
@@ -15,7 +19,8 @@ use infiltrator_contract::subscription_import::{
 };
 use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_shared::locales::Localizer;
+use infiltrator_shared::i18n_interpolator::localize;
+use infiltrator_shared::locales::{Lang, Localizer};
 use std::sync::Arc;
 
 /// DUAL-07-09: install the host's managed-runtime reload seam on the shared
@@ -84,6 +89,7 @@ impl AppState {
     }
 
     pub(super) fn update_subscription(&mut self, message: Message) -> Task<Message> {
+        let copy_locale = self.shell.lang.clone();
         match message {
             Message::SelectSubscriptionProfile(name) => {
                 self.profile.subscription_profile_name = name;
@@ -180,7 +186,11 @@ impl AppState {
                         Ok(cron) => Some(cron.raw),
                         Err(error) => {
                             return Task::done(Message::ShowToast(
-                                format!("Cron 表达式无效: {error}"),
+                                localize(
+                                    &copy_locale,
+                                    "subscription_cron_invalid",
+                                    &[("reason", error.to_string())],
+                                ),
                                 ToastStatus::Error,
                             ));
                         }
@@ -190,7 +200,7 @@ impl AppState {
                 // typed unsupported action, not a stored no-op. A preference
                 // that is already persisted stays a no-op-free pass-through.
                 if auto_reload_core && !auto_reload_was_enabled && !has_reload_seam {
-                    let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                    let lang = Lang(&self.shell.lang);
                     return Task::done(Message::ShowToast(
                         lang.tr("sub_reload_core_unsupported").into_owned(),
                         ToastStatus::Error,
@@ -206,7 +216,7 @@ impl AppState {
                 };
                 Task::perform(
                     async move {
-                        let cm = crate::configs_dir::config_manager().await?;
+                        let cm = config_manager().await?;
                         let application = ProfileApplication::new(cm);
 
                         // DUAL-07-14: the schedule draft and the reload
@@ -261,9 +271,9 @@ impl AppState {
                 let managed = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let cm = crate::configs_dir::config_manager().await?;
+                        let cm = config_manager().await?;
                         let application = ProfileApplication::new(cm);
-                        let source = crate::host::storage::subscription_source();
+                        let source = subscription_source();
                         // DUAL-07-05/06: retry with exponential backoff through
                         // the injected runtime, guarded by the shared
                         // single-flight slot so a scheduled tick cannot race
@@ -274,9 +284,9 @@ impl AppState {
                         // unconditionally.
                         let refresh = SubscriptionRefreshApplication::with_default_policy(
                             application.clone(),
-                            crate::host::runtime::application_runtime(),
+                            application_runtime(),
                         )
-                        .with_notifier(crate::host::runtime::subscription_notifier());
+                        .with_notifier(subscription_notifier());
                         let refresh = with_core_reload_seam(refresh, managed);
                         let report = refresh
                             .refresh_profile(&source, &profile_name)
@@ -305,7 +315,7 @@ impl AppState {
                         {
                             self.sync_runtime_slot(Some(runtime));
                         }
-                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let lang = Lang(&self.shell.lang);
                         let (text, status) = subscription_update_toast(&lang, &report);
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
@@ -322,13 +332,13 @@ impl AppState {
                 let managed = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let manager = crate::configs_dir::config_manager().await?;
+                        let manager = config_manager().await?;
                         let application = ProfileApplication::new(manager);
                         let profiles = application
                             .list_profiles()
                             .await
                             .map_err(|failure| InfiltratorError::Config(failure.message))?;
-                        let source = crate::host::storage::subscription_source();
+                        let source = subscription_source();
                         // DUAL-07-05/06/09: the scheduled path rides the same
                         // shared refresh orchestration as the manual entry
                         // points — retry/backoff, single-flight, notifications,
@@ -336,9 +346,9 @@ impl AppState {
                         // application instead of this loop.
                         let refresh = SubscriptionRefreshApplication::with_default_policy(
                             application.clone(),
-                            crate::host::runtime::application_runtime(),
+                            application_runtime(),
                         )
-                        .with_notifier(crate::host::runtime::subscription_notifier());
+                        .with_notifier(subscription_notifier());
                         let refresh = with_core_reload_seam(refresh, managed);
                         let now = Utc::now();
                         let mut updated_names = Vec::new();
@@ -396,7 +406,7 @@ impl AppState {
                         self.system_notify(
                             "notify_sub_auto_updated",
                             &updated_profiles.join(", "),
-                            crate::notify::NotifyUrgency::Low,
+                            NotifyUrgency::Low,
                         ),
                     ];
                     if active_updated && let Some(runtime) = self.runtime.runtime.clone() {
@@ -415,7 +425,7 @@ impl AppState {
                         self.system_notify(
                             "notify_sub_update_failed",
                             &e.to_string(),
-                            crate::notify::NotifyUrgency::Critical,
+                            NotifyUrgency::Critical,
                         ),
                     ])
                 }
@@ -431,9 +441,9 @@ impl AppState {
                 let managed = self.runtime.runtime.clone();
                 Task::perform(
                     async move {
-                        let manager = crate::configs_dir::config_manager().await?;
+                        let manager = config_manager().await?;
                         let application = ProfileApplication::new(manager);
-                        let source = crate::host::storage::subscription_source();
+                        let source = subscription_source();
                         // DUAL-07-05/06: the batch shares the retry/backoff and
                         // single-flight orchestration with the single-profile
                         // refresh instead of re-implementing it.
@@ -442,9 +452,9 @@ impl AppState {
                         // decision on that report.
                         let refresh = SubscriptionRefreshApplication::with_default_policy(
                             application.clone(),
-                            crate::host::runtime::application_runtime(),
+                            application_runtime(),
                         )
-                        .with_notifier(crate::host::runtime::subscription_notifier());
+                        .with_notifier(subscription_notifier());
                         let refresh = with_core_reload_seam(refresh, managed);
                         refresh
                             .refresh_all(&source, BATCH_UPDATE_CONCURRENCY)
@@ -466,7 +476,7 @@ impl AppState {
                             self.sync_runtime_slot(Some(runtime));
                         }
                         self.refresh_tray();
-                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let lang = Lang(&self.shell.lang);
                         let (toast, status) = batch_update_toast(&lang, &report);
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
@@ -491,7 +501,7 @@ impl AppState {
                 }
                 Task::perform(
                     async move {
-                        let cm = crate::configs_dir::config_manager().await?;
+                        let cm = config_manager().await?;
                         let application = ProfileApplication::new(cm);
                         application
                             .restore_backup(&profile_name)
@@ -502,7 +512,7 @@ impl AppState {
                 )
             }
             Message::SubscriptionBackupRestored(result) => {
-                let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                let lang = Lang(&self.shell.lang);
                 match result {
                     Ok(restored) => {
                         let (key, status) = if restored {
@@ -533,7 +543,7 @@ impl AppState {
                         .and_then(|p| p.subscription_url.as_deref())
                         .is_some_and(|url| !url.trim().is_empty());
                     if !has_url {
-                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let lang = Lang(&self.shell.lang);
                         return Task::done(Message::ShowToast(
                             lang.tr("tray_auto_update_no_url").into_owned(),
                             ToastStatus::Error,
@@ -542,7 +552,7 @@ impl AppState {
                 }
                 Task::perform(
                     async move {
-                        let cm = crate::configs_dir::config_manager().await?;
+                        let cm = config_manager().await?;
                         let application = ProfileApplication::new(cm);
                         let mut metadata = application
                             .load_metadata(&name)
@@ -562,7 +572,7 @@ impl AppState {
                 self.refresh_tray();
                 match result {
                     Ok(_) => {
-                        let lang = infiltrator_shared::locales::Lang(&self.shell.lang);
+                        let lang = Lang(&self.shell.lang);
                         Task::batch(vec![
                             Task::done(Message::LoadProfiles),
                             Task::done(Message::ShowToast(
@@ -591,7 +601,7 @@ const BATCH_UPDATE_CONCURRENCY: usize = 5;
 /// fabricated success. DUAL-07-09: a failed core reload also downgrades to a
 /// warning, because the new content is stored but not live.
 pub(crate) fn batch_update_toast(
-    lang: &infiltrator_shared::locales::Lang<'_>,
+    lang: &Lang<'_>,
     report: &SubscriptionBatchReport,
 ) -> (String, ToastStatus) {
     let attempted = report.updated + report.not_modified + report.failed;
@@ -635,7 +645,7 @@ pub(crate) fn batch_update_toast(
 /// that failed is reported too, so a stored-but-not-live update never looks
 /// like a clean success.
 pub(crate) fn subscription_update_toast(
-    lang: &infiltrator_shared::locales::Lang<'_>,
+    lang: &Lang<'_>,
     report: &SubscriptionUpdateReport,
 ) -> (String, ToastStatus) {
     match &report.core_reload {

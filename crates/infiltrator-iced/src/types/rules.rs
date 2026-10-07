@@ -1,16 +1,8 @@
 //! Rules-domain types: the rules load bundle, page tabs, tracer state,
 //! and the rendered rule rows consumed by the rules view.
 
-use infiltrator_domain::rules::RuleEntry;
+use infiltrator_contract::error::Failure;
 use infiltrator_domain::rules::tracer::RuleTraceMatch;
-
-#[derive(Debug, Clone, Default)]
-pub struct RulesLoadBundle {
-    pub rules: Vec<RuleEntry>,
-    pub rule_providers_json: String,
-    pub proxy_providers_json: String,
-    pub sniffer_json: String,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuleBadgeKind {
@@ -22,6 +14,11 @@ pub enum RuleBadgeKind {
 
 #[derive(Debug, Clone, Default)]
 pub struct RuleRenderItem {
+    pub hit_count: Option<u64>,
+    pub is_shadowed: bool,
+    pub source_ip: bool,
+    pub no_resolve: bool,
+    pub failure: Option<Failure>,
     pub source_index: usize,
     pub rule_type: String,
     pub payload: String,
@@ -38,19 +35,6 @@ pub struct RuleTracerState {
     pub in_type_input: String,
     pub match_result: Option<RuleTraceMatch>,
     pub trace_performed: bool,
-}
-
-/// State for the Rule Hit Counter and Stale Rule Analyzer.
-///
-/// `audit` is the shared application-owned read model; `zero_hit_rule_indices`
-/// is a pure projection of it onto the locally loaded rule list used by the
-/// one-click disable action. No UI-local hit counts are fabricated.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct RuleHitAuditState {
-    pub audit: infiltrator_contract::rule_tracer::RuleHitAuditSnapshot,
-    pub zero_hit_rule_indices: Vec<usize>,
-    pub is_auditing: bool,
-    pub audit_summary: Option<String>,
 }
 
 /// State for Rule-Provider unpacking and local cache purging.

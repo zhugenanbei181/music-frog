@@ -1,4 +1,7 @@
 use super::*;
+use crate::process_enumerator::desktop_entries::DesktopEntryScanner;
+use crate::process_enumerator::process_filter::ProcessFilter;
+use crate::process_enumerator::process_hierarchy::ProcessHierarchyTree;
 use std::path::PathBuf;
 
 #[test]

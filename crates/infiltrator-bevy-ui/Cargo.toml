@@ -1,12 +1,11 @@
 [package]
 name = "infiltrator-bevy-ui"
-version = "0.1.0"
+version = "0.30.0"
 edition = "2024"
 publish = false
-description = "Bevy UI frontend shell for MusicFrog Infiltrator: the strategic unified desktop+mobile surface."
+description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+mobile product."
 
-# The Bevy frontend is the strategic surface whose ceiling includes mobile
-# (iced has no Android story; bevy runs the same tree on aarch64-linux-android).
+# Bevy and Iced are peer products; mobile support is a separate platform axis.
 [features]
 # DUAL-10-01: forward the real-ECMAScript engine to the shared application. It
 # is on by default, matching the application's default configuration, so the
@@ -36,6 +35,7 @@ bevy = { workspace = true }
 
 # The application-owned controller pump (BEVY-005).
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-ports = { path = "../infiltrator-ports" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
@@ -47,9 +47,9 @@ serde_json = { workspace = true }
 openssl = { version = "0.10", optional = true }
 
 [dev-dependencies]
+tempfile = { workspace = true }
 mockito = { workspace = true }
 async-trait = { workspace = true }
-infiltrator-ports = { path = "../infiltrator-ports" }
 tokio = { workspace = true }
 
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
@@ -68,12 +68,14 @@ bevy = { workspace = true, features = [
     "accesskit_unix",
     "wayland",
     "system_font_discovery",
+    "system_clipboard",
 ] }
 
 # Android (BEVY-006): the strategic mobile target.
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",
+    "bevy_clipboard",
     "bevy_ui_widgets",
     "bevy_scene",
     "bevy_ui_render",
@@ -104,6 +106,7 @@ bevy = { workspace = true, features = [
     "ui_picking",
     "touch",
     "system_font_discovery",
+    "bevy_clipboard",
 ] }
 
 [lib]
@@ -123,3 +126,9 @@ target_sdk_version = 35
 [package.metadata.android.application]
 label = "MusicFrog Infiltrator Bevy"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+bevy = { workspace = true, features = ["system_clipboard"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
+infiltrator-desktop = { path = "../infiltrator-desktop" }

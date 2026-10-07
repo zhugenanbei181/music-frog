@@ -11,8 +11,11 @@ use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_ports::application_runtime::ApplicationRuntime;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::{OverviewReader, OverviewSample};
-use std::sync::mpsc::{Receiver, Sender, SyncSender, TrySendError, sync_channel};
+use std::sync::mpsc::{
+    Receiver, RecvTimeoutError, SendError, Sender, SyncSender, TrySendError, channel, sync_channel,
+};
 use std::sync::{Arc, Mutex};
+use std::thread::spawn;
 use std::time::{Duration, Instant};
 
 const SNAPSHOT_CAPACITY: usize = 8;
@@ -82,7 +85,7 @@ impl OverviewPump {
     ) -> Self {
         let (snapshot_tx, snapshot_rx) = sync_channel(SNAPSHOT_CAPACITY);
         let snapshot_rx = Arc::new(Mutex::new(snapshot_rx));
-        let (command_tx, command_rx) = std::sync::mpsc::channel();
+        let (command_tx, command_rx) = channel();
         let last = Arc::new(Mutex::new(initial_snapshot()));
         let pump = Self {
             shared: Arc::new(Shared {
@@ -91,7 +94,7 @@ impl OverviewPump {
             }),
             snapshot_rx: Arc::clone(&snapshot_rx),
         };
-        std::thread::spawn(move || {
+        spawn(move || {
             pump_loop(
                 reader,
                 sample_interval,
@@ -123,7 +126,7 @@ impl OverviewPump {
     /// library channel supplied by the caller.
     pub fn request_mode(&self, mode: ProxyMode, responder: Sender<Result<ProxyMode, Failure>>) {
         let command = OverviewCommand::SetMode { mode, responder };
-        if let Err(std::sync::mpsc::SendError(OverviewCommand::SetMode { responder, .. })) =
+        if let Err(SendError(OverviewCommand::SetMode { responder, .. })) =
             self.shared.command_tx.send(command)
         {
             let _ = responder.send(Err(Failure::new(
@@ -211,8 +214,8 @@ fn pump_loop(
                 }
                 let _ = responder.send(result.map_err(Failure::from));
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
         }
 
         let reader_for_call = Arc::clone(&reader);

@@ -5,12 +5,15 @@
 //! never terminates an unverified third-party PID from a UI action.
 
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
+use infiltrator_core::settings_io::app_config_manager_in;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::port_conflict::PortConflictPort;
+use mihomo_api::error::MihomoError;
 use mihomo_config::manager::ConfigManager;
+use mihomo_config::port::{is_port_available, parse_port_from_addr, split_listen_addr};
 use mihomo_platform::defaults::DefaultCredentialStore;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, id};
 use yaml_rust2::YamlLoader;
 
 pub struct DesktopPortConflict {
@@ -23,7 +26,7 @@ impl DesktopPortConflict {
     }
 
     async fn config(&self) -> Result<ConfigManager<DefaultCredentialStore>, PortError> {
-        infiltrator_core::settings_io::app_config_manager_in(&self.home)
+        app_config_manager_in(&self.home)
             .await
             .map_err(|error| PortError::Io(error.to_string()))
     }
@@ -50,7 +53,7 @@ impl DesktopPortConflict {
             .await
             .map_err(config_error)
             .and_then(|url| {
-                mihomo_config::port::parse_port_from_addr(&url).ok_or_else(|| {
+                parse_port_from_addr(&url).ok_or_else(|| {
                     PortError::Failed(format!("cannot parse controller port from {url}"))
                 })
             })?;
@@ -72,7 +75,7 @@ impl DesktopPortConflict {
     }
 
     fn observe(binding: PortBinding, port: u16) -> PortConflict {
-        let available = mihomo_config::port::is_port_available(port);
+        let available = is_port_available(port);
         let (owner_pid, owner_name) = if available {
             (None, None)
         } else {
@@ -82,7 +85,7 @@ impl DesktopPortConflict {
         };
         let can_release = owner_pid
             .zip(owner_name.as_deref())
-            .is_some_and(|(pid, name)| pid != std::process::id() && is_mihomo_name(name));
+            .is_some_and(|(pid, name)| pid != id() && is_mihomo_name(name));
         PortConflict {
             binding,
             port,
@@ -127,7 +130,7 @@ impl PortConflictPort for DesktopPortConflict {
 
 /// The `dns.listen` port of a profile document, when it is a parsable address.
 fn dns_listen_port(document: &yaml_rust2::Yaml) -> Option<u16> {
-    mihomo_config::port::split_listen_addr(document["dns"]["listen"].as_str()?)
+    split_listen_addr(document["dns"]["listen"].as_str()?)
         .map(|(_, port)| port)
         .filter(|port| *port != 0)
 }
@@ -207,10 +210,10 @@ fn is_mihomo_name(name: &str) -> bool {
     lower == "mihomo" || lower == "mihomo.exe"
 }
 
-fn config_error(error: mihomo_api::error::MihomoError) -> PortError {
+fn config_error(error: MihomoError) -> PortError {
     match error {
-        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
-        mihomo_api::error::MihomoError::NotFound(message) => PortError::NotFound(message),
+        MihomoError::Io(error) => PortError::Io(error.to_string()),
+        MihomoError::NotFound(message) => PortError::NotFound(message),
         other => PortError::Failed(other.to_string()),
     }
 }
@@ -218,6 +221,8 @@ fn config_error(error: mihomo_api::error::MihomoError) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::net::TcpListener;
     use std::path::Path;
 
     #[test]
@@ -287,7 +292,7 @@ mod tests {
     #[tokio::test]
     async fn a_bound_dns_listen_port_is_observed_and_relocated() {
         let home = tempfile::tempdir().expect("temp home");
-        let manager = infiltrator_core::settings_io::app_config_manager_in(home.path())
+        let manager = app_config_manager_in(home.path())
             .await
             .expect("config manager");
         manager
@@ -296,7 +301,7 @@ mod tests {
             .expect("default config");
         let profile = manager.get_current().await.expect("profile");
 
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("reserve port");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("reserve port");
         let port = listener.local_addr().expect("addr").port();
         manager
             .save(

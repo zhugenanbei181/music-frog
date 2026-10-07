@@ -5,11 +5,25 @@
 //! test-intent: behavior
 
 use super::support::{TempHome, block_on, feed, fresh_state, list_profiles, subscribed_profile};
+use crate::host::storage::settings_store;
+use crate::test_mounts::command_harness::{recording_application, rejecting_application};
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
+use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
+use futures_util::StreamExt;
+use iced::Task;
+use iced_runtime::Action;
+use iced_runtime::task::into_stream;
+use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::language_choice::project_language;
+use infiltrator_application::settings_application::SettingsApplication;
+use infiltrator_contract::error::InfiltratorError;
+use infiltrator_core::factory_reset::execute;
+use infiltrator_core::profile_reset::reset_profiles_to_default;
 use infiltrator_core::settings_io;
 use infiltrator_domain::settings::AppSettings;
+use std::fs::{create_dir_all, write};
+use std::sync::Arc;
 
 /// Journey 12 — 通知事件面：SubscriptionAutoUpdated Ok → toast + 系统通知
 /// 任务；notifications_enabled=false 时通知腿归零（`Task::none`，零开销）。
@@ -50,9 +64,7 @@ fn subscription_auto_updated_notification_task_honours_the_master_switch() {
     state.shell.notifications_enabled = true;
     let units = feed(
         &mut state,
-        Message::SubscriptionAutoUpdated(Err(
-            infiltrator_contract::error::InfiltratorError::Config("拉取失败".into()),
-        )),
+        Message::SubscriptionAutoUpdated(Err(InfiltratorError::Config("拉取失败".into()))),
     );
     assert_eq!(units, 2, "warning-toast + critical-notification legs");
     assert!(state.shell.error_msg.is_some());
@@ -70,8 +82,8 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
         let path = settings_io::settings_path(&home).unwrap();
         settings_io::save_settings(&path, &settings).await.unwrap();
     });
-    std::fs::create_dir_all(home.join("logs")).unwrap();
-    std::fs::write(home.join("logs/app-2026-08-31.log"), "old logs").unwrap();
+    create_dir_all(home.join("logs")).unwrap();
+    write(home.join("logs/app-2026-08-31.log"), "old logs").unwrap();
     home.seed_profile("default", "mixed-port: 7890\nmode: rule\n");
     home.seed_profile("Custom", "mixed-port: 7891\nmode: global\n");
     assert!(home.join("settings.toml").exists());
@@ -97,14 +109,12 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     // defaults. (apply_system_proxy(None) / autostart disable are the two
     // system-touching lines and are deliberately not replicated.)
     let configs_dir = home.configs();
-    let report = block_on(async {
-        infiltrator_core::factory_reset::execute(&home, Some(&configs_dir)).unwrap()
-    });
+    let report = block_on(async { execute(&home, Some(&configs_dir)).unwrap() });
     assert!(
         report.warnings.is_empty(),
         "clean temp home resets warning-free"
     );
-    block_on(infiltrator_core::profile_reset::reset_profiles_to_default()).unwrap();
+    block_on(reset_profiles_to_default()).unwrap();
 
     // Files are gone / back to factory shape.
     assert!(!home.join("settings.toml").exists(), "AppSettings wiped");
@@ -126,10 +136,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
         state.profile.profiles.is_empty(),
         "fresh state, catalog empty"
     );
-    assert!(matches!(
-        state.runtime.rebuild_flow,
-        crate::types::runtime::RebuildFlowState::Idle
-    ));
+    assert!(matches!(state.runtime.rebuild_flow, RebuildFlowState::Idle));
     assert!(units >= 4, "LoadProfiles + LoadKernels + settings + toast");
 
     // The post-reset LoadProfiles would list the reseeded default only.
@@ -142,7 +149,7 @@ fn factory_reset_wipes_temp_home_and_boots_back_into_defaults() {
     // Failure leg: banner + localized failure toast, no state reset.
     let units = feed(
         &mut state,
-        Message::FactoryResetFinished(Err(infiltrator_contract::error::InfiltratorError::Config(
+        Message::FactoryResetFinished(Err(InfiltratorError::Config(
             "settings.toml 删除失败".into(),
         ))),
     );
@@ -160,30 +167,38 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
     state.shell.lang = "zh-CN".into();
     assert_eq!(state.shell.theme, iced::Theme::Dark);
 
-    // User switches language and theme through the UI.
-    feed(&mut state, Message::SetLanguage("en-US".into()));
+    let settings = SettingsApplication::new(block_on(settings_store()).unwrap());
+    let initial = block_on(settings.load()).unwrap();
+    state.observe_language_settings(&project_language(Some(&Ok(initial))));
+    let (application, _) = recording_application();
+    application.install_command_handler(Arc::new(
+        CommandApplication::new().with_settings(settings.clone()),
+    ));
+    state.commands = Some(application);
+    let task = state.update(Message::SetLanguage("en-US".into()));
+    assert_eq!(state.shell.lang, "zh-CN", "accepted is not saved");
+    feed(&mut state, language_terminal(task));
     assert_eq!(state.shell.lang, "en-US");
-    feed(&mut state, Message::SetLanguage("zh".into()));
+    let task = state.update(Message::SetLanguage("zh".into()));
+    feed(&mut state, language_terminal(task));
     assert_eq!(state.shell.lang, "zh-CN", "aliases normalize to zh-CN");
-    feed(&mut state, Message::SetLanguage("en-US".into()));
+    let task = state.update(Message::SetLanguage("en-US".into()));
+    feed(&mut state, language_terminal(task));
     let units = feed(&mut state, Message::SetTheme("light".into()));
     assert_eq!(units, 0);
     assert_eq!(state.shell.theme, iced::Theme::Light);
 
-    // Save runs the load-modify-save task; execute its body for real.
-    let _task = feed(&mut state, Message::SaveAppSettings);
+    let task = state.update(Message::SaveAppSettings);
     assert!(state.profile.is_saving_app_settings);
-    let saved = block_on(async {
-        let base_dir = mihomo_platform::paths::get_home_dir().unwrap();
-        let path = settings_io::settings_path(&base_dir).unwrap();
-        let mut stored = settings_io::load_settings(&path).await.unwrap_or_default();
-        stored.language = state.shell.lang.clone();
-        stored.theme = "light".into();
-        stored.editor_path = None;
-        settings_io::save_settings(&path, &stored).await.unwrap();
-        settings_io::load_settings(&path).await.unwrap()
-    });
-    let units = feed(&mut state, Message::AppSettingsSaved(Ok(())));
+    let completion = language_terminal(task);
+    assert!(
+        matches!(completion, Message::AppSettingsSaved(Ok(()))),
+        "the actual save task must finish successfully"
+    );
+    let units = feed(&mut state, completion);
+    let saved = block_on(settings.load()).unwrap();
+    assert_eq!(saved.language, "en-US");
+    assert_eq!(saved.theme, "light");
     assert!(!state.profile.is_saving_app_settings);
     assert_eq!(units, 1, "success toast");
     assert!(
@@ -205,13 +220,23 @@ fn language_and_theme_switches_persist_and_mirror_back_on_startup() {
         "webdav defaults mirrored from the stored settings"
     );
 
+    let task = state.update(Message::SetLanguage("system".into()));
+    feed(&mut state, language_terminal(task));
+    let task = state.update(Message::SaveAppSettings);
+    let completion = language_terminal(task);
+    assert!(matches!(completion, Message::AppSettingsSaved(Ok(()))));
+    feed(&mut state, completion);
+    assert_eq!(
+        block_on(settings.load()).unwrap().language,
+        "system",
+        "ordinary settings save must retain the preference instead of the resolved language"
+    );
+
     // A corrupt settings file degrades to the error banner, not a crash.
     let mut state3 = fresh_state();
     let units = feed(
         &mut state3,
-        Message::SettingsLoaded(Err(infiltrator_contract::error::InfiltratorError::Config(
-            "TOML parse error".into(),
-        ))),
+        Message::SettingsLoaded(Err(InfiltratorError::Config("TOML parse error".into()))),
     );
     assert!(state3.shell.error_msg.is_some());
     assert_eq!(units, 0);
@@ -261,4 +286,39 @@ fn toast_lifecycle_redacts_secrets_and_survives_stale_removal() {
         Message::SelectSubscriptionProfile("Paid".into()),
     );
     assert_eq!(state.profile.subscription_profile_name, "Paid");
+}
+
+fn language_terminal(task: Task<Message>) -> Message {
+    block_on(async {
+        let mut stream = into_stream(task).expect("actual persistence task");
+        let Some(Action::Output(message)) = stream.next().await else {
+            panic!("actual save terminal result")
+        };
+        assert!(stream.next().await.is_none());
+        message
+    })
+}
+
+#[test]
+fn rejected_language_command_retains_the_current_locale_and_exposes_retry() {
+    let mut state = fresh_state();
+    let (application, handler) = rejecting_application();
+    state.commands = Some(application);
+    state.observe_language_settings(&project_language(Some(&Ok(AppSettings::default()))));
+    let current = state.shell.lang.clone();
+    let task = state.update(Message::SetLanguage("en-US".into()));
+    feed(&mut state, language_terminal(task));
+    assert_eq!(state.shell.lang, current);
+    assert_eq!(
+        state
+            .shell
+            .language_choice
+            .failure
+            .as_ref()
+            .unwrap()
+            .message,
+        "profile is read-only"
+    );
+    assert!(state.shell.language_choice.requested.is_some());
+    assert_eq!(handler.0.lock().unwrap().len(), 1);
 }

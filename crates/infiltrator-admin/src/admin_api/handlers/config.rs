@@ -3,21 +3,19 @@
 //! (`/admin/api/dns`, `/admin/api/fake-ip`, `/admin/api/*-providers`,
 //! `/admin/api/sniffer`, `/admin/api/rules`, `/admin/api/tun`).
 
-use axum::Json;
-use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
-use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
-
+use super::schedule_rebuild;
 use crate::admin_api::events::{
     AdminEvent, EVENT_DNS_CHANGED, EVENT_FAKE_IP_CHANGED, EVENT_PROXY_PROVIDERS_CHANGED,
     EVENT_RULE_PROVIDERS_CHANGED, EVENT_RULES_CHANGED, EVENT_SNIFFER_CHANGED, EVENT_TUN_CHANGED,
 };
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
-
-use super::schedule_rebuild;
+use axum::{Json, extract};
+use infiltrator_domain::rules::{RuleProvidersPayload, RulesPayload};
+use infiltrator_domain::{dns, fake_ip, proxy_providers, tun};
 
 pub async fn get_dns_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
     let config = state
         .ctx
@@ -31,7 +29,7 @@ pub async fn get_dns_config_http<C: AdminApiContext>(
 }
 
 pub async fn save_dns_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<dns::DnsConfigPatch>,
 ) -> Result<Json<dns::DnsConfig>, ApiError> {
     let config = state
@@ -48,7 +46,7 @@ pub async fn save_dns_config_http<C: AdminApiContext>(
 }
 
 pub async fn get_fake_ip_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
     let config = state
         .ctx
@@ -62,7 +60,7 @@ pub async fn get_fake_ip_config_http<C: AdminApiContext>(
 }
 
 pub async fn save_fake_ip_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<fake_ip::FakeIpConfigPatch>,
 ) -> Result<Json<fake_ip::FakeIpConfig>, ApiError> {
     let config = state
@@ -79,7 +77,7 @@ pub async fn save_fake_ip_config_http<C: AdminApiContext>(
 }
 
 pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<CacheFlushResponse>, ApiError> {
     let removed = state
         .ctx
@@ -93,7 +91,7 @@ pub async fn flush_fake_ip_cache_http<C: AdminApiContext>(
 }
 
 pub async fn get_rule_providers_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RuleProvidersPayload>, ApiError> {
     let providers = state
         .ctx
@@ -107,7 +105,7 @@ pub async fn get_rule_providers_http<C: AdminApiContext>(
 }
 
 pub async fn save_rule_providers_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<RuleProvidersPayload>,
 ) -> Result<Json<RuleProvidersPayload>, ApiError> {
     let providers = state
@@ -126,7 +124,7 @@ pub async fn save_rule_providers_http<C: AdminApiContext>(
 }
 
 pub async fn get_proxy_providers_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
     let providers = state
         .ctx
@@ -140,7 +138,7 @@ pub async fn get_proxy_providers_http<C: AdminApiContext>(
 }
 
 pub async fn save_proxy_providers_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<proxy_providers::ProxyProvidersPayload>,
 ) -> Result<Json<proxy_providers::ProxyProvidersPayload>, ApiError> {
     let providers = state
@@ -159,7 +157,7 @@ pub async fn save_proxy_providers_http<C: AdminApiContext>(
 }
 
 pub async fn get_sniffer_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let config = state
         .ctx
@@ -173,7 +171,7 @@ pub async fn get_sniffer_config_http<C: AdminApiContext>(
 }
 
 pub async fn save_sniffer_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let config = state
@@ -190,7 +188,7 @@ pub async fn save_sniffer_config_http<C: AdminApiContext>(
 }
 
 pub async fn get_rules_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<RulesPayload>, ApiError> {
     let rules_list = state
         .ctx
@@ -204,7 +202,7 @@ pub async fn get_rules_http<C: AdminApiContext>(
 }
 
 pub async fn save_rules_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<RulesPayload>,
 ) -> Result<Json<RulesPayload>, ApiError> {
     let rules_list = state
@@ -221,7 +219,7 @@ pub async fn save_rules_http<C: AdminApiContext>(
 }
 
 pub async fn get_tun_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
     let config = state
         .ctx
@@ -235,7 +233,7 @@ pub async fn get_tun_config_http<C: AdminApiContext>(
 }
 
 pub async fn save_tun_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<tun::TunConfigPatch>,
 ) -> Result<Json<tun::TunConfig>, ApiError> {
     let config = state

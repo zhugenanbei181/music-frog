@@ -7,11 +7,14 @@
 //! **Scene Adapter**: [`drawer_scene`] builds a declarative full-viewport scrim
 //! hosting the edge-docked panel at token borders and surface fills.
 
+use crate::palette::UiPalette;
+use crate::popover::Rect;
+use crate::theme::space;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::Message;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryFilter, With, Without};
 use bevy::ecs::system::{Query, Res};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::BorderColor;
@@ -19,10 +22,6 @@ use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, FlexDirection, Node, PositionType, UiRect, Val,
     percent, px,
 };
-
-use crate::palette::UiPalette;
-use crate::popover::Rect;
-use crate::theme::space;
 
 /// Docking edge for the drawer panel.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -56,6 +55,18 @@ impl DrawerState {
             slide_progress: 1.0,
         }
     }
+}
+
+#[derive(QueryFilter)]
+pub struct DrawerScrimFilter {
+    with_drawer_scrim: With<DrawerScrim>,
+    without_drawer_panel: Without<DrawerPanel>,
+}
+
+#[derive(QueryFilter)]
+pub struct DrawerPanelFilter {
+    with_drawer_panel: With<DrawerPanel>,
+    without_drawer_scrim: Without<DrawerScrim>,
 }
 
 /// Compute absolute bounding rectangle for a drawer panel during slide animation.
@@ -234,14 +245,10 @@ pub fn drawer_scene(
 }
 
 /// Repaint drawer panels and scrims from live palette.
-#[allow(clippy::type_complexity)]
 pub fn sync_drawer_visuals(
     palette: Res<UiPalette>,
-    mut scrims: Query<&mut BackgroundColor, (With<DrawerScrim>, Without<DrawerPanel>)>,
-    mut panels: Query<
-        (&mut BackgroundColor, &mut BorderColor),
-        (With<DrawerPanel>, Without<DrawerScrim>),
-    >,
+    mut scrims: Query<&mut BackgroundColor, DrawerScrimFilter>,
+    mut panels: Query<(&mut BackgroundColor, &mut BorderColor), DrawerPanelFilter>,
 ) {
     let scrim_bg = palette.scrim;
     for mut fill in &mut scrims {

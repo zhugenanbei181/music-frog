@@ -1,8 +1,10 @@
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-
 use super::RuleEntry;
 use super::types::{ParsedRule, RuleType, parse_rule_str};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::net::IpAddr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShadowedRuleWarning {
@@ -24,8 +26,8 @@ pub enum ShadowReason {
     Other(String),
 }
 
-impl std::fmt::Display for ShadowReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ShadowReason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ShadowReason::UnreachableAfterMatch => {
                 write!(
@@ -63,17 +65,17 @@ impl std::fmt::Display for ShadowReason {
 }
 
 /// Helper function to parse an IP CIDR string into (IpAddr, prefix_len).
-fn parse_cidr(cidr_str: &str) -> Option<(std::net::IpAddr, u8)> {
+fn parse_cidr(cidr_str: &str) -> Option<(IpAddr, u8)> {
     let trimmed = cidr_str.trim();
     if let Some((ip_str, prefix_str)) = trimmed.split_once('/') {
-        let ip = ip_str.trim().parse::<std::net::IpAddr>().ok()?;
+        let ip = ip_str.trim().parse::<IpAddr>().ok()?;
         let prefix = prefix_str.trim().parse::<u8>().ok()?;
         Some((ip, prefix))
     } else {
-        let ip = trimmed.parse::<std::net::IpAddr>().ok()?;
+        let ip = trimmed.parse::<IpAddr>().ok()?;
         let prefix = match ip {
-            std::net::IpAddr::V4(_) => 32,
-            std::net::IpAddr::V6(_) => 128,
+            IpAddr::V4(_) => 32,
+            IpAddr::V6(_) => 128,
         };
         Some((ip, prefix))
     }
@@ -93,14 +95,14 @@ fn cidr_contains(broader: &str, narrower: &str) -> bool {
     }
 
     match (b_ip, n_ip) {
-        (std::net::IpAddr::V4(b_net), std::net::IpAddr::V4(n_net)) => {
+        (IpAddr::V4(b_net), IpAddr::V4(n_net)) => {
             if b_prefix == 0 {
                 return true;
             }
             let mask = !0u32 << (32 - b_prefix);
             (u32::from(b_net) & mask) == (u32::from(n_net) & mask)
         }
-        (std::net::IpAddr::V6(b_net), std::net::IpAddr::V6(n_net)) => {
+        (IpAddr::V6(b_net), IpAddr::V6(n_net)) => {
             if b_prefix == 0 {
                 return true;
             }

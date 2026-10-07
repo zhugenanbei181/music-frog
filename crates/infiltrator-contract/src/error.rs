@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
+use std::{error, fmt, io};
 
 /// Stable application-facing error with no dependency on a transport, host,
 /// executor, or UI toolkit. Adapters convert their concrete failures into
@@ -15,8 +17,8 @@ pub enum InfiltratorError {
     Privilege(String),
 }
 
-impl std::fmt::Display for InfiltratorError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for InfiltratorError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let (label, message) = match self {
             Self::Mihomo(message) => ("Mihomo API error", message),
             Self::Config(message) => ("Configuration error", message),
@@ -31,7 +33,7 @@ impl std::fmt::Display for InfiltratorError {
     }
 }
 
-impl std::error::Error for InfiltratorError {}
+impl error::Error for InfiltratorError {}
 
 impl From<String> for InfiltratorError {
     fn from(message: String) -> Self {
@@ -39,8 +41,8 @@ impl From<String> for InfiltratorError {
     }
 }
 
-impl From<std::io::Error> for InfiltratorError {
-    fn from(error: std::io::Error) -> Self {
+impl From<io::Error> for InfiltratorError {
+    fn from(error: io::Error) -> Self {
         Self::Io(error.to_string())
     }
 }
@@ -53,7 +55,7 @@ impl From<anyhow::Error> for InfiltratorError {
 
 /// Convert a concrete controller/transport failure at an inbound adapter
 /// without making this contract crate depend on that transport's error type.
-pub fn from_mihomo<E: std::fmt::Display>(error: E) -> InfiltratorError {
+pub fn from_mihomo<E: Display>(error: E) -> InfiltratorError {
     InfiltratorError::Mihomo(error.to_string())
 }
 
@@ -80,6 +82,19 @@ pub struct Failure {
     pub code: ErrorCode,
     pub message: String,
     pub retryable: bool,
+    /// Product-owned reason; `message` remains opaque diagnostic detail.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<FailureReason>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FailureReason {
+    YamlSyntax { line: usize, column: usize },
+    MixinYaml,
+    ActiveProfileInconsistent,
+    QuotaSourceChanged,
+    CurrentTimeUnavailable,
+    DownloadCanceled,
 }
 
 impl Failure {
@@ -88,10 +103,23 @@ impl Failure {
             code,
             message: message.into(),
             retryable,
+            reason: None,
         }
+    }
+
+    pub fn with_reason(mut self, reason: FailureReason) -> Self {
+        self.reason = Some(reason);
+        self
     }
 
     pub fn unsupported(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Unsupported, message, false)
     }
 }
+
+impl Display for Failure {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{:?}: {}", self.code, self.message)
+    }
+}
+impl error::Error for Failure {}

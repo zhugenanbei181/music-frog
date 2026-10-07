@@ -4,12 +4,19 @@
 //! Split out of `update/ui.rs` so the shell-domain handlers stay together and
 //! the UI dispatcher keeps its line budget.
 
+use crate::shortcuts_store::{capture, reset_action, set_enabled};
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
+use crate::types::dns_query::QueryAction;
 use crate::types::message::Message;
+use crate::utils::sanitize_ui_text;
 use iced::Task;
-use infiltrator_contract::shortcuts::ShortcutAction;
+use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
+use infiltrator_contract::theme::ThemePreference;
+use infiltrator_contract::toast::{ToastAdmission, ToastSeverity};
 use infiltrator_shared::locales::{Lang, Localizer};
+use tokio::time;
+use tokio::time::sleep;
 
 impl AppState {
     /// Handlers for the shared appearance/shortcut/notification messages.
@@ -23,8 +30,7 @@ impl AppState {
                 Some(Task::none())
             }
             Message::SetTheme(theme_name) => {
-                let preference =
-                    infiltrator_contract::theme::ThemePreference::from_setting(&theme_name);
+                let preference = ThemePreference::from_setting(&theme_name);
                 self.shell.apply_theme_preference(preference);
                 Some(Task::none())
             }
@@ -52,15 +58,13 @@ impl AppState {
                 // Optimistic in-memory toggle; the facade write is the
                 // authoritative follow-up (and reports failures as a toast).
                 self.shell.shortcut_registry.set_enabled(action, enabled);
-                Some(Task::perform(
-                    crate::shortcuts_store::set_enabled(action, enabled),
-                    |result| Message::ShortcutsUpdated(result.map_err(|error| error.to_string())),
-                ))
+                Some(Task::perform(set_enabled(action, enabled), |result| {
+                    Message::ShortcutsUpdated(result.map_err(|error| error.to_string()))
+                }))
             }
-            Message::ResetHotkey(action) => Some(Task::perform(
-                crate::shortcuts_store::reset_action(action),
-                |result| Message::ShortcutsUpdated(result.map_err(|error| error.to_string())),
-            )),
+            Message::ResetHotkey(action) => Some(Task::perform(reset_action(action), |result| {
+                Message::ShortcutsUpdated(result.map_err(|error| error.to_string()))
+            })),
             Message::ShortcutsUpdated(result) => Some(match result {
                 Ok(registry) => {
                     self.shell.shortcut_registry = registry;
@@ -86,17 +90,15 @@ impl AppState {
         // Toast text originates from raw error chains (subscription updates,
         // transport failures) that can embed access tokens; redact here
         // before anything reaches the screen.
-        let content = crate::utils::sanitize_ui_text(&content);
+        let content = sanitize_ui_text(&content);
         let severity = match status {
-            ToastStatus::Info => infiltrator_contract::toast::ToastSeverity::Info,
-            ToastStatus::Success => infiltrator_contract::toast::ToastSeverity::Success,
-            ToastStatus::Warning => infiltrator_contract::toast::ToastSeverity::Warning,
-            ToastStatus::Error => infiltrator_contract::toast::ToastSeverity::Error,
+            ToastStatus::Info => ToastSeverity::Info,
+            ToastStatus::Success => ToastSeverity::Success,
+            ToastStatus::Warning => ToastSeverity::Warning,
+            ToastStatus::Error => ToastSeverity::Error,
         };
         let now_ms = self.shell.toast_epoch.elapsed().as_millis() as u64;
-        if self.shell.toast_gate.admit(severity, &content, now_ms)
-            == infiltrator_contract::toast::ToastAdmission::Coalesced
-        {
+        if self.shell.toast_gate.admit(severity, &content, now_ms) == ToastAdmission::Coalesced {
             return Task::none();
         }
 
@@ -112,7 +114,7 @@ impl AppState {
 
         Task::perform(
             async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                sleep(time::Duration::from_secs(5)).await;
                 id
             },
             Message::RemoveToast,
@@ -121,11 +123,7 @@ impl AppState {
 
     /// Resolve one raw key press against the shared shortcut registry, or
     /// capture it when a rebind is in flight.
-    fn handle_keyboard_chord(
-        &mut self,
-        key: String,
-        modifiers: infiltrator_contract::shortcuts::KeyModifiers,
-    ) -> Task<Message> {
+    fn handle_keyboard_chord(&mut self, key: String, modifiers: KeyModifiers) -> Task<Message> {
         let escape = key == "Escape";
         // DUAL-15-11: while the input method composes, the keys belong to it
         // (the toolkit widget shows the preedit); the shell must not steal
@@ -136,10 +134,13 @@ impl AppState {
         }
         if let Some(action) = self.shell.hotkey_capture {
             if escape {
+                if self.diag.dns_cache_actions.open {
+                    return self.update(Message::CancelDnsCacheFlush);
+                }
                 self.shell.hotkey_capture = None;
                 return Task::none();
             }
-            let chord = infiltrator_contract::shortcuts::ShortcutChord::new(key, modifiers);
+            let chord = ShortcutChord::new(key, modifiers);
             // Immediate feedback against the live registry (the same rule the
             // application layer enforces), then persist through the shared
             // shortcut facade.
@@ -160,12 +161,39 @@ impl AppState {
                 .shell
                 .shortcut_registry
                 .bind_or_replace(action, chord.clone());
-            return Task::perform(crate::shortcuts_store::capture(action, chord), |result| {
+            return Task::perform(capture(action, chord), |result| {
                 Message::ShortcutsUpdated(result.map_err(|error| error.to_string()))
             });
         }
         if escape {
-            return Task::done(Message::CloseCommandPalette);
+            if self.diag.dns_query.open {
+                return self.update(Message::DnsQuery(QueryAction::Cancel));
+            }
+            if self.runtime.inspecting_proxy.is_some() {
+                return self.update_core(Message::InspectProxy(None));
+            }
+            if self.editor.dns_hosts_editor.open {
+                return self.update(Message::CancelDnsHostsEditor);
+            }
+            if self.runtime.group_order_open {
+                return self.update(Message::CancelProxyGroupOrder);
+            }
+            if self.runtime.probe_options_open {
+                return self.update(Message::CancelProxyProbeOptions);
+            }
+            if self.runtime.custom_node_modal_open {
+                return self.update_ui(Message::CloseCustomNodeModal);
+            }
+            if self.shell.confirmation.is_some() {
+                return self.update_ui(Message::CancelConfirmation);
+            }
+            if self.diag.speedtest_detail_open {
+                return self.update_ui(Message::CloseSpeedtestDetail);
+            }
+            if self.diag.inspecting_connection_id.is_some() {
+                return self.update_ui(Message::InspectConnection(None));
+            }
+            return self.update_ui(Message::CloseCommandPalette);
         }
         // While the palette is open its list owns the arrow keys (the footer
         // hint ↑↓ is a keyboard contract, not a decoration).
@@ -173,10 +201,11 @@ impl AppState {
             match key.as_str() {
                 "ArrowDown" => return self.update_ui(Message::SelectNextCommand),
                 "ArrowUp" => return self.update_ui(Message::SelectPrevCommand),
+                "Enter" => return self.update_ui(Message::ExecuteSelectedCommand),
                 _ => {}
             }
         }
-        let chord = infiltrator_contract::shortcuts::ShortcutChord::new(key, modifiers);
+        let chord = ShortcutChord::new(key, modifiers);
         let Some(action) = self.shell.shortcut_registry.resolve(&chord) else {
             return Task::none();
         };

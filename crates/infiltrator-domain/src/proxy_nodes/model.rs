@@ -5,18 +5,9 @@
 //! which together keep YAML roundtrips lossless. See the parent module docs
 //! for the full design rationale.
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
-
-/// Lossless proxy node as parsed from a profile's `proxies:` list.
-///
-/// Alias of [`ProxyNode`]; the raw name documents intent: this is what comes
-/// back from [`crate::proxy_nodes::parse_profile_yaml`] before any consumer
-/// inspects it, and it is guaranteed to roundtrip back to YAML without
-/// dropping fields.
-pub type RawNode = ProxyNode;
+use std::collections::BTreeMap;
 
 /// Universal node fields shared by every protocol.
 ///

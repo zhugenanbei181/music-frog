@@ -14,14 +14,21 @@
 //! line reports that a save was *submitted* and reports 「已与读模型一致」 only
 //! once the read model publishes the submitted text back.
 
+use crate::a11y::button_semantic_node;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::rules::RulesProjectionUpdated;
+use crate::pages::rules_tabs::RulesTabState;
+use crate::shortcuts::modifiers_from_keyboard;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
+use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{QueryData, With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy::input::{ButtonInput, ButtonState};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -30,14 +37,18 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::editor::{CodeEditorState, code_editor_scene};
+use infiltrator_application::rule_json_projection::json_editor_status;
+use infiltrator_bevy_widgets::editor::code_editor_scene;
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::rules_workspace::{RulesJsonDocumentSnapshot, RulesJsonSection};
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::rules::RulesProjectionUpdated;
+use infiltrator_contract::rule_json_feedback::RuleJsonFeedback;
+use infiltrator_contract::rules_workspace::{
+    RulesJsonDocumentSnapshot, RulesJsonSection, RulesTab,
+};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Which JSON document the partition shows, plus its edit buffer.
 #[derive(Resource)]
@@ -57,7 +68,7 @@ pub struct RulesJsonState {
     /// Last published documents (the shared read model).
     pub published: Vec<RulesJsonDocumentSnapshot>,
     /// Honest status line (submitted / adopted / refused).
-    pub status: Option<String>,
+    pub status: Option<RuleJsonFeedback>,
 }
 
 impl Default for RulesJsonState {
@@ -196,24 +207,17 @@ impl RulesJsonState {
     }
 
     /// Status text for the active section.
-    pub fn status_label(&self) -> String {
-        let index = self.section.index();
-        let focus = if self.focused {
-            "编辑中"
-        } else {
-            "未聚焦"
-        };
-        let saved = if self.dirty.get(index).copied().unwrap_or(false) {
-            "有未提交改动"
-        } else if self.published_document().is_some() {
-            "已与读模型一致"
-        } else {
-            "读模型未发布该文档"
-        };
-        match self.status.as_deref() {
-            Some(status) => format!("{focus} · {saved} · {status}"),
-            None => format!("{focus} · {saved}"),
-        }
+    pub fn status_label(&self, language: &str) -> String {
+        json_editor_status(
+            self.focused,
+            self.dirty
+                .get(self.section.index())
+                .copied()
+                .unwrap_or(false),
+            self.published_document().is_some(),
+            self.status,
+            language,
+        )
     }
 }
 
@@ -245,24 +249,6 @@ pub struct RulesJsonStatusText;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RulesJsonSaveLabel;
 
-/// Bare-Chinese label of a shared JSON section (Bevy presentation convention).
-pub const fn json_section_label_zh(section: RulesJsonSection) -> &'static str {
-    match section {
-        RulesJsonSection::RuleProviders => "规则提供者 JSON",
-        RulesJsonSection::ProxyProviders => "代理提供者 JSON",
-        RulesJsonSection::Sniffer => "嗅探器 JSON",
-    }
-}
-
-/// Bare-Chinese save label of a shared JSON section.
-pub const fn json_section_save_label_zh(section: RulesJsonSection) -> &'static str {
-    match section {
-        RulesJsonSection::RuleProviders => "保存规则提供者",
-        RulesJsonSection::ProxyProviders => "保存代理提供者",
-        RulesJsonSection::Sniffer => "保存嗅探器",
-    }
-}
-
 fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn Scene> {
     let index = section.index();
     let selected = index == 0;
@@ -278,7 +264,7 @@ fn section_chip_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn
             Button
             RulesJsonSectionChip(index)
             Children [
-                Text({ json_section_label_zh(section).to_owned() })
+                LocalizedText::plain(section.i18n_key())
                 TextRole(Role::Caption)
                 TextColor({ if selected { palette.on_accent } else { palette.ink_dim } })
                 RulesJsonSectionLabel(index)
@@ -299,12 +285,13 @@ fn edit_button_scene(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RulesJsonEditButton
             Children [
-                Text({ "编辑缓冲区".to_owned() }) TextRole(Role::Body)
+                LocalizedText::plain("profiles_editor_buffer_title") TextRole(Role::Body)
             ]
     })
 }
 
 fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn Scene> {
+    let semantic = button_semantic_node("");
     Box::new(bsn! {
             Node {
                 min_height: px(palette.control_height_px),
@@ -316,8 +303,9 @@ fn save_button_scene(section: RulesJsonSection, palette: &UiPalette) -> Box<dyn 
             BackgroundColor({ palette.accent })
             Button
             RulesJsonSaveButton
+            semantic LocalizedLabel::plain(section.save_i18n_key())
             Children [
-                Text({ json_section_save_label_zh(section).to_owned() })
+                LocalizedText::plain(section.save_i18n_key())
                 TextRole(Role::BodyStrong)
                 RulesJsonSaveLabel
             ]
@@ -330,7 +318,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
         .iter()
         .map(|section| section_chip_scene(*section, palette))
         .collect();
-    let status = state.status_label();
+    let status = state.status_label("en-US");
     let body: Box<dyn Scene> = code_editor_scene(state.buffer(), palette);
     let edit_button = edit_button_scene(palette);
     let save_button = save_button_scene(state.section, palette);
@@ -349,7 +337,7 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
                     padding: UiRect::bottom(Val::Px(space::S8)),
                 }
                 Children [
-                    Text({ "规则工作区 JSON 编辑器 (Rule Workspace JSON)".to_owned() }) TextRole(Role::BodyStrong)
+                    LocalizedText::plain("rules_json_editor_title") TextRole(Role::BodyStrong)
                     --
                     Node {
                         align_items: AlignItems::Center,
@@ -397,28 +385,56 @@ pub fn rules_json_scene(palette: &UiPalette, state: &RulesJsonState) -> impl Sce
 /// DUAL-11-14: restamp the partition chrome (status line, save label, section
 /// chip fills) from the state. The editor body is rebuilt separately by
 /// [`refresh_rules_json_body`]; everything else is compare-and-set in place.
-pub fn restamp_rules_json(
-    state: Option<Res<RulesJsonState>>,
-    palette: Res<UiPalette>,
-    mut statuses: Query<&mut Text, (With<RulesJsonStatusText>, Without<RulesJsonSaveLabel>)>,
-    mut save_labels: Query<&mut Text, (With<RulesJsonSaveLabel>, Without<RulesJsonStatusText>)>,
-    mut chips: Query<(&mut BackgroundColor, &RulesJsonSectionChip)>,
-    mut section_labels: Query<(&mut TextColor, &RulesJsonSectionLabel)>,
-) {
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub struct JsonSaveCopy {
+    text: &'static mut Text,
+    copy: &'static mut LocalizedText,
+}
+#[derive(SystemParam)]
+pub struct JsonChrome<'w, 's> {
+    locale: Res<'w, UiLocale>,
+    state: Option<Res<'w, RulesJsonState>>,
+    palette: Res<'w, UiPalette>,
+    statuses:
+        Query<'w, 's, &'static mut Text, (With<RulesJsonStatusText>, Without<RulesJsonSaveLabel>)>,
+    save_labels:
+        Query<'w, 's, JsonSaveCopy, (With<RulesJsonSaveLabel>, Without<RulesJsonStatusText>)>,
+    save_buttons: Query<'w, 's, &'static mut LocalizedLabel, With<RulesJsonSaveButton>>,
+    chips: Query<'w, 's, (&'static mut BackgroundColor, &'static RulesJsonSectionChip)>,
+    section_labels: Query<'w, 's, (&'static mut TextColor, &'static RulesJsonSectionLabel)>,
+}
+pub fn restamp_rules_json(chrome: JsonChrome) {
+    let JsonChrome {
+        locale,
+        state,
+        palette,
+        mut statuses,
+        mut save_labels,
+        mut save_buttons,
+        mut chips,
+        mut section_labels,
+    } = chrome;
     let Some(state) = state else {
         return;
     };
-    let status = state.status_label();
+    let status = state.status_label(locale.code());
     for mut text in &mut statuses {
         if text.0 != status {
             text.0 = status.clone();
         }
     }
-    let save = json_section_save_label_zh(state.section).to_owned();
-    for mut text in &mut save_labels {
-        if text.0 != save {
-            text.0 = save.clone();
+    let save = Lang(locale.code())
+        .tr(state.section.save_i18n_key())
+        .into_owned();
+    for mut label in &mut save_labels {
+        label.copy.key = state.section.save_i18n_key();
+        if label.text.0 != save {
+            label.text.0 = save.clone();
         }
+    }
+    for mut label in &mut save_buttons {
+        label.0.key = state.section.save_i18n_key();
     }
     for (mut background, chip) in &mut chips {
         let selected = RulesJsonSection::from_index(chip.0) == state.section;
@@ -510,33 +526,33 @@ pub fn on_rules_json_action_activated(
     }
     let index = state.section.index();
     let Some(handle) = handle else {
-        state.status = Some("此宿主未组合命令通道，未提交".to_owned());
+        state.status = Some(RuleJsonFeedback::HostUnavailable);
         return;
     };
     let Some(command) = state.submit_command() else {
-        state.status = Some("JSON 内容为空，未提交".to_owned());
+        state.status = Some(RuleJsonFeedback::Empty);
         return;
     };
     handle.submit(command);
     if let Some(dirty) = state.dirty.get_mut(index) {
         *dirty = true;
     }
-    state.status = Some("已提交共享应用保存（等待读模型回读）".to_owned());
+    state.status = Some(RuleJsonFeedback::AwaitingReadback);
 }
 
 /// The editor keyboard seam: only the focused buffer consumes keys, and only
 /// while the partition body is mounted. Ctrl+S submits the active section.
 pub fn rules_json_keyboard_input(
-    mut keys: bevy::ecs::message::MessageReader<KeyboardInput>,
-    keys_state: Option<Res<bevy::input::ButtonInput<bevy::input::keyboard::KeyCode>>>,
+    mut keys: MessageReader<KeyboardInput>,
+    keys_state: Option<Res<ButtonInput<KeyCode>>>,
     bodies: Query<(), With<RulesJsonEditorBody>>,
-    tabs: Option<Res<crate::pages::rules_tabs::RulesTabState>>,
+    tabs: Option<Res<RulesTabState>>,
     mut state: Option<ResMut<RulesJsonState>>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let pressed: Vec<Key> = keys
         .read()
-        .filter(|key| key.state == bevy::input::ButtonState::Pressed)
+        .filter(|key| key.state == ButtonState::Pressed)
         .map(|key| key.logical_key.clone())
         .collect();
     let Some(state) = state.as_deref_mut() else {
@@ -546,14 +562,15 @@ pub fn rules_json_keyboard_input(
         return;
     }
     // A hidden partition never owns the keyboard, even if focus was left on.
-    if tabs.as_ref().is_some_and(|tabs| {
-        tabs.tab != infiltrator_contract::rules_workspace::RulesTab::JsonEditors
-    }) {
+    if tabs
+        .as_ref()
+        .is_some_and(|tabs| tabs.tab != RulesTab::JsonEditors)
+    {
         return;
     }
     let modifiers = keys_state
         .as_deref()
-        .map(crate::shortcuts::modifiers_from_keyboard)
+        .map(modifiers_from_keyboard)
         .unwrap_or_default();
     for key in pressed {
         if modifiers.ctrl && matches!(&key, Key::Character(text) if text.eq_ignore_ascii_case("s"))
@@ -564,7 +581,7 @@ pub fn rules_json_keyboard_input(
                 if let Some(dirty) = state.dirty.get_mut(index) {
                     *dirty = true;
                 }
-                state.status = Some("已提交共享应用保存（等待读模型回读）".to_owned());
+                state.status = Some(RuleJsonFeedback::AwaitingReadback);
             }
             continue;
         }
@@ -597,15 +614,15 @@ mod tests {
     #[test]
     fn every_shared_section_has_a_label_and_a_save_label() {
         for section in RulesJsonSection::ALL {
-            assert!(!json_section_label_zh(section).is_empty());
-            assert!(!json_section_save_label_zh(section).is_empty());
+            assert!(!Lang("zh-CN").tr(section.i18n_key()).is_empty());
+            assert!(!Lang("zh-CN").tr(section.save_i18n_key()).is_empty());
         }
         assert_eq!(
-            json_section_label_zh(RulesJsonSection::Sniffer),
+            Lang("zh-CN").tr(RulesJsonSection::Sniffer.i18n_key()),
             "嗅探器 JSON"
         );
         assert_eq!(
-            json_section_save_label_zh(RulesJsonSection::RuleProviders),
+            Lang("zh-CN").tr(RulesJsonSection::RuleProviders.save_i18n_key()),
             "保存规则提供者"
         );
     }
@@ -636,7 +653,7 @@ mod tests {
             state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
             "{\n  \"edited\": true\n}"
         );
-        assert!(state.status_label().contains("有未提交改动"));
+        assert!(state.status_label("zh-CN").contains("有未提交改动"));
 
         // A read-back that matches the buffer clears the pending flag.
         state.adopt(&[RulesJsonDocumentSnapshot {
@@ -644,7 +661,7 @@ mod tests {
             json: "{\n  \"edited\": true\n}".to_owned(),
         }]);
         assert!(!state.dirty[RulesJsonSection::RuleProviders.index()]);
-        assert!(!state.status_label().contains("有未提交改动"));
+        assert!(!state.status_label("zh-CN").contains("有未提交改动"));
 
         // A clean buffer follows the read model.
         state.dirty[RulesJsonSection::RuleProviders.index()] = false;
@@ -656,7 +673,7 @@ mod tests {
             state.buffers[RulesJsonSection::RuleProviders.index()].full_text(),
             "{\n  \"server\": 2\n}"
         );
-        assert!(state.status_label().contains("已与读模型一致"));
+        assert!(state.status_label("zh-CN").contains("已与读模型一致"));
     }
 
     #[test]
@@ -669,7 +686,7 @@ mod tests {
         assert!(state.apply_key(&Key::Character("!".into())));
         assert!(state.buffer().full_text().contains("!"));
         assert!(state.dirty[RulesJsonSection::RuleProviders.index()]);
-        assert!(state.status_label().contains("编辑中"));
+        assert!(state.status_label("zh-CN").contains("编辑中"));
         assert!(state.apply_key(&Key::Escape));
         assert!(!state.focused);
         assert!(!state.apply_key(&Key::Character("x".into())));
@@ -690,6 +707,6 @@ mod tests {
 
         state.section = RulesJsonSection::ProxyProviders;
         assert!(state.submit_command().is_none(), "empty buffer is refused");
-        assert!(state.status_label().contains("读模型未发布该文档"));
+        assert!(state.status_label("zh-CN").contains("读模型未发布该文档"));
     }
 }

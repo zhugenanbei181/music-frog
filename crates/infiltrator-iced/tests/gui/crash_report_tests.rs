@@ -1,5 +1,6 @@
 use crate::*;
 use mihomo_platform::crash_reporter::CrashReporter;
+use std::env::var;
 
 #[test]
 fn backtrace_summary_keeps_innermost_head() {
@@ -18,7 +19,7 @@ fn backtrace_summary_handles_short_and_empty_input() {
 
 #[test]
 fn sanitized_report_is_collectible_without_network_or_panic() {
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = var("HOME").unwrap_or_default();
     let message = format!("boom at {home}/secrets with Bearer abcTOKEN123");
     let mut report = CrashReporter::new_report(&message, env!("CARGO_PKG_VERSION"), None);
     CrashReporter::sanitize_report(&mut report);

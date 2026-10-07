@@ -7,10 +7,13 @@
 
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::editor_viewport;
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{button, container, row, text};
+use crate::view::components::modern_scrollable;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::{editor_viewport, theme};
+use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme, border};
+use infiltrator_application::mixin_studio_projection;
+use infiltrator_domain::mixin::MixinConfig;
 use infiltrator_domain::mixin_studio;
 use infiltrator_domain::mixin_studio::MixinColumn;
 use infiltrator_shared::locales::{Lang, Localizer};
@@ -51,20 +54,25 @@ pub fn toggle_row(state: &AppState) -> Element<'_, Message> {
         text(lang.tr("mixin_studio_toggles_title").to_string())
             .size(11)
             .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| iced::widget::text::Style {
+            .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
     ]
     .spacing(theme::SP_SM)
     .align_y(Alignment::Center);
     for toggle in mixin_studio::MIXIN_PRESET_TOGGLES {
-        let enabled = mixin_studio::toggle_enabled(&mixin, toggle.id).unwrap_or(false);
-        let button_label = lang.tr(toggle.label_key).to_string();
+        let enabled = mixin_studio::toggle_enabled(&mixin, toggle.id.as_str()).unwrap_or(false);
+        let button_label = lang
+            .tr(mixin_studio_projection::preset_key(toggle.id))
+            .to_string();
         chips = chips.push(
             button(text(button_label).size(11).font(FONT_MEDIUM))
                 .padding([4, 10])
                 .style(chip_style(enabled))
-                .on_press(Message::ToggleMixinPreset(toggle.id.to_string(), !enabled)),
+                .on_press(Message::ToggleMixinPreset(
+                    toggle.id.as_str().to_string(),
+                    !enabled,
+                )),
         );
     }
     chips.into()
@@ -88,11 +96,11 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
         report.error.clone().unwrap_or_default()
     };
     container(
-        iced::widget::column![
+        column![
             text(headline)
                 .size(11)
                 .font(FONT_SEMIBOLD)
-                .style(move |t: &Theme| iced::widget::text::Style {
+                .style(move |t: &Theme| text::Style {
                     color: Some(if danger {
                         tokens(t).danger
                     } else {
@@ -102,7 +110,7 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
             text(detail)
                 .size(11)
                 .font(FONT_MEDIUM)
-                .style(|t: &Theme| iced::widget::text::Style {
+                .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
         ]
@@ -134,17 +142,15 @@ pub fn preflight_banner(state: &AppState) -> Element<'_, Message> {
 pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let base = state.editor.editor_content.text();
-    let mixin_config = serde_yaml_ng::from_str::<infiltrator_domain::mixin::MixinConfig>(
-        &state.editor.mixin_content.text(),
-    )
-    .ok();
+    let mixin_config =
+        serde_yaml_ng::from_str::<MixinConfig>(&state.editor.mixin_content.text()).ok();
     let report = mixin_studio::preview_cascade(&base, None, None, mixin_config.as_ref(), None);
 
     let mut stages = row![
         text(lang.tr("mixin_studio_cascade_title").to_string())
             .size(11)
             .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| iced::widget::text::Style {
+            .style(|t: &Theme| text::Style {
                 color: Some(tokens(t).text_secondary),
             }),
     ]
@@ -154,7 +160,7 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
         stages = stages.push(
             text(report.error.clone().unwrap_or_default())
                 .size(11)
-                .style(|t: &Theme| iced::widget::text::Style {
+                .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).danger),
                 }),
         );
@@ -162,37 +168,21 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
     }
     for (index, stage) in report.stages.iter().enumerate() {
         if index > 0 {
-            stages = stages.push(
-                text("→")
-                    .size(11)
-                    .style(|t: &Theme| iced::widget::text::Style {
-                        color: Some(tokens(t).text_tertiary),
-                    }),
-            );
+            stages = stages.push(text("→").size(11).style(|t: &Theme| text::Style {
+                color: Some(tokens(t).text_tertiary),
+            }));
         }
-        let stage_label = if stage.applied {
-            format!(
-                "{} {}",
-                lang.tr(stage.label_key),
-                format_line_count(&lang, stage.line_count)
-            )
-        } else {
-            format!(
-                "{} ({})",
-                lang.tr(stage.label_key),
-                lang.tr("mixin_studio_cascade_undeclared")
-            )
-        };
+        let stage_label = mixin_studio_projection::stage_caption(stage, lang.0);
         stages = stages.push(
             text(stage_label)
                 .size(11)
                 .font(FONT_MEDIUM)
-                .style(|t: &Theme| iced::widget::text::Style {
+                .style(|t: &Theme| text::Style {
                     color: Some(tokens(t).text_secondary),
                 }),
         );
     }
-    iced::widget::column![
+    column![
         stages,
         text(format!(
             "{}: {}",
@@ -200,7 +190,7 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
             format_line_count(&lang, report.merged_line_count())
         ))
         .size(11)
-        .style(|t: &Theme| iced::widget::text::Style {
+        .style(|t: &Theme| text::Style {
             color: Some(tokens(t).text_tertiary),
         }),
     ]
@@ -209,52 +199,36 @@ pub fn cascade_strip(state: &AppState) -> Element<'_, Message> {
 }
 
 fn format_line_count(lang: &Lang<'_>, count: usize) -> String {
-    format!("{} {}", count, lang.tr("mixin_studio_cascade_lines"))
+    mixin_studio_projection::line_count(count, lang.0)
 }
 
 /// One column caption: the shared label plus its real line count and whether
 /// the column is editable.
 fn column_caption<'a>(lang: &Lang<'_>, column: &MixinColumn) -> Element<'a, Message> {
-    let mode_key = if column.editable {
-        "mixin_column_editable"
-    } else {
-        "mixin_column_readonly"
-    };
-    row![
-        text(lang.tr(column.label_key).to_string())
-            .size(11)
-            .font(FONT_SEMIBOLD)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_primary),
-            }),
-        iced::widget::Space::new().width(theme::SP_XS),
-        text(format!(
-            "{} · {}",
-            format_line_count(lang, column.line_count),
-            lang.tr(mode_key)
-        ))
-        .size(10)
-        .font(MONO)
+    text(mixin_studio_projection::column_caption(column, lang.0))
+        .size(11)
+        .font(FONT_SEMIBOLD)
         .style(|t: &Theme| text::Style {
-            color: Some(tokens(t).text_tertiary),
-        }),
-    ]
-    .align_y(Alignment::Center)
-    .into()
+            color: Some(tokens(t).text_primary),
+        })
+        .into()
 }
 
 /// A read-only document box at a fixed height, aligned with the editor column.
 fn read_only_box<'a>(body: String, height_px: f32, danger: bool) -> Element<'a, Message> {
     container(
-        crate::view::components::modern_scrollable(text(body).size(11).font(MONO).style(
-            move |t: &Theme| text::Style {
-                color: Some(if danger {
-                    tokens(t).danger
-                } else {
-                    tokens(t).text_primary
+        modern_scrollable(
+            text(body)
+                .size(11)
+                .font(MONO)
+                .style(move |t: &Theme| text::Style {
+                    color: Some(if danger {
+                        tokens(t).danger
+                    } else {
+                        tokens(t).text_primary
+                    }),
                 }),
-            },
-        ))
+        )
         .height(Length::Fixed(height_px)),
     )
     .padding(8)
@@ -292,43 +266,44 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     );
     let body_height = editor_viewport::editor_box_height_px(viewport.rendered_len());
 
-    let base_column = iced::widget::column![
+    let base_column = column![
         column_caption(&lang, &columns.base),
-        iced::widget::Space::new().height(theme::SP_XS),
+        Space::new().height(theme::SP_XS),
         read_only_box(columns.base.content.clone(), body_height, false),
     ]
     .width(Length::FillPortion(1));
 
-    let overlay_column = iced::widget::column![
+    let overlay_column = column![
         column_caption(&lang, &columns.overlay),
-        iced::widget::Space::new().height(theme::SP_XS),
-        iced::widget::row![
+        Space::new().height(theme::SP_XS),
+        row![
             editor_viewport::gutter(&state.editor.mixin_content, viewport),
-            iced::widget::Space::new().width(theme::SP_XS),
+            Space::new().width(theme::SP_XS),
             editor_viewport::editor_element(
                 &state.editor.mixin_content,
                 Message::MixinEditorAction,
                 viewport.rendered_len(),
+                state.editor.mixin_session.can_edit(),
             ),
         ],
     ]
     .width(Length::FillPortion(1));
 
-    let composed_column = iced::widget::column![
+    let composed_column = column![
         column_caption(&lang, &columns.composed),
-        iced::widget::Space::new().height(theme::SP_XS),
+        Space::new().height(theme::SP_XS),
         match columns.error.as_deref() {
-            Some(error) => iced::widget::column![
+            Some(error) => column![
                 text(lang.tr("mixin_column_blocked").replace("{error}", error))
                     .size(11)
                     .font(MONO)
                     .style(|t: &Theme| text::Style {
                         color: Some(tokens(t).danger),
                     }),
-                iced::widget::Space::new().height(theme::SP_XS),
+                Space::new().height(theme::SP_XS),
                 read_only_box(String::new(), (body_height - 28.0).max(40.0), true),
             ],
-            None => iced::widget::column![read_only_box(
+            None => column![read_only_box(
                 columns.composed.content.clone(),
                 body_height,
                 false,
@@ -337,11 +312,11 @@ pub fn three_column_row(state: &AppState) -> Element<'_, Message> {
     ]
     .width(Length::FillPortion(1));
 
-    iced::widget::row![
+    row![
         base_column,
-        iced::widget::Space::new().width(theme::SP_SM),
+        Space::new().width(theme::SP_SM),
         overlay_column,
-        iced::widget::Space::new().width(theme::SP_SM),
+        Space::new().width(theme::SP_SM),
         composed_column,
     ]
     .width(Length::Fill)

@@ -47,9 +47,7 @@ impl RulesTab {
         }
     }
 
-    /// I18n key of the partition label. The Iced surface resolves it through
-    /// its language table; Bevy renders its own bare-Chinese label for the
-    /// same partition.
+    /// Shared i18n key of the partition label, resolved by every surface.
     pub const fn i18n_key(self) -> &'static str {
         match self {
             Self::List => "rules_tab_list",
@@ -96,7 +94,7 @@ impl RulesJsonSection {
         }
     }
 
-    /// I18n key of the section label (Iced resolves it; Bevy has its own).
+    /// Shared i18n key of the section label. Both native surfaces resolve it.
     pub const fn i18n_key(self) -> &'static str {
         match self {
             Self::RuleProviders => "rules_rule_providers_json",

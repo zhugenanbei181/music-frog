@@ -2,22 +2,30 @@
 //! (DUAL-07-05 retry/backoff, DUAL-07-06 single-flight).
 
 use super::*;
+use crate::profile_workspace_test_support::workspace;
 use async_trait::async_trait;
 use chrono::Timelike;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::subscription_import::SubscriptionImportChannel;
+use infiltrator_domain::profile_options::{FilterSpec, ProfileOptions};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_domain::subscription::CheckedSubscriptionUrl;
 use infiltrator_ports::application_runtime::{
     ApplicationFuture, ApplicationRuntime, ApplicationSleep,
 };
 use infiltrator_ports::core_reload::CoreReloadPort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument,
 };
 use std::collections::BTreeMap;
+use std::future::ready;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll, Waker};
+use std::thread::yield_now;
 use std::time::Duration;
 
 /// Runtime that executes futures inline and records the backoff delays the
@@ -35,14 +43,14 @@ impl ApplicationRuntime for RecordingRuntime {
         loop {
             match future.as_mut().poll(&mut context) {
                 Poll::Ready(()) => return,
-                Poll::Pending => std::thread::yield_now(),
+                Poll::Pending => yield_now(),
             }
         }
     }
 
     fn sleep(&self, duration: Duration) -> ApplicationSleep<'_> {
         self.sleeps.lock().expect("sleeps lock").push(duration);
-        Box::pin(std::future::ready(()))
+        Box::pin(ready(()))
     }
 }
 
@@ -50,7 +58,7 @@ struct FakeStore {
     dir: PathBuf,
     current: Mutex<String>,
     profiles: Mutex<BTreeMap<String, (String, ProfileMetadata)>>,
-    options: Mutex<BTreeMap<String, infiltrator_domain::profile_options::ProfileOptions>>,
+    options: Mutex<BTreeMap<String, ProfileOptions>>,
 }
 
 impl FakeStore {
@@ -72,6 +80,51 @@ impl FakeStore {
 
 #[async_trait]
 impl ProfileStore for FakeStore {
+    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+        let profiles = self.profiles.lock().unwrap();
+        let options = self.options.lock().unwrap();
+        let (content, _) = profiles
+            .get(profile)
+            .ok_or_else(|| PortError::NotFound(profile.into()))?;
+        workspace(profile, content, options.get(profile))
+    }
+
+    async fn compare_and_save_workspace(
+        &self,
+        expected: &ProfileSourceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let mut profiles = self.profiles.lock().unwrap();
+        let mut options = self.options.lock().unwrap();
+        let (content, _) = profiles
+            .get(&expected.profile)
+            .ok_or_else(|| PortError::NotFound(expected.profile.clone()))?;
+        if workspace(&expected.profile, content, options.get(&expected.profile))?.source
+            != *expected
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "changed source",
+                true,
+            )));
+        }
+        let stored_options = (!update.options.is_empty()).then_some(&update.options);
+        let result = workspace(&expected.profile, &update.content, stored_options)?;
+        profiles
+            .get_mut(&expected.profile)
+            .unwrap()
+            .0
+            .clone_from(&update.content);
+        match stored_options {
+            Some(stored) => {
+                options.insert(expected.profile.clone(), stored.clone());
+            }
+            None => {
+                options.remove(&expected.profile);
+            }
+        }
+        Ok(result)
+    }
     fn config_dir(&self) -> PathBuf {
         self.dir.clone()
     }
@@ -171,10 +224,7 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn load_options(
-        &self,
-        profile: &str,
-    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
+    async fn load_options(&self, profile: &str) -> Result<ProfileOptions, PortError> {
         Ok(self
             .options
             .lock()
@@ -184,11 +234,7 @@ impl ProfileStore for FakeStore {
             .unwrap_or_default())
     }
 
-    async fn save_options(
-        &self,
-        profile: &str,
-        options: &infiltrator_domain::profile_options::ProfileOptions,
-    ) -> Result<(), PortError> {
+    async fn save_options(&self, profile: &str, options: &ProfileOptions) -> Result<(), PortError> {
         self.options
             .lock()
             .expect("options lock")
@@ -230,7 +276,7 @@ impl SubscriptionSource for FlakySource {
     async fn fetch(
         &self,
         _profile: &str,
-        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+        _url: &CheckedSubscriptionUrl,
     ) -> Result<SubscriptionDocument, PortError> {
         Err(PortError::Network("use fetch_conditional".to_string()))
     }
@@ -238,7 +284,7 @@ impl SubscriptionSource for FlakySource {
     async fn fetch_conditional(
         &self,
         _profile: &str,
-        _url: &infiltrator_domain::subscription::CheckedSubscriptionUrl,
+        _url: &CheckedSubscriptionUrl,
         _headers: &ConditionalFetchHeaders,
     ) -> Result<ConditionalDocumentResult, PortError> {
         let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
@@ -516,15 +562,20 @@ async fn subscription_update_pipeline_regression_matrix() {
         )
         .await
         .expect("seed document");
-    let spec = infiltrator_domain::profile_options::FilterSpec {
+    let spec = FilterSpec {
         exclude_keywords: vec!["广告".to_string()],
         ..Default::default()
     };
     let runtime: Option<Arc<dyn ManagedRuntime>> = None;
     let report = profile
-        .apply_subscription_filter(runtime, "main", spec)
+        .apply_subscription_filter(
+            runtime,
+            &profile.load_workspace("main").await.unwrap().source,
+            spec,
+        )
         .await
-        .expect("filter pipeline");
+        .expect("filter pipeline")
+        .report;
     assert_eq!(report.passed, 1, "07-08 one node survives");
     let saved = profile
         .load_profile_detail("main")
@@ -538,7 +589,7 @@ async fn subscription_update_pipeline_regression_matrix() {
         .import_document(
             "matrix-import",
             "proxies:\n  - name: a\n    type: ss\n  - name: b\n    type: ss\n",
-            infiltrator_contract::subscription_import::SubscriptionImportChannel::LocalFile,
+            SubscriptionImportChannel::LocalFile,
         )
         .await
         .expect("import document");

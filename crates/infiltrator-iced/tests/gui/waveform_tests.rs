@@ -1,5 +1,9 @@
 use super::*;
+
+use infiltrator_application::byte_format::format_bytes;
 use infiltrator_contract::traffic_waveform::{TrafficSample, TrafficWaveformSnapshot};
+use infiltrator_domain::traffic_scale::compute_from_peak;
+use infiltrator_domain::traffic_waveform::smooth_dual_series;
 
 #[test]
 fn shared_live_samples_are_the_input_to_the_same_bezier_projection() {
@@ -24,8 +28,7 @@ fn shared_live_samples_are_the_input_to_the_same_bezier_projection() {
         scale: None,
     };
     let (upload, download) = chart.raw_series();
-    let (smooth_upload, smooth_download) =
-        infiltrator_domain::traffic_waveform::smooth_dual_series(&upload, &download, 4);
+    let (smooth_upload, smooth_download) = smooth_dual_series(&upload, &download, 4);
     assert_eq!(upload, vec![1.0, 3.0]);
     assert_eq!(download, vec![2.0, 5.0]);
     assert_eq!(smooth_upload.len(), 5);
@@ -37,9 +40,7 @@ fn canvas_uses_the_application_scale_instead_of_a_fixed_floor() {
     let chart = TrafficChart {
         history: VecDeque::from([(1, 2), (3, 5)]),
         shared: None,
-        scale: Some(infiltrator_domain::traffic_scale::compute_from_peak(
-            20_000.0, 7,
-        )),
+        scale: Some(compute_from_peak(20_000.0, 7)),
     };
     let (upload, download) = chart.raw_series();
     let scale = chart.resolved_scale(&upload, &download);
@@ -64,8 +65,8 @@ fn test_traffic_chart_crosshair_and_hud_tooltip_geometry() {
     assert_eq!(down.len(), 3);
 
     // Verify rate formatting in HUD
-    let up_fmt = format!("↑ {}/s", crate::utils::format_bytes(up[1] as u64));
-    let down_fmt = format!("↓ {}/s", crate::utils::format_bytes(down[1] as u64));
+    let up_fmt = format!("↑ {}/s", format_bytes(up[1] as u64));
+    let down_fmt = format!("↓ {}/s", format_bytes(down[1] as u64));
     assert!(up_fmt.contains("MB") || up_fmt.contains("KB"));
     assert!(down_fmt.contains("MB") || down_fmt.contains("KB"));
 }

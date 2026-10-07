@@ -8,13 +8,35 @@
 use super::*;
 use crate::configuration_application::ConfigurationApplication;
 use async_trait::async_trait;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::provider_cache::{ProviderCachePurge, RuleProviderCacheSnapshot};
 use infiltrator_contract::rule_edit::{RuleDraft, RuleMoveDirection};
 use infiltrator_contract::subscription_import::SubscriptionScheduleDraft;
+use infiltrator_domain::profile_options::ProfileOptions;
+use infiltrator_domain::profile_source::identify_profile_source;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_domain::proxy::Proxy;
+use infiltrator_domain::rules::edit::build_custom_rule;
+use infiltrator_domain::rules::provider_store::RuleProviderDeclaration;
+use infiltrator_domain::rules::{game_routing_presets, load_rules_from_yaml};
+use infiltrator_domain::runtime::{
+    ConfigSnapshot, ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::profile_workspace::{
+    ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
+};
+use infiltrator_ports::rule_provider_cache::{
+    ProviderCacheEntry, ProviderFileFact, RuleProviderCachePort,
+};
+use infiltrator_ports::runtime_gateway::{RuntimeGateway, RuntimeStream};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Default)]
 struct FakeStore {
@@ -69,6 +91,58 @@ impl ProfileStore for FakeStore {
         Ok(self.content())
     }
 
+    async fn load_workspace(&self, profile: &str) -> Result<ProfileWorkspace, PortError> {
+        let content = self.content();
+        Ok(ProfileWorkspace {
+            write_protection: ProfileWriteProtection::Editable,
+            source: identify_profile_source(profile.into(), &content, None),
+            content,
+            options: Default::default(),
+            options_document: None,
+        })
+    }
+
+    async fn compare_and_save_workspace(
+        &self,
+        expected: &ProfileSourceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<ProfileWorkspace, PortError> {
+        let mut content = self.content.lock().unwrap();
+        let metadata = self.metadata.lock().unwrap();
+        if identify_profile_source(expected.profile.clone(), &content, None) != *expected {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "source changed",
+                true,
+            )));
+        }
+        let protection = ProfileWriteProtection::from_subscription_url(
+            metadata.subscription_url.as_deref().unwrap_or_default(),
+        );
+        if matches!(
+            update.purpose,
+            ProfileWorkspacePurpose::DirectEdit {
+                allow_protected: false
+            }
+        ) && protection.is_protected()
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::Configuration,
+                "protected edit",
+                false,
+            )));
+        }
+        assert!(update.options.is_empty(), "this fixture has no sidecar");
+        *content = update.content.clone();
+        Ok(ProfileWorkspace {
+            source: identify_profile_source(expected.profile.clone(), &content, None),
+            content: content.clone(),
+            options: update.options.clone(),
+            options_document: None,
+            write_protection: protection,
+        })
+    }
+
     async fn save(&self, _profile: &str, content: &str) -> Result<(), PortError> {
         *self.content.lock().expect("content lock") = content.to_owned();
         Ok(())
@@ -107,17 +181,14 @@ impl ProfileStore for FakeStore {
         Ok(false)
     }
 
-    async fn load_options(
-        &self,
-        _profile: &str,
-    ) -> Result<infiltrator_domain::profile_options::ProfileOptions, PortError> {
-        Ok(infiltrator_domain::profile_options::ProfileOptions::default())
+    async fn load_options(&self, _profile: &str) -> Result<ProfileOptions, PortError> {
+        Ok(ProfileOptions::default())
     }
 
     async fn save_options(
         &self,
         _profile: &str,
-        _options: &infiltrator_domain::profile_options::ProfileOptions,
+        _options: &ProfileOptions,
     ) -> Result<(), PortError> {
         Ok(())
     }
@@ -126,66 +197,75 @@ impl ProfileStore for FakeStore {
 const THREE_RULES: &str =
     "rules:\n  - DOMAIN,a.com,DIRECT\n  - DOMAIN,b.com,PROXY\n  - MATCH,DIRECT\n";
 
-/// Minimal runtime gateway that records the Geo database upgrade trigger. All
-/// other operations are the honest no-ops of a gateway that is not the subject
-/// of these tests.
+/// Runtime fixture records the operations under test; unrelated port methods
+/// supply only the minimal isolated observations needed by those use cases.
 #[derive(Default)]
 struct RecordingGeoGateway {
-    geo_upgrades: std::sync::atomic::AtomicUsize,
+    geo_upgrades: AtomicUsize,
+    proxy_facts: Mutex<HashMap<String, Proxy>>,
+    probe_calls: Mutex<Vec<(String, String, u32)>>,
+    switches: AtomicUsize,
+    deny_probe: AtomicBool,
+    denied_probe_names: Mutex<Vec<String>>,
+    close_all_calls: AtomicUsize,
+    deny_close_all: AtomicBool,
 }
 
 impl RecordingGeoGateway {
     fn geo_upgrades(&self) -> usize {
-        self.geo_upgrades.load(std::sync::atomic::Ordering::SeqCst)
+        self.geo_upgrades.load(Ordering::SeqCst)
     }
 }
 
 #[async_trait]
-impl infiltrator_ports::runtime_gateway::RuntimeGateway for RecordingGeoGateway {
-    async fn get_config(&self) -> Result<infiltrator_domain::runtime::ConfigSnapshot, PortError> {
-        Ok(infiltrator_domain::runtime::ConfigSnapshot::default())
+impl RuntimeGateway for RecordingGeoGateway {
+    async fn get_config(&self) -> Result<ConfigSnapshot, PortError> {
+        Ok(ConfigSnapshot::default())
     }
 
     async fn patch_config(&self, _updates: serde_json::Value) -> Result<(), PortError> {
         Ok(())
     }
 
-    async fn set_proxy_mode(
-        &self,
-        _mode: infiltrator_contract::command::ProxyMode,
-    ) -> Result<(), PortError> {
+    async fn set_proxy_mode(&self, _mode: ProxyMode) -> Result<(), PortError> {
         Ok(())
     }
 
-    async fn get_proxies(
-        &self,
-    ) -> Result<std::collections::HashMap<String, infiltrator_domain::proxy::Proxy>, PortError>
-    {
-        Ok(std::collections::HashMap::new())
+    async fn get_proxies(&self) -> Result<HashMap<String, Proxy>, PortError> {
+        Ok(self.proxy_facts.lock().unwrap().clone())
     }
 
     async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
+        self.switches.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn test_delay(
-        &self,
-        _proxy: &str,
-        _url: &str,
-        _timeout_ms: u32,
-    ) -> Result<u32, PortError> {
-        Ok(1)
+    async fn test_delay(&self, proxy: &str, url: &str, timeout_ms: u32) -> Result<u32, PortError> {
+        self.probe_calls
+            .lock()
+            .unwrap()
+            .push((proxy.into(), url.into(), timeout_ms));
+        if self.deny_probe.load(Ordering::SeqCst)
+            || self
+                .denied_probe_names
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|name| name == proxy)
+        {
+            Err(PortError::PermissionDenied(
+                "grant proxy probe permission".into(),
+            ))
+        } else {
+            Ok(42)
+        }
     }
 
-    async fn get_proxy_providers(
-        &self,
-    ) -> Result<Vec<infiltrator_domain::runtime::ProxyProvider>, PortError> {
+    async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
         Ok(Vec::new())
     }
 
-    async fn get_rule_providers(
-        &self,
-    ) -> Result<Vec<infiltrator_domain::runtime::RuleProvider>, PortError> {
+    async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
         Ok(Vec::new())
     }
 
@@ -202,19 +282,16 @@ impl infiltrator_ports::runtime_gateway::RuntimeGateway for RecordingGeoGateway 
     }
 
     async fn upgrade_geo(&self) -> Result<(), PortError> {
-        self.geo_upgrades
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.geo_upgrades.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn get_connections(
-        &self,
-    ) -> Result<infiltrator_domain::runtime::ConnectionSnapshot, PortError> {
-        Ok(infiltrator_domain::runtime::ConnectionSnapshot::default())
+    async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
+        Ok(ConnectionSnapshot::default())
     }
 
-    async fn get_memory(&self) -> Result<infiltrator_domain::runtime::MemoryData, PortError> {
-        Ok(infiltrator_domain::runtime::MemoryData::default())
+    async fn get_memory(&self) -> Result<MemoryData, PortError> {
+        Ok(MemoryData::default())
     }
 
     async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
@@ -222,33 +299,28 @@ impl infiltrator_ports::runtime_gateway::RuntimeGateway for RecordingGeoGateway 
     }
 
     async fn close_all_connections(&self) -> Result<(), PortError> {
-        Ok(())
+        self.close_all_calls.fetch_add(1, Ordering::SeqCst);
+        if self.deny_close_all.load(Ordering::SeqCst) {
+            Err(PortError::PermissionDenied(
+                "grant connection control permission".into(),
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     async fn stream_logs(
         &self,
         _level: Option<String>,
-    ) -> Result<infiltrator_ports::runtime_gateway::RuntimeStream<String>, PortError> {
+    ) -> Result<RuntimeStream<String>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
 
-    async fn stream_traffic(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<infiltrator_domain::runtime::TrafficData>,
-        PortError,
-    > {
+    async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
 
-    async fn stream_connections(
-        &self,
-    ) -> Result<
-        infiltrator_ports::runtime_gateway::RuntimeStream<
-            infiltrator_domain::runtime::ConnectionSnapshot,
-        >,
-        PortError,
-    > {
+    async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
         Err(PortError::Failed("not implemented".into()))
     }
 }
@@ -269,7 +341,7 @@ async fn toggle_and_move_apply_shared_reductions_and_persist() {
         .await
         .expect("toggle");
 
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
     assert!(!rules[1].enabled);
     assert!(store.content().contains("# DOMAIN,b.com,PROXY"));
 
@@ -281,7 +353,7 @@ async fn toggle_and_move_apply_shared_reductions_and_persist() {
         .await
         .expect("move");
 
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
     assert_eq!(rules[0].rule, "DOMAIN,b.com,PROXY");
     assert_eq!(rules[1].rule, "DOMAIN,a.com,DIRECT");
 }
@@ -311,7 +383,7 @@ async fn add_custom_rule_prepends_and_rejects_invalid_logical_form() {
         .await
         .expect("add");
 
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
     assert_eq!(rules[0].rule, "DOMAIN-SUFFIX,github.com,PROXY");
 
     let failure = application
@@ -326,7 +398,7 @@ async fn add_custom_rule_prepends_and_rejects_invalid_logical_form() {
 
     // The shared builder also rejects an empty payload before touching disk.
     assert!(
-        infiltrator_domain::rules::edit::build_custom_rule(&RuleDraft {
+        build_custom_rule(&RuleDraft {
             rule_type: "DOMAIN".to_owned(),
             payload: "  ".to_owned(),
             target: "PROXY".to_owned(),
@@ -347,8 +419,8 @@ async fn game_presets_prepend_the_shared_default_list() {
         .await
         .expect("presets");
 
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
-    let expected = infiltrator_domain::rules::game_routing_presets("Game-Proxy");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
+    let expected = game_routing_presets("Game-Proxy");
     assert_eq!(rules[0].rule, expected[0].rule);
     assert_eq!(
         rules[expected.len() - 1].rule,
@@ -460,19 +532,14 @@ rules:
         "block comment kept: {saved}"
     );
     assert!(saved.contains("# 兜底规则"), "inline comment kept: {saved}");
-    assert_eq!(
-        infiltrator_domain::rules::load_rules_from_yaml(&saved)
-            .expect("parse")
-            .len(),
-        2
-    );
+    assert_eq!(load_rules_from_yaml(&saved).expect("parse").len(), 2);
 
     application
         .execute(CommandIntent::ToggleRuleEnabled { index: 0 })
         .await
         .expect("toggle");
     let saved = store.content();
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&saved).expect("parse");
+    let rules = load_rules_from_yaml(&saved).expect("parse");
     assert!(!rules[0].enabled, "the new rule is now disabled");
     assert!(
         saved.contains("# 手写头注释"),
@@ -484,118 +551,24 @@ rules:
 // ---- DUAL-09-03/06/07/14: document + history commands ----------------------
 
 #[tokio::test]
-async fn load_and_save_profile_document_round_trips_through_the_shared_guard() {
-    let store = Arc::new(FakeStore::with_profile(THREE_RULES));
-    let application = application(&store);
-
-    application
-        .execute(CommandIntent::LoadProfileDocument { profile: None })
-        .await
-        .expect("load");
-    let document = infiltrator_contract::profile_document::last_profile_document()
-        .expect("the shared document is published for the surfaces");
-    assert_eq!(document.profile, "main");
-    assert_eq!(document.content, THREE_RULES);
-    assert!(
-        document.is_clean(),
-        "a valid stored document has no diagnostic"
-    );
-    assert!(!document.write_protection.is_protected());
-    assert_eq!(document.line_count, THREE_RULES.lines().count());
-
-    // A typed syntax error is rejected by the shared preflight and never
-    // reaches the apply transaction.
-    let error = application
-        .execute(CommandIntent::SaveProfileDocument {
-            profile: "main".to_owned(),
-            content: "rules: [\n".to_owned(),
-            allow_protected: false,
-        })
-        .await
-        .expect_err("invalid yaml is rejected");
-    assert!(
-        error.message.contains("YAML 语法错误"),
-        "unexpected failure: {}",
-        error.message
-    );
-    assert_eq!(store.content(), THREE_RULES, "the store is untouched");
-
-    // A valid buffer commits through `save_edited_profile_content` and the
-    // stored document is re-read for the surfaces.
-    let saved = "rules:\n  - MATCH,DIRECT\n";
-    application
-        .execute(CommandIntent::SaveProfileDocument {
-            profile: "main".to_owned(),
-            content: saved.to_owned(),
-            allow_protected: false,
-        })
-        .await
-        .expect("save");
-    assert_eq!(store.content(), saved);
-    assert_eq!(
-        infiltrator_contract::profile_document::last_profile_document()
-            .expect("published")
-            .content,
-        saved
-    );
-}
-
-// ---- DUAL-09-04: shared snippet insertion ----------------------------------
-
-#[test]
-fn insert_snippet_keeps_the_document_parseable_and_refuses_a_broken_splice() {
-    let document = "proxies:\n  - name: keep\n    type: ss\nrules:\n  - MATCH,DIRECT\n";
-
-    // A node item appended to the proxies list keeps the document valid, and
-    // every untouched byte is preserved.
-    let insertion = crate::profile_document_application::insert_snippet(document, "ss", 3, 12)
-        .expect("a node item may join the list");
-    assert!(
-        insertion.is_clean(),
-        "the splice keeps the document parseable"
-    );
-    assert!(
-        insertion
-            .content
-            .starts_with("proxies:\n  - name: keep\n    type: ss"),
-        "the original bytes stay in place: {}",
-        insertion.content
-    );
-    assert!(
-        insertion.content.contains("- name: SS-Node"),
-        "the catalogue body is spliced verbatim"
-    );
-
-    // Splitting a scalar to make room for a block sequence is not valid YAML:
-    // the shared preflight refuses it instead of writing a broken profile.
-    let refusal =
-        crate::profile_document_application::insert_snippet("mode: rule\n", "select", 1, 6)
-            .expect_err("a sequence cannot continue a scalar");
-    assert!(
-        refusal.message.contains("片段") && refusal.message.contains("无法解析"),
-        "the typed failure carries the shared diagnostic: {}",
-        refusal.message
-    );
-
-    // An unknown id is a programming error, never a silently dropped insert.
-    let unknown = crate::profile_document_application::insert_snippet(document, "nope", 1, 0)
-        .expect_err("unknown snippet ids are rejected");
-    assert!(unknown.message.contains("nope"));
-}
-
-#[tokio::test]
 async fn snapshot_history_intents_require_the_shared_application() {
     let store = Arc::new(FakeStore::with_profile(THREE_RULES));
     let application = application(&store);
 
     let error = application
-        .execute(CommandIntent::LoadSnapshotHistory)
+        .execute(CommandIntent::LoadSnapshotHistory {
+            profile: None,
+            keep: 20,
+        })
         .await
         .expect_err("a host without the snapshot port must say so");
     assert!(error.message.contains("snapshot application"), "{error:?}");
 
     let error = application
-        .execute(CommandIntent::PruneSnapshots { keep: Some(5) })
+        .execute(CommandIntent::PruneSnapshots {
+            profile: None,
+            keep: Some(5),
+        })
         .await
         .expect_err("a host without the snapshot port must say so");
     assert!(error.message.contains("snapshot application"), "{error:?}");
@@ -619,7 +592,7 @@ async fn unpack_rule_provider_imports_real_payload_and_rejects_unknown() {
         .await
         .expect("unpack");
 
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
     assert_eq!(rules.len(), 3);
     assert_eq!(rules[0].rule, "DOMAIN-SUFFIX,ads.com,PROXY");
     assert_eq!(rules[1].rule, "DOMAIN-SUFFIX,tracker.net,PROXY");
@@ -702,7 +675,7 @@ async fn apply_rules_json_document_validates_and_persists_each_section() {
     );
 
     // The rule list the same profile carries is untouched by the JSON writes.
-    let rules = infiltrator_domain::rules::load_rules_from_yaml(&store.content()).expect("parse");
+    let rules = load_rules_from_yaml(&store.content()).expect("parse");
     assert_eq!(rules.len(), 3);
 
     // A malformed document never reaches the profile.
@@ -862,19 +835,17 @@ impl RecordingProviderCache {
 }
 
 #[async_trait]
-impl infiltrator_ports::rule_provider_cache::RuleProviderCachePort for RecordingProviderCache {
+impl RuleProviderCachePort for RecordingProviderCache {
     async fn read_provider(
         &self,
-        _declaration: &infiltrator_domain::rules::provider_store::RuleProviderDeclaration,
-    ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderCacheEntry>, PortError> {
+        _declaration: &RuleProviderDeclaration,
+    ) -> Result<Option<ProviderCacheEntry>, PortError> {
         Ok(None)
     }
 
-    async fn purge(
-        &self,
-    ) -> Result<infiltrator_contract::provider_cache::ProviderCachePurge, PortError> {
+    async fn purge(&self) -> Result<ProviderCachePurge, PortError> {
         *self.purges.lock().expect("purge lock") += 1;
-        Ok(infiltrator_contract::provider_cache::ProviderCachePurge {
+        Ok(ProviderCachePurge {
             directory: Some("/fake/configs/rules".to_owned()),
             files_removed: 2,
             bytes_freed: 64,
@@ -883,20 +854,25 @@ impl infiltrator_ports::rule_provider_cache::RuleProviderCachePort for Recording
 
     async fn fingerprint(
         &self,
-        _declaration: &infiltrator_domain::rules::provider_store::RuleProviderDeclaration,
-    ) -> Result<Option<infiltrator_ports::rule_provider_cache::ProviderFileFact>, PortError> {
+        _declaration: &RuleProviderDeclaration,
+    ) -> Result<Option<ProviderFileFact>, PortError> {
         Ok(None)
     }
 
-    async fn snapshot(
-        &self,
-    ) -> Result<infiltrator_contract::provider_cache::RuleProviderCacheSnapshot, PortError> {
-        Ok(
-            infiltrator_contract::provider_cache::RuleProviderCacheSnapshot::ready(
-                "/fake/configs/rules",
-                0,
-                0,
-            ),
-        )
+    async fn snapshot(&self) -> Result<RuleProviderCacheSnapshot, PortError> {
+        Ok(RuleProviderCacheSnapshot::ready(
+            "/fake/configs/rules",
+            0,
+            0,
+        ))
     }
 }
+
+#[path = "command_probe_tests.rs"]
+mod probe_tests;
+
+#[path = "command_connections_tests.rs"]
+mod connections_tests;
+
+#[path = "command_profile_document_tests.rs"]
+mod profile_documents;

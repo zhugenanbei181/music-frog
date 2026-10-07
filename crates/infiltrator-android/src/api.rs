@@ -6,6 +6,8 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::Result;
 use mihomo_platform::android_bridge::AndroidBridge;
+use std::path::PathBuf;
+use std::result;
 
 pub struct AndroidApi<B>
 where
@@ -28,15 +30,15 @@ where
         CoreProcess::controller_endpoint(&self.adapter)
     }
 
-    pub async fn core_start(&self) -> std::result::Result<(), PortError> {
+    pub async fn core_start(&self) -> result::Result<(), PortError> {
         CoreProcess::start(&self.adapter).await
     }
 
-    pub async fn core_stop(&self) -> std::result::Result<(), PortError> {
+    pub async fn core_stop(&self) -> result::Result<(), PortError> {
         CoreProcess::stop(&self.adapter).await
     }
 
-    pub async fn core_is_running(&self) -> std::result::Result<bool, PortError> {
+    pub async fn core_is_running(&self) -> result::Result<bool, PortError> {
         Ok(matches!(
             CoreProcess::status(&self.adapter).await?,
             CoreLifecycle::Starting | CoreLifecycle::Ready | CoreLifecycle::Running
@@ -47,7 +49,7 @@ where
         &self,
         service: &str,
         key: &str,
-    ) -> std::result::Result<Option<String>, PortError> {
+    ) -> result::Result<Option<String>, PortError> {
         SecureStore::get(&self.adapter, service, key).await
     }
 
@@ -56,7 +58,7 @@ where
         service: &str,
         key: &str,
         value: &str,
-    ) -> std::result::Result<(), PortError> {
+    ) -> result::Result<(), PortError> {
         SecureStore::set(&self.adapter, service, key, value).await
     }
 
@@ -64,15 +66,15 @@ where
         &self,
         service: &str,
         key: &str,
-    ) -> std::result::Result<(), PortError> {
+    ) -> result::Result<(), PortError> {
         SecureStore::delete(&self.adapter, service, key).await
     }
 
-    pub fn data_dir(&self) -> Option<std::path::PathBuf> {
+    pub fn data_dir(&self) -> Option<PathBuf> {
         DataDirProvider::data_dir(&self.adapter)
     }
 
-    pub fn cache_dir(&self) -> Option<std::path::PathBuf> {
+    pub fn cache_dir(&self) -> Option<PathBuf> {
         DataDirProvider::cache_dir(&self.adapter)
     }
 
@@ -104,7 +106,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use crate::ffi::FfiErrorCode;
+    #[cfg(test)]
+    use mihomo_api::error::MihomoError;
     use mihomo_platform::android_bridge::AndroidBridge;
+    #[cfg(test)]
+    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -227,7 +235,7 @@ mod tests {
     #[async_trait::async_trait]
     impl AndroidBridge for FailingBridge {
         async fn core_start(&self) -> Result<()> {
-            Err(mihomo_api::error::MihomoError::Config("fail".into()))
+            Err(MihomoError::Config("fail".into()))
         }
         async fn core_stop(&self) -> Result<()> {
             Ok(())
@@ -254,7 +262,7 @@ mod tests {
             None
         }
         async fn vpn_start(&self) -> Result<bool> {
-            Err(mihomo_api::error::MihomoError::Service("vpn fail".into()))
+            Err(MihomoError::Service("vpn fail".into()))
         }
         async fn vpn_stop(&self) -> Result<bool> {
             Ok(false)
@@ -285,7 +293,7 @@ mod tests {
     #[tokio::test]
     async fn test_credential_lifecycle() {
         struct CredBridge {
-            store: Mutex<std::collections::HashMap<String, String>>,
+            store: Mutex<HashMap<String, String>>,
         }
         #[async_trait::async_trait]
         impl AndroidBridge for CredBridge {
@@ -405,7 +413,7 @@ mod tests {
                 None
             }
             async fn credential_get(&self, _s: &str, _k: &str) -> Result<Option<String>> {
-                Err(mihomo_api::error::MihomoError::Config("mock error".into()))
+                Err(MihomoError::Config("mock error".into()))
             }
             async fn credential_set(&self, _s: &str, _k: &str, _v: &str) -> Result<()> {
                 Ok(())
@@ -445,7 +453,7 @@ mod tests {
         let s = FfiStatus::ok();
         assert!(s.message.is_none());
 
-        let e = FfiStatus::err(crate::ffi::FfiErrorCode::Io, "io");
+        let e = FfiStatus::err(FfiErrorCode::Io, "io");
         assert_eq!(e.message, Some("io".into()));
     }
 

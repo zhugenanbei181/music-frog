@@ -6,89 +6,74 @@
 //! application/contract values.
 
 pub mod desktop {
-    pub fn system_proxy_port()
-    -> std::sync::Arc<dyn infiltrator_ports::system_proxy::SystemProxyPort> {
-        std::sync::Arc::new(infiltrator_desktop::system_proxy::DesktopSystemProxy::new())
+    use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
+    use infiltrator_desktop::proxy;
+    use infiltrator_desktop::proxy::SystemProxyState;
+    use infiltrator_desktop::system_proxy::DesktopSystemProxy;
+    use infiltrator_desktop::uwp_loopback_port::DesktopUwpLoopbackPort;
+    use infiltrator_ports::system_proxy::SystemProxyPort;
+    use std::sync::Arc;
+    pub fn system_proxy_port() -> Arc<dyn SystemProxyPort> {
+        Arc::new(DesktopSystemProxy::new())
     }
 
-    pub fn read_system_proxy_state() -> anyhow::Result<infiltrator_desktop::proxy::SystemProxyState>
-    {
-        infiltrator_desktop::proxy::read_system_proxy_state()
+    pub fn read_system_proxy_state() -> anyhow::Result<SystemProxyState> {
+        proxy::read_system_proxy_state()
     }
 
-    pub fn uwp_loopback_application()
-    -> infiltrator_application::uwp_loopback_application::UwpLoopbackApplication {
-        infiltrator_application::uwp_loopback_application::UwpLoopbackApplication::new(
-            std::sync::Arc::new(infiltrator_desktop::uwp_loopback_port::DesktopUwpLoopbackPort),
-        )
+    pub fn uwp_loopback_application() -> UwpLoopbackApplication {
+        UwpLoopbackApplication::new(Arc::new(DesktopUwpLoopbackPort))
     }
 }
 
 pub mod mini_hud {
+    use infiltrator_desktop::mini_hud_window::DesktopMiniHudWindow;
+    use infiltrator_ports::mini_hud_window::{MiniHudWindowHandle, MiniHudWindowPort};
+    use std::sync::Arc;
     /// The desktop host's floating-window capability adapter. It is a process
     /// singleton bound to this surface's window handle via
     /// [`bind_window_handle`]; with no live handle it answers typed
     /// unsupported (never a fake "Applied").
-    pub fn window_port() -> std::sync::Arc<dyn infiltrator_ports::mini_hud_window::MiniHudWindowPort>
-    {
-        std::sync::Arc::new(infiltrator_desktop::mini_hud_window::DesktopMiniHudWindow::shared())
+    pub fn window_port() -> Arc<dyn MiniHudWindowPort> {
+        Arc::new(DesktopMiniHudWindow::shared())
     }
 
     /// Register the surface-owned window handle with the desktop host adapter.
-    pub fn bind_window_handle(
-        handle: std::sync::Arc<dyn infiltrator_ports::mini_hud_window::MiniHudWindowHandle>,
-    ) {
-        infiltrator_desktop::mini_hud_window::DesktopMiniHudWindow::shared().bind(handle);
+    pub fn bind_window_handle(handle: Arc<dyn MiniHudWindowHandle>) {
+        DesktopMiniHudWindow::shared().bind(handle);
     }
 }
 
 pub mod process_enumerator {
-    pub type ExtendedProcessInfo = infiltrator_desktop::process_enumerator::ExtendedProcessInfo;
-    pub type ProcessCategory = infiltrator_desktop::process_enumerator::ProcessCategory;
+    use infiltrator_desktop::process_enumerator;
+    use infiltrator_desktop::process_enumerator::ExtendedProcessInfo;
 
     pub fn enumerate_extended_processes() -> anyhow::Result<Vec<ExtendedProcessInfo>> {
-        infiltrator_desktop::process_enumerator::enumerate_extended_processes()
+        process_enumerator::enumerate_extended_processes()
     }
 }
 
-pub mod clipboard_helper {
-    pub type ClipboardContentType = infiltrator_desktop::clipboard_helper::ClipboardContentType;
-    pub type ClipboardHelper = infiltrator_desktop::clipboard_helper::ClipboardHelper;
-}
-
-pub mod admin_client {
-    pub type AdminApiClient = infiltrator_desktop::admin_client::AdminApiClient;
-}
-
-pub mod tun_service {
-    pub type TunServiceManager = infiltrator_desktop::tun_service::TunServiceManager;
-    pub type ServiceModeStatus = infiltrator_desktop::tun_service::ServiceModeStatus;
-}
-
 pub mod editor {
+    use infiltrator_desktop::editor;
     pub async fn open_profile_in_editor(
         editor_path: Option<String>,
         profile_name: &str,
     ) -> anyhow::Result<()> {
-        infiltrator_desktop::editor::open_profile_in_editor(editor_path, profile_name).await
+        editor::open_profile_in_editor(editor_path, profile_name).await
     }
 }
 
 pub mod boot {
-    pub type BootError = infiltrator_desktop::boot::BootError;
+    use infiltrator_desktop::boot;
+    use infiltrator_ports::host_runtime::HostRuntime;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     pub async fn bootstrap_host_runtime_from_current_home(
         use_bundled: bool,
-        bundled_candidates: &[std::path::PathBuf],
-    ) -> anyhow::Result<(
-        std::sync::Arc<dyn infiltrator_ports::host_runtime::HostRuntime>,
-        bool,
-    )> {
-        infiltrator_desktop::boot::bootstrap_host_runtime_from_current_home(
-            use_bundled,
-            bundled_candidates,
-        )
-        .await
+        bundled_candidates: &[PathBuf],
+    ) -> anyhow::Result<(Arc<dyn HostRuntime>, bool)> {
+        boot::bootstrap_host_runtime_from_current_home(use_bundled, bundled_candidates).await
     }
 }
 
@@ -97,11 +82,12 @@ pub mod boot {
 /// composition root's runtime is reused instead of Iced importing an executor
 /// into the application layer.
 pub mod runtime {
-    pub fn application_runtime()
-    -> std::sync::Arc<dyn infiltrator_ports::application_runtime::ApplicationRuntime> {
-        static RUNTIME: std::sync::OnceLock<
-            std::sync::Arc<dyn infiltrator_ports::application_runtime::ApplicationRuntime>,
-        > = std::sync::OnceLock::new();
+    use infiltrator_desktop::subscription_notification_port::DesktopSubscriptionNotificationPort;
+    use infiltrator_ports::application_runtime::ApplicationRuntime;
+    use infiltrator_ports::subscription_notification::SubscriptionNotificationPort;
+    use std::sync::{Arc, OnceLock};
+    pub fn application_runtime() -> Arc<dyn ApplicationRuntime> {
+        static RUNTIME: OnceLock<Arc<dyn ApplicationRuntime>> = OnceLock::new();
         RUNTIME
             .get_or_init(|| {
                 infiltrator_composition::tokio_application_runtime()
@@ -112,120 +98,118 @@ pub mod runtime {
 
     /// DUAL-07-10: the desktop system-notification adapter the shared
     /// subscription refresh emits through.
-    pub fn subscription_notifier() -> std::sync::Arc<
-        dyn infiltrator_ports::subscription_notification::SubscriptionNotificationPort,
-    > {
-        std::sync::Arc::new(
-            infiltrator_desktop::subscription_notification_port::DesktopSubscriptionNotificationPort,
-        )
+    pub fn subscription_notifier() -> Arc<dyn SubscriptionNotificationPort> {
+        Arc::new(DesktopSubscriptionNotificationPort)
     }
 }
 
 pub mod storage {
+    use infiltrator_desktop::storage;
+    use infiltrator_desktop::subscription_import_port::DesktopSubscriptionImportPort;
     use infiltrator_domain::profile_options::ProfileOptions;
     use infiltrator_domain::snapshots::SnapshotMeta;
     use infiltrator_ports::app_routing_store::AppRoutingStore;
     use infiltrator_ports::doctor::DoctorPort;
     use infiltrator_ports::fake_ip_cache::FakeIpCachePort;
+    use infiltrator_ports::port_conflict::PortConflictPort;
     use infiltrator_ports::profile_reset::ProfileResetPort;
     use infiltrator_ports::profile_store::ProfileStore;
     use infiltrator_ports::public_ip_probe::PublicIpProbe;
     use infiltrator_ports::settings_store::SettingsStore;
     use infiltrator_ports::snapshot_store::SnapshotStore;
+    use infiltrator_ports::subscription_import::SubscriptionImportPort;
     use infiltrator_ports::subscription_source::SubscriptionSource;
     use infiltrator_ports::sync::SyncPort;
     use infiltrator_ports::version::VersionPort;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
-    pub fn home_dir() -> anyhow::Result<std::path::PathBuf> {
-        infiltrator_desktop::storage::home_dir()
+    pub fn home_dir() -> anyhow::Result<PathBuf> {
+        storage::home_dir()
     }
 
     pub async fn profile_store() -> anyhow::Result<Arc<dyn ProfileStore>> {
-        infiltrator_desktop::storage::profile_store().await
+        storage::profile_store().await
     }
 
     pub async fn profile_controller_url() -> anyhow::Result<String> {
-        infiltrator_desktop::storage::profile_controller_url().await
+        storage::profile_controller_url().await
     }
 
     pub async fn settings_store() -> anyhow::Result<Arc<dyn SettingsStore>> {
-        infiltrator_desktop::storage::settings_store().await
+        storage::settings_store().await
     }
 
     pub async fn save_webdav_password(password: &str) -> anyhow::Result<()> {
-        infiltrator_desktop::storage::save_webdav_password(password).await
+        storage::save_webdav_password(password).await
     }
 
     pub async fn webdav_password() -> Option<String> {
-        infiltrator_desktop::storage::webdav_password().await
+        storage::webdav_password().await
     }
 
     pub async fn clear_webdav_password() {
-        infiltrator_desktop::storage::clear_webdav_password().await
+        storage::clear_webdav_password().await
     }
 
     pub fn subscription_source() -> impl SubscriptionSource {
-        infiltrator_desktop::storage::subscription_source()
+        storage::subscription_source()
     }
 
     /// DUAL-07-01: the desktop host's local-file / clipboard import port.
-    pub fn subscription_import_port()
-    -> Arc<dyn infiltrator_ports::subscription_import::SubscriptionImportPort> {
-        Arc::new(infiltrator_desktop::subscription_import_port::DesktopSubscriptionImportPort)
+    pub fn subscription_import_port() -> Arc<dyn SubscriptionImportPort> {
+        Arc::new(DesktopSubscriptionImportPort)
     }
 
     pub fn sync() -> anyhow::Result<impl SyncPort> {
-        infiltrator_desktop::storage::sync()
+        storage::sync()
     }
 
     pub async fn snapshot_store() -> anyhow::Result<impl SnapshotStore> {
-        infiltrator_desktop::storage::snapshot_store().await
+        storage::snapshot_store().await
     }
 
     pub fn version() -> anyhow::Result<impl VersionPort> {
-        infiltrator_desktop::storage::version()
+        storage::version()
     }
 
-    pub fn port_conflict() -> anyhow::Result<impl infiltrator_ports::port_conflict::PortConflictPort>
-    {
-        infiltrator_desktop::storage::port_conflict()
+    pub fn port_conflict() -> anyhow::Result<impl PortConflictPort> {
+        storage::port_conflict()
     }
 
     pub fn public_ip_probe() -> impl PublicIpProbe {
-        infiltrator_desktop::storage::public_ip_probe()
+        storage::public_ip_probe()
     }
 
     pub fn doctor() -> anyhow::Result<impl DoctorPort> {
-        infiltrator_desktop::storage::doctor()
+        storage::doctor()
     }
 
     pub fn profile_reset() -> impl ProfileResetPort {
-        infiltrator_desktop::storage::profile_reset()
+        storage::profile_reset()
     }
 
     pub fn fake_ip_cache() -> impl FakeIpCachePort {
-        infiltrator_desktop::storage::fake_ip_cache()
+        storage::fake_ip_cache()
     }
 
     pub fn app_routing_store() -> anyhow::Result<impl AppRoutingStore> {
-        infiltrator_desktop::storage::app_routing_store()
+        storage::app_routing_store()
     }
 
     pub async fn reset_profiles_to_default() -> anyhow::Result<()> {
-        infiltrator_desktop::storage::reset_profiles_to_default().await
+        storage::reset_profiles_to_default().await
     }
 
     pub fn factory_reset(home: &Path, configs_dir: Option<&Path>) -> anyhow::Result<Vec<String>> {
-        infiltrator_desktop::storage::factory_reset(home, configs_dir)
+        storage::factory_reset(home, configs_dir)
     }
 
     pub async fn load_profile_options(
         config_dir: &Path,
         profile: &str,
     ) -> anyhow::Result<ProfileOptions> {
-        infiltrator_desktop::storage::load_profile_options(config_dir, profile).await
+        storage::load_profile_options(config_dir, profile).await
     }
 
     pub async fn save_profile_options(
@@ -233,17 +217,17 @@ pub mod storage {
         profile: &str,
         options: &ProfileOptions,
     ) -> anyhow::Result<()> {
-        infiltrator_desktop::storage::save_profile_options(config_dir, profile, options).await
+        storage::save_profile_options(config_dir, profile, options).await
     }
 
     pub async fn list_profile_snapshots(
         config_dir: &Path,
         profile: &str,
     ) -> anyhow::Result<Vec<SnapshotMeta>> {
-        infiltrator_desktop::storage::list_profile_snapshots(config_dir, profile).await
+        storage::list_profile_snapshots(config_dir, profile).await
     }
 
     pub async fn read_profile_snapshot(path: &Path) -> anyhow::Result<String> {
-        infiltrator_desktop::storage::read_profile_snapshot(path).await
+        storage::read_profile_snapshot(path).await
     }
 }

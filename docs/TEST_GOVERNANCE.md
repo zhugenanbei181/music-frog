@@ -1,6 +1,8 @@
 # Bevy UI 测试质量治理与断言契约规范 (Test Governance & Zero-Tautology Policy)
 
-本文档是 MusicFrog Infiltrator 项目 Bevy UI 体系的**测试质量刚性宪章**。
+文件拆分与导入必须遵守 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md)，测试同样受 800 行预算约束。
+
+本文档是 MusicFrog Infiltrator 项目 Iced 与 Bevy UI 同权产品的**测试质量刚性宪章**。
 为确保工程长期演进中的高保真度与可维护性，**严禁编写任何形式的无业务断言、废话断言与报菜名断言**。
 
 ---
@@ -66,5 +68,5 @@ assert_eq!(border.bottom, palette.accent);
 
 ## 3. 门禁指标与自动化审计
 
-- 任何 PR 与新增测试必须满足：`assert_eq!` 或深度业务断言占比 **≥ 98%**；
-- 静态检查工具与 CI 流水线持续扫描空泛断言，违规者自动阻断构建。
+- 测试质量由业务后果与状态机覆盖判断；禁止用断言数量或 `assert_eq!` 比例作为验收指标。布尔契约可使用 `assert!`，但须结合结果、状态前后差异和副作用断言。
+- 行为证据不通过生产源码字符串打卡；精确测试 ID、端归属与状态机分支由 `scripts/parity/` 解析，测试实际执行由 nextest 负责。三层验收规则见 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)。

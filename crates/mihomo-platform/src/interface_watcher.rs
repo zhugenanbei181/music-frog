@@ -1,17 +1,18 @@
+use broadcast::error::SendError;
+use std::cmp::Ordering;
 #[path = "gateway_migration.rs"]
 mod gateway_migration;
 #[path = "interface_diff.rs"]
 pub mod interface_diff;
 
 use self::interface_diff::InterfaceDiffDetector;
-
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
 use sysinfo::Networks;
 use tokio::sync::{Mutex, broadcast, watch};
-use tokio::time::{self, Instant};
+use tokio::time;
+use tokio::time::Instant;
 
 /// Physical or virtual classification of a network interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -274,9 +275,6 @@ pub enum NetworkEvent {
     },
 }
 
-/// Type alias for backward compatibility.
-pub type InterfaceChangeEvent = NetworkEvent;
-
 /// Result of gateway hot-plug arbitration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GatewayArbitrationDecision {
@@ -455,7 +453,7 @@ impl GatewayPriorityArbiter {
     pub fn compare_interface_preference(
         a: &NetworkInterfaceSnapshot,
         b: &NetworkInterfaceSnapshot,
-    ) -> std::cmp::Ordering {
+    ) -> Ordering {
         let prio_a = a
             .metric
             .unwrap_or_else(|| a.inferred_type().default_priority_metric());
@@ -827,10 +825,7 @@ impl NetworkInterfaceWatcher {
     }
 
     /// Emits a network event manually.
-    pub fn emit(
-        &self,
-        event: NetworkEvent,
-    ) -> Result<usize, broadcast::error::SendError<NetworkEvent>> {
+    pub fn emit(&self, event: NetworkEvent) -> Result<usize, SendError<NetworkEvent>> {
         self.sender.send(event)
     }
 

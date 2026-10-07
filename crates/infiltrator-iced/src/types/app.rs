@@ -1,6 +1,12 @@
 //! App-shell types: navigation routes, toast severity and page transitions.
 
+use infiltrator_contract::command_catalogue::ShellPage;
+use infiltrator_contract::lan::DEFAULT_BIND_ADDRESS;
+use infiltrator_contract::pac::PacSnapshot;
+use infiltrator_contract::rule_tracer::TracerRuleOverride;
+use infiltrator_contract::uwp::UwpLoopbackAvailability;
 use std::path::PathBuf;
+use std::time;
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -24,19 +30,18 @@ impl Route {
     /// no dedicated logs page (the runtime page hosts the logs section) and
     /// keeps the config editor as a local page, so those two are the only
     /// non-identical arms.
-    pub fn from_shell_page(page: infiltrator_contract::command_catalogue::ShellPage) -> Self {
+    pub fn from_shell_page(page: ShellPage) -> Self {
         match page {
-            infiltrator_contract::command_catalogue::ShellPage::Overview => Self::Overview,
-            infiltrator_contract::command_catalogue::ShellPage::Proxies => Self::Proxies,
-            infiltrator_contract::command_catalogue::ShellPage::Profiles => Self::Profiles,
-            infiltrator_contract::command_catalogue::ShellPage::Rules => Self::Rules,
-            infiltrator_contract::command_catalogue::ShellPage::Connections
-            | infiltrator_contract::command_catalogue::ShellPage::Logs => Self::Runtime,
-            infiltrator_contract::command_catalogue::ShellPage::Dns => Self::Dns,
-            infiltrator_contract::command_catalogue::ShellPage::Doctor => Self::Doctor,
-            infiltrator_contract::command_catalogue::ShellPage::AppRouting => Self::AppRouting,
-            infiltrator_contract::command_catalogue::ShellPage::Sync => Self::Sync,
-            infiltrator_contract::command_catalogue::ShellPage::Settings => Self::Settings,
+            ShellPage::Overview => Self::Overview,
+            ShellPage::Proxies => Self::Proxies,
+            ShellPage::Profiles => Self::Profiles,
+            ShellPage::Rules => Self::Rules,
+            ShellPage::Connections | ShellPage::Logs => Self::Runtime,
+            ShellPage::Dns => Self::Dns,
+            ShellPage::Doctor => Self::Doctor,
+            ShellPage::AppRouting => Self::AppRouting,
+            ShellPage::Sync => Self::Sync,
+            ShellPage::Settings => Self::Settings,
         }
     }
 }
@@ -138,11 +143,13 @@ pub enum ToastStatus {
 /// page cannot accidentally perform an irreversible operation on a click.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfirmAction {
+    RuleStatisticsCleanup,
     FactoryReset,
     ClearProfiles,
     DeleteProfile(String),
     DeleteKernel(String),
     CloseAllConnections,
+    TracerOverride(TracerRuleOverride),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -178,7 +185,7 @@ pub struct CoreDownloadProgress {
 pub struct Transition {
     pub previous_route: Option<Route>,
     pub start_time: Option<Instant>,
-    pub duration: std::time::Duration,
+    pub duration: time::Duration,
 }
 
 impl Default for Transition {
@@ -186,7 +193,7 @@ impl Default for Transition {
         Self {
             previous_route: None,
             start_time: None,
-            duration: std::time::Duration::from_millis(300),
+            duration: time::Duration::from_millis(300),
         }
     }
 }
@@ -211,7 +218,7 @@ pub struct UwpAppItem {
 #[derive(Debug, Clone, Default)]
 pub struct UwpLoopbackState {
     pub apps: Vec<UwpAppItem>,
-    pub availability: infiltrator_contract::uwp::UwpLoopbackAvailability,
+    pub availability: UwpLoopbackAvailability,
     pub revision: u64,
     pub search_query: String,
     pub is_scanning: bool,
@@ -225,7 +232,7 @@ pub struct PacManagerConfig {
     pub bypass_subnets: String,
     pub is_pac_mode_active: bool,
     pub last_compile_status: Option<String>,
-    pub snapshot: infiltrator_contract::pac::PacSnapshot,
+    pub snapshot: PacSnapshot,
     pub dirty: bool,
 }
 
@@ -244,7 +251,7 @@ impl Default for LanSharingConfig {
         Self {
             allow_lan: false,
             mixed_port: 7890,
-            bind_address: infiltrator_contract::lan::DEFAULT_BIND_ADDRESS.to_owned(),
+            bind_address: DEFAULT_BIND_ADDRESS.to_owned(),
             acl_whitelist_cidrs: String::new(),
             active_lan_clients_count: 0,
         }

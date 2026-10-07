@@ -4,20 +4,18 @@
 //! Visualizes network latency bins (e.g. <50ms, 50-100ms, 100-200ms, >500ms, timeout)
 //! with clear tier distinctions and average / P95 threshold markers.
 
+use super::mesh::{TelemetryMeshData, build_bar_mesh};
+use super::texture::ChartTextureView;
+use crate::chart::to_rgba8;
+use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
-use bevy::ecs::change_detection::DetectChanges;
+use bevy::ecs::change_detection::{DetectChanges, Ref};
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::{Node, percent, px};
-use bevy::ui::widget::ImageNode;
-
-use crate::palette::UiPalette;
-
-use super::mesh::{TelemetryMeshData, build_bar_mesh};
 
 /// Latency severity classification tier.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -107,7 +105,7 @@ pub fn tier_to_rgba(tier: LatencyTier, palette: &UiPalette) -> [u8; 4] {
         LatencyTier::Slow => palette.warning,
         LatencyTier::Timeout => palette.danger,
     };
-    crate::chart::to_rgba8(color)
+    to_rgba8(color)
 }
 
 /// Straight-alpha pixel blend helper.
@@ -145,7 +143,7 @@ pub fn rasterize_histogram(spec: &HistogramSpec, palette: &UiPalette) -> Vec<u8>
         return pixels;
     }
 
-    let border_ink = crate::chart::to_rgba8(palette.border);
+    let border_ink = to_rgba8(palette.border);
     let grid_y = (height as f32 * 0.5).round() as i32;
     for x in 0..width as i32 {
         blend_pixel(&mut pixels, width, x, grid_y, border_ink, 0.4);
@@ -267,7 +265,7 @@ pub fn histogram_scene(spec: HistogramSpec) -> impl Scene + use<> {
 pub fn sync_histogram_charts(
     palette: Res<UiPalette>,
     images: Option<ResMut<Assets<Image>>>,
-    mut charts: Query<(Entity, &mut HistogramPlate, Option<&ImageNode>)>,
+    charts: Query<(Ref<HistogramPlate>, ChartTextureView)>,
     mut commands: Commands,
 ) {
     let retheme = palette.is_changed();
@@ -275,25 +273,13 @@ pub fn sync_histogram_charts(
         return;
     };
 
-    for (entity, plate, node) in &mut charts {
-        if !retheme && !plate.is_changed() && node.is_some() {
-            continue;
-        }
+    for (plate, texture) in &charts {
         let spec = &plate.0;
-        match node {
-            Some(node) => {
-                if let Some(mut image) = images.get_mut(&node.image) {
-                    *image = histogram_image(spec, &palette);
-                }
-            }
-            None => {
-                let image = histogram_image(spec, &palette);
-                let handle = images.add(image);
-                commands.entity(entity).insert(ImageNode {
-                    image: handle,
-                    ..ImageNode::default()
-                });
-            }
-        }
+        texture.sync::<HistogramPlate>(
+            &mut images,
+            retheme || plate.is_changed(),
+            || histogram_image(spec, &palette),
+            &mut commands,
+        );
     }
 }

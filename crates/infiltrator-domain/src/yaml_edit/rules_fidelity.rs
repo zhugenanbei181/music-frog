@@ -11,7 +11,7 @@
 //! list that differs from the requested one.
 
 use super::{SourceDoc, YamlEditError};
-use crate::rules::{RuleEntry, format_rule_entry, parse_rule_entry};
+use crate::rules::{RuleEntry, format_rule_entry, load_rules_from_yaml, parse_rule_entry};
 use std::collections::{HashMap, VecDeque};
 
 /// Replace the document's `rules` sequence with `rules`.
@@ -58,7 +58,7 @@ pub fn apply_rule_list(doc: &mut SourceDoc, rules: &[RuleEntry]) -> Result<(), Y
     }
 
     let rendered = candidate.render();
-    match crate::rules::load_rules_from_yaml(&rendered) {
+    match load_rules_from_yaml(&rendered) {
         Ok(parsed) if parsed == rules => {
             *doc = candidate;
             Ok(())
@@ -130,6 +130,17 @@ fn read_rule_slots(doc: &SourceDoc) -> Result<(Option<usize>, Vec<RuleSlot>), Ya
             indent,
             entry: parse_rule_entry(unquote(value)),
         });
+    }
+    // YAML scalar identities include anchor and alias resolution; raw lines remain verbatim.
+    let semantic = load_rules_from_yaml(&doc.render())
+        .map_err(|error| YamlEditError::Unsupported(error.to_string()))?;
+    if semantic.len() != slots.len() {
+        return Err(YamlEditError::Unsupported(
+            "Rule item layout differs from decoded YAML sequence".into(),
+        ));
+    }
+    for (slot, entry) in slots.iter_mut().zip(semantic) {
+        slot.entry = entry;
     }
     Ok((Some(header), slots))
 }

@@ -1,15 +1,14 @@
-use std::path::PathBuf;
-use std::ptr;
-use std::sync::Arc;
-
+use crate::tls::ensure_rustls_provider;
+use crate::{FfiErrorCode, FfiStatus};
 use jni::objects::{GlobalRef, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
-use jni::{JNIEnv, JavaVM};
+use jni::{JNIEnv, JavaVM, errors};
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::android_bridge::{AndroidBridge, set_android_bridge};
 use mihomo_platform::paths::set_home_dir_override;
-
-use crate::{FfiErrorCode, FfiStatus};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::{ptr, result};
 
 const SIG_NOARGS_BOOL: &str = "()Z";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
@@ -284,7 +283,7 @@ fn init_dirs(env: &mut JNIEnv, data_dir: JString, cache_dir: JString) -> FfiStat
         return FfiStatus::err(FfiErrorCode::InvalidInput, "dir is empty");
     }
 
-    crate::tls::ensure_rustls_provider();
+    ensure_rustls_provider();
 
     let override_ok = set_home_dir_override(PathBuf::from(data_dir));
     if !override_ok {
@@ -328,7 +327,7 @@ fn read_java_string(
     env: &mut JNIEnv,
     input: &JString,
     label: &str,
-) -> std::result::Result<String, FfiStatus> {
+) -> result::Result<String, FfiStatus> {
     if input.is_null() {
         return Err(FfiStatus::err(
             FfiErrorCode::InvalidInput,
@@ -345,6 +344,6 @@ fn read_java_string(
         })
 }
 
-fn map_jni_error(context: &str, err: jni::errors::Error) -> MihomoError {
+fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
     MihomoError::Service(format!("jni {context} failed: {err}"))
 }

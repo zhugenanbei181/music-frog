@@ -6,14 +6,19 @@
 //! commands: manual backup, list refresh, prune and per-entry diff selection.
 //! It never derives a retention rule of its own.
 
+#[path = "profiles_diff_history_query_access.rs"]
+pub mod query_access;
+use self::query_access::{HistoryAppearance, SnapshotHistorySelectionControls};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::profiles::LastProfilesProjection;
+use crate::pages::profiles_diff::{SnapshotDiffViewState, diff_notice_scene};
+use crate::pages::snapshot_restore::OpenSnapshotRestore;
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
-use bevy::ecs::hierarchy::ChildOf;
-use bevy::ecs::hierarchy::Children;
+use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::Res;
-use bevy::ecs::system::{Commands, Query, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -22,16 +27,13 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::snapshot_presentation;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles::LastProfilesProjection;
-use crate::pages::profiles_diff::{
-    RollbackSnapshotLabel, SnapshotDiffViewState, diff_notice_scene,
-};
+use infiltrator_contract::snapshot_history::{SnapshotEntry, SnapshotHistorySnapshot};
+use infiltrator_contract::snapshot_restore::SnapshotRestoreTarget;
 
 /// DUAL-09-06: store a manual snapshot of the active profile now.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -85,7 +87,7 @@ pub(super) fn backup_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             BackupSnapshotButton
             Children [
-                Text({ "立即备份".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("sync_backup_now_action") TextRole(Role::Caption)
             ]
     })
 }
@@ -104,7 +106,7 @@ pub(super) fn history_refresh_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             RefreshSnapshotHistoryButton
             Children [
-                Text({ "刷新列表".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("editor_history_refresh") TextRole(Role::Caption)
             ]
     })
 }
@@ -135,7 +137,7 @@ pub(super) fn prune_keep_row(palette: &UiPalette) -> Box<dyn Scene> {
                 column_gap: Val::Px(space::S2),
             }
             Children [
-                Text({ "保留".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("common_keep") TextRole(Role::Caption)
                 --
                 { chips }
             ]
@@ -156,43 +158,21 @@ pub(super) fn prune_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             PruneSnapshotsButton
             Children [
-                Text({ "立即修剪".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("editor_prune_now") TextRole(Role::Caption)
             ]
     })
 }
 
-fn history_row_scene(
-    entry: &infiltrator_contract::snapshot_history::SnapshotEntry,
-    selected: bool,
-    armed_restore: bool,
-    palette: &UiPalette,
-) -> Box<dyn Scene> {
-    let stamp = entry.stamp_label();
-    let label = format!(
-        "{stamp} · {} · {}{}",
-        entry.short_hash(),
-        if entry.is_newest { "最新 · " } else { "" },
-        if entry.is_duplicate {
-            "重复内容"
-        } else {
-            "对比此快照"
-        }
-    );
+fn history_row_scene(entry: &SnapshotEntry, selected: bool, palette: &UiPalette) -> Box<dyn Scene> {
+    let label = snapshot_presentation::entry_label(entry, UiLocale::default().code());
+    let identity = SnapshotEntryLabel(entry.clone());
     let color = if selected {
         palette.accent
     } else {
         palette.ink_dim
     };
-    let restore_label = if armed_restore {
-        "再次点击确认回滚"
-    } else {
-        "恢复此快照"
-    };
-    let restore_color = if armed_restore {
-        palette.accent
-    } else {
-        palette.surface_elevated
-    };
+    let restore_label = LocalizedText::plain("profiles_snapshot_restore_action");
+    let restore_color = palette.surface_elevated;
     let id = entry.id.clone();
     let restore_id = entry.id.clone();
     Box::new(bsn! {
@@ -214,7 +194,7 @@ fn history_row_scene(
                 Button
                 SnapshotHistoryEntryButton { id }
                 Children [
-                    Text({ label }) TextRole(Role::Mono) TextColor({ color })
+                    Text({ label }) identity TextRole(Role::Mono) TextColor({ color })
                 ]
                 --
                 Node {
@@ -228,7 +208,7 @@ fn history_row_scene(
                 Button
                 SnapshotHistoryRestoreButton { id: restore_id }
                 Children [
-                    Text({ restore_label.to_owned() }) TextRole(Role::Caption)
+                    restore_label TextRole(Role::Caption)
                 ]
             ]
     })
@@ -237,29 +217,16 @@ fn history_row_scene(
 pub(super) fn history_rows_scene(
     history: Option<&SnapshotHistorySnapshot>,
     selected: Option<&str>,
-    armed_restore: Option<&str>,
     palette: &UiPalette,
 ) -> Box<dyn Scene> {
     let rows: Vec<Box<dyn Scene>> = match history {
         Some(history) if !history.entries.is_empty() => history
             .entries
             .iter()
-            .take(12)
-            .map(|entry| {
-                history_row_scene(
-                    entry,
-                    selected == Some(entry.id.as_str()),
-                    armed_restore == Some(entry.id.as_str()),
-                    palette,
-                )
-            })
+            .map(|entry| history_row_scene(entry, selected == Some(entry.id.as_str()), palette))
             .collect(),
-        Some(_) => vec![diff_notice_scene(
-            "暂无历史快照；每次成功应用会自动备份一份",
-        )],
-        None => vec![diff_notice_scene(
-            "尚未读取快照历史；点击「刷新列表」按需读取共享快照应用",
-        )],
+        Some(_) => vec![diff_notice_scene("snapshot_history_none")],
+        None => vec![diff_notice_scene("snapshot_history_not_loaded")],
     };
     Box::new(bsn! {
             Node {
@@ -334,26 +301,29 @@ pub(super) fn on_prune_snapshots_activated(
 }
 
 /// DUAL-09-06: diff (and therefore roll back to) one specific history entry.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_snapshot_history_entry_activated(
     activate: On<Activate>,
-    buttons: Query<&SnapshotHistoryEntryButton>,
     mut view: ResMut<SnapshotDiffViewState>,
-    mut labels: Query<&mut Text, With<RollbackSnapshotLabel>>,
     last: Option<Res<LastProfilesProjection>>,
-    palette: Res<UiPalette>,
     mut commands: Commands,
-    history_bodies: Query<Entity, With<SnapshotHistoryBody>>,
     handle: Option<Res<CommandSinkHandle>>,
+    targets: SnapshotHistorySelectionControls,
+    appearance: HistoryAppearance,
 ) {
+    let HistoryAppearance { palette, locale } = appearance;
+    let SnapshotHistorySelectionControls {
+        buttons,
+        mut labels,
+        history_bodies,
+    } = targets;
+
     let Ok(button) = buttons.get(activate.entity) else {
         return;
     };
     view.selected_snapshot = Some(button.id.clone());
-    view.rollback_armed = false;
-    view.armed_restore = None;
-    for mut label in &mut labels {
-        label.0 = "一键安全还原此快照".to_owned();
+    for (mut label, mut copy) in &mut labels {
+        *copy = LocalizedText::plain("profiles_snapshot_restore_action");
+        label.0 = copy.render(&locale);
     }
     let history = last
         .as_ref()
@@ -361,12 +331,7 @@ pub(super) fn on_snapshot_history_entry_activated(
         .and_then(|projection| projection.snapshot_history.as_ref());
     for entity in &history_bodies {
         commands.entity(entity).despawn_children();
-        let scene = history_rows_scene(
-            history,
-            view.selected_snapshot.as_deref(),
-            view.armed_restore.as_deref(),
-            &palette,
-        );
+        let scene = history_rows_scene(history, view.selected_snapshot.as_deref(), &palette);
         commands.spawn_scene(scene).insert(ChildOf(entity));
     }
     if let Some(handle) = handle.as_ref() {
@@ -379,47 +344,31 @@ pub(super) fn on_snapshot_history_entry_activated(
 /// DUAL-09-14: per-entry two-step restore — the same confirmed action the
 /// Iced history panel offers. The first click only arms; the second submits
 /// the shared `RestoreSnapshot` through the apply transaction.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) fn on_snapshot_history_restore_activated(
     activate: On<Activate>,
     buttons: Query<&SnapshotHistoryRestoreButton>,
-    mut view: ResMut<SnapshotDiffViewState>,
     last: Option<Res<LastProfilesProjection>>,
-    palette: Res<UiPalette>,
     mut commands: Commands,
-    history_bodies: Query<Entity, With<SnapshotHistoryBody>>,
-    handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Ok(button) = buttons.get(activate.entity) else {
         return;
     };
-    let history = last
+    let Some(history) = last
         .as_ref()
         .and_then(|last| last.0.as_ref())
-        .and_then(|projection| projection.snapshot_history.as_ref());
-    if view.armed_restore.as_deref() != Some(button.id.as_str()) {
-        view.armed_restore = Some(button.id.clone());
-        for entity in &history_bodies {
-            commands.entity(entity).despawn_children();
-            let scene = history_rows_scene(
-                history,
-                view.selected_snapshot.as_deref(),
-                view.armed_restore.as_deref(),
-                &palette,
-            );
-            commands.spawn_scene(scene).insert(ChildOf(entity));
-        }
+        .and_then(|projection| projection.snapshot_history.as_ref())
+    else {
+        return;
+    };
+    if !history.entries.iter().any(|entry| entry.id == button.id) {
         return;
     }
-    view.armed_restore = None;
-    for entity in &history_bodies {
-        commands.entity(entity).despawn_children();
-        let scene = history_rows_scene(history, view.selected_snapshot.as_deref(), None, &palette);
-        commands.spawn_scene(scene).insert(ChildOf(entity));
-    }
-    if let Some(handle) = handle.as_ref() {
-        handle.submit(UiCommand::RestoreSnapshot {
-            id: button.id.clone(),
-        });
-    }
+    commands.trigger(OpenSnapshotRestore(SnapshotRestoreTarget {
+        profile: history.profile.clone(),
+        snapshot_id: button.id.clone(),
+    }));
 }
+
+/// Frozen row data used only for localized label replay on the same native entity.
+#[derive(Component, Clone)]
+pub struct SnapshotEntryLabel(pub SnapshotEntry);

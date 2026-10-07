@@ -3,48 +3,90 @@
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`ProfilesLine`],
 //! [`ProfileNameText`], [`ProfileTimeText`], [`ProfileTrafficText`], [`ProfileStatusText`]).
-//! The page self-registers [`apply_profiles_projection`] and action observers
-//! once per world via [`ProfilesPageRoot`]. When [`ProfilesProjectionUpdated`]
+//! [`ProfilesPagePlugin`] registers [`apply_profiles_projection`] and action observers
+//! once at product assembly. When [`ProfilesProjectionUpdated`]
 //! fires, texts and active states restamp in place without tree rebuilds.
 
-use bevy::a11y::AccessibilityNode;
+#[path = "profiles_query_access.rs"]
+pub mod query_access;
+use self::query_access::ProfileProjectionTargets;
+use infiltrator_composition::demo_identities::{BACKUP_PROFILE, LOCAL_PROFILE, PRIMARY_PROFILE};
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::business_panel::{PanelKind, launcher_scene, profiles_panels};
+use crate::pages::profiles_editor_copy::replay_profile_protection;
+use crate::pages::profiles_filter_dedup::FilterDedupPlugin;
+use crate::pages::profiles_snapshot_copy;
+use crate::pages::profiles_subscription_copy::sync_status_copy;
+use infiltrator_application::profile_metadata_projection;
+use infiltrator_bevy_widgets::localization::UiLocale;
+
+use crate::pages::profiles::cards::{header_card_scene, profile_card_scene};
+use crate::pages::profiles_aggregator::sync_aggregation_preview;
+use crate::pages::profiles_aggregator_wizard::{
+    AggregatorComposerState, on_add_aggregator_custom_group, on_aggregation_checkbox_changed,
+    on_clear_aggregator_custom_groups, on_delete_aggregation_template, on_preview_aggregation,
+    on_reaggregate_template, on_save_aggregated_profile, on_save_aggregation_template,
+    on_use_aggregation_template,
+};
+use crate::pages::profiles_diff::{
+    SnapshotDiffViewState, on_refresh_snapshot_diff, on_rollback_snapshot_activated,
+    on_snapshot_diff_mode_activated, sync_snapshot_diff,
+};
+use crate::pages::profiles_diff_history::{
+    on_backup_snapshot_activated, on_prune_snapshots_activated, on_refresh_snapshot_history,
+    on_snapshot_history_entry_activated, on_snapshot_history_restore_activated,
+    on_snapshot_prune_keep_activated,
+};
+use crate::pages::profiles_editor::profile_editor_scene;
+use crate::pages::profiles_import::{
+    on_restore_subscription_backup, on_save_subscription_fetch_settings,
+    profiles_import_card_scene, sync_subscription_fetch_controls,
+};
+use crate::pages::profiles_import_channels::{
+    on_import_clipboard_subscription, on_import_local_subscription, on_import_subscription_url,
+    on_save_subscription_filter,
+};
+use crate::pages::profiles_script_scene::workbench_scene;
+use crate::pages::profiles_script_workbench::ScriptWorkbenchPlugin;
+use crate::pages::profiles_subscription_policy::{
+    on_save_subscription_auto_reload, on_save_subscription_policy, replay_policy_copy,
+    subscription_policy_card_scene, sync_subscription_policy_controls,
+};
+use crate::route::{PageRoot, Route};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, BorderRadius, FlexDirection, JustifyContent, Node, Overflow,
-    UiRect, Val, percent, px,
-};
-use bevy::ui::widget::Text;
-use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
-use infiltrator_bevy_widgets::icon::IconId;
-use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
-use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::surface::surface_scene;
-use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::overview::format_byte_count;
-use crate::route::{PageRoot, Route};
-
+use bevy::ui::prelude::{FlexDirection, Node, Overflow, Val, percent, px};
 /// Root marker on the Profiles page scene.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_profiles_page)]
-pub struct ProfilesPageRoot;
+use bevy::ui_widgets::{Activate, ScrollArea};
+use infiltrator_application::subscription_filter_fixture;
+use infiltrator_bevy_widgets::gesture::{PullToRefreshState, pull_to_refresh_scene};
+use infiltrator_bevy_widgets::palette::UiPalette;
+use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::aggregator::{AggregationReport, AggregationTemplate};
+use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
+use infiltrator_contract::error::Failure;
+use infiltrator_contract::profile_document::ProfileDocumentSnapshot;
+use infiltrator_contract::profile_editor_read::ProfileEditorReadSnapshot;
+use infiltrator_contract::profile_options::ProfileOptionsSnapshot;
+use infiltrator_contract::profile_protection::ProfileWriteProtection;
+use infiltrator_contract::profile_source::ProfileSourceIdentity;
+use infiltrator_contract::script_export::ScriptExportSnapshot;
+use infiltrator_contract::script_sandbox::ScriptSandboxSnapshot;
+use infiltrator_contract::snapshot_history::SnapshotHistorySnapshot;
+use infiltrator_contract::subscription_import::SubscriptionFilterDraft;
+use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
+pub mod cards;
 
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct ProfilesPageBound;
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct ProfilesPageRoot;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -116,9 +158,9 @@ pub struct ProfileItem {
     pub name: String,
     pub url: String,
     pub updated_at: String,
-    pub upload_bytes: u64,
-    pub download_bytes: u64,
-    pub total_bytes: u64,
+    pub upload_bytes: Option<u64>,
+    pub download_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
     pub is_active: bool,
     /// Per-profile conditional-request User-Agent (empty = provider default).
     pub user_agent: String,
@@ -141,10 +183,11 @@ pub struct ProfileItem {
     /// DUAL-07-09: reload the running core after this profile's update.
     pub auto_reload_core: bool,
     /// DUAL-07-08: the stored node-keyword filter draft.
-    pub filter: infiltrator_contract::subscription_import::SubscriptionFilterDraft,
+    pub filter: SubscriptionFilterDraft,
+    pub filter_source: Result<ProfileSourceIdentity, Failure>,
     /// DUAL-09-12: the same write classification the Iced editor and the
     /// application guard use.
-    pub write_protection: infiltrator_contract::profile_protection::ProfileWriteProtection,
+    pub write_protection: ProfileWriteProtection,
 }
 
 /// Snapshot of the Profiles domain.
@@ -155,32 +198,32 @@ pub struct ProfilesProjection {
     pub updating: bool,
     /// DUAL-08: the last shared aggregation preview, or `None` when no draft
     /// has been previewed yet. The surface never builds this locally.
-    pub aggregation: Option<infiltrator_contract::aggregator::AggregationReport>,
+    pub aggregation: Option<AggregationReport>,
     /// DUAL-08-13: persisted aggregation template library.
-    pub aggregation_templates: Vec<infiltrator_contract::aggregator::AggregationTemplate>,
+    pub aggregation_templates: Vec<AggregationTemplate>,
     /// DUAL-08-13: `false` when the host store keeps no template sidecar.
     pub aggregation_templates_available: bool,
     /// DUAL-09-08: the shared snapshot-vs-current AST diff. The surface renders
     /// it directly and never fabricates rows.
-    pub yaml_ast_diff: Option<infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot>,
+    pub yaml_ast_diff: Option<YamlAstDiffSnapshot>,
     /// DUAL-09-06/07: the shared snapshot history (entries + shared prune view).
-    pub snapshot_history: Option<infiltrator_contract::snapshot_history::SnapshotHistorySnapshot>,
+    pub snapshot_history: Option<SnapshotHistorySnapshot>,
     /// DUAL-09-11: the host core's typed apply-transaction outcome.
-    pub apply_transaction:
-        Option<infiltrator_contract::apply_transaction::ApplyTransactionSnapshot>,
+    pub apply_transaction: Option<ApplyTransactionSnapshot>,
     /// DUAL-09-03/14: the stored document the editor card renders.
-    pub profile_document: Option<infiltrator_contract::profile_document::ProfileDocumentSnapshot>,
+    pub profile_document: Option<ProfileDocumentSnapshot>,
     /// DUAL-09-14: the stored Mixin overlay + filter draft the editor panes
     /// edit; published by the shared sidecar use-case.
-    pub profile_options: Option<infiltrator_contract::profile_options::ProfileOptionsSnapshot>,
+    pub profile_options: Option<ProfileOptionsSnapshot>,
+    pub editor_read: ProfileEditorReadSnapshot,
     /// DUAL-10-05/14: the shared script-sandbox read model the console renders.
     /// It is the exact projection Iced produced and published; `None` before a
     /// run (never a fabricated execution).
-    pub script_sandbox: Option<infiltrator_contract::script_sandbox::ScriptSandboxSnapshot>,
+    pub script_sandbox: Option<ScriptSandboxSnapshot>,
     /// DUAL-10-12: the shared export projection (real file name/bytes/checksum
     /// and the typed host outcome) the console card renders. The export action
     /// runs in Iced through the shared application.
-    pub script_export: Option<infiltrator_contract::script_export::ScriptExportSnapshot>,
+    pub script_export: Option<ScriptExportSnapshot>,
 }
 
 impl ProfilesProjection {
@@ -196,16 +239,17 @@ impl ProfilesProjection {
             apply_transaction: None,
             profile_document: None,
             profile_options: None,
+            editor_read: Default::default(),
             profiles: vec![
                 ProfileItem {
                     id: "sub-1".to_owned(),
-                    name: "主力高速订阅 (Primary VIP)".to_owned(),
+                    name: PRIMARY_PROFILE.to_owned(),
                     url: "https://subscribe.musicfrog.io/api/v1/client/subscribe?token=demo_sub_1"
                         .to_owned(),
                     updated_at: "2026-09-02 08:30".to_owned(),
-                    upload_bytes: 1_250_000_000,
-                    download_bytes: 48_600_000_000,
-                    total_bytes: 200_000_000_000,
+                    upload_bytes: Some(1_250_000_000),
+                    download_bytes: Some(48_600_000_000),
+                    total_bytes: Some(200_000_000_000),
                     is_active: true,
                     user_agent: "Clash.Meta/1.18.0".to_owned(),
                     insecure_skip_verify: false,
@@ -218,17 +262,22 @@ impl ProfilesProjection {
                     next_update: Some("2026-09-22T12:00:00+00:00".to_owned()),
                     auto_reload_core: true,
                     filter: Default::default(),
-                    write_protection:
-                        infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
+                    filter_source: subscription_filter_fixture::observation(
+                        "sub-1",
+                        subscription_filter_fixture::FIXTURE_DOCUMENT,
+                        Default::default(),
+                    )
+                    .map(|o| o.source),
+                    write_protection: ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
                     id: "sub-2".to_owned(),
-                    name: "备用容灾线路 (Backup Anycast)".to_owned(),
+                    name: BACKUP_PROFILE.to_owned(),
                     url: "https://backup.musicfrog.io/clash/config.yaml".to_owned(),
                     updated_at: "2026-09-01 12:00".to_owned(),
-                    upload_bytes: 120_000_000,
-                    download_bytes: 2_400_000_000,
-                    total_bytes: 100_000_000_000,
+                    upload_bytes: Some(120_000_000),
+                    download_bytes: Some(2_400_000_000),
+                    total_bytes: Some(100_000_000_000),
                     is_active: false,
                     user_agent: String::new(),
                     insecure_skip_verify: true,
@@ -241,17 +290,22 @@ impl ProfilesProjection {
                     next_update: Some("2026-09-22T14:00:00+00:00".to_owned()),
                     auto_reload_core: true,
                     filter: Default::default(),
-                    write_protection:
-                        infiltrator_contract::profile_protection::ProfileWriteProtection::RemoteSubscription,
+                    filter_source: subscription_filter_fixture::observation(
+                        "sub-2",
+                        subscription_filter_fixture::FIXTURE_DOCUMENT,
+                        Default::default(),
+                    )
+                    .map(|o| o.source),
+                    write_protection: ProfileWriteProtection::RemoteSubscription,
                 },
                 ProfileItem {
                     id: "sub-3".to_owned(),
-                    name: "局域网调试配置 (LAN Lab)".to_owned(),
+                    name: LOCAL_PROFILE.to_owned(),
                     url: "http://192.168.1.100:8080/profile.yaml".to_owned(),
                     updated_at: "2026-08-28 15:45".to_owned(),
-                    upload_bytes: 10_000_000,
-                    download_bytes: 50_000_000,
-                    total_bytes: 0,
+                    upload_bytes: Some(10_000_000),
+                    download_bytes: Some(50_000_000),
+                    total_bytes: Some(0),
                     is_active: false,
                     user_agent: "Shadowrocket/2.2.20".to_owned(),
                     insecure_skip_verify: false,
@@ -264,8 +318,13 @@ impl ProfilesProjection {
                     next_update: None,
                     auto_reload_core: false,
                     filter: Default::default(),
-                    write_protection:
-                        infiltrator_contract::profile_protection::ProfileWriteProtection::Editable,
+                    filter_source: subscription_filter_fixture::observation(
+                        "sub-3",
+                        subscription_filter_fixture::FIXTURE_DOCUMENT,
+                        Default::default(),
+                    )
+                    .map(|o| o.source),
+                    write_protection: ProfileWriteProtection::Editable,
                 },
             ],
             yaml_ast_diff: None,
@@ -275,55 +334,34 @@ impl ProfilesProjection {
     }
 
     /// Active profile name.
-    pub fn active_profile_name(&self) -> &str {
+    pub fn active_profile_name(&self) -> Option<&str> {
         self.profiles
             .iter()
-            .find(|p| p.is_active)
-            .map(|p| p.name.as_str())
-            .unwrap_or("无活动配置")
+            .find(|profile| profile.is_active)
+            .map(|profile| profile.name.as_str())
     }
 }
 
-/// DUAL-07-14: the header summary is derived from the real profile list, never
-/// from a page-level constant: a "every N hours" claim only appears when a
-/// fixed interval is actually configured, and cron-only sets say so.
-pub fn auto_update_summary(projection: &ProfilesProjection) -> String {
-    let enabled = projection
-        .profiles
-        .iter()
-        .filter(|profile| profile.auto_update_enabled)
-        .count();
-    if enabled == 0 {
-        return "自动更新: 未启用".to_owned();
-    }
-    if projection.auto_update_interval_hours > 0 {
-        format!(
-            "自动更新: {} 个订阅已启用 · 最短周期 {} 小时",
-            enabled, projection.auto_update_interval_hours
-        )
-    } else {
-        format!("自动更新: {} 个订阅已启用 · 按 Cron 计划", enabled)
-    }
+fn auto_update_summary(projection: &ProfilesProjection, locale: &str) -> String {
+    profile_metadata_projection::schedule_overview(
+        projection.profiles.iter().map(|profile| {
+            (
+                profile.auto_update_enabled,
+                profile.cron_expression.as_deref(),
+                profile.update_interval_hours,
+            )
+        }),
+        locale,
+    )
 }
-
-/// DUAL-07-14: one card line describing a profile's real update cadence,
-/// including the next scheduled run when the shared snapshot knows it.
-pub fn profile_schedule_summary(profile: &ProfileItem) -> String {
-    let cadence = if !profile.auto_update_enabled {
-        "定时计划: 手动".to_owned()
-    } else {
-        match profile.cron_expression.as_deref() {
-            Some(cron) if !cron.trim().is_empty() => format!("定时计划: Cron `{cron}`"),
-            _ => match profile.update_interval_hours {
-                Some(hours) => format!("定时计划: 每 {hours} 小时"),
-                None => "定时计划: 未设置周期".to_owned(),
-            },
-        }
-    };
-    match profile.next_update.as_deref() {
-        Some(next) if !next.trim().is_empty() => format!("{cadence} · 下次更新 {next}"),
-        _ => cadence,
-    }
+fn profile_schedule_summary(profile: &ProfileItem, locale: &str) -> String {
+    profile_metadata_projection::schedule(
+        profile.auto_update_enabled,
+        profile.cron_expression.as_deref(),
+        profile.update_interval_hours,
+        profile.next_update.as_deref(),
+        locale,
+    )
 }
 
 /// The typed event dispatched when profiles data updates.
@@ -337,12 +375,13 @@ pub struct LastProfilesProjection(pub Option<ProfilesProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let summary = format!(
-        "配置订阅 · 共 {} 个配置 (当前生效: {})",
+    let panels = profiles_panels(projection, palette);
+    let summary = profile_metadata_projection::summary(
         projection.profiles.len(),
-        projection.active_profile_name()
+        projection.active_profile_name(),
+        UiLocale::default().code(),
     );
-    let auto_update = auto_update_summary(projection);
+    let auto_update = auto_update_summary(projection, UiLocale::default().code());
 
     let profile_scenes: Vec<Box<dyn Scene>> = projection
         .profiles
@@ -360,290 +399,107 @@ pub fn profiles_page(projection: &ProfilesProjection, palette: &UiPalette) -> im
                 min_height: px(0.0),
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(space::S16),
-                overflow: Overflow::scroll_y(),
+                overflow: Overflow::clip(),
             }
             PageRoot(Route::Profiles)
             ProfilesPageRoot
             Children [
+                Node {
+                    width: percent(100), height: percent(100),
+                    min_height: px(0.0), flex_shrink: 1.0,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(space::S16), overflow: Overflow::scroll_y(),
+                }
+                ScrollArea
+                Children [
                 @{ pull_to_refresh_scene(&PullToRefreshState::default(), palette) }
                 --
                 @{ header_card_scene(summary, auto_update, palette) }
                 --
-                @{ crate::pages::profiles_import::profiles_import_card_scene(projection, palette) }
+                @{ profiles_import_card_scene(projection, palette) }
                 --
-                @{ crate::pages::profiles_subscription_policy::subscription_policy_card_scene(projection, palette) }
+                @{ subscription_policy_card_scene(projection, palette) }
                 --
-                @{ crate::pages::profiles_aggregator::profiles_aggregator_scene(projection, palette) }
+                @{ launcher_scene(PanelKind::Aggregator, palette) }
                 --
-                @{ crate::pages::profiles_diff::snapshot_diff_scene(projection, palette) }
+                @{ launcher_scene(PanelKind::SnapshotDiff, palette) }
                 --
-                @{ crate::pages::profiles_editor::profile_editor_scene(projection, palette) }
+                @{ profile_editor_scene(projection, palette) }
                 --
-                @{ crate::pages::profiles_script::script_sandbox_scene(projection, palette) }
+                @{ workbench_scene(palette) }
                 --
                 { profile_scenes }
+                ]
+                --
+                { panels }
             ]
     }
 }
 
-fn header_card_scene(
-    summary: String,
-    auto_update: String,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("配置订阅概览");
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-    surface_scene(
-        vec![Box::new(bsn! {
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
-                    }
-                    AccessibilityNode(header_a11y)
-                    Children [
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S12),
-                        }
-                        Children [
-                            @{ icon_tile_scene(IconId::FileText, 36.0, palette) }
-                            --
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                            }
-                            Children [
-                                Text(summary) ProfilesLine(ProfilesLineKind::Summary) TextRole(Role::Heading)
-                                --
-                                Text(auto_update) ProfilesLine(ProfilesLineKind::AutoUpdate) TextRole(Role::Caption)
-                            ]
-                        ]
-                        --
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            Button
-                            UpdateAllSubscriptionsButton
-                            Children [
-                                Text({ "一键更新全部订阅".to_owned() }) TextRole(Role::Body)
-                            ]
-                            --
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.accent })
-                            Button
-                            Children [
-                                Text({ "导入订阅链接".to_owned() }) TextRole(Role::BodyStrong)
-                            ]
-                        ]
-                    ]
-        })],
-        palette,
-    )
-}
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct ProfilesPagePlugin;
 
-fn profile_card_scene(
-    idx: usize,
-    profile: &ProfileItem,
-    palette: &UiPalette,
-) -> impl Scene + use<> {
-    let name = profile.name.clone();
-    let url = profile.url.clone();
-    let updated = format!("更新于: {}", profile.updated_at);
-    let used_bytes = profile.upload_bytes + profile.download_bytes;
-    let traffic_str = if profile.total_bytes > 0 {
-        format!(
-            "已用: {} / 总计: {}",
-            format_byte_count(used_bytes),
-            format_byte_count(profile.total_bytes)
-        )
-    } else {
-        format!("已用: {} / 无限制", format_byte_count(used_bytes))
-    };
+impl Plugin for ProfilesPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LastProfilesProjection>();
+        app.add_plugins(FilterDedupPlugin);
+        app.init_resource::<AggregatorComposerState>();
+        app.init_resource::<LastProfilesProjection>();
+        app.add_observer(apply_profiles_projection);
+        app.add_systems(
+            Update,
+            (
+                replay_profiles_projection,
+                replay_policy_copy,
+                replay_profile_protection,
+                profiles_snapshot_copy::replay,
+            ),
+        );
+        app.add_observer(on_profiles_action_activated);
+        app.add_observer(on_update_profile_activated);
+        app.add_observer(on_update_all_subscriptions_activated);
+        app.add_observer(on_delete_profile_activated);
+        app.add_observer(sync_subscription_fetch_controls);
+        app.add_observer(sync_status_copy);
 
-    let status_str = if profile.is_active {
-        "当前生效中".to_owned()
-    } else {
-        "点击启用".to_owned()
-    };
-    let schedule_str = profile_schedule_summary(profile);
-    let btn_bg = if profile.is_active {
-        palette.success
-    } else {
-        palette.surface_elevated
-    };
-
-    surface_scene(
-        vec![Box::new(bsn! {
-                    Node {
-                        width: percent(100),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::SpaceBetween,
-                        column_gap: Val::Px(space::S16),
-                    }
-                    Children [
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(space::S4),
-                        }
-                        Children [
-                            Node {
-                                align_items: AlignItems::Center,
-                                column_gap: Val::Px(space::S8),
-                            }
-                            Children [
-                                Text(name) ProfileNameText(idx) TextRole(Role::BodyStrong)
-                                --
-                                Text(updated) ProfileTimeText(idx) TextRole(Role::Caption)
-                            ]
-                            --
-                            Text(url) TextRole(Role::Caption)
-                            --
-                            Text({ profile.write_protection.label_zh().to_owned() })
-                            ProfileProtectionText(idx)
-                            TextRole(Role::Caption)
-                            --
-                            Text(traffic_str) ProfileTrafficText(idx) TextRole(Role::Mono)
-                            --
-                            Text(schedule_str) ProfileScheduleText(idx) TextRole(Role::Caption)
-                        ]
-                        --
-                        Node {
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(space::S8),
-                        }
-                        Children [
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            Button
-                            UpdateProfileButton(idx)
-                            Children [
-                                Text({ "立即更新".to_owned() }) TextRole(Role::Body)
-                            ]
-                            --
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ btn_bg })
-                            ControlVisual({ profile.is_active })
-                            ActivateProfileButton {
-                                profile_id: { profile.id.clone() },
-                                profile_idx: { idx },
-                            }
-                            Button
-                            Children [
-                                Text(status_str) ProfileStatusText(idx) TextRole(Role::Body)
-                            ]
-                            --
-                            Node {
-                                min_height: px(palette.control_height_px),
-                                padding: UiRect::horizontal(Val::Px(space::S12)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
-                            }
-                            BackgroundColor({ palette.surface_elevated })
-                            ControlVisual({ !profile.is_active })
-                            Button
-                            DeleteProfileButton {
-                                profile_id: { profile.id.clone() },
-                                profile_idx: { idx },
-                            }
-                            Children [
-                                Text({ "删除配置".to_owned() }) TextRole(Role::Body)
-                            ]
-                        ]
-                    ]
-        })],
-        palette,
-    )
-}
-
-// ---- Observer & Update Hook -----------------------------------------------
-
-fn bind_profiles_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<ProfilesPageBound>().is_some() {
-        return;
+        app.add_observer(on_save_subscription_fetch_settings);
+        app.add_observer(on_save_subscription_filter);
+        app.add_observer(on_restore_subscription_backup);
+        app.add_observer(on_import_subscription_url);
+        app.add_observer(on_import_local_subscription);
+        app.add_observer(on_import_clipboard_subscription);
+        app.add_observer(sync_subscription_policy_controls);
+        app.add_observer(on_save_subscription_policy);
+        app.add_observer(on_save_subscription_auto_reload);
+        app.add_observer(sync_aggregation_preview);
+        app.add_observer(on_preview_aggregation);
+        app.add_observer(on_save_aggregated_profile);
+        app.add_observer(on_add_aggregator_custom_group);
+        app.add_observer(on_aggregation_checkbox_changed);
+        app.add_observer(on_clear_aggregator_custom_groups);
+        app.add_observer(on_save_aggregation_template);
+        app.add_observer(on_use_aggregation_template);
+        app.add_observer(on_reaggregate_template);
+        app.add_observer(on_delete_aggregation_template);
+        app.init_resource::<SnapshotDiffViewState>();
+        app.add_observer(sync_snapshot_diff);
+        app.add_observer(on_refresh_snapshot_diff);
+        app.add_observer(on_snapshot_diff_mode_activated);
+        app.add_observer(on_rollback_snapshot_activated);
+        app.add_observer(on_backup_snapshot_activated);
+        app.add_observer(on_refresh_snapshot_history);
+        app.add_observer(on_snapshot_prune_keep_activated);
+        app.add_observer(on_prune_snapshots_activated);
+        app.add_observer(on_snapshot_history_entry_activated);
+        app.add_observer(on_snapshot_history_restore_activated);
+        // DUAL-10-05/14: the shared script-sandbox console body.
+        app.add_plugins(ScriptWorkbenchPlugin);
+        // DUAL-09-03/14: the document editor owns its own plugin
+        // (`ProfilesEditorPlugin`): keyboard seam, observers and body rebuild.
     }
-    let mut commands = world.commands();
-    commands.insert_resource(ProfilesPageBound);
-    commands.init_resource::<LastProfilesProjection>();
-    commands.init_resource::<crate::pages::profiles_aggregator_wizard::AggregatorComposerState>();
-    commands.add_observer(apply_profiles_projection);
-    commands.add_observer(on_profiles_action_activated);
-    commands.add_observer(on_update_profile_activated);
-    commands.add_observer(on_update_all_subscriptions_activated);
-    commands.add_observer(on_delete_profile_activated);
-    commands.add_observer(crate::pages::profiles_import::sync_subscription_fetch_controls);
-    commands
-        .add_observer(crate::pages::profiles_import_channels::sync_subscription_filter_controls);
-    commands.add_observer(crate::pages::profiles_import::on_save_subscription_fetch_settings);
-    commands.add_observer(crate::pages::profiles_import_channels::on_save_subscription_filter);
-    commands.add_observer(crate::pages::profiles_import::on_restore_subscription_backup);
-    commands.add_observer(crate::pages::profiles_import_channels::on_import_subscription_url);
-    commands.add_observer(crate::pages::profiles_import_channels::on_import_local_subscription);
-    commands.add_observer(crate::pages::profiles_import_channels::on_import_clipboard_subscription);
-    commands.add_observer(
-        crate::pages::profiles_subscription_policy::sync_subscription_policy_controls,
-    );
-    commands.add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_policy);
-    commands
-        .add_observer(crate::pages::profiles_subscription_policy::on_save_subscription_auto_reload);
-    commands.add_observer(crate::pages::profiles_aggregator::sync_aggregation_preview);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_preview_aggregation);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_save_aggregated_profile);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_add_aggregator_custom_group);
-    commands
-        .add_observer(crate::pages::profiles_aggregator_wizard::on_clear_aggregator_custom_groups);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_save_aggregation_template);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_use_aggregation_template);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_reaggregate_template);
-    commands.add_observer(crate::pages::profiles_aggregator_wizard::on_delete_aggregation_template);
-    commands.init_resource::<crate::pages::profiles_diff::SnapshotDiffViewState>();
-    commands.add_observer(crate::pages::profiles_diff::sync_snapshot_diff);
-    commands.add_observer(crate::pages::profiles_diff::on_refresh_snapshot_diff);
-    commands.add_observer(crate::pages::profiles_diff::on_snapshot_diff_mode_activated);
-    commands.add_observer(crate::pages::profiles_diff::on_rollback_snapshot_activated);
-    commands.add_observer(crate::pages::profiles_diff_history::on_backup_snapshot_activated);
-    commands.add_observer(crate::pages::profiles_diff_history::on_refresh_snapshot_history);
-    commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_prune_keep_activated);
-    commands.add_observer(crate::pages::profiles_diff_history::on_prune_snapshots_activated);
-    commands.add_observer(crate::pages::profiles_diff_history::on_snapshot_history_entry_activated);
-    commands
-        .add_observer(crate::pages::profiles_diff_history::on_snapshot_history_restore_activated);
-    // DUAL-10-05/14: the shared script-sandbox console body.
-    commands.init_resource::<crate::pages::profiles_script::ScriptSandboxViewState>();
-    commands.add_observer(crate::pages::profiles_script::rebuild_script_sandbox_body);
-    // DUAL-09-03/14: the document editor owns its own plugin
-    // (`ProfilesEditorPlugin`): keyboard seam, observers and body rebuild.
 }
 
 /// DUAL-07-11: route the toolbar "update all" click into the shared command bus.
@@ -730,100 +586,45 @@ pub(crate) fn on_delete_profile_activated(
     handle.submit(UiCommand::DeleteProfile { id: profile_id });
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_profiles_projection(
     update: On<ProfilesProjectionUpdated>,
-    palette: Res<UiPalette>,
-    mut last: Option<ResMut<LastProfilesProjection>>,
-    mut lines: Query<
-        (&mut Text, &ProfilesLine),
-        (
-            With<ProfilesLine>,
-            Without<ProfileNameText>,
-            Without<ProfileTimeText>,
-            Without<ProfileTrafficText>,
-            Without<ProfileStatusText>,
-        ),
-    >,
-    mut names: Query<
-        (&mut Text, &ProfileNameText),
-        (
-            With<ProfileNameText>,
-            Without<ProfilesLine>,
-            Without<ProfileTimeText>,
-            Without<ProfileTrafficText>,
-            Without<ProfileStatusText>,
-        ),
-    >,
-    mut times: Query<
-        (&mut Text, &ProfileTimeText),
-        (
-            With<ProfileTimeText>,
-            Without<ProfilesLine>,
-            Without<ProfileNameText>,
-            Without<ProfileTrafficText>,
-            Without<ProfileStatusText>,
-        ),
-    >,
-    mut traffics: Query<
-        (&mut Text, &ProfileTrafficText),
-        (
-            With<ProfileTrafficText>,
-            Without<ProfilesLine>,
-            Without<ProfileNameText>,
-            Without<ProfileTimeText>,
-            Without<ProfileStatusText>,
-        ),
-    >,
-    mut statuses: Query<
-        (&mut Text, &ProfileStatusText),
-        (
-            With<ProfileStatusText>,
-            Without<ProfilesLine>,
-            Without<ProfileNameText>,
-            Without<ProfileTimeText>,
-            Without<ProfileTrafficText>,
-            Without<ProfileScheduleText>,
-        ),
-    >,
-    mut schedules: Query<
-        (&mut Text, &ProfileScheduleText),
-        (
-            With<ProfileScheduleText>,
-            Without<ProfilesLine>,
-            Without<ProfileNameText>,
-            Without<ProfileTimeText>,
-            Without<ProfileTrafficText>,
-            Without<ProfileStatusText>,
-        ),
-    >,
-    mut buttons: Query<
-        (
-            &mut BackgroundColor,
-            &mut ControlVisual,
-            &mut ActivateProfileButton,
-        ),
-        Without<DeleteProfileButton>,
-    >,
-    mut delete_buttons: Query<
-        (&mut DeleteProfileButton, &mut ControlVisual),
-        Without<ActivateProfileButton>,
-    >,
+    mut last: ResMut<LastProfilesProjection>,
 ) {
-    let projection = &update.0;
+    last.0 = Some(update.0.clone());
+}
+
+pub(crate) fn replay_profiles_projection(
+    palette: Res<UiPalette>,
+    locale: Res<UiLocale>,
+    last: Res<LastProfilesProjection>,
+    targets: ProfileProjectionTargets,
+) {
+    let ProfileProjectionTargets {
+        mut lines,
+        mut names,
+        mut times,
+        mut traffics,
+        mut statuses,
+        mut schedules,
+        mut buttons,
+        mut delete_buttons,
+    } = targets;
+
+    let Some(projection) = last.0.as_ref() else {
+        return;
+    };
 
     for (mut text, line) in &mut lines {
         match line.0 {
             ProfilesLineKind::Summary => {
-                text.0 = format!(
-                    "配置订阅 · 共 {} 个配置 (当前生效: {})",
+                text.0 = profile_metadata_projection::summary(
                     projection.profiles.len(),
-                    projection.active_profile_name()
+                    projection.active_profile_name(),
+                    locale.code(),
                 );
             }
             ProfilesLineKind::AutoUpdate => {
-                text.0 = auto_update_summary(projection);
+                text.0 = auto_update_summary(projection, locale.code());
             }
         }
     }
@@ -836,38 +637,32 @@ pub(crate) fn apply_profiles_projection(
 
     for (mut text, marker) in &mut times {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            text.0 = format!("更新于: {}", profile.updated_at);
+            text.0 = profile_metadata_projection::updated(&profile.updated_at, locale.code());
         }
     }
 
     for (mut text, marker) in &mut traffics {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            let used = profile.upload_bytes + profile.download_bytes;
-            text.0 = if profile.total_bytes > 0 {
-                format!(
-                    "已用: {} / 总计: {}",
-                    format_byte_count(used),
-                    format_byte_count(profile.total_bytes)
-                )
-            } else {
-                format!("已用: {} / 无限制", format_byte_count(used))
-            };
+            text.0 = profile_metadata_projection::traffic_caption(
+                &profile_metadata_projection::traffic(
+                    profile.upload_bytes,
+                    profile.download_bytes,
+                    profile.total_bytes,
+                ),
+                locale.code(),
+            );
         }
     }
 
     for (mut text, marker) in &mut statuses {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            text.0 = if profile.is_active {
-                "当前生效中".to_owned()
-            } else {
-                "点击启用".to_owned()
-            };
+            text.0 = profile_metadata_projection::active_status(profile.is_active, locale.code());
         }
     }
 
     for (mut text, marker) in &mut schedules {
         if let Some(profile) = projection.profiles.get(marker.0) {
-            text.0 = profile_schedule_summary(profile);
+            text.0 = profile_schedule_summary(profile, locale.code());
         }
     }
 
@@ -892,10 +687,6 @@ pub(crate) fn apply_profiles_projection(
             visual.0 = !profile.is_active;
         }
     }
-
-    if let Some(ref mut last_proj) = last {
-        last_proj.0 = Some(projection.clone());
-    }
 }
 
 #[cfg(test)]
@@ -906,13 +697,13 @@ mod tests {
     fn demo_profiles_fixture() {
         let proj = ProfilesProjection::demo();
         assert_eq!(proj.profiles.len(), 3);
-        assert_eq!(proj.active_profile_name(), "主力高速订阅 (Primary VIP)");
+        assert_eq!(proj.active_profile_name(), Some("Primary VIP"));
         assert_eq!(proj.auto_update_interval_hours, 6);
         assert_eq!(proj.profiles[0].id, "sub-1");
-        assert_eq!(proj.profiles[0].name, "主力高速订阅 (Primary VIP)");
-        assert_eq!(proj.profiles[0].total_bytes, 200_000_000_000);
-        assert_eq!(proj.profiles[0].upload_bytes, 1_250_000_000);
-        assert_eq!(proj.profiles[0].download_bytes, 48_600_000_000);
+        assert_eq!(proj.profiles[0].name, "Primary VIP");
+        assert_eq!(proj.profiles[0].total_bytes, Some(200_000_000_000));
+        assert_eq!(proj.profiles[0].upload_bytes, Some(1_250_000_000));
+        assert_eq!(proj.profiles[0].download_bytes, Some(48_600_000_000));
         assert!(proj.profiles[0].is_active);
     }
 }

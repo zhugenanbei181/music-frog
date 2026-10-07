@@ -1,17 +1,20 @@
 //! Per-App Split Tunneling & Process Routing page (应用级分流控制台).
 
-use crate::host::process_enumerator::ProcessCategory;
 use crate::state::AppState;
-use crate::types::app_routing::{AppRouteRule, AppRoutingMode};
 use crate::types::message::Message;
 use crate::view::component_forms::{row_card_surface, search_input, style_accent};
 use crate::view::components::{
     BadgeKind, badge, empty_state, modern_scrollable, section_header, segmented_control,
 };
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
+use crate::view::uwp_card::uwp_card;
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::routing_projection::{mode_key, rule_key};
+use infiltrator_desktop::process_enumerator::ProcessCategory;
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 fn category_badge_kind(cat: ProcessCategory) -> BadgeKind {
@@ -47,21 +50,24 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
 
     let title_line = section_header(&lang.tr("app_routing_title"), None);
 
-    let mode_labels = vec![
-        lang.tr("app_routing_mode_global").to_string(),
-        lang.tr("app_routing_mode_whitelist").to_string(),
-        lang.tr("app_routing_mode_blacklist").to_string(),
-    ];
+    let mode_labels = [
+        AppRoutingMode::ProxyAll,
+        AppRoutingMode::ProxySelected,
+        AppRoutingMode::BypassSelected,
+    ]
+    .into_iter()
+    .map(|mode| lang.tr(mode_key(mode)).into_owned())
+    .collect::<Vec<_>>();
     let mode_idx = match state.app_routing.mode {
-        AppRoutingMode::Global => 0,
-        AppRoutingMode::Whitelist => 1,
-        AppRoutingMode::Blacklist => 2,
+        AppRoutingMode::ProxyAll => 0,
+        AppRoutingMode::ProxySelected => 1,
+        AppRoutingMode::BypassSelected => 2,
     };
     let mode_switcher = segmented_control(&mode_labels, mode_idx, |idx| {
         Message::SetAppRoutingMode(match idx {
-            1 => AppRoutingMode::Whitelist,
-            2 => AppRoutingMode::Blacklist,
-            _ => AppRoutingMode::Global,
+            1 => AppRoutingMode::ProxySelected,
+            2 => AppRoutingMode::BypassSelected,
+            _ => AppRoutingMode::ProxyAll,
         })
     });
 
@@ -136,11 +142,11 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
                 .custom_rules
                 .get(&proc.name)
                 .copied()
-                .unwrap_or(AppRouteRule::Proxy);
+                .unwrap_or(AppRoutingRule::Proxy);
 
-            let direct_label = lang.tr("app_routing_direct").to_string();
-            let proxy_label = lang.tr("app_routing_proxy").to_string();
-            let block_label = lang.tr("app_routing_block").to_string();
+            let direct_label = lang.tr(rule_key(AppRoutingRule::Direct)).to_string();
+            let proxy_label = lang.tr(rule_key(AppRoutingRule::Proxy)).to_string();
+            let block_label = lang.tr(rule_key(AppRoutingRule::Block)).to_string();
 
             let proc_name = proc.name.clone();
             let proc_name_clone = proc_name.clone();
@@ -148,15 +154,15 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
             let rule_switcher = segmented_control(
                 &[proxy_label, direct_label, block_label],
                 match cur_rule {
-                    AppRouteRule::Proxy => 0,
-                    AppRouteRule::Direct => 1,
-                    AppRouteRule::Block => 2,
+                    AppRoutingRule::Proxy => 0,
+                    AppRoutingRule::Direct => 1,
+                    AppRoutingRule::Block => 2,
                 },
                 move |idx| {
                     let rule = match idx {
-                        1 => AppRouteRule::Direct,
-                        2 => AppRouteRule::Block,
-                        _ => AppRouteRule::Proxy,
+                        1 => AppRoutingRule::Direct,
+                        2 => AppRoutingRule::Block,
+                        _ => AppRoutingRule::Proxy,
                     };
                     Message::SetAppRouteRule {
                         process: proc_name.clone(),
@@ -211,7 +217,7 @@ pub fn view<'a>(state: &'a AppState) -> Element<'a, Message> {
         Space::new().height(theme::SP_SM),
         top_controls,
         Space::new().height(theme::SP_SM),
-        crate::view::uwp_card::uwp_card(state, &lang),
+        uwp_card(state, &lang),
         Space::new().height(theme::SP_SM),
         search_bar,
         Space::new().height(theme::SP_MD),

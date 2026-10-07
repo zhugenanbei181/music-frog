@@ -14,52 +14,62 @@
 //! * the keyboard seam is explicit (the 「编辑」 button grabs it), mirroring how
 //!   the command palette owns its own keyboard while open.
 
+#[path = "profiles_editor_query_access.rs"]
+pub mod query_access;
+use self::query_access::EditorVisualTargets;
+
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::pages::profiles::{
+    LastProfilesProjection, ProfilesProjection, ProfilesProjectionUpdated,
+};
+use crate::pages::profiles_editor_body::editor_rows_scene;
+use crate::pages::profiles_editor_copy::replay_document_copy;
+use crate::pages::profiles_editor_panes::{
+    ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneArea, filter_pane_scene,
+    mixin_pane_scene, pane_switch_scene,
+};
+use crate::pages::profiles_editor_panes_sync::route_editor_keyboard;
+use crate::pages::profiles_editor_state::{
+    PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState, diagnostic_line, protection_toggle_visual,
+    status_line,
+};
+use crate::pages::profiles_editor_transactions::EditorMutationControl;
+use crate::pages::profiles_editor_transactions::{discard_scene, submit_document};
 use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
-use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
-use bevy::input::ButtonInput;
-use bevy::input::keyboard::{KeyCode, KeyboardInput};
+use bevy::input::keyboard::KeyboardInput;
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
-use bevy::text::TextColor;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, BorderRadius, Display, FlexDirection, FlexWrap, JustifyContent,
     Node, Overflow, UiRect, Val, percent, px,
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
-use infiltrator_bevy_widgets::editor::CodeEditorState;
+use infiltrator_application::profile_editor_projection;
+use infiltrator_bevy_widgets::editor::state::CodeEditorState;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::profile_protection::ProfileWriteProtection;
 use infiltrator_contract::yaml_snippets::YAML_SNIPPETS;
 
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::pages::profiles::{LastProfilesProjection, ProfilesProjection};
-use crate::pages::profiles_editor_body::editor_rows_scene;
-use crate::pages::profiles_editor_panes::{
-    EditorFilterField, ProfileEditorOptionsState, ProfileEditorPane, ProfileEditorPaneArea,
-    filter_pane_scene, mixin_pane_scene, pane_switch_scene,
-};
-use crate::pages::profiles_editor_state::{
-    PROFILE_EDITOR_RENDER_LIMIT, ProfileEditorState, diagnostic_line, protection_toggle_visual,
-    status_line,
-};
-
 /// Marker for the editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProfileEditorRoot;
+
+#[derive(Component, Clone, Default)]
+pub struct ProfileEditorTitle;
 
 /// Container whose children are the gutter + rendered lines.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -120,7 +130,7 @@ pub fn profile_editor_scene(
     let buffer_lines = document
         .map(|document| document.content.lines().count())
         .unwrap_or(0);
-    let state = ProfileEditorState {
+    let mut state = ProfileEditorState {
         profile: document
             .map(|document| document.profile.clone())
             .unwrap_or_default(),
@@ -129,18 +139,25 @@ pub fn profile_editor_scene(
                 .map(|document| document.content.as_str())
                 .unwrap_or(""),
         ),
+        session: Default::default(),
+        save_request: None,
+        protection,
         dirty: false,
         loaded_content: document.map(|document| document.content.clone()),
         diagnostic: document.and_then(|document| document.syntax.clone()),
         notice: None,
+        format_note: None,
         protection_override: false,
         focused: false,
         generation: 0,
         // The first Update pass renders the body from this state.
         last_rendered: u64::MAX,
     };
-    let status = status_line(&state, Some(projection));
-    let (diagnostic_text, has_error) = diagnostic_line(&state);
+    if let Some(document) = document {
+        state.load_document(document);
+    }
+    let status = status_line(&state, Some(projection), UiLocale::default().code());
+    let (diagnostic_text, has_error) = diagnostic_line(&state, UiLocale::default().code());
     let initial_rows = editor_rows_scene(&state, palette);
     let options = ProfileEditorOptionsState::from_projection(projection);
 
@@ -167,11 +184,11 @@ pub fn profile_editor_scene(
                                         row_gap: Val::Px(space::S4),
                                     }
                                     Children [
-                                        Text({ format!("配置文档编辑器 · YAML ({buffer_lines} 行)") }) TextRole(Role::BodyStrong)
+                                        Text({ profile_editor_projection::title(buffer_lines, UiLocale::default().code()) }) ProfileEditorTitle TextRole(Role::BodyStrong)
                                         --
                                         Text(status) ProfileEditorStatusText TextRole(Role::Caption)
                                         --
-                                        Text({ protection.label_zh().to_owned() }) ProfileEditorProtectionText TextRole(Role::Caption)
+                                        Text({ profile_editor_projection::protection_label(protection, UiLocale::default().code()) }) ProfileEditorProtectionText TextRole(Role::Caption)
                                     ]
                                 ]
                                 --
@@ -181,7 +198,7 @@ pub fn profile_editor_scene(
                                 }
                                 ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                                 Children [
-                                    @{ action_button("编辑", palette.surface_elevated) }
+                                    @{ action_button("editor_focus_keyboard", palette.surface_elevated) }
                                     --
                                     @{ protection_toggle(protection, palette) }
                                     --
@@ -190,6 +207,8 @@ pub fn profile_editor_scene(
                                     @{ format_button(palette) }
                                     --
                                     @{ save_button(palette) }
+                                    --
+                                    @{ discard_scene(false, palette) }
                                 ]
                             ]
             }),
@@ -224,7 +243,7 @@ pub fn profile_editor_scene(
                             }
                             ProfileEditorPaneArea { pane: ProfileEditorPane::Profile }
                             Children [
-                                Text({ "快速插入片段（共享目录）".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("profiles_snippet_quick_insert") TextRole(Role::Caption)
                                 --
                                 { snippet_buttons(palette) }
                             ]
@@ -285,7 +304,7 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
         .iter()
         .enumerate()
         .map(|(index, snippet)| {
-            let label = snippet.label_zh.to_owned();
+            let label = LocalizedText::plain(snippet.label_key);
             let background = palette.surface_elevated;
             Box::new(bsn! {
                             Node {
@@ -297,17 +316,18 @@ fn snippet_buttons(palette: &UiPalette) -> Vec<Box<dyn Scene>> {
                             }
                             BackgroundColor({ background })
                             Button
+                            EditorMutationControl
                             ProfileEditorSnippetButton { index }
                             Children [
-                                Text({ label }) TextRole(Role::Caption)
+                                label TextRole(Role::Caption)
                             ]
             }) as Box<dyn Scene>
         })
         .collect()
 }
 
-fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
-    let label = label.to_owned();
+fn action_button(label: &'static str, background: Color) -> Box<dyn Scene> {
+    let label = LocalizedText::plain(label);
     Box::new(bsn! {
             Node {
                 min_height: px(28.0),
@@ -318,9 +338,10 @@ fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
             }
             BackgroundColor({ background })
             Button
+            EditorMutationControl
             ProfileEditorFocusButton
             Children [
-                Text({ label }) TextRole(Role::Caption)
+                label TextRole(Role::Caption)
             ]
     })
 }
@@ -329,7 +350,8 @@ fn action_button(label: &str, background: Color) -> Box<dyn Scene> {
 /// from the shared protection + the surface's unlock toggle, so a document
 /// that loads after the page mount still gets it.
 fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) -> Box<dyn Scene> {
-    let (label, background) = protection_toggle_visual(protection, false, palette);
+    let (label, background) =
+        protection_toggle_visual(protection, false, palette, UiLocale::default().code());
     Box::new(bsn! {
             Node {
                 min_height: px(28.0),
@@ -340,6 +362,7 @@ fn protection_toggle(protection: ProfileWriteProtection, palette: &UiPalette) ->
             }
             BackgroundColor({ background })
             Button
+            EditorMutationControl
             ProfileEditorProtectionToggle
             Children [
                 Text({ label }) ProfileEditorProtectionToggleLabel TextRole(Role::Caption)
@@ -365,7 +388,7 @@ fn reload_button(palette: &UiPalette) -> Box<dyn Scene> {
             Button
             ProfileEditorReloadButton
             Children [
-                Text({ "重新加载".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("common_reload") TextRole(Role::Caption)
             ]
     })
 }
@@ -382,9 +405,10 @@ fn format_button(palette: &UiPalette) -> Box<dyn Scene> {
             }
             BackgroundColor({ background })
             Button
+            EditorMutationControl
             ProfileEditorFormatButton
             Children [
-                Text({ "格式化（共享保真）".to_owned() }) TextRole(Role::Caption)
+                LocalizedText::plain("profiles_format_action") TextRole(Role::Caption)
             ]
     })
 }
@@ -401,18 +425,20 @@ fn save_button(palette: &UiPalette) -> Box<dyn Scene> {
             }
             BackgroundColor({ background })
             Button
+            EditorMutationControl
             ProfileEditorSaveButton
             Children [
-                Text({ "保存并应用".to_owned() }) TextRole(Role::Body)
+                LocalizedText::plain("dns_save") TextRole(Role::Body)
             ]
     })
 }
 
 fn diagnostic_pill(has_error: bool, palette: &UiPalette) -> Box<dyn Scene> {
-    let (label, background) = if has_error {
-        ("语法错误", palette.danger)
+    let label = profile_editor_projection::syntax_label(has_error, UiLocale::default().code());
+    let background = if has_error {
+        palette.danger
     } else {
-        ("语法通过", palette.success)
+        palette.success
     };
     Box::new(bsn! {
             Node {
@@ -446,90 +472,50 @@ pub fn refresh_profile_editor_body(
 
 /// Adopt the shared document and protection whenever the projection updates.
 pub fn sync_profile_editor(
-    update: On<crate::pages::profiles::ProfilesProjectionUpdated>,
+    update: On<ProfilesProjectionUpdated>,
     mut state: ResMut<ProfileEditorState>,
-    mut protections: Query<&mut Text, With<ProfileEditorProtectionText>>,
 ) {
     // The card owns no storage: 「重新加载」 asks the shared application for the
     // active profile's document. Nothing is requested implicitly, so a poll can
     // never replace an open buffer behind the user's back.
     let projection = &update.0;
+    state
+        .session
+        .observe_read_status(&projection.editor_read, false);
     if let Some(document) = projection.profile_document.as_ref()
         && state.load_document(document)
     {
         state.notice = None;
+        state.format_note = None;
     }
-    let protection = projection
-        .profile_document
-        .as_ref()
-        .map(|document| document.write_protection)
-        .unwrap_or_default();
-    let label = match state.notice.as_deref() {
-        Some(notice) => format!(
-            "{} · {} · {notice}",
-            protection.label_zh(),
-            protection.hint_zh()
-        ),
-        None => format!("{} · {}", protection.label_zh(), protection.hint_zh()),
-    };
-    for mut text in &mut protections {
-        if text.0 != label {
-            text.0 = label.clone();
-        }
-    }
+    state
+        .session
+        .observe_read_status(&projection.editor_read, false);
 }
 
 /// Restamp the status line, the syntax banner and its pill from the live
 /// buffer state. Compare-and-set, so an idle frame writes nothing.
-#[allow(clippy::type_complexity)]
 pub fn restamp_profile_editor(
     state: Res<ProfileEditorState>,
     last: Option<Res<LastProfilesProjection>>,
     palette: Res<UiPalette>,
-    mut status: Query<
-        &mut Text,
-        (
-            With<ProfileEditorStatusText>,
-            Without<ProfileEditorProtectionText>,
-            Without<ProfileEditorDiagnosticText>,
-            Without<ProfileEditorDiagnosticPill>,
-        ),
-    >,
-    mut diagnostics: Query<
-        (&mut Text, &mut TextColor),
-        (
-            With<ProfileEditorDiagnosticText>,
-            Without<ProfileEditorStatusText>,
-            Without<ProfileEditorDiagnosticPill>,
-        ),
-    >,
-    mut pills: Query<
-        (&mut Text, &mut BackgroundColor),
-        (
-            With<ProfileEditorDiagnosticPill>,
-            Without<ProfileEditorStatusText>,
-            Without<ProfileEditorDiagnosticText>,
-            Without<ProfileEditorProtectionToggleLabel>,
-        ),
-    >,
-    mut toggles: Query<
-        (&mut Text, &mut BackgroundColor),
-        (
-            With<ProfileEditorProtectionToggleLabel>,
-            Without<ProfileEditorStatusText>,
-            Without<ProfileEditorDiagnosticText>,
-            Without<ProfileEditorDiagnosticPill>,
-        ),
-    >,
+    locale: Res<UiLocale>,
+    targets: EditorVisualTargets,
 ) {
+    let EditorVisualTargets {
+        mut status,
+        mut diagnostics,
+        mut pills,
+        mut toggles,
+    } = targets;
     let projection = last.as_ref().and_then(|last| last.0.as_ref());
-    let status_text = status_line(&state, projection);
+    let status_text = status_line(&state, projection, locale.code());
     for mut text in &mut status {
         if text.0 != status_text {
             text.0 = status_text.clone();
         }
     }
-    let (diagnostic_text, has_error) = diagnostic_line(&state);
+    let (diagnostic_text, has_error) = diagnostic_line(&state, locale.code());
     let color = if has_error {
         palette.danger
     } else {
@@ -543,11 +529,7 @@ pub fn restamp_profile_editor(
             text_color.0 = color;
         }
     }
-    let pill_label = if has_error {
-        "语法错误"
-    } else {
-        "语法通过"
-    };
+    let pill_label = profile_editor_projection::syntax_label(has_error, locale.code());
     for (mut text, mut background) in &mut pills {
         if text.0 != pill_label {
             text.0 = pill_label.to_owned();
@@ -562,8 +544,12 @@ pub fn restamp_profile_editor(
         .and_then(|projection| projection.profile_document.as_ref())
         .map(|document| document.write_protection)
         .unwrap_or_default();
-    let (toggle_label, toggle_background) =
-        protection_toggle_visual(protection, state.protection_override, &palette);
+    let (toggle_label, toggle_background) = protection_toggle_visual(
+        protection,
+        state.protection_override,
+        &palette,
+        locale.code(),
+    );
     for (mut text, mut background) in &mut toggles {
         if text.0 != toggle_label {
             text.0 = toggle_label.clone();
@@ -583,6 +569,9 @@ pub fn on_profile_editor_focus(
     if buttons.get(activate.entity).is_err() {
         return;
     }
+    if !state.session.can_edit() {
+        return;
+    }
     state.focused = !state.focused;
     state.generation = state.generation.wrapping_add(1);
 }
@@ -592,6 +581,7 @@ pub fn on_profile_editor_reload(
     activate: On<Activate>,
     buttons: Query<(), With<ProfileEditorReloadButton>>,
     handle: Option<Res<CommandSinkHandle>>,
+    state: Res<ProfileEditorState>,
 ) {
     let Some(handle) = handle else {
         return;
@@ -599,7 +589,9 @@ pub fn on_profile_editor_reload(
     if buttons.get(activate.entity).is_err() {
         return;
     }
-    handle.submit(UiCommand::LoadProfileDocument { profile: None });
+    handle.submit(UiCommand::LoadProfileDocument {
+        profile: state.session.source().map(|source| source.profile.clone()),
+    });
 }
 
 /// Format the buffer with the shared AST-preserving formatter.
@@ -611,7 +603,9 @@ pub fn on_profile_editor_format(
     if buttons.get(activate.entity).is_err() {
         return;
     }
-    let _ = state.format();
+    if state.session.can_edit() {
+        let _ = state.format();
+    }
 }
 
 /// DUAL-09-04: insert the catalogue snippet this button stands for.
@@ -626,15 +620,16 @@ pub fn on_profile_editor_snippet_activated(
     let Some(snippet) = YAML_SNIPPETS.get(button.index) else {
         return;
     };
-    let _ = state.insert_snippet(snippet.id);
+    if state.session.can_edit() {
+        let _ = state.insert_snippet(snippet.id);
+    }
 }
 
 /// Commit the buffer through the shared guarded write path.
 pub fn on_profile_editor_save(
     activate: On<Activate>,
     buttons: Query<(), With<ProfileEditorSaveButton>>,
-    state: Res<ProfileEditorState>,
-    last: Option<Res<LastProfilesProjection>>,
+    mut state: ResMut<ProfileEditorState>,
     handle: Option<Res<CommandSinkHandle>>,
 ) {
     let Some(handle) = handle else {
@@ -643,67 +638,28 @@ pub fn on_profile_editor_save(
     if buttons.get(activate.entity).is_err() {
         return;
     }
-    let protection = last
-        .as_ref()
-        .and_then(|last| last.0.as_ref())
-        .and_then(|projection| projection.profile_document.as_ref())
-        .map(|document| document.write_protection)
-        .unwrap_or_default();
-    if !state.can_save(protection) {
+    if !state.can_save(state.protection) {
         return;
     }
-    handle.submit(UiCommand::SaveProfileDocument {
-        profile: state.profile.clone(),
-        content: state.buffer.full_text(),
-        allow_protected: state.protection_override,
-    });
+    submit_document(&mut state, &handle);
 }
 
 /// Toggle the explicit unlock for a protected subscription.
 pub fn on_profile_editor_protection_toggle(
     activate: On<Activate>,
     buttons: Query<(), With<ProfileEditorProtectionToggle>>,
-    last: Option<Res<LastProfilesProjection>>,
     mut state: ResMut<ProfileEditorState>,
 ) {
     if buttons.get(activate.entity).is_err() {
         return;
     }
-    let protection = last
-        .as_ref()
-        .and_then(|last| last.0.as_ref())
-        .and_then(|projection| projection.profile_document.as_ref())
-        .map(|document| document.write_protection)
-        .unwrap_or_default();
+    let protection = state.protection;
     if !protection.is_protected() {
         return;
     }
-    state.protection_override = !state.protection_override;
-}
-
-/// The editor keyboard seam: the buffer owns printable keys, Backspace,
-/// Delete, Enter, Tab, arrows, Home/End and Ctrl+S while focused.
-pub fn profile_editor_keyboard_input(
-    keys: MessageReader<KeyboardInput>,
-    keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    state: ResMut<ProfileEditorState>,
-    options: ResMut<ProfileEditorOptionsState>,
-    fields: Query<(&EditorFilterField, &Children)>,
-    text_fields: Query<&mut TextField>,
-    handle: Option<Res<CommandSinkHandle>>,
-) {
-    // DUAL-09-14: one seam routes to the active pane (profile document, Mixin
-    // buffer or the focused filter field); see
-    // `profiles_editor_panes_sync::route_editor_keyboard`.
-    crate::pages::profiles_editor_panes_sync::route_editor_keyboard(
-        keys,
-        keyboard,
-        state,
-        options,
-        fields,
-        text_fields,
-        handle,
-    );
+    if state.session.can_edit() {
+        state.protection_override = !state.protection_override;
+    }
 }
 
 /// Register the editor keyboard seam and its body rebuild.
@@ -725,9 +681,10 @@ impl Plugin for ProfilesEditorPlugin {
         app.add_systems(
             Update,
             (
-                profile_editor_keyboard_input,
+                route_editor_keyboard,
                 refresh_profile_editor_body,
                 restamp_profile_editor,
+                replay_document_copy,
             )
                 .chain(),
         );

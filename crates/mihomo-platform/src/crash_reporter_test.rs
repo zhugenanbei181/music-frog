@@ -1,7 +1,11 @@
 use super::*;
+use std::env::consts::OS;
+use std::fs::read_to_string;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 use std::time::Duration;
+use tokio::sync::watch::channel;
+use tokio::time::sleep;
 
 #[test]
 fn test_new_report_and_full_report() {
@@ -12,7 +16,7 @@ fn test_new_report_and_full_report() {
         Some("Stack trace line 1\nStack trace line 2"),
     );
     assert!(report.timestamp_secs > 0);
-    assert_eq!(report.os_info, std::env::consts::OS);
+    assert_eq!(report.os_info, OS);
     assert_eq!(report.panic_reason, "Test panic");
     assert_eq!(report.client_version, "v1.0.0");
     assert_eq!(report.core_version, Some("v1.0.0".to_string()));
@@ -111,7 +115,7 @@ fn test_save_crash_dump_creates_file_and_rotates() {
             .ends_with(".json")
     );
 
-    let content = std::fs::read_to_string(&saved_path).unwrap();
+    let content = read_to_string(&saved_path).unwrap();
     let parsed = CrashReporter::parse_report(&content).unwrap();
     assert_eq!(parsed.panic_reason, "Panic test in save");
     assert!(parsed.sanitized);
@@ -269,7 +273,7 @@ async fn test_standalone_dns_watchdog_loop_and_commands() {
         .with_poll_interval(Duration::from_millis(50))
         .with_heartbeat_timeout(5);
 
-    let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+    let (stop_tx, stop_rx) = channel(false);
     let dns_called = Arc::new(AtomicU32::new(0));
     let proxy_called = Arc::new(AtomicU32::new(0));
 
@@ -292,7 +296,7 @@ async fn test_standalone_dns_watchdog_loop_and_commands() {
             .await
     });
 
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    sleep(Duration::from_millis(150)).await;
     stop_tx.send(true).unwrap();
 
     let recoveries = handle.await.unwrap();

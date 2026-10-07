@@ -1,12 +1,20 @@
 //! Doctor diagnostics card: self-healing check / repair / bootstrap actions.
 
 use crate::state::AppState;
-use crate::types::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
 use crate::types::message::Message;
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD};
-use iced::widget::{Space, button, column, row, scrollable, text};
+use crate::view::component_card::card;
+use crate::view::components::{BadgeKind, badge};
+use crate::view::crash_watchdog_card::crash_watchdog_card;
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::border::Radius;
+use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length, Theme};
+use infiltrator_application::doctor_projection::{check_detail, check_name, status_key, summary};
+use infiltrator_contract::doctor::{DoctorCheckResult, DoctorReport, DoctorStatus};
+use infiltrator_contract::surface_snapshot::{DoctorCheckSnapshot, PageStatus};
+use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Doctor check status badge coloring.
@@ -19,22 +27,27 @@ pub(crate) fn status_badge_kind(status: DoctorStatus) -> BadgeKind {
     }
 }
 
-/// Status text badge.
-pub(crate) fn status_label(status: DoctorStatus) -> &'static str {
-    match status {
-        DoctorStatus::Pass => "PASS",
-        DoctorStatus::Warn => "WARN",
-        DoctorStatus::Fail => "FAIL",
-        DoctorStatus::Skip => "SKIP",
-    }
-}
-
 /// Doctor section in settings / diagnostics.
 pub fn section(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let doctor = &state.diag.doctor;
 
-    let busy = doctor.is_running || doctor.is_fixing || doctor.is_bootstrapping;
+    let page = state
+        .surface
+        .latest()
+        .map(|snapshot| &snapshot.pages.doctor);
+    let busy = doctor.action.pending.is_some()
+        || doctor.is_running
+        || doctor.is_fixing
+        || doctor.is_bootstrapping;
+    let repairable = !busy
+        && page.is_some_and(|page| {
+            matches!(page.status, PageStatus::Ready)
+                && page
+                    .data
+                    .as_ref()
+                    .is_some_and(|data| data.checks.iter().any(|check| check.fix_available))
+        });
 
     let actions: Element<'_, Message> = if state.shell.viewport.tier.is_compact() {
         column![
@@ -55,7 +68,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             .width(Length::Fill)
             .padding([7, 14])
             .style(button::secondary)
-            .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
+            .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
             button(
                 text(lang.tr("doctor_btn_bootstrap").to_string())
                     .size(12)
@@ -86,7 +99,7 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
             )
             .padding([7, 14])
             .style(button::secondary)
-            .on_press_maybe((!doctor.is_fixing && !busy).then_some(Message::RunDoctorFix)),
+            .on_press_maybe(repairable.then_some(Message::RunDoctorFix)),
             Space::new().width(theme::SP_SM),
             button(
                 text(lang.tr("doctor_btn_bootstrap").to_string())
@@ -104,6 +117,11 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
 
     let mut body = column![].spacing(theme::SP_SM);
 
+    if doctor.action.pending.is_some() {
+        body = body.push(secondary_text(
+            lang.tr("doctor_operation_pending").into_owned(),
+        ));
+    }
     if doctor.is_running {
         body = body.push(secondary_text(lang.tr("doctor_running_check").to_string()));
     }
@@ -119,23 +137,57 @@ pub fn section(state: &AppState) -> Element<'_, Message> {
         body = body.push(error_text(error));
     }
 
-    body = match &doctor.report {
-        Some(report) => {
-            let mut body = body.push(summary_row(report, &lang));
-            for check in &report.checks {
-                body = body.push(check_row(check));
-            }
-            body
+    if doctor.action.can_retry() {
+        body = body.push(
+            container(
+                button(text(lang.tr("doctor_retry_action").into_owned()))
+                    .on_press_maybe((!busy).then_some(Message::RetryDoctorCommand)),
+            )
+            .id(InteractionRegion::DoctorRetry.id()),
+        );
+    }
+    if let Some(page) = page {
+        if let PageStatus::Failed { failure } = &page.status
+            && doctor.error.as_deref() != Some(&failure.message)
+        {
+            body = body.push(error_text(&failure.message));
         }
-        None => body.push(secondary_text(lang.tr("doctor_hint_desc").to_string())),
-    };
+        if let Some(data) = &page.data {
+            body = body.push(secondary_text(summary(
+                data.checks.iter().map(|check| check.state),
+                data.report_finished_at,
+                &state.shell.lang,
+            )));
+            if !data.last_run.is_empty() {
+                body = body.push(secondary_text(localize(
+                    &state.shell.lang,
+                    "doctor_last_run_value",
+                    &[("time", data.last_run.clone())],
+                )));
+            }
+            for check in &data.checks {
+                body = body.push(snapshot_check_row(check, &state.shell.lang, repairable));
+            }
+        }
+    } else if let Some(report) = &doctor.report {
+        body = body.push(summary_row(report, &lang));
+        for check in &report.checks {
+            body = body.push(check_row(check, &state.shell.lang));
+        }
+    } else {
+        body = body.push(secondary_text(lang.tr("doctor_not_observed").into_owned()));
+    }
 
-    let watchdog = crate::view::crash_watchdog_card::crash_watchdog_card(state, &lang);
+    let watchdog = crash_watchdog_card(state, &lang);
 
     column![
         card(
             Some(lang.tr("doctor_section_title").to_string()),
-            column![actions, body].spacing(theme::SP_MD),
+            column![
+                actions,
+                container(body).id(InteractionRegion::DoctorReport.id())
+            ]
+            .spacing(theme::SP_MD),
         ),
         Space::new().height(theme::SP_MD),
         watchdog,
@@ -162,10 +214,13 @@ fn summary_row(report: &DoctorReport, lang: &Lang<'_>) -> Element<'static, Messa
     summary.into()
 }
 
-fn check_row(check: &DoctorCheckResult) -> Element<'static, Message> {
+fn check_row(check: &DoctorCheckResult, code: &str) -> Element<'static, Message> {
     let mut lines = column![
         row![
-            badge(status_label(check.status), status_badge_kind(check.status)),
+            badge(
+                Lang(code).tr(status_key(check.status)).into_owned(),
+                status_badge_kind(check.status)
+            ),
             Space::new().width(theme::SP_SM),
             text(check.summary.clone())
                 .size(13)
@@ -208,13 +263,59 @@ fn check_row(check: &DoctorCheckResult) -> Element<'static, Message> {
     ]
     .align_y(Alignment::Center);
 
-    iced::widget::container(row)
+    container(row)
         .width(Length::Fill)
         .padding(theme::SP_SM)
-        .style(|t: &Theme| iced::widget::container::Style {
+        .style(|t: &Theme| container::Style {
             background: Some(theme::tokens(t).control_bg.into()),
             border: iced::Border {
-                radius: iced::border::Radius::from(theme::R_CONTROL),
+                radius: Radius::from(theme::R_CONTROL),
+                width: theme::HAIRLINE,
+                color: theme::tokens(t).card_border,
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
+fn snapshot_check_row(
+    check: &DoctorCheckSnapshot,
+    code: &str,
+    repairable: bool,
+) -> Element<'static, Message> {
+    let lang = Lang(code);
+    let mut content = column![
+        text(check_name(check.kind, &check.name, &check.category, code)).size(13),
+        text(check_detail(
+            check.detail_copy_key.as_deref(),
+            &check.detail,
+            code
+        ))
+        .size(12),
+        row![
+            badge(
+                lang.tr(status_key(check.state)).into_owned(),
+                status_badge_kind(check.state)
+            ),
+            button(text(lang.tr("doctor_repair_row").into_owned()).size(12)).on_press_maybe(
+                (repairable && check.fix_available)
+                    .then(|| Message::RepairDoctorIssue(check.id.clone()))
+            )
+        ]
+        .spacing(theme::SP_SM)
+        .align_y(Alignment::Center)
+    ]
+    .spacing(4);
+    if let Some(hint) = &check.hint {
+        content = content.push(text(hint.clone()).size(12));
+    }
+    container(content)
+        .width(Length::Fill)
+        .padding(theme::SP_SM)
+        .style(|t: &Theme| container::Style {
+            background: Some(theme::tokens(t).control_bg.into()),
+            border: iced::Border {
+                radius: Radius::from(theme::R_CONTROL),
                 width: theme::HAIRLINE,
                 color: theme::tokens(t).card_border,
             },

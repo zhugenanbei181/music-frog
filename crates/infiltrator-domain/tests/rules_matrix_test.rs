@@ -7,23 +7,26 @@
 //! payload deconstruction and purge arithmetic; no fabricated sample source
 //! is reachable from this matrix.
 
-use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command::{CommandIntent, CommandKind};
 use infiltrator_contract::rule_edit::{LogicalDraft, RuleDraft, RuleMoveDirection};
+use infiltrator_contract::rule_provider_snapshot::RuleProviderSnapshot;
+use infiltrator_contract::rule_snapshot::RuleSnapshot;
+use infiltrator_contract::surface_snapshot::RulesPageSnapshot;
 use infiltrator_domain::mrs::{
-    Behavior, build_mrs_bytes, deconstruct_mrs_payload, parse_mrs_header,
+    Behavior, MAGIC_STANDARD_MRS, build_mrs_bytes, deconstruct_mrs_payload, parse_mrs_header,
 };
-use infiltrator_domain::rules::edit;
-use infiltrator_domain::rules::logical;
 use infiltrator_domain::rules::matrix::{RULE_TYPE_MATRIX, RuleTypeFamily, matrix_label};
 use infiltrator_domain::rules::provider_store::{
-    ProviderBehavior, ProviderFormat, ProviderSourceKind, RuleProviderDeclaration,
-    deconstruct_provider_payload, parse_rule_provider_declarations, provider_cache_file_name,
-    provider_source_candidates, unpack_provider_rules_with_behavior,
+    PROVIDER_CACHE_DIR_NAME, ProviderBehavior, ProviderFormat, ProviderSourceKind,
+    RuleProviderDeclaration, deconstruct_provider_payload, parse_rule_provider_declarations,
+    provider_cache_file_name, provider_source_candidates, unpack_provider_rules_with_behavior,
 };
 use infiltrator_domain::rules::types::parse_rule_str;
-use infiltrator_domain::rules::view;
-use infiltrator_domain::rules::{RuleEntry, RuleProviders, game_routing_presets};
+use infiltrator_domain::rules::{
+    RuleEntry, RuleProviders, edit, game_routing_presets, logical, view,
+};
 use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
+use std::path;
 
 fn entry(rule: &str) -> RuleEntry {
     RuleEntry {
@@ -88,7 +91,11 @@ fn matrix_11_01_rule_type_vocabulary_parses() {
     assert!(RULE_TYPE_MATRIX.len() >= 30);
     for spec in RULE_TYPE_MATRIX.iter() {
         let raw = if spec.is_logical {
-            format!("{}((DOMAIN,a.com),T)", spec.name)
+            if spec.name == "SUB-RULE" {
+                "SUB-RULE,(DOMAIN,a.com),T".to_owned()
+            } else {
+                format!("{},((DOMAIN,a.com)),T", spec.name)
+            }
         } else {
             format!("{},payload,T", spec.name)
         };
@@ -123,7 +130,7 @@ fn matrix_11_02_logical_draft_builds_recursive_expression() {
     assert!(logical::remove_condition(&mut draft, 0));
     assert_eq!(
         logical::build_logical_rule(&draft).unwrap().rule,
-        "NOT((DST-PORT,443),Streaming)"
+        "NOT,((DST-PORT,443)),Streaming"
     );
     assert!(logical::remove_condition(&mut draft, 0));
     assert!(logical::build_logical_rule(&draft).is_err());
@@ -134,7 +141,7 @@ fn matrix_11_02_logical_draft_builds_recursive_expression() {
     };
     assert_eq!(
         logical::build_logical_rule(&single).unwrap().rule,
-        "NOT((DOMAIN,a.com),REJECT)"
+        "NOT,((DOMAIN,a.com)),REJECT"
     );
     single.conditions = vec!["BOGUS,a.com".to_owned()];
     assert!(logical::build_logical_rule(&single).is_err());
@@ -150,16 +157,16 @@ fn matrix_11_02_logical_draft_builds_recursive_expression() {
 /// DUAL-11-02: logical sub-rules parse and evaluate recursively.
 #[test]
 fn matrix_11_02_logical_sub_rules_evaluate() {
-    assert!(validate_logical_rule_syntax("AND((DOMAIN,a.com),(DST-PORT,443),T)").is_ok());
+    assert!(validate_logical_rule_syntax("AND,((DOMAIN,a.com),(DST-PORT,443)),T").is_ok());
     assert!(validate_logical_rule_syntax("AND((DOMAIN,a.com),T").is_err());
 
-    let and = parse_rule_str("AND((DOMAIN,a.com),(DST-PORT,443),T)").unwrap();
+    let and = parse_rule_str("AND,((DOMAIN,a.com),(DST-PORT,443)),T").unwrap();
     assert_eq!(and.rule_type.name(), "AND");
-    let or = parse_rule_str("OR((DOMAIN,a.com),(DOMAIN,b.com),T)").unwrap();
+    let or = parse_rule_str("OR,((DOMAIN,a.com),(DOMAIN,b.com)),T").unwrap();
     assert_eq!(or.rule_type.name(), "OR");
-    let not = parse_rule_str("NOT((DOMAIN,a.com),T)").unwrap();
+    let not = parse_rule_str("NOT,((DOMAIN,a.com)),T").unwrap();
     assert_eq!(not.rule_type.name(), "NOT");
-    let sub = parse_rule_str("SUB-RULE((DOMAIN,a.com),(DST-PORT,443),T)").unwrap();
+    let sub = parse_rule_str("SUB-RULE,(AND,((DOMAIN,a.com),(DST-PORT,443))),T").unwrap();
     assert_eq!(sub.rule_type.name(), "SUB-RULE");
 }
 
@@ -182,7 +189,7 @@ fn matrix_11_03_mrs_binary_pipeline() {
 /// DUAL-11-04: the provider read model carries the declared source URL.
 #[test]
 fn matrix_11_04_rule_provider_source_url_projection() {
-    let provider = infiltrator_contract::surface_snapshot::RuleProviderSnapshot {
+    let provider = RuleProviderSnapshot {
         name: "geoip-cn".to_owned(),
         rule_count: 850,
         behavior: "ipcidr".to_owned(),
@@ -205,11 +212,8 @@ fn matrix_11_04_rule_provider_source_url_projection() {
 #[test]
 fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
     let intent = CommandIntent::RefreshRuleProviders;
-    assert_eq!(
-        intent.kind(),
-        infiltrator_contract::command::CommandKind::Profile
-    );
-    let declared = infiltrator_contract::surface_snapshot::RuleProviderSnapshot {
+    assert_eq!(intent.kind(), CommandKind::Profile);
+    let declared = RuleProviderSnapshot {
         name: "ads".to_owned(),
         rule_count: 12,
         behavior: "domain".to_owned(),
@@ -240,7 +244,7 @@ fn matrix_11_05_provider_refresh_intent_and_declared_interval() {
         ProviderCacheFingerprint::compare(Some(&previous), &current),
         ProviderFingerprintChange::Changed
     );
-    let observed = infiltrator_contract::surface_snapshot::RuleProviderSnapshot {
+    let observed = RuleProviderSnapshot {
         name: "ads".to_owned(),
         rule_count: 12,
         behavior: "domain".to_owned(),
@@ -295,14 +299,15 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
     assert_eq!(view::published_rule_count(50_000), view::RULE_PUBLISH_LIMIT);
     assert_eq!(view::omitted_rule_count(50_000), 45_000);
     assert!(view::is_truncated_rule_list(50_000));
-    let snapshot = infiltrator_contract::surface_snapshot::RulesPageSnapshot {
+    let snapshot = RulesPageSnapshot {
+        document: None,
         total_rules: 50_000,
         default_action: "DIRECT".to_owned(),
         providers: Vec::new(),
         rules: Vec::new(),
         tracer: Default::default(),
         mrs_acceleration: Default::default(),
-        total_hits: 0,
+        hit_audit: None,
         rule_publish_limit: view::RULE_PUBLISH_LIMIT,
         provider_cache: Default::default(),
         etag_support: Default::default(),
@@ -310,12 +315,10 @@ fn matrix_11_08_search_and_pagination_reduce_in_shared_view() {
     };
     assert_eq!(snapshot.omitted_rule_count(), 50_000);
     assert!(snapshot.is_truncated());
-    let complete = infiltrator_contract::surface_snapshot::RulesPageSnapshot {
+    let complete = RulesPageSnapshot {
+        document: None,
         total_rules: 2,
-        rules: vec![
-            infiltrator_contract::surface_snapshot::RuleSnapshot::default(),
-            infiltrator_contract::surface_snapshot::RuleSnapshot::default(),
-        ],
+        rules: vec![RuleSnapshot::default(), RuleSnapshot::default()],
         ..snapshot
     };
     assert!(!complete.is_truncated());
@@ -364,7 +367,7 @@ fn matrix_11_09_to_12_rule_edit_reductions() {
         target: "AI".to_owned(),
     })
     .unwrap();
-    assert_eq!(built.rule, "AND((DOMAIN,a.com),(DST-PORT,443),AI)");
+    assert_eq!(built.rule, "AND,((DOMAIN,a.com),(DST-PORT,443)),AI");
 
     let inserted = edit::inject_game_presets(&mut rules, "Game");
     assert_eq!(inserted, game_routing_presets("Game").len());
@@ -407,7 +410,7 @@ fn matrix_11_06_provider_declaration_and_payload_deconstruct() {
     assert!(cn.is_remote());
 
     // mihomo's `GetPathByHash("rules", url)` naming is part of the shared fact.
-    let home = std::path::Path::new("/kernel");
+    let home = path::Path::new("/kernel");
     let candidates = provider_source_candidates(cn, home);
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].kind, ProviderSourceKind::KernelCacheFile);
@@ -469,7 +472,7 @@ fn matrix_11_06_provider_declaration_and_payload_deconstruct() {
         1,
         "cn",
         b"10.0.0.0/8\n",
-        Some(infiltrator_domain::mrs::MAGIC_STANDARD_MRS),
+        Some(MAGIC_STANDARD_MRS),
     );
     let mut mrs = RuleProviderDeclaration::from_value(
         "cn-mrs",
@@ -490,10 +493,7 @@ fn matrix_11_07_provider_cache_purge_fact() {
         RuleProviderCacheState,
     };
 
-    assert_eq!(
-        infiltrator_domain::rules::provider_store::PROVIDER_CACHE_DIR_NAME,
-        "rules"
-    );
+    assert_eq!(PROVIDER_CACHE_DIR_NAME, "rules");
 
     let empty = RuleProviderCacheSnapshot::ready("/kernel/rules", 0, 0);
     assert_eq!(empty.state, RuleProviderCacheState::Empty);
@@ -518,8 +518,5 @@ fn matrix_11_07_provider_cache_purge_fact() {
     // Both surfaces submit the same intent; the kind classifies as a profile
     // command because the purge belongs to the profile's provider cache.
     let intent = CommandIntent::PurgeRuleProviderCache;
-    assert_eq!(
-        intent.kind(),
-        infiltrator_contract::command::CommandKind::Profile
-    );
+    assert_eq!(intent.kind(), CommandKind::Profile);
 }

@@ -1,8 +1,9 @@
 //! Live Mihomo LAN listener and access-security operations.
 
 use super::RuntimeQueryApplication;
-use infiltrator_contract::error::Failure;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::lan::{LanCredentials, LanSecuritySnapshot, LanSharingSnapshot};
+use infiltrator_domain::lan_security::{normalize_cidrs, validate_credentials};
 use std::net::IpAddr;
 use std::sync::atomic::Ordering;
 
@@ -17,7 +18,7 @@ impl RuntimeQueryApplication {
     ) -> Result<LanSharingSnapshot, Failure> {
         if enabled && mixed_port == 0 {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidInput,
+                ErrorCode::InvalidInput,
                 "Allow-LAN requires a non-zero mixed proxy port",
                 false,
             ));
@@ -32,24 +33,27 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        if observed.allow_lan != enabled
+        let allow_lan = observed.allow_lan;
+        let bind_address_readback =
+            require_observation(observed.bind_address.as_deref(), "bind-address")?;
+        if allow_lan != enabled
             || observed.mixed_port != mixed_port
-            || !bind_address_matches(&bind_address, &observed.bind_address)
+            || !bind_address_matches(&bind_address, bind_address_readback)
         {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "Allow-LAN readback mismatch: requested enabled={enabled}, mixed-port={mixed_port}, bind-address={bind_address}; observed enabled={}, mixed-port={}, bind-address={}",
-                    observed.allow_lan, observed.mixed_port, observed.bind_address
+                    allow_lan, observed.mixed_port, bind_address_readback
                 ),
                 true,
             ));
         }
         Ok(LanSharingSnapshot::new(
             self.next_revision.fetch_add(1, Ordering::Relaxed),
-            observed.allow_lan,
+            allow_lan,
             observed.mixed_port,
-            canonical_bind_address(&observed.bind_address)?,
+            canonical_bind_address(bind_address_readback)?,
         ))
     }
 
@@ -67,7 +71,7 @@ impl RuntimeQueryApplication {
         let allowed_ips = normalize_requested_cidrs(allowed_ips, "lan-allowed-ips")?;
         if allowed_ips.is_empty() {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidInput,
+                ErrorCode::InvalidInput,
                 "lan-allowed-ips must contain at least one CIDR",
                 false,
             ));
@@ -79,22 +83,13 @@ impl RuntimeQueryApplication {
         let authentication = if authentication_enabled {
             let credentials = credentials.ok_or_else(|| {
                 Failure::new(
-                    infiltrator_contract::error::ErrorCode::InvalidInput,
+                    ErrorCode::InvalidInput,
                     "LAN authentication requires a username and password",
                     false,
                 )
             })?;
-            infiltrator_domain::lan_security::validate_credentials(
-                &credentials.username,
-                &credentials.password,
-            )
-            .map_err(|message| {
-                Failure::new(
-                    infiltrator_contract::error::ErrorCode::InvalidInput,
-                    message,
-                    false,
-                )
-            })?;
+            validate_credentials(&credentials.username, &credentials.password)
+                .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
             vec![format!(
                 "{}:{}",
                 credentials.username.trim(),
@@ -117,24 +112,32 @@ impl RuntimeQueryApplication {
             .await
             .map_err(Failure::from)?;
         let observed = self.gateway.get_config().await.map_err(Failure::from)?;
-        let observed_allowed =
-            normalize_observed_cidrs(&observed.lan_allowed_ips, "lan-allowed-ips")?;
-        let observed_disallowed =
-            normalize_observed_cidrs(&observed.lan_disallowed_ips, "lan-disallowed-ips")?;
-        let observed_skip =
-            normalize_observed_cidrs(&observed.skip_auth_prefixes, "skip-auth-prefixes")?;
+        let auth_enabled = require_observation(observed.authentication_enabled, "authentication")?;
+        let auth_users = require_observation(observed.authentication_user_count, "authentication")?;
+        let observed_allowed = normalize_observed_cidrs(
+            require_observation(observed.lan_allowed_ips.as_deref(), "lan-allowed-ips")?,
+            "lan-allowed-ips",
+        )?;
+        let observed_disallowed = normalize_observed_cidrs(
+            require_observation(observed.lan_disallowed_ips.as_deref(), "lan-disallowed-ips")?,
+            "lan-disallowed-ips",
+        )?;
+        let observed_skip = normalize_observed_cidrs(
+            require_observation(observed.skip_auth_prefixes.as_deref(), "skip-auth-prefixes")?,
+            "skip-auth-prefixes",
+        )?;
         if observed_allowed != allowed_ips
             || observed_disallowed != disallowed_ips
             || observed_skip != skip_auth_prefixes
-            || observed.authentication_enabled != authentication_enabled
-            || observed.authentication_user_count != authentication.len()
+            || auth_enabled != authentication_enabled
+            || auth_users != authentication.len()
             || (authentication_enabled && observed.authentication_username != expected_username)
         {
             return Err(Failure::new(
-                infiltrator_contract::error::ErrorCode::InvalidState,
+                ErrorCode::InvalidState,
                 format!(
                     "LAN security readback mismatch: requested allow={allowed_ips:?}, deny={disallowed_ips:?}, skip={skip_auth_prefixes:?}, auth={authentication_enabled}; observed allow={observed_allowed:?}, deny={observed_disallowed:?}, skip={observed_skip:?}, auth={} users={}",
-                    observed.authentication_enabled, observed.authentication_user_count
+                    auth_enabled, auth_users
                 ),
                 true,
             ));
@@ -144,8 +147,8 @@ impl RuntimeQueryApplication {
             observed_allowed,
             observed_disallowed,
             observed_skip,
-            observed.authentication_enabled,
-            observed.authentication_user_count,
+            auth_enabled,
+            auth_users,
             observed.authentication_username,
         ))
     }
@@ -162,7 +165,7 @@ fn canonical_bind_address(raw: &str) -> Result<String, Failure> {
         .unwrap_or(value);
     let address = unbracketed.parse::<IpAddr>().map_err(|_| {
         Failure::new(
-            infiltrator_contract::error::ErrorCode::InvalidInput,
+            ErrorCode::InvalidInput,
             format!("invalid Mihomo bind-address: {value}"),
             false,
         )
@@ -180,20 +183,25 @@ fn bind_address_matches(expected: &str, observed: &str) -> bool {
 }
 
 fn normalize_requested_cidrs(values: &[String], field: &str) -> Result<Vec<String>, Failure> {
-    infiltrator_domain::lan_security::normalize_cidrs(values, field).map_err(|message| {
+    normalize_cidrs(values, field)
+        .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))
+}
+
+fn normalize_observed_cidrs(values: &[String], field: &str) -> Result<Vec<String>, Failure> {
+    normalize_cidrs(values, field).map_err(|message| {
         Failure::new(
-            infiltrator_contract::error::ErrorCode::InvalidInput,
-            message,
-            false,
+            ErrorCode::InvalidState,
+            format!("Mihomo returned invalid {field}: {message}"),
+            true,
         )
     })
 }
 
-fn normalize_observed_cidrs(values: &[String], field: &str) -> Result<Vec<String>, Failure> {
-    infiltrator_domain::lan_security::normalize_cidrs(values, field).map_err(|message| {
+fn require_observation<T>(value: Option<T>, field: &str) -> Result<T, Failure> {
+    value.ok_or_else(|| {
         Failure::new(
-            infiltrator_contract::error::ErrorCode::InvalidState,
-            format!("Mihomo returned invalid {field}: {message}"),
+            ErrorCode::NotReady,
+            format!("Controller did not report {field}; the write is not verified"),
             true,
         )
     })

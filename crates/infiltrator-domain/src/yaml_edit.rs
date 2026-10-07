@@ -5,9 +5,11 @@
 //! the lines and tokens they must touch. Everything else — comments, blank lines,
 //! anchors (`&a`/`*a`), key order, quoting, CRLF, BOM — passes through byte-for-byte.
 
+use std::mem::take;
 pub mod anchor;
 pub mod format;
 pub mod mixin_fidelity;
+pub mod rule_location;
 pub mod rules_fidelity;
 
 use thiserror::Error;
@@ -82,7 +84,7 @@ impl SourceDoc {
                     Eol::Lf
                 };
                 lines.push(Line {
-                    text: std::mem::take(&mut current),
+                    text: take(&mut current),
                     eol,
                 });
             } else {

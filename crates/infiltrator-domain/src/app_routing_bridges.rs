@@ -1,12 +1,11 @@
 //! Virtual bridge detection and route rule compilation.
 
-use crate::rules::RuleEntry;
-use std::net::{IpAddr, Ipv4Addr};
-
 use super::{
     BridgeRoutingMode, VirtualBridgeType, VirtualNetworkBridge, VirtualNetworkBridgeDetector,
     matches_cidr,
 };
+use crate::rules::RuleEntry;
+use std::net::{IpAddr, Ipv4Addr};
 
 impl VirtualNetworkBridgeDetector {
     /// Standard well-known default virtual subnets

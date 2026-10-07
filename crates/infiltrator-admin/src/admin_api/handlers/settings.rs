@@ -2,24 +2,23 @@
 //! WebDAV backup sync (`/admin/api/editor*`, `/admin/api/settings`,
 //! `/admin/api/profiles/open`, `/admin/api/webdav/*`).
 
-use axum::{Json, http::StatusCode};
-use infiltrator_domain::settings::WebDavConfig;
-
+use super::profiles::ensure_valid_profile_name;
 use crate::admin_api::events::{AdminEvent, EVENT_SETTINGS_CHANGED, EVENT_WEBDAV_SYNCED};
 use crate::admin_api::models::*;
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
-
-use super::profiles::ensure_valid_profile_name;
+use axum::http::StatusCode;
+use axum::{Json, extract};
+use infiltrator_domain::settings::WebDavConfig;
 
 pub async fn get_editor_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
 pub async fn set_editor_config_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<EditorConfigPayload>,
 ) -> Result<StatusCode, ApiError> {
     let editor = payload.editor.and_then(|s| {
@@ -38,14 +37,14 @@ pub async fn set_editor_config_http<C: AdminApiContext>(
 }
 
 pub async fn pick_editor_path_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<EditorConfigResponse>, ApiError> {
     let editor = state.ctx.pick_editor_path().await;
     Ok(Json(EditorConfigResponse { editor }))
 }
 
 pub async fn open_profile_in_editor_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<OpenProfilePayload>,
 ) -> Result<StatusCode, ApiError> {
     let name = ensure_valid_profile_name(&payload.name)?;
@@ -58,7 +57,7 @@ pub async fn open_profile_in_editor_http<C: AdminApiContext>(
 }
 
 pub async fn get_app_settings_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<AppSettingsPayload>, ApiError> {
     let settings = state.ctx.get_app_settings().await;
     let autostart_enabled = if state.ctx.supports_autostart_control() {
@@ -87,7 +86,7 @@ pub async fn get_app_settings_http<C: AdminApiContext>(
 }
 
 pub async fn save_app_settings_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<AppSettingsPayload>,
 ) -> Result<StatusCode, ApiError> {
     let mut settings = state.ctx.get_app_settings().await;
@@ -169,7 +168,7 @@ pub async fn save_app_settings_http<C: AdminApiContext>(
 }
 
 pub async fn sync_webdav_now_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let settings = state.ctx.get_app_settings().await;
     if !settings.webdav.enabled {
@@ -195,7 +194,7 @@ pub async fn sync_webdav_now_http<C: AdminApiContext>(
 }
 
 pub async fn test_webdav_conn_http<C: AdminApiContext>(
-    axum::extract::State(state): axum::extract::State<AdminApiState<C>>,
+    extract::State(state): extract::State<AdminApiState<C>>,
     Json(payload): Json<WebDavConfig>,
 ) -> Result<StatusCode, ApiError> {
     // GET 不再回传明文密码，客户端回传的 password 常为空：此时回退 keyring

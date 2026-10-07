@@ -1,3 +1,4 @@
+use crate::storage::profile_store;
 use anyhow::anyhow;
 use infiltrator_application::profile_application::ProfileApplication;
 use std::path::PathBuf;
@@ -13,7 +14,7 @@ use std::path::Path;
 use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 pub async fn open_profile_in_editor(editor_path: Option<String>, name: &str) -> anyhow::Result<()> {
-    let store = crate::storage::profile_store().await?;
+    let store = profile_store().await?;
     let profile = ProfileApplication::new(store)
         .load_profile_info(name)
         .await

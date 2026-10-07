@@ -3,12 +3,8 @@
 //! pane renders and publishes for the Bevy surface.
 //! test-intent: behavior
 
-use infiltrator_application::script_application::{
-    ScriptApplication, last_script_sandbox, publish_script_sandbox,
-};
-use infiltrator_application::script_export_application::{
-    ScriptExportApplication, last_script_export, publish_script_export,
-};
+use infiltrator_application::script_application::ScriptApplication;
+use infiltrator_application::script_export_application::ScriptExportApplication;
 use infiltrator_application::script_sandbox_matrix_application::ScriptSandboxMatrixApplication;
 use infiltrator_contract::script_export::{ScriptExportKind, ScriptExportOutcome};
 use infiltrator_domain::mixin_studio;
@@ -46,7 +42,8 @@ fn three_column_editor_and_export_ride_the_shared_reduction() {
     assert!(blocked.composed.content.is_empty());
 
     // A host with no save-file port is a typed unsupported, not a fake path.
-    let hostless = ScriptExportApplication::without_host_port()
+    let exports = ScriptExportApplication::without_host_port();
+    let hostless = exports
         .export_directive_dsl(
             Some("iced"),
             "function main(config) {\n  auto_country_groups(config);\n  return config;\n}",
@@ -62,8 +59,7 @@ fn three_column_editor_and_export_ride_the_shared_reduction() {
         ScriptExportOutcome::Unsupported { .. }
     ));
     // The projection the Bevy console reads is the same fact.
-    publish_script_export(hostless.clone());
-    assert_eq!(last_script_export().as_ref(), Some(&hostless));
+    assert_eq!(exports.snapshot().as_ref(), Some(&hostless));
 }
 
 #[test]
@@ -106,8 +102,14 @@ fn shared_console_projection_carries_every_wired_fact_for_both_surfaces() {
     assert!(!snapshot.engine_capabilities.supports_javascript_syntax);
     assert!(snapshot.engine_capabilities.supports_directive_dsl);
     assert!(snapshot.engine_kind_matches_capabilities());
-    publish_script_sandbox(snapshot.clone());
-    assert_eq!(last_script_sandbox().as_ref(), Some(&snapshot));
+    assert_eq!(
+        application
+            .observation()
+            .result
+            .as_ref()
+            .map(|result| &result.snapshot),
+        Some(&snapshot)
+    );
 }
 
 /// DUAL-10-01: the Iced console renders whatever engine the shared read model
@@ -116,10 +118,10 @@ fn shared_console_projection_carries_every_wired_fact_for_both_surfaces() {
 /// through the same helper, so the swap needs no view change.
 #[test]
 fn iced_console_renders_the_reported_engine_and_its_capability_limits() {
+    use infiltrator_application::script_console_projection::engine_meta_rows;
     use infiltrator_contract::script_sandbox::{
         ScriptEngineCapabilities, ScriptEngineKind, ScriptSandboxSnapshot,
     };
-    use infiltrator_iced::view::script_console::engine_meta_rows;
     use infiltrator_shared::locales::Lang;
 
     let dsl = ScriptSandboxSnapshot::demo_fixture();

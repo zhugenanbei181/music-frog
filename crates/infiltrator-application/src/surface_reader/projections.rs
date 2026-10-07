@@ -5,6 +5,8 @@
 //! them without the parent file owning every helper.
 
 use super::*;
+use infiltrator_contract::mtu::MtuNegotiationSnapshot;
+use infiltrator_domain::runtime::ConfigSnapshot;
 
 pub(super) fn missing(what: &str) -> Failure {
     Failure::new(
@@ -15,9 +17,9 @@ pub(super) fn missing(what: &str) -> Failure {
 }
 
 pub(super) fn merge_applied_mtu(
-    mut snapshot: infiltrator_contract::mtu::MtuNegotiationSnapshot,
-    runtime_config: Option<&Result<infiltrator_domain::runtime::ConfigSnapshot, PortError>>,
-) -> infiltrator_contract::mtu::MtuNegotiationSnapshot {
+    mut snapshot: MtuNegotiationSnapshot,
+    runtime_config: Option<&Result<ConfigSnapshot, PortError>>,
+) -> MtuNegotiationSnapshot {
     if let Some(Ok(config)) = runtime_config
         && let Some(mtu) = config.tun.as_ref().and_then(|tun| tun.mtu)
     {
@@ -32,52 +34,17 @@ pub(super) fn page_from_result<T, U, E>(
     what: &str,
 ) -> surface_snapshot::PageData<U>
 where
-    E: std::fmt::Display,
+    E: Into<Failure>,
 {
     match result {
         Some(Ok(value)) => surface_snapshot::PageData::ready(map(value)),
-        Some(Err(error)) => surface_snapshot::PageData::failed(Failure::new(
-            ErrorCode::Network,
-            format!("{what}: {error}"),
-            true,
-        )),
+        Some(Err(error)) => {
+            let mut failure = error.into();
+            failure.message = format!("{what}: {}", failure.message);
+            surface_snapshot::PageData::failed(failure)
+        }
         None => surface_snapshot::PageData::unavailable(missing(what)),
     }
-}
-
-pub(super) fn proxy_groups(
-    proxies: &HashMap<String, Proxy>,
-) -> Vec<surface_snapshot::ProxyGroupSnapshot> {
-    let mut groups = proxies
-        .iter()
-        .filter_map(|(name, proxy)| {
-            let members = proxy.all()?;
-            let current = proxy.now().unwrap_or_default().to_owned();
-            Some(surface_snapshot::ProxyGroupSnapshot {
-                name: name.clone(),
-                group_type: proxy.proxy_type().to_owned(),
-                classification: None,
-                current: current.clone(),
-                expanded: true,
-                proxies: members
-                    .iter()
-                    .filter_map(|member| {
-                        let proxy = proxies.get(member)?;
-                        Some(surface_snapshot::ProxyNodeSnapshot {
-                            name: member.clone(),
-                            node_type: proxy.proxy_type().to_owned(),
-                            delay_ms: proxy.delay(),
-                            selected: member == &current,
-                            favorite: false,
-                            features: proxy.udp().then(|| "UDP".to_owned()).into_iter().collect(),
-                        })
-                    })
-                    .collect(),
-            })
-        })
-        .collect::<Vec<_>>();
-    groups.sort_by(|left, right| left.name.cmp(&right.name));
-    groups
 }
 
 pub(super) fn active_exit(proxies: &HashMap<String, Proxy>) -> String {
@@ -93,4 +60,43 @@ pub(super) fn active_exit(proxies: &HashMap<String, Proxy>) -> String {
         })
         .unwrap_or("—")
         .to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn failed_pages_preserve_the_real_category_and_retry_policy_instead_of_relabeling_every_error_network()
+     {
+        for failure in [
+            Failure::new(ErrorCode::InvalidState, "poisoned state", false),
+            Failure::new(ErrorCode::Permission, "read denied", false),
+            Failure::new(ErrorCode::Network, "connection lost", true),
+        ] {
+            let page: surface_snapshot::PageData<u32> = page_from_result(
+                Some(Err::<u32, _>(failure.clone())),
+                |value| value,
+                "proxy read",
+            );
+            let surface_snapshot::PageStatus::Failed { failure: actual } = page.status else {
+                panic!("read must remain failed")
+            };
+            assert_eq!(actual.code, failure.code);
+            assert_eq!(actual.retryable, failure.retryable);
+            assert_eq!(actual.message, format!("proxy read: {}", failure.message));
+            assert_eq!(page.data, None);
+        }
+        let page: surface_snapshot::PageData<u32> = page_from_result(
+            Some(Err::<u32, _>(PortError::PermissionDenied(
+                "grant permission".into(),
+            ))),
+            |value| value,
+            "proxy read",
+        );
+        let surface_snapshot::PageStatus::Failed { failure } = page.status else {
+            panic!("permission read must remain failed")
+        };
+        assert_eq!(failure.code, ErrorCode::Permission);
+        assert!(!failure.retryable);
+    }
 }

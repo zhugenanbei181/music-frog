@@ -1,13 +1,16 @@
 //! App-settings handlers: WebDAV account fields, editor path preference and
 //! the load-modify-save of the settings file.
 
+use crate::host::storage::{clear_webdav_password, save_webdav_password};
+use crate::settings_store::{load, save};
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use iced::Task;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::version::CoreReleaseChannel;
-use infiltrator_domain::settings::{AppSettings, WebDavConfig};
+use infiltrator_domain::settings::WebDavConfig;
+use std::path::PathBuf;
 
 impl AppState {
     pub(super) fn update_settings(&mut self, message: Message) -> Task<Message> {
@@ -44,13 +47,7 @@ impl AppState {
                 self.shell.notifications_enabled = enabled;
                 Task::none()
             }
-            Message::SetLanguage(language) => {
-                self.shell.lang = match language.as_str() {
-                    "en-US" | "en" => "en-US".to_string(),
-                    _ => "zh-CN".to_string(),
-                };
-                Task::none()
-            }
+            Message::SetLanguage(language) => self.set_language_choice(language),
             Message::SaveAppSettings => {
                 let interval = if !self.profile.webdav_enabled
                     && self.profile.webdav_sync_interval_mins.trim().is_empty()
@@ -69,7 +66,6 @@ impl AppState {
                 };
 
                 self.profile.is_saving_app_settings = true;
-                let language = self.shell.lang.clone();
                 let core_channel = self.profile_core_channel();
                 // Persist the *preference* ("system" stays "system"); a
                 // resolved skin name would silently pin the appearance on the
@@ -105,16 +101,13 @@ impl AppState {
                         // 失败则整体不落盘，保持「settings 文件 + keyring」
                         // 状态一致（避免其他字段更新而凭据悄悄丢失）。
                         if webdav_password.is_empty() {
-                            crate::host::storage::clear_webdav_password().await;
+                            clear_webdav_password().await;
                         } else {
-                            crate::host::storage::save_webdav_password(&webdav_password)
+                            save_webdav_password(&webdav_password)
                                 .await
                                 .map_err(|e| InfiltratorError::Config(e.to_string()))?;
                         }
-                        let mut settings = crate::settings_store::load()
-                            .await
-                            .unwrap_or_else(|_| AppSettings::default());
-                        settings.language = language;
+                        let mut settings = load().await?;
                         settings.core_channel = core_channel;
                         settings.theme = theme;
                         settings.editor_path = editor_path;
@@ -122,7 +115,7 @@ impl AppState {
                         settings.notifications_enabled = notifications_enabled;
                         settings.close_to_tray = close_to_tray;
                         settings.system_proxy_bypass = system_proxy_bypass;
-                        crate::settings_store::save(&settings).await?;
+                        save(&settings).await?;
                         Ok(())
                     },
                     Message::AppSettingsSaved,
@@ -136,9 +129,7 @@ impl AppState {
                             if self.editor.editor_path_setting.trim().is_empty() {
                                 None
                             } else {
-                                Some(std::path::PathBuf::from(
-                                    self.editor.editor_path_setting.trim(),
-                                ))
+                                Some(PathBuf::from(self.editor.editor_path_setting.trim()))
                             };
                         Task::done(Message::ShowToast(
                             "App settings saved".to_string(),

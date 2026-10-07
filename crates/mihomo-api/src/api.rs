@@ -215,6 +215,8 @@ impl MihomoApi for MihomoClient {
 mod tests {
     use super::*;
     use crate::error::MihomoError;
+    #[cfg(test)]
+    use std::sync::Arc;
 
     fn unsupported<T>() -> Result<T> {
         Err(MihomoError::Config(
@@ -352,7 +354,7 @@ mod tests {
         );
 
         // The seam is also usable behind a dyn trait object.
-        let boxed: std::sync::Arc<dyn MihomoApi> = std::sync::Arc::new(MockMihomoApi {
+        let boxed: Arc<dyn MihomoApi> = Arc::new(MockMihomoApi {
             version: "dyn-2.0".to_string(),
             proxies: vec![],
         });

@@ -3,9 +3,9 @@
 //! Split out of [`crate::view::components`] so the base widget primitives and
 //! the token-driven form/button vocabulary stay independently reviewable.
 
-use crate::view::components::{BadgeKind, icon_button, toggle_switch};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme;
+use crate::view::components::{BadgeKind, icon_button, toggle_switch, toggle_switch_with_actions};
+use crate::view::svg_icons::Icon;
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, pick_list, row, text, text_input};
 use iced::{Border, Color, Element, Length, Theme, border};
 use infiltrator_contract::responsive_viewport::ViewportTier;
@@ -185,16 +185,13 @@ pub fn text_btn<'a, Message: 'a + Clone>(
 // Standard Form Controls & Frame Styles
 // ---------------------------------------------------------------------------
 
-pub fn form_input_style(
-    t: &Theme,
-    status: iced::widget::text_input::Status,
-) -> iced::widget::text_input::Style {
+pub fn form_input_style(t: &Theme, status: text_input::Status) -> text_input::Style {
     let tk = theme::tokens(t);
     let (border_color, border_width) = match status {
-        iced::widget::text_input::Status::Focused { .. } => (tk.focus_ring, 2.0),
+        text_input::Status::Focused { .. } => (tk.focus_ring, 2.0),
         _ => (tk.card_border, 1.0),
     };
-    iced::widget::text_input::Style {
+    text_input::Style {
         background: tk.control_bg.into(),
         border: Border {
             radius: border::Radius::from(theme::R_CONTROL),
@@ -324,6 +321,17 @@ pub fn responsive_form_toggle_row<'a, Message: 'a + Clone>(
     responsive_form_row(tier, label, description, switch)
 }
 
+pub fn responsive_form_toggle_row_with_actions<'a, Message: 'a + Clone>(
+    tier: ViewportTier,
+    label: impl Into<String>,
+    description: Option<impl Into<String>>,
+    value: bool,
+    on_change: impl Fn(bool) -> Option<Message> + 'a,
+) -> Element<'a, Message> {
+    let switch = toggle_switch_with_actions(value, on_change);
+    responsive_form_row(tier, label, description, switch)
+}
+
 /// Inline notification alert banner for section headers and forms.
 pub fn banner_alert<'a, Message: 'a + Clone>(
     kind: BadgeKind,
@@ -359,16 +367,14 @@ pub fn banner_alert<'a, Message: 'a + Clone>(
             color: Some(theme::tokens(t).text_secondary),
         }));
     }
-    text_col = text_col.spacing(2);
+    text_col = text_col.spacing(2).width(Length::Fill);
 
     let mut banner_row = row![status_icon, text_col]
         .spacing(theme::SP_MD)
         .align_y(iced::Alignment::Center);
 
     if let Some(action_elem) = action {
-        banner_row = banner_row
-            .push(Space::new().width(Length::Fill))
-            .push(action_elem);
+        banner_row = banner_row.push(action_elem);
     }
 
     container(banner_row)

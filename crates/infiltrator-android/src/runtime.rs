@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
 };
+use infiltrator_contract::mtu::PhysicalMtuSnapshot;
+use infiltrator_contract::offline_startup::OfflineStartupSnapshot;
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::surface::HostKind;
 use infiltrator_ports::capability_provider::CapabilityProvider;
@@ -11,9 +13,10 @@ use infiltrator_ports::error::PortError;
 use infiltrator_ports::mtu_probe::MtuProbePort;
 use infiltrator_ports::offline_startup::OfflineStartupPort;
 use infiltrator_ports::secure_store::SecureStore;
-use mihomo_api::error::Result;
+use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::android_bridge::AndroidBridge;
 use std::path::PathBuf;
+use std::result;
 
 #[derive(Clone)]
 pub struct AndroidBridgeAdapter<B> {
@@ -67,10 +70,7 @@ impl<B> OfflineStartupPort for AndroidBridgeAdapter<B>
 where
     B: AndroidBridge,
 {
-    async fn validate_offline_startup(
-        &self,
-    ) -> std::result::Result<infiltrator_contract::offline_startup::OfflineStartupSnapshot, PortError>
-    {
+    async fn validate_offline_startup(&self) -> result::Result<OfflineStartupSnapshot, PortError> {
         // The Android host owns the APK ABI binary and sandbox paths. Rust
         // consumes its typed local proof and never performs a remote probe.
         Ok(self.bridge.offline_startup_snapshot())
@@ -82,30 +82,28 @@ impl<B> MtuProbePort for AndroidBridgeAdapter<B>
 where
     B: AndroidBridge,
 {
-    async fn probe_physical_mtu(
-        &self,
-    ) -> std::result::Result<infiltrator_contract::mtu::PhysicalMtuSnapshot, PortError> {
+    async fn probe_physical_mtu(&self) -> result::Result<PhysicalMtuSnapshot, PortError> {
         self.bridge
             .physical_mtu()
-            .map(|mtu| infiltrator_contract::mtu::PhysicalMtuSnapshot {
+            .map(|mtu| PhysicalMtuSnapshot {
                 interface: "android-active-link".to_owned(),
                 mtu,
             })
             .ok_or_else(|| {
                 PortError::unsupported(
-                    infiltrator_contract::capability::Capability::Tun,
+                    Capability::Tun,
                     "Android native bridge does not expose physical MTU",
                 )
             })
     }
 }
 
-fn map_port_error(error: mihomo_api::error::MihomoError) -> PortError {
+fn map_port_error(error: MihomoError) -> PortError {
     match error {
-        mihomo_api::error::MihomoError::Io(error) => PortError::Io(error.to_string()),
-        mihomo_api::error::MihomoError::Http(error) => PortError::Network(error.to_string()),
-        mihomo_api::error::MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
-        mihomo_api::error::MihomoError::NotFound(message) => PortError::NotFound(message),
+        MihomoError::Io(error) => PortError::Io(error.to_string()),
+        MihomoError::Http(error) => PortError::Network(error.to_string()),
+        MihomoError::WebSocket(error) => PortError::Network(error.to_string()),
+        MihomoError::NotFound(message) => PortError::NotFound(message),
         other => PortError::Failed(other.to_string()),
     }
 }
@@ -115,15 +113,15 @@ impl<B> CoreProcess for AndroidBridgeAdapter<B>
 where
     B: AndroidBridge,
 {
-    async fn start(&self) -> std::result::Result<(), PortError> {
+    async fn start(&self) -> result::Result<(), PortError> {
         self.bridge.core_start().await.map_err(map_port_error)
     }
 
-    async fn stop(&self) -> std::result::Result<(), PortError> {
+    async fn stop(&self) -> result::Result<(), PortError> {
         self.bridge.core_stop().await.map_err(map_port_error)
     }
 
-    async fn status(&self) -> std::result::Result<CoreLifecycle, PortError> {
+    async fn status(&self) -> result::Result<CoreLifecycle, PortError> {
         let running = self
             .bridge
             .core_is_running()
@@ -146,30 +144,21 @@ impl<B> SecureStore for AndroidBridgeAdapter<B>
 where
     B: AndroidBridge,
 {
-    async fn get(
-        &self,
-        namespace: &str,
-        key: &str,
-    ) -> std::result::Result<Option<String>, PortError> {
+    async fn get(&self, namespace: &str, key: &str) -> result::Result<Option<String>, PortError> {
         self.bridge
             .credential_get(namespace, key)
             .await
             .map_err(map_port_error)
     }
 
-    async fn set(
-        &self,
-        namespace: &str,
-        key: &str,
-        value: &str,
-    ) -> std::result::Result<(), PortError> {
+    async fn set(&self, namespace: &str, key: &str, value: &str) -> result::Result<(), PortError> {
         self.bridge
             .credential_set(namespace, key, value)
             .await
             .map_err(map_port_error)
     }
 
-    async fn delete(&self, namespace: &str, key: &str) -> std::result::Result<(), PortError> {
+    async fn delete(&self, namespace: &str, key: &str) -> result::Result<(), PortError> {
         self.bridge
             .credential_delete(namespace, key)
             .await
@@ -293,12 +282,25 @@ where
 mod tests {
     use super::*;
     use infiltrator_application::core_application::{CoreApplication, ReadinessPolicy};
+    #[cfg(test)]
+    use infiltrator_application::mtu_application::MtuApplication;
+    #[cfg(test)]
+    use infiltrator_application::offline_startup_application::OfflineStartupApplication;
     use infiltrator_contract::command::{CommandIntent, CommandResult};
+    #[cfg(test)]
+    use infiltrator_contract::mtu::MtuProbeState;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::LocalAssetStatus;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::StartupNetworkPolicy;
+    #[cfg(test)]
+    use infiltrator_contract::offline_startup::StartupRemoteDependency;
     use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
     use infiltrator_ports::core_process::CoreReadiness;
     use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
+    #[cfg(test)]
+    use std::time;
 
     struct TestBridge {
         running: Mutex<bool>,
@@ -379,12 +381,8 @@ mod tests {
             self.cache_dir.clone()
         }
 
-        fn offline_startup_snapshot(
-            &self,
-        ) -> infiltrator_contract::offline_startup::OfflineStartupSnapshot {
-            infiltrator_contract::offline_startup::OfflineStartupSnapshot::ready(
-                infiltrator_contract::offline_startup::LocalAssetStatus::Available,
-            )
+        fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
+            OfflineStartupSnapshot::ready(LocalAssetStatus::Available)
         }
 
         async fn vpn_start(&self) -> Result<bool> {
@@ -473,41 +471,29 @@ mod tests {
     #[tokio::test]
     async fn android_host_exposes_offline_first_startup_evidence() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        let snapshot =
-            infiltrator_application::offline_startup_application::OfflineStartupApplication::new(
-                Arc::new(adapter),
-            )
+        let snapshot = OfflineStartupApplication::new(Arc::new(adapter))
             .snapshot()
             .await;
         assert!(snapshot.is_offline_startable());
-        assert_eq!(
-            snapshot.policy,
-            infiltrator_contract::offline_startup::StartupNetworkPolicy::OfflineFirst
-        );
+        assert_eq!(snapshot.policy, StartupNetworkPolicy::OfflineFirst);
         assert_eq!(
             snapshot.remote_dependency,
-            infiltrator_contract::offline_startup::StartupRemoteDependency::Optional
+            StartupRemoteDependency::Optional
         );
     }
 
     #[tokio::test]
     async fn android_host_keeps_mtu_probe_unsupported_without_native_link_metrics() {
         let adapter = AndroidBridgeAdapter::new(TestBridge::new());
-        let snapshot =
-            infiltrator_application::mtu_application::MtuApplication::new(Arc::new(adapter))
-                .probe()
-                .await;
-        assert_eq!(
-            snapshot.state,
-            infiltrator_contract::mtu::MtuProbeState::Unsupported
-        );
+        let snapshot = MtuApplication::new(Arc::new(adapter)).probe().await;
+        assert_eq!(snapshot.state, MtuProbeState::Unsupported);
     }
 
     struct ReadyProbe;
 
     #[async_trait]
     impl CoreReadiness for ReadyProbe {
-        async fn probe(&self) -> std::result::Result<String, PortError> {
+        async fn probe(&self) -> result::Result<String, PortError> {
             Ok("http://127.0.0.1:9090".to_string())
         }
     }
@@ -520,8 +506,8 @@ mod tests {
             Arc::new(adapter),
             Arc::new(ReadyProbe),
             ReadinessPolicy {
-                timeout: std::time::Duration::from_secs(1),
-                poll_interval: std::time::Duration::from_millis(1),
+                timeout: time::Duration::from_secs(1),
+                poll_interval: time::Duration::from_millis(1),
             },
             runtime,
         );

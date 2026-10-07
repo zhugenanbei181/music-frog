@@ -4,20 +4,23 @@
 
 ## 阅读顺序
 
+代码变更先核对 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md) 的全仓工程底线。
+
 1. [README.md](../README.md)：产品定位、发行形态和用户可见能力。
 2. [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)：**【最高主控台账】**双端（Iced & Bevy UI）同步演进、10 大业务组功能并集与 UI 表现规范。
-3. [ARCHITECTURE.md](ARCHITECTURE.md)：Rust、mihomo、宿主与多个 UI 的分层边界。
-4. [CORE_030_REARCHITECTURE.md](CORE_030_REARCHITECTURE.md)：0.20 基线与 0.30 破坏性 Core 重整计划。
-5. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
-6. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
-7. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
-8. [DUAL_SURFACE_UI_UX_ROADMAP.md](DUAL_SURFACE_UI_UX_ROADMAP.md)：**【体验演进总纲】**双端 UI/UX 体验演进与视觉系统主控台账（响应式布局、连续曲率圆角 Squircle、着色器动效与按图索骥推进清单）。
-9. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 多模态外壳的可机检无头回归矩阵（逐项绑定 `路径::测试名`，守卫逐条校验）。
-10. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
-11. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
-12. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
-13. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
-
+3. [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)：同权产品、同异律、L1/L2/L3 场景验收与真实证据闭环。
+4. [ARCHITECTURE.md](ARCHITECTURE.md)：Rust、mihomo、宿主与多个 UI 的分层边界。
+5. [CORE_030_REARCHITECTURE.md](CORE_030_REARCHITECTURE.md)：0.20 基线与 0.30 破坏性 Core 重整计划。
+6. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
+7. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
+8. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
+9. [DUAL_SURFACE_UI_UX_ROADMAP.md](DUAL_SURFACE_UI_UX_ROADMAP.md)：**【体验演进总纲】**双端 UI/UX 体验演进与视觉系统主控台账（响应式布局、连续曲率圆角 Squircle、着色器动效与按图索骥推进清单）。
+10. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 的历史无头矩阵；场景交付证据已迁移到 `scripts/parity/`。
+11. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
+12. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
+13. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
+14. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
+15. [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)：Bevy Android 的保留扩展、服务进程隔离、原生输入、实体回收、事件驱动节能与设备验收规范。
 ## 文档与待办的权威关系
 
 | 内容 | 唯一入口 | 规则 |
@@ -25,12 +28,16 @@
 | 双端同步与功能并集 | `docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md` | Iced 与 Bevy UI 同步演进、功能并集与 UI 表现的权威规范 |
 | 0.20/0.30 Core 重整 | `docs/CORE_030_REARCHITECTURE.md` | 0.20 冻结基线；0.30 允许破坏性替换，领域/契约/端口边界以本文件为准 |
 | 产品当前状态 | `README.md` | 只写当前可验证事实，不写开发流水 |
+| 代码质量与工程底线 | `docs/CODE_QUALITY_BASELINE.md` | 全仓文件预算、明确导入、禁止转发/规避、验证要求；测试不豁免 |
 | 架构和边界 | `docs/ARCHITECTURE.md` | 变更先更新边界，再改实现 |
 | 功能归属 | `docs/FUNCTIONAL_MAP.md` | 一项功能只指定一个逻辑 owner |
+| 双端产品平权与场景验收 | `docs/UI_PARITY_AUDIT.md` | 同异律与三层证据；场景身份只来自 `FeatureId::ALL`，状态只由结构化清单与真实证据解析 |
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
+| Bevy UI 开发规范 | `docs/BEVY_UI_FRONTEND.md` | 声明式场景、受限 ECS、模块化 WESL、GPU ABI、handle owner/复用/回收与分层验证；业务和截图激活禁止整仓 World 访问 |
+| Bevy Android 产品工程 | `docs/BEVY_ANDROID_PRODUCT.md` | 现有能力保留扩展，Android UI/VPN 宿主组合、资源治理和设备验收；当前平台状态仍归平台矩阵，排期归本地 TODO |
 | 双端多尺寸弹性 | `docs/RESPONSIVE_PARITY_LEDGER.md` | 断点单一事实源、四阶形态规范与逐页弹性收口；`DUAL-03-14`/`DUAL-15-01` 的权威验收台账 |
 | 双端 UI/UX 与视觉演进 | `docs/DUAL_SURFACE_UI_UX_ROADMAP.md` | 双端 UI/UX 体验、全流体响应式、设计令牌、连续曲率圆角与微交互的权威实施台账 |
-| 多模态外壳回归矩阵 | `docs/MULTIMODAL_SHELL_MATRIX.md` | 组 15 逐项状态与双侧证据；证据标记由 `scripts/quality/multimodal-shell-guard.py` 逐条校验 |
+| 多模态外壳回归矩阵 | `docs/MULTIMODAL_SHELL_MATRIX.md` | 组 15 逐项状态与双侧证据；历史证据标记待按 `scripts/parity/` 重新验收 |
 | Iced 落地台账 | `docs/ICED_CORE_MATURITY_GAPS.md` | Iced 端 4 维度与各 Wave 落地状态及测试证据 |
 | Bevy UI 落地台账 | `docs/BEVY_CORE_MATURITY_GAPS.md` | Bevy UI 端 10 维度 150 项工程缺口落地状态及无头测试证据 |
 | 核心协议与 AST 台账 | `docs/MATURITY_GAP_ANALYSIS.md` | 核心层与协议层 10×10 成熟度全景差距台账 |

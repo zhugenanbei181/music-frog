@@ -1,5 +1,6 @@
 //! Runtime-neutral traffic sampling and cubic Bezier value projection.
 
+use infiltrator_contract::session::SessionToken;
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
 use infiltrator_contract::traffic_waveform::{
     TRAFFIC_WAVEFORM_CAPACITY, TrafficSample, TrafficWaveformSnapshot,
@@ -11,20 +12,40 @@ use std::collections::VecDeque;
 #[derive(Clone, Debug, Default)]
 pub struct TrafficWaveformBuffer {
     generation: Option<u64>,
+    session_token: Option<SessionToken>,
     revision: u64,
     samples: VecDeque<TrafficSample>,
 }
 
 impl TrafficWaveformBuffer {
     pub fn record(&mut self, core: &CoreSnapshot) -> TrafficWaveformSnapshot {
-        if self.generation != Some(core.generation) {
+        if self.generation != Some(core.generation)
+            || core
+                .session_token
+                .is_some_and(|token| self.session_token != Some(token))
+        {
             self.generation = Some(core.generation);
+            self.session_token = core.session_token;
             self.samples.clear();
+            self.revision = self.revision.saturating_add(1);
         }
-        if matches!(
-            core.lifecycle,
-            CoreLifecycle::Running | CoreLifecycle::Ready
-        ) {
+        let observed = core.sampled_at_epoch_ms.is_some()
+            && core.failure.is_none()
+            && core.upload_bps.is_finite()
+            && core.upload_bps >= 0.0
+            && core.download_bps.is_finite()
+            && core.download_bps >= 0.0;
+        let newer = self
+            .samples
+            .back()
+            .is_none_or(|previous| core.sampled_at_epoch_ms > previous.sampled_at_epoch_ms);
+        if observed
+            && newer
+            && matches!(
+                core.lifecycle,
+                CoreLifecycle::Running | CoreLifecycle::Ready
+            )
+        {
             if self.samples.len() == TRAFFIC_WAVEFORM_CAPACITY {
                 self.samples.pop_front();
             }
@@ -116,6 +137,24 @@ pub fn display_series(snapshot: &TrafficWaveformSnapshot) -> (Vec<f32>, Vec<f32>
 mod tests {
     use super::*;
 
+    #[test]
+    fn same_generation_new_session_retires_the_old_curve_and_stop_retains_without_adding_zero() {
+        let mut buffer = TrafficWaveformBuffer::default();
+        let mut source = core(1, 10.0, 20.0, CoreLifecycle::Running);
+        source.session_token = Some(SessionToken::new(5));
+        let observed = buffer.record(&source);
+        assert_eq!(observed.samples.len(), 1);
+        source.lifecycle = CoreLifecycle::Stopped;
+        source.session_token = None;
+        source.sampled_at_epoch_ms = None;
+        assert_eq!(buffer.record(&source).samples, observed.samples);
+        source.lifecycle = CoreLifecycle::Running;
+        source.session_token = Some(SessionToken::new(6));
+        let changed = buffer.record(&source);
+        assert!(changed.samples.is_empty());
+        assert!(changed.revision > observed.revision);
+    }
+
     fn core(generation: u64, upload: f64, download: f64, lifecycle: CoreLifecycle) -> CoreSnapshot {
         CoreSnapshot {
             lifecycle,
@@ -124,7 +163,7 @@ mod tests {
             revision: 0,
             proxy_mode: None,
             core_version: None,
-            sampled_at_epoch_ms: None,
+            sampled_at_epoch_ms: Some(upload as i64),
             failure: None,
             upload_bps: upload,
             download_bps: download,
@@ -172,5 +211,19 @@ mod tests {
         buffer.record(&core(1, 10.0, 20.0, CoreLifecycle::Running));
         let stopped = buffer.record(&core(1, 0.0, 0.0, CoreLifecycle::Stopped));
         assert_eq!(stopped.samples.len(), 1);
+    }
+
+    #[test]
+    fn unknown_duplicate_and_invalid_rates_do_not_publish_a_fake_sample() {
+        let mut buffer = TrafficWaveformBuffer::default();
+        let mut observation = core(1, 0.0, 0.0, CoreLifecycle::Running);
+        observation.sampled_at_epoch_ms = None;
+        assert!(buffer.record(&observation).samples.is_empty());
+        observation.sampled_at_epoch_ms = Some(1);
+        assert_eq!(buffer.record(&observation).samples.len(), 1);
+        assert_eq!(buffer.record(&observation).samples.len(), 1);
+        observation.sampled_at_epoch_ms = Some(2);
+        observation.upload_bps = f64::NAN;
+        assert_eq!(buffer.record(&observation).samples.len(), 1);
     }
 }

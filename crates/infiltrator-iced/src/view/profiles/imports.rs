@@ -1,20 +1,21 @@
 //! Profiles page toolbar and import cards (remote subscription + local YAML).
 
+use super::helpers::read_clipboard_url;
 use crate::state::AppState;
 use crate::types::app::{ConfirmAction, ToastStatus};
 use crate::types::message::Message;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     banner_alert, form_field_label, form_input_style, form_toggle_row, search_input, style_accent,
     style_danger, style_ghost, text_btn,
 };
-use crate::view::components::{BadgeKind, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::components::BadgeKind;
+use crate::view::svg_icons::Icon;
+use crate::view::theme::{FONT_MEDIUM, FONT_SEMIBOLD, tokens};
+use crate::view::{svg_icons, theme};
 use iced::widget::{Space, button, column, container, row, text, text_input};
 use iced::{Alignment, Element, Length, Theme};
 use infiltrator_shared::locales::{Lang, Localizer};
-
-use super::helpers::read_clipboard_url;
 
 pub(super) fn header<'a>(state: &'a AppState) -> Element<'a, Message> {
     let lang = Lang(&state.shell.lang);

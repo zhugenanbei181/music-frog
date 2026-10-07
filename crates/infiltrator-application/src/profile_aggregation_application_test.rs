@@ -2,6 +2,10 @@
 
 use super::*;
 use async_trait::async_trait;
+use infiltrator_contract::aggregator::{
+    AggregationCustomGroup, AggregationRenameRule, AggregationTemplate,
+};
+use infiltrator_contract::capability::Capability;
 use infiltrator_domain::profile_options::ProfileOptions;
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::error::PortError;
@@ -14,7 +18,7 @@ use std::sync::{Arc, Mutex};
 struct FakeStore {
     saved: Mutex<BTreeMap<String, String>>,
     current: Mutex<String>,
-    templates: Mutex<Vec<infiltrator_contract::aggregator::AggregationTemplate>>,
+    templates: Mutex<Vec<AggregationTemplate>>,
     /// Whether this store exposes an aggregation-template sidecar (DUAL-08-13).
     sidecar_supported: bool,
 }
@@ -133,12 +137,10 @@ impl ProfileStore for FakeStore {
         Ok(())
     }
 
-    async fn load_aggregation_templates(
-        &self,
-    ) -> Result<Vec<infiltrator_contract::aggregator::AggregationTemplate>, PortError> {
+    async fn load_aggregation_templates(&self) -> Result<Vec<AggregationTemplate>, PortError> {
         if !self.sidecar_supported {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "fake store keeps no aggregation-template sidecar",
             ));
         }
@@ -147,11 +149,11 @@ impl ProfileStore for FakeStore {
 
     async fn save_aggregation_templates(
         &self,
-        templates: &[infiltrator_contract::aggregator::AggregationTemplate],
+        templates: &[AggregationTemplate],
     ) -> Result<(), PortError> {
         if !self.sidecar_supported {
             return Err(PortError::unsupported(
-                infiltrator_contract::capability::Capability::Profiles,
+                Capability::Profiles,
                 "fake store keeps no aggregation-template sidecar",
             ));
         }
@@ -346,7 +348,7 @@ proxies:
     request.source_profiles = vec!["Messy".to_owned()];
     request.target_name = "Cleaned".to_owned();
     request.availability_precheck = true;
-    request.rename_rules = vec![infiltrator_contract::aggregator::AggregationRenameRule {
+    request.rename_rules = vec![AggregationRenameRule {
         pattern: "-Promo$".to_owned(),
         replacement: String::new(),
     }];
@@ -372,12 +374,12 @@ async fn preview_synthesizes_custom_groups_from_the_draft() {
     let app = application(&[("A", SOURCE_A), ("B", SOURCE_B)]);
     let mut request = draft();
     request.custom_groups = vec![
-        infiltrator_contract::aggregator::AggregationCustomGroup {
+        AggregationCustomGroup {
             name: "流媒体专用".to_owned(),
             group_type: "select".to_owned(),
             member_keywords: vec!["west".to_owned()],
         },
-        infiltrator_contract::aggregator::AggregationCustomGroup {
+        AggregationCustomGroup {
             name: "游戏专用".to_owned(),
             group_type: "url-test".to_owned(),
             member_keywords: Vec::new(),
@@ -549,11 +551,11 @@ fn aggregation_options_follow_the_draft_switches() {
 
     let mut request = draft();
     request.availability_precheck = true;
-    request.rename_rules = vec![infiltrator_contract::aggregator::AggregationRenameRule {
+    request.rename_rules = vec![AggregationRenameRule {
         pattern: "x".to_owned(),
         replacement: "y".to_owned(),
     }];
-    request.custom_groups = vec![infiltrator_contract::aggregator::AggregationCustomGroup {
+    request.custom_groups = vec![AggregationCustomGroup {
         name: "自定义".to_owned(),
         group_type: "select".to_owned(),
         member_keywords: Vec::new(),

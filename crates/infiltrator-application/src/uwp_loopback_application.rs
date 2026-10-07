@@ -2,6 +2,7 @@
 
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot};
+use infiltrator_domain::uwp::validate_app_container_sid;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::uwp_loopback::UwpLoopbackPort;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -59,7 +60,7 @@ impl UwpLoopbackApplication {
         sid: &str,
         exempt: bool,
     ) -> Result<UwpLoopbackSnapshot, Failure> {
-        let sid = infiltrator_domain::uwp::validate_app_container_sid(sid)
+        let sid = validate_app_container_sid(sid)
             .map_err(|message| Failure::new(ErrorCode::InvalidInput, message, false))?;
         self.port
             .set_exempt(sid, exempt)

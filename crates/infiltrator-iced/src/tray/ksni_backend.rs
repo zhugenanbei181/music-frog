@@ -8,15 +8,14 @@
 //! the AppIndicator extension, headless sessions), [`spawn_ksni`] returns
 //! [`TrayStartup::Unavailable`] and the app degrades to window-only.
 
-use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-
-use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
-use ksni::{Icon, MenuItem, ToolTip};
-
 use super::spec::{
     TrayActionId, TrayController, TrayEvent, TrayIconData, TrayMenuItem, TraySpec, TrayStartup,
 };
+use ksni::blocking::Handle;
+use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
+use ksni::{Icon, MenuItem, ToolTip};
+use std::collections::HashMap;
+use std::sync::mpsc::{Sender, channel};
 
 /// Stable StatusNotifierItem id; consistent across sessions.
 const TRAY_ID: &str = "MusicFrogInfiltrator";
@@ -181,7 +180,7 @@ pub(super) fn to_ksni_icon(icon: &TrayIconData) -> Icon {
 /// update paths only, never from inside a tokio worker, so the handle's
 /// dedicated runtime never nests.
 struct KsniController {
-    handle: ksni::blocking::Handle<KsniTray>,
+    handle: Handle<KsniTray>,
 }
 
 impl TrayController for KsniController {
@@ -205,7 +204,7 @@ impl TrayController for KsniController {
 pub(super) fn spawn_ksni(spec: TraySpec) -> TrayStartup {
     use ksni::blocking::TrayMethods;
 
-    let (events, receiver) = std::sync::mpsc::channel();
+    let (events, receiver) = channel();
     let tray = KsniTray {
         spec,
         checked_overrides: HashMap::new(),

@@ -307,6 +307,8 @@ impl FilterEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    use std::time::Instant;
 
     #[test]
     fn pinyin_initials_and_token_matching() {
@@ -363,7 +365,7 @@ mod tests {
             })
             .collect();
 
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         let matched = FilterEngine::filter_indices(&items, "xg 0000", |s| s.as_str());
         let elapsed = start.elapsed();
 

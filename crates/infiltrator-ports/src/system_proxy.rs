@@ -1,13 +1,12 @@
 //! Host-owned system HTTP/SOCKS proxy capability.
 
+use crate::error::PortError;
 use async_trait::async_trait;
 use infiltrator_contract::system_proxy::{
     SystemProxyDesiredState, SystemProxyObservation, SystemProxyRecoveryReport,
     SystemProxyRecoverySnapshot,
 };
 use std::sync::{Arc, Mutex};
-
-use crate::error::PortError;
 
 #[async_trait]
 pub trait SystemProxyPort: Send + Sync {

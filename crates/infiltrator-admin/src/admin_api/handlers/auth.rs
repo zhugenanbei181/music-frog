@@ -1,16 +1,16 @@
 //! Admin REST API Token authentication and isolation middleware (`verify_admin_token`).
 
-use axum::{
-    Json,
-    body::Body,
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::{IntoResponse, Response},
-};
-use serde_json::json;
-
 use crate::admin_api::state::{AdminApiContext, AdminApiState};
+use axum::Json;
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::header::AUTHORIZATION;
+use axum::http::{Request, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use infiltrator_domain::script_engine::CryptoSubtleShim;
+use serde_json::json;
+use url::form_urlencoded::parse;
 
 /// Verify the admin API token when `state.auth_token` is configured.
 ///
@@ -28,7 +28,7 @@ pub async fn verify_admin_token<C: AdminApiContext>(
     if let Some(ref expected_token) = state.auth_token {
         let auth_header = req
             .headers()
-            .get(axum::http::header::AUTHORIZATION)
+            .get(AUTHORIZATION)
             .and_then(|v| v.to_str().ok());
 
         let token_from_header = auth_header.map(|h| {
@@ -48,7 +48,7 @@ pub async fn verify_admin_token<C: AdminApiContext>(
             .map(|s| s.trim());
 
         let query_token = req.uri().query().and_then(|q| {
-            url::form_urlencoded::parse(q.as_bytes())
+            parse(q.as_bytes())
                 .find(|(k, _)| k == "token" || k == "auth_token")
                 .map(|(_, v)| v.into_owned())
         });
@@ -56,10 +56,9 @@ pub async fn verify_admin_token<C: AdminApiContext>(
         let candidate = token_from_header.or(x_token).or(query_token.as_deref());
 
         let valid = match candidate {
-            Some(token) => infiltrator_domain::script_engine::CryptoSubtleShim::timing_safe_equal(
-                token.as_bytes(),
-                expected_token.as_bytes(),
-            ),
+            Some(token) => {
+                CryptoSubtleShim::timing_safe_equal(token.as_bytes(), expected_token.as_bytes())
+            }
             None => false,
         };
 

@@ -15,16 +15,18 @@
 //! counters and the derived topology, so both surfaces can render real dedup
 //! facts and real regional groups instead of fabricated placeholders.
 
-use anyhow::{Result, anyhow, bail};
-use std::collections::{BTreeMap, BTreeSet};
-
 use crate::filter::{
-    ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage, NodeSortOrder,
-    extract_country_code,
+    COUNTRY_DEFS, ContentDedupStrategy, DeduplicationStrategy, FilterPipeline, FilterStage,
+    NodeSortOrder, extract_country_code,
 };
 use crate::profile_converter::{
     AggregationOptions, ProfileConverter, ProfileFormat, ProxyNodeItem, SourceSubscription,
 };
+use crate::proxy_nodes::profile_yaml::parse_profile_yaml;
+use crate::proxy_nodes::validate::{validate, validate_item};
+use anyhow::{Result, anyhow, bail};
+use infiltrator_contract::aggregator::AggregationCustomGroup;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 #[path = "profile_aggregator_test.rs"]
@@ -208,14 +210,14 @@ impl ProfileAggregator {
         removed: &mut usize,
         samples: &mut Vec<String>,
     ) -> Vec<ProxyNodeItem> {
-        let rich = crate::proxy_nodes::profile_yaml::parse_profile_yaml(converted)
+        let rich = parse_profile_yaml(converted)
             .ok()
             .filter(|rich| rich.len() == nodes.len());
         let mut kept = Vec::with_capacity(nodes.len());
         for (index, node) in nodes.into_iter().enumerate() {
-            let mut issues = crate::proxy_nodes::validate::validate_item(&node);
+            let mut issues = validate_item(&node);
             if let Some(rich) = &rich {
-                issues.extend(crate::proxy_nodes::validate::validate(&rich[index]));
+                issues.extend(validate(&rich[index]));
             }
             if issues.is_empty() {
                 kept.push(node);
@@ -345,7 +347,7 @@ impl ProfileAggregator {
     pub fn synthesize_groups(
         regions: &[RegionalCluster],
         nodes: &[ProxyNodeItem],
-        custom_groups: &[infiltrator_contract::aggregator::AggregationCustomGroup],
+        custom_groups: &[AggregationCustomGroup],
     ) -> Vec<GeneratedGroup> {
         let node_names: Vec<String> = nodes.iter().map(|node| node.name.clone()).collect();
 
@@ -516,7 +518,7 @@ fn custom_members(nodes: &[ProxyNodeItem], keywords: &[String]) -> Vec<String> {
 /// Human label for an ISO region, sourced from the shared [`COUNTRY_DEFS`]
 /// alias table so the UI never invents a name the matcher would not accept.
 pub fn region_label(iso: &str) -> String {
-    for (code, aliases) in crate::filter::COUNTRY_DEFS {
+    for (code, aliases) in COUNTRY_DEFS {
         if code.eq_ignore_ascii_case(iso)
             && let Some(label) = aliases.iter().find(|alias| contains_cjk(alias))
         {

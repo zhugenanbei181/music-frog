@@ -2,10 +2,50 @@
 mod tests {
     use super::super::run_sync_tick;
     use crate::admin_api::state::AdminApiContext;
+    #[cfg(test)]
+    use crate::support::cache_application;
+    #[cfg(test)]
+    use crate::support::configuration_application;
+    #[cfg(test)]
+    use crate::support::doctor_application;
+    #[cfg(test)]
+    use crate::support::profile_application;
+    #[cfg(test)]
+    use crate::support::profile_reset_application;
+    #[cfg(test)]
+    use crate::support::subscription_source;
+    #[cfg(test)]
+    use crate::support::sync_application;
+    #[cfg(test)]
+    use crate::support::test_env::clear_configs_dir_env;
+    #[cfg(test)]
+    use crate::support::test_env::restore_configs_dir_env;
+    #[cfg(test)]
+    use crate::support::version_application;
     use anyhow::anyhow;
+    #[cfg(test)]
+    use infiltrator_application::cache_application::CacheApplication;
+    #[cfg(test)]
+    use infiltrator_application::configuration_application::ConfigurationApplication;
+    #[cfg(test)]
+    use infiltrator_application::doctor_application::DoctorApplication;
+    #[cfg(test)]
+    use infiltrator_application::profile_application::ProfileApplication;
+    #[cfg(test)]
+    use infiltrator_application::profile_reset_application::ProfileResetApplication;
+    #[cfg(test)]
+    use infiltrator_application::sync_application::SyncApplication;
+    #[cfg(test)]
+    use infiltrator_application::version_application::VersionApplication;
     use infiltrator_domain::settings::{AppSettings, WebDavConfig};
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    #[cfg(test)]
+    use infiltrator_ports::subscription_source::SubscriptionSource;
     use mihomo_platform::TEST_LOCK;
+    #[cfg(test)]
+    use mihomo_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use mihomo_platform::paths::set_home_dir_override;
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -13,60 +53,36 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AdminApiContext for MockContext {
-        async fn profile_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication>
-        {
-            crate::support::profile_application().await
+        async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
+            profile_application().await
         }
 
-        async fn configuration_application(
-            &self,
-        ) -> anyhow::Result<
-            infiltrator_application::configuration_application::ConfigurationApplication,
-        > {
-            crate::support::configuration_application().await
+        async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
+            configuration_application().await
         }
 
-        async fn doctor_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication>
-        {
-            crate::support::doctor_application()
+        async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
+            doctor_application()
         }
 
-        async fn profile_reset_application(
-            &self,
-        ) -> anyhow::Result<
-            infiltrator_application::profile_reset_application::ProfileResetApplication,
-        > {
-            Ok(crate::support::profile_reset_application())
+        async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication> {
+            Ok(profile_reset_application())
         }
 
-        async fn cache_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::cache_application::CacheApplication> {
-            Ok(crate::support::cache_application())
+        async fn cache_application(&self) -> anyhow::Result<CacheApplication> {
+            Ok(cache_application())
         }
 
-        async fn subscription_source(
-            &self,
-        ) -> anyhow::Result<Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>>
-        {
-            Ok(crate::support::subscription_source())
+        async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>> {
+            Ok(subscription_source())
         }
 
-        async fn sync_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::sync_application::SyncApplication> {
-            crate::support::sync_application()
+        async fn sync_application(&self) -> anyhow::Result<SyncApplication> {
+            sync_application()
         }
 
-        async fn version_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::version_application::VersionApplication>
-        {
-            crate::support::version_application()
+        async fn version_application(&self) -> anyhow::Result<VersionApplication> {
+            version_application()
         }
 
         async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
@@ -170,7 +186,7 @@ mod tests {
     async fn test_run_sync_tick_invalid_url() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let ctx = MockContext;
         let config = WebDavConfig {
@@ -183,7 +199,7 @@ mod tests {
         // Should fail during client creation or plan building
         assert!(result.is_err());
 
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// configs_dir 重定向后 sync 的扫描根（local_root）必须落在重定向目录，
@@ -193,9 +209,9 @@ mod tests {
     async fn test_run_sync_tick_local_root_follows_configs_dir_redirect() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let saved_env = crate::support::test_env::clear_configs_dir_env();
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
+        let saved_env = clear_configs_dir_env();
 
         let cloud = temp_dir.path().join("cloud");
         let ctx = MockContext;
@@ -217,8 +233,8 @@ mod tests {
             "default configs dir must not be created"
         );
 
-        crate::support::test_env::restore_configs_dir_env(saved_env);
-        mihomo_platform::paths::clear_home_dir_override();
+        restore_configs_dir_env(saved_env);
+        clear_home_dir_override();
     }
 
     /// configs_dir 未设置时扫描根仍是默认 `<home>/configs`（行为不变）。
@@ -226,9 +242,9 @@ mod tests {
     async fn test_run_sync_tick_local_root_defaults_to_home_configs() {
         let _guard = TEST_LOCK.lock().await;
         let temp_dir = tempfile::tempdir().unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
-        let saved_env = crate::support::test_env::clear_configs_dir_env();
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
+        let saved_env = clear_configs_dir_env();
 
         let ctx = MockContext;
         let config = WebDavConfig {
@@ -245,7 +261,7 @@ mod tests {
             "default local_root must be <home>/configs"
         );
 
-        crate::support::test_env::restore_configs_dir_env(saved_env);
-        mihomo_platform::paths::clear_home_dir_override();
+        restore_configs_dir_env(saved_env);
+        clear_home_dir_override();
     }
 }

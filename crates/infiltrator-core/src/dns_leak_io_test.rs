@@ -7,7 +7,9 @@
 
 use super::*;
 use crate::dns_wire;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
+use std::time;
+use std::time::Instant;
 
 /// Independent decode of the query the prober sent, used by the loopback
 /// authority to answer the exact id/question it received.
@@ -81,8 +83,8 @@ async fn a_real_udp_echo_authority_reports_the_resolver_it_observed() {
     let address = spawn_udp_authority(|question, peer| {
         assert_eq!(question.qtype, dns_wire::TYPE_A);
         let octets = match peer.ip() {
-            std::net::IpAddr::V4(v4) => v4.octets(),
-            std::net::IpAddr::V6(_) => [127, 0, 0, 1],
+            IpAddr::V4(v4) => v4.octets(),
+            IpAddr::V6(_) => [127, 0, 0, 1],
         };
         Some(dns_wire::encode_answer(question, octets, 60))
     })
@@ -175,11 +177,11 @@ async fn a_silent_echo_authority_times_out() {
 
     let prober = HttpDnsLeakEchoProbe::new();
     let probe = probe(&address.to_string(), "l46.echo.example.org");
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     let observation = prober.observe_probe(&probe, &request(vec![], 150)).await;
 
     assert_eq!(observation.outcome, DnsLeakObservationOutcome::TimedOut);
-    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert!(started.elapsed() < time::Duration::from_secs(5));
 }
 
 #[tokio::test]
@@ -510,9 +512,9 @@ fn resolv_conf_nameserver_lines_are_parsed_without_guessing() {
     assert_eq!(
         parsed,
         vec![
-            std::net::IpAddr::from([127, 0, 0, 53]),
-            std::net::IpAddr::from([9, 9, 9, 9]),
-            "fe80::1".parse::<std::net::IpAddr>().expect("v6"),
+            IpAddr::from([127, 0, 0, 53]),
+            IpAddr::from([9, 9, 9, 9]),
+            "fe80::1".parse::<IpAddr>().expect("v6"),
         ],
         "only real addresses, de-duplicated, in file order"
     );

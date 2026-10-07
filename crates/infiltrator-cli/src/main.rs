@@ -4,6 +4,7 @@
 //! workspace crates (doctor/bootstrap in `infiltrator-core`, kernel in
 //! `mihomo-version`, controller API in `mihomo-api`, and so on).
 
+use std::process::exit;
 mod commands;
 mod context;
 mod handlers;
@@ -17,5 +18,5 @@ use clap::Parser;
 #[tokio::main]
 async fn main() {
     let cli = commands::Cli::parse();
-    std::process::exit(handlers::run(cli.command).await);
+    exit(handlers::run(cli.command).await);
 }

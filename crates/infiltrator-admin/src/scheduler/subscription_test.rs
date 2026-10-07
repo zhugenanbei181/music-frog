@@ -9,20 +9,68 @@ mod tests {
         cancel_profile_update_job, schedule_cron_profile_update_job, schedule_profile_update_job,
         seed_subscription_jobs, subscription_job_name, subscription_jobs, sync_profile_job,
     };
+    #[cfg(test)]
+    use crate::support::cache_application;
+    #[cfg(test)]
+    use crate::support::configuration_application;
+    #[cfg(test)]
+    use crate::support::doctor_application;
+    #[cfg(test)]
+    use crate::support::profile_application;
+    #[cfg(test)]
+    use crate::support::profile_reset_application;
+    #[cfg(test)]
+    use crate::support::subscription_source;
+    #[cfg(test)]
+    use crate::support::sync_application;
+    #[cfg(test)]
+    use crate::support::version_application;
     use crate::support::{app_config_manager, test_env};
     use anyhow::anyhow;
     use chrono::Utc;
+    #[cfg(test)]
+    use infiltrator_application::cache_application::CacheApplication;
+    #[cfg(test)]
+    use infiltrator_application::configuration_application::ConfigurationApplication;
+    #[cfg(test)]
+    use infiltrator_application::doctor_application::DoctorApplication;
     use infiltrator_application::profile_application::ProfileApplication;
+    #[cfg(test)]
+    use infiltrator_application::profile_reset_application::ProfileResetApplication;
+    #[cfg(test)]
+    use infiltrator_application::sync_application::SyncApplication;
+    #[cfg(test)]
+    use infiltrator_application::version_application::VersionApplication;
     use infiltrator_core::settings_io::{save_settings, settings_path};
     use infiltrator_domain::settings::AppSettings;
     use infiltrator_domain::subscription::mask_subscription_url;
+    #[cfg(test)]
+    use infiltrator_domain::subscription_scheduler_policy::CronSchedule;
     use infiltrator_ports::runtime_gateway::RuntimeGateway;
+    #[cfg(test)]
+    use infiltrator_ports::subscription_source::SubscriptionSource;
     use mihomo_config::manager::ConfigManager;
     use mihomo_config::profile::Profile;
     use mihomo_platform::TEST_LOCK;
     use mihomo_platform::defaults::DefaultCredentialStore;
+    #[cfg(test)]
+    use mihomo_platform::paths::clear_home_dir_override;
+    #[cfg(test)]
+    use mihomo_platform::paths::set_home_dir_override;
+    #[cfg(test)]
+    use std::fs::create_dir_all;
+    #[cfg(test)]
+    use std::fs::read_to_string;
+    #[cfg(test)]
+    use std::fs::write;
+    #[cfg(test)]
+    use std::path;
+    #[cfg(test)]
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
+    #[cfg(test)]
+    use tokio::time::sleep;
 
     type Notifications = Arc<Mutex<Vec<(String, bool, Option<String>)>>>;
 
@@ -33,60 +81,36 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AdminApiContext for MockContext {
-        async fn profile_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::profile_application::ProfileApplication>
-        {
-            crate::support::profile_application().await
+        async fn profile_application(&self) -> anyhow::Result<ProfileApplication> {
+            profile_application().await
         }
 
-        async fn configuration_application(
-            &self,
-        ) -> anyhow::Result<
-            infiltrator_application::configuration_application::ConfigurationApplication,
-        > {
-            crate::support::configuration_application().await
+        async fn configuration_application(&self) -> anyhow::Result<ConfigurationApplication> {
+            configuration_application().await
         }
 
-        async fn doctor_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::doctor_application::DoctorApplication>
-        {
-            crate::support::doctor_application()
+        async fn doctor_application(&self) -> anyhow::Result<DoctorApplication> {
+            doctor_application()
         }
 
-        async fn profile_reset_application(
-            &self,
-        ) -> anyhow::Result<
-            infiltrator_application::profile_reset_application::ProfileResetApplication,
-        > {
-            Ok(crate::support::profile_reset_application())
+        async fn profile_reset_application(&self) -> anyhow::Result<ProfileResetApplication> {
+            Ok(profile_reset_application())
         }
 
-        async fn cache_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::cache_application::CacheApplication> {
-            Ok(crate::support::cache_application())
+        async fn cache_application(&self) -> anyhow::Result<CacheApplication> {
+            Ok(cache_application())
         }
 
-        async fn subscription_source(
-            &self,
-        ) -> anyhow::Result<Arc<dyn infiltrator_ports::subscription_source::SubscriptionSource>>
-        {
-            Ok(crate::support::subscription_source())
+        async fn subscription_source(&self) -> anyhow::Result<Arc<dyn SubscriptionSource>> {
+            Ok(subscription_source())
         }
 
-        async fn sync_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::sync_application::SyncApplication> {
-            crate::support::sync_application()
+        async fn sync_application(&self) -> anyhow::Result<SyncApplication> {
+            sync_application()
         }
 
-        async fn version_application(
-            &self,
-        ) -> anyhow::Result<infiltrator_application::version_application::VersionApplication>
-        {
-            crate::support::version_application()
+        async fn version_application(&self) -> anyhow::Result<VersionApplication> {
+            version_application()
         }
 
         async fn profile_controller_url(&self) -> anyhow::Result<Option<String>> {
@@ -191,8 +215,8 @@ mod tests {
             .prefix("sub-test-none-")
             .tempdir()
             .unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let ctx = MockContext {
             notifications: Arc::new(Mutex::new(vec![])),
@@ -203,7 +227,7 @@ mod tests {
         let summary = result.unwrap();
         assert!(summary.total <= 1);
 
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -213,8 +237,8 @@ mod tests {
             .prefix("sub-test-parallel-")
             .tempdir()
             .unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let manager = ConfigManager::with_home_and_store(
             temp_dir.path().to_path_buf(),
@@ -226,12 +250,12 @@ mod tests {
             notifications: Arc::new(Mutex::new(vec![])),
         };
         let configs_dir = temp_dir.path().join("configs");
-        let _ = std::fs::create_dir_all(&configs_dir);
+        let _ = create_dir_all(&configs_dir);
 
         for i in 0..10 {
             let profile_name = format!("test-profile-{}", i);
             let profile_path = configs_dir.join(format!("{}.yaml", profile_name));
-            let _ = std::fs::write(&profile_path, "port: 7890");
+            let _ = write(&profile_path, "port: 7890");
 
             let mut profile = Profile::new(profile_name.clone(), profile_path, false);
             profile.subscription_url = Some(format!("http://example.com/subscription/{}", i));
@@ -261,7 +285,7 @@ mod tests {
             summary.total
         );
 
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     #[tokio::test]
@@ -280,8 +304,8 @@ mod tests {
             .prefix("sub-test-schedule-")
             .tempdir()
             .unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let manager = ConfigManager::with_home_and_store(
             temp_dir.path().to_path_buf(),
@@ -291,9 +315,9 @@ mod tests {
 
         let profile_name = "test-schedule".to_string();
         let configs_dir = temp_dir.path().join("configs");
-        let _ = std::fs::create_dir_all(&configs_dir);
+        let _ = create_dir_all(&configs_dir);
         let profile_path = configs_dir.join(format!("{}.yaml", profile_name));
-        let _ = std::fs::write(&profile_path, "port: 7890");
+        let _ = write(&profile_path, "port: 7890");
 
         let now = Utc::now();
         let interval_hours = 24u32;
@@ -315,7 +339,7 @@ mod tests {
             panic!("next_update should be set for profile: {}", profile_name);
         }
 
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// Wait until the mock context recorded `target` subscription-update
@@ -335,7 +359,7 @@ mod tests {
                 Instant::now() < deadline,
                 "expected {target} subscription notifications within 5s"
             );
-            tokio::time::sleep(Duration::from_millis(5)).await;
+            sleep(Duration::from_millis(5)).await;
         }
     }
 
@@ -358,8 +382,8 @@ mod tests {
             .prefix("sub-test-job-")
             .tempdir()
             .unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let mut server = mockito::Server::new_async().await;
         // Bound to `_mock` so it stays registered on the server for the
@@ -379,9 +403,9 @@ mod tests {
         .unwrap();
         let profile_name = "job-lifecycle".to_string();
         let configs_dir = temp_dir.path().join("configs");
-        let _ = std::fs::create_dir_all(&configs_dir);
+        let _ = create_dir_all(&configs_dir);
         let profile_path = configs_dir.join(format!("{}.yaml", profile_name));
-        std::fs::write(&profile_path, "port: 7890").unwrap();
+        write(&profile_path, "port: 7890").unwrap();
 
         let mut profile = Profile::new(profile_name.clone(), profile_path, false);
         profile.subscription_url = Some(subscription_url.clone());
@@ -420,7 +444,7 @@ mod tests {
 
         // A following tick is not due yet (next_update was pushed by the
         // successful update), so the run count stays flat until re-armed.
-        tokio::time::sleep(Duration::from_millis(80)).await;
+        sleep(Duration::from_millis(80)).await;
         let runs_after_first = subscription_jobs()
             .snapshot()
             .into_iter()
@@ -453,9 +477,9 @@ mod tests {
 
         // 不再触发：let several intervals pass; no more fetches and no more
         // notifications may land.
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        sleep(Duration::from_millis(150)).await;
         let notifications_after_cancel = notification_count(&ctx);
-        tokio::time::sleep(Duration::from_millis(120)).await;
+        sleep(Duration::from_millis(120)).await;
         assert_eq!(
             notification_count(&ctx),
             notifications_after_cancel,
@@ -464,7 +488,7 @@ mod tests {
 
         // Cleanup: keep the process-wide registry empty for other tests.
         cancel_profile_update_job(&profile_name);
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// DUAL-07-03: a cron-only profile (no interval) is scheduled instead of
@@ -477,8 +501,8 @@ mod tests {
             .prefix("sub-test-cron-")
             .tempdir()
             .unwrap();
-        mihomo_platform::paths::clear_home_dir_override();
-        mihomo_platform::paths::set_home_dir_override(temp_dir.path().to_path_buf());
+        clear_home_dir_override();
+        set_home_dir_override(temp_dir.path().to_path_buf());
 
         let manager = ConfigManager::with_home_and_store(
             temp_dir.path().to_path_buf(),
@@ -487,9 +511,9 @@ mod tests {
         .unwrap();
         let profile_name = "cron-only".to_string();
         let configs_dir = temp_dir.path().join("configs");
-        let _ = std::fs::create_dir_all(&configs_dir);
+        let _ = create_dir_all(&configs_dir);
         let profile_path = configs_dir.join(format!("{profile_name}.yaml"));
-        std::fs::write(&profile_path, "port: 7890").unwrap();
+        write(&profile_path, "port: 7890").unwrap();
         let mut profile = Profile::new(profile_name.clone(), profile_path, false);
         profile.subscription_url = Some("https://example.com/sub".to_string());
         profile.auto_update_enabled = true;
@@ -520,8 +544,7 @@ mod tests {
 
         // The direct cron scheduling entry point also registers.
         cancel_profile_update_job(&profile_name);
-        let cron = infiltrator_domain::subscription_scheduler_policy::CronSchedule::parse("@daily")
-            .unwrap();
+        let cron = CronSchedule::parse("@daily").unwrap();
         schedule_cron_profile_update_job(&ctx, &profile_name, cron);
         assert!(subscription_jobs().is_active(&job_name));
 
@@ -538,7 +561,7 @@ mod tests {
 
         cancel_profile_update_job(&profile_name);
         assert!(!subscription_jobs().is_active(&job_name));
-        mihomo_platform::paths::clear_home_dir_override();
+        clear_home_dir_override();
     }
 
     /// settings `configs_dir` 重定向测试的公共脚手架：home 覆盖、清除
@@ -552,11 +575,11 @@ mod tests {
     impl RedirectGuard {
         async fn new(prefix: &str) -> Self {
             let temp = tempfile::Builder::new().prefix(prefix).tempdir().unwrap();
-            mihomo_platform::paths::clear_home_dir_override();
-            mihomo_platform::paths::set_home_dir_override(temp.path().to_path_buf());
+            clear_home_dir_override();
+            set_home_dir_override(temp.path().to_path_buf());
             let saved_env = test_env::clear_configs_dir_env();
             let cloud = temp.path().join("cloud");
-            std::fs::create_dir_all(&cloud).unwrap();
+            create_dir_all(&cloud).unwrap();
             let settings = AppSettings {
                 configs_dir: Some(cloud.to_string_lossy().into_owned()),
                 ..AppSettings::default()
@@ -567,30 +590,30 @@ mod tests {
             Self { temp, saved_env }
         }
 
-        fn cloud(&self) -> std::path::PathBuf {
+        fn cloud(&self) -> PathBuf {
             self.temp.path().join("cloud")
         }
 
-        fn home_configs(&self) -> std::path::PathBuf {
+        fn home_configs(&self) -> PathBuf {
             self.temp.path().join("configs")
         }
 
         fn restore(self) {
             test_env::restore_configs_dir_env(self.saved_env);
-            mihomo_platform::paths::clear_home_dir_override();
+            clear_home_dir_override();
         }
     }
 
     /// 在重定向目录预置一个 auto-update 已启用、立即到期的 profile，
     /// 返回（profile 名, yaml 路径）。
     async fn seed_due_profile(
-        manager: &ConfigManager<mihomo_platform::defaults::DefaultCredentialStore>,
-        cloud: &std::path::Path,
+        manager: &ConfigManager<DefaultCredentialStore>,
+        cloud: &path::Path,
         name: &str,
         url: String,
-    ) -> std::path::PathBuf {
+    ) -> PathBuf {
         let profile_path = cloud.join(format!("{name}.yaml"));
-        std::fs::write(&profile_path, "port: 7890").unwrap();
+        write(&profile_path, "port: 7890").unwrap();
         let mut profile = Profile::new(name.to_string(), profile_path.clone(), false);
         profile.subscription_url = Some(url);
         profile.auto_update_enabled = true;
@@ -630,7 +653,7 @@ mod tests {
         let result = run_profile_subscription_tick(&ctx, &profile_name).await;
         assert!(result.is_ok(), "tick failed: {:?}", result.err());
 
-        let updated = std::fs::read_to_string(&profile_path).unwrap();
+        let updated = read_to_string(&profile_path).unwrap();
         assert!(
             updated.contains("mode: rule"),
             "redirected yaml must be overwritten by subscription content"
@@ -675,7 +698,7 @@ mod tests {
         assert_eq!(summary.updated, 1);
         assert_eq!(summary.failed, 0);
 
-        let updated = std::fs::read_to_string(&profile_path).unwrap();
+        let updated = read_to_string(&profile_path).unwrap();
         assert!(
             updated.contains("mode: rule"),
             "redirected yaml must be overwritten by subscription content"
@@ -699,7 +722,7 @@ mod tests {
         let manager = app_config_manager().await.unwrap();
         let profile_name = "redirect-seed".to_string();
         let profile_path = redirect.cloud().join(format!("{profile_name}.yaml"));
-        std::fs::write(&profile_path, "port: 7890").unwrap();
+        write(&profile_path, "port: 7890").unwrap();
         let mut profile = Profile::new(profile_name.clone(), profile_path, false);
         profile.subscription_url = Some("http://example.com/subscription/seed".to_string());
         profile.auto_update_enabled = true;

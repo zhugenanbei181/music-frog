@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(windows)]
 use std::collections::HashSet;
 use std::fmt;
+#[cfg(windows)]
+use std::process;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -314,7 +316,7 @@ pub struct NativeAppContainerBackend;
 #[cfg(windows)]
 impl NativeAppContainerBackend {
     fn query_exempt_sids(&self) -> Result<HashSet<String>> {
-        let output = std::process::Command::new("CheckNetIsolation.exe")
+        let output = process::Command::new("CheckNetIsolation.exe")
             .args(["LoopbackExempt", "-s"])
             .output()
             .context("Failed to execute CheckNetIsolation.exe -s")?;
@@ -374,7 +376,7 @@ impl NativeAppContainerBackend {
     }
 
     fn run_check_net_isolation(&self, args: &[&str]) -> Result<()> {
-        let status = std::process::Command::new("CheckNetIsolation.exe")
+        let status = process::Command::new("CheckNetIsolation.exe")
             .args(args)
             .status()
             .context("Failed to execute CheckNetIsolation.exe")?;

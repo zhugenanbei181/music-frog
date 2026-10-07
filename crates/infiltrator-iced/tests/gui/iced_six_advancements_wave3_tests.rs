@@ -5,9 +5,21 @@
 //! exact string/integer values, and mathematical invariants.
 
 use crate::state::AppState;
+use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use crate::view::speedtest_modal::speedtest_card;
+use crate::view_root::speedtest_detail_modal::speedtest_detail_modal;
+use infiltrator_application::rule_list_fixtures::list_document;
+use infiltrator_application::speedtest_summary_projection::history_lines;
+use infiltrator_contract::capability::Capability;
 use infiltrator_contract::speedtest::{PacketLossRating, SpeedtestPhase, SpeedtestSnapshot};
-use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport;
+use infiltrator_contract::uwp::{UwpLoopbackAvailability, UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET;
+use infiltrator_domain::sub_rules::validate_logical_rule_syntax;
+use infiltrator_ports::error::PortError;
+use infiltrator_shared::locales::Lang;
+use std::fs::read;
 
 #[test]
 fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
@@ -38,21 +50,19 @@ fn test_advancement_w3_1_pcap_capture_and_export_lifecycle() {
     );
 
     // Verify written file exists on disk
-    let file_bytes =
-        std::fs::read("/tmp/infiltrator_capture.pcap").expect("PCAP file must be written");
+    let file_bytes = read("/tmp/infiltrator_capture.pcap").expect("PCAP file must be written");
     assert!(file_bytes.len() >= 24); // PCAP global header is 24 bytes
 }
 
 #[test]
 fn test_advancement_w3_2_subrules_logical_builder_workflow() {
     let (mut state, _) = AppState::new();
+    let document = list_document(state.editor.rule_list.draft.clone());
+    state.editor.rule_list.observe(Some(&document), None);
 
     // Default draft state: the shared builder seeds the shared default target.
     assert_eq!(state.editor.subrule_draft.operator, "AND");
-    assert_eq!(
-        state.editor.subrule_draft.target,
-        infiltrator_domain::rules::edit::DEFAULT_RULE_TARGET
-    );
+    assert_eq!(state.editor.subrule_draft.target, DEFAULT_RULE_TARGET);
 
     // Update operator to OR
     let _ = state.update(Message::UpdateSubRuleOperator("OR".to_string()));
@@ -79,19 +89,24 @@ fn test_advancement_w3_2_subrules_logical_builder_workflow() {
 
     // Insert into rules: the shared builder encodes the canonical
     // `OP((cond),(cond),TARGET)` expression the parser accepts.
-    let initial_rule_count = state.editor.rules.len();
+    let initial_rule_count = state.editor.rule_list.draft.len();
     let _ = state.update(Message::InsertSubRuleIntoRules);
 
-    assert_eq!(state.editor.rules.len(), initial_rule_count + 1);
-    let inserted = state.editor.rules.last().expect("rule must be inserted");
+    assert_eq!(state.editor.rule_list.draft.len(), initial_rule_count + 1);
+    let inserted = state
+        .editor
+        .rule_list
+        .draft
+        .first()
+        .expect("rule must be inserted");
     assert_eq!(
         inserted.rule,
-        "OR((NETWORK,TCP),(DOMAIN-KEYWORD,netflix),StreamingGroup)"
+        "OR,((NETWORK,TCP),(DOMAIN-KEYWORD,netflix)),StreamingGroup"
     );
     assert!(inserted.enabled);
-    assert!(state.editor.rules_dirty);
+    assert!(state.editor.rule_list.dirty());
     assert!(
-        infiltrator_domain::sub_rules::validate_logical_rule_syntax(&inserted.rule).is_ok(),
+        validate_logical_rule_syntax(&inserted.rule).is_ok(),
         "inserted logical rule must parse through the shared gate"
     );
 }
@@ -128,16 +143,13 @@ fn test_advancement_w3_3_speedtest_error_surfaces_toast() {
     // read model stays empty and the failure is surfaced (the update returns
     // a ShowToast task, which the runtime applies).
     let task = state.update(Message::SpeedtestSnapshotUpdated(Err(
-        infiltrator_ports::error::PortError::unsupported(
-            infiltrator_contract::capability::Capability::Speedtest,
-            "no engine",
-        ),
+        PortError::unsupported(Capability::Speedtest, "no engine"),
     )));
     // Applying the produced toast message lands it in the shell queue.
     let _ = task;
     let _ = state.update(Message::ShowToast(
         "Speedtest failed".to_string(),
-        crate::types::app::ToastStatus::Error,
+        ToastStatus::Error,
     ));
     assert!(!state.shell.toasts.is_empty());
     assert!(state.diag.speedtest.node_results.is_empty());
@@ -176,8 +188,8 @@ fn test_advancement_w3_3_speedtest_dead_node_archive_renders() {
     // The shared snapshot archives the timed-out node; the card renders it
     // from `dead_nodes()` instead of hiding it.
     assert_eq!(state.diag.speedtest.dead_nodes().len(), 1);
-    let lang = infiltrator_shared::locales::Lang("zh-CN");
-    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+    let lang = Lang("zh-CN");
+    let _card = speedtest_card(&state, &lang);
 }
 
 #[test]
@@ -189,9 +201,8 @@ fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
 
     // The history lines are read straight off the shared snapshot's
     // `recent_history`; the view owns no store.
-    let lang = infiltrator_shared::locales::Lang("zh-CN");
-    let lines =
-        crate::view::speedtest_modal::shared_speedtest_history_lines(&state.diag.speedtest, &lang);
+    let lang = Lang("zh-CN");
+    let lines = history_lines(&state.diag.speedtest, lang.0);
     assert_eq!(lines.len(), 1);
     assert!(
         lines[0].contains("平均带宽 154.8 Mbps"),
@@ -202,7 +213,7 @@ fn test_advancement_w3_3_speedtest_history_renders_shared_snapshot() {
     assert!(lines[0].contains("全部节点"), "line={}", lines[0]);
 
     // The full card still renders with the history section.
-    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+    let _card = speedtest_card(&state, &lang);
 }
 
 #[test]
@@ -223,8 +234,8 @@ fn test_advancement_w3_3_speedtest_custom_url_flows_into_the_port_call() {
     );
 
     // The card still renders with the typed target.
-    let lang = infiltrator_shared::locales::Lang("zh-CN");
-    let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+    let lang = Lang("zh-CN");
+    let _card = speedtest_card(&state, &lang);
 
     // The debug arm is exhaustive and names the message.
     assert!(
@@ -242,9 +253,9 @@ fn test_advancement_w3_3_speedtest_concurrency_reads_shared_and_clamps() {
     snapshot.config.concurrency = 12;
     let _ = state.update(Message::SpeedtestScopeUpdated(Ok(snapshot)));
     assert_eq!(state.diag.speedtest.config.concurrency, 12);
-    let lang = infiltrator_shared::locales::Lang("zh-CN");
+    let lang = Lang("zh-CN");
     {
-        let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+        let _card = speedtest_card(&state, &lang);
     }
 
     // Stepping is clamped into the supported 1..=64 window.
@@ -286,16 +297,15 @@ fn test_advancement_w3_3_speedtest_egress_detail_and_matrix() {
     let _ = state.update(Message::OpenSpeedtestDetail);
     assert!(state.diag.speedtest_detail_open);
     {
-        let _modal = crate::view_root::speedtest_detail_modal::speedtest_detail_modal(&state);
-        let lang = infiltrator_shared::locales::Lang("zh-CN");
-        let _card = crate::view::speedtest_modal::speedtest_card(&state, &lang);
+        let _modal = speedtest_detail_modal(&state);
+        let lang = Lang("zh-CN");
+        let _card = speedtest_card(&state, &lang);
     }
     let _ = state.update(Message::CloseSpeedtestDetail);
     assert!(!state.diag.speedtest_detail_open);
 
     // DUAL-06-14: both surfaces are driven by the one shared matrix report.
-    let report =
-        infiltrator_contract::speedtest_matrix::SpeedtestRegressionMatrixReport::run_deterministic_matrix();
+    let report = SpeedtestRegressionMatrixReport::run_deterministic_matrix();
     assert!(report.is_all_passed());
     assert_eq!(report.total_scenarios, 15);
     assert_eq!(
@@ -335,7 +345,7 @@ fn test_advancement_w3_4_geodata_updater_stays_honest() {
     let _ = task;
     let _ = state.update(Message::ShowToast(
         "Geo database update is not available on this host".to_string(),
-        crate::types::app::ToastStatus::Error,
+        ToastStatus::Error,
     ));
     assert!(!state.shell.toasts.is_empty());
     assert!(state.editor.geodata_status.geoip_version.is_empty());
@@ -400,7 +410,7 @@ fn test_uwp_live_snapshot_projects_without_demo_data() {
     assert_eq!(state.shell.uwp_loopback.revision, 4);
     assert!(matches!(
         state.shell.uwp_loopback.availability,
-        infiltrator_contract::uwp::UwpLoopbackAvailability::Supported
+        UwpLoopbackAvailability::Supported
     ));
     assert_eq!(state.shell.uwp_loopback.apps.len(), 1);
     assert_eq!(state.shell.uwp_loopback.apps[0].display_name, "Contoso UWP");
@@ -430,7 +440,6 @@ fn test_advancement_w3_6_encrypted_backup_package_lifecycle() {
     );
 
     // Verify written package file
-    let enc_bytes =
-        std::fs::read("/tmp/infiltrator_backup.encpkg").expect("Encrypted file must be written");
+    let enc_bytes = read("/tmp/infiltrator_backup.encpkg").expect("Encrypted file must be written");
     assert!(!enc_bytes.is_empty());
 }

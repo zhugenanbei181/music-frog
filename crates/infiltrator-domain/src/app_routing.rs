@@ -36,6 +36,16 @@ pub enum AppRoutingRule {
     Block,
 }
 
+impl AppRoutingRule {
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Proxy => Self::Direct,
+            Self::Direct => Self::Block,
+            Self::Block => Self::Proxy,
+        }
+    }
+}
+
 /// Per-app routing configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppRoutingConfig {

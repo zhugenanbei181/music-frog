@@ -1,203 +1,162 @@
-//! Rule Hit Counter and Stale Rule Analyzer component.
-//!
-//! Renders the application-owned `RuleHitAuditSnapshot` shared with Bevy. The
-//! card never computes hit counts, dead rules or CIDR overlaps locally.
-
+//! Native statistics inspector replays the shared workbench and row projection.
 use crate::state::AppState;
 use crate::types::message::Message;
-use crate::view::component_forms::{style_danger, style_ghost};
-use crate::view::components::{BadgeKind, badge, card};
-use crate::view::svg_icons::{self, Icon};
-use crate::view::theme::{self, FONT_MEDIUM, FONT_SEMIBOLD, MONO, tokens};
-use iced::widget::{Space, button, column, container, row, text};
-use iced::{Alignment, Element, Length, Theme};
+use crate::view::component_card::card;
+use crate::view::component_forms::style_ghost;
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, tokens};
+use crate::view_root::interaction_regions::InteractionRegion;
+use iced::advanced::text::Renderer;
+use iced::widget::{Space, button, column, container, row, scrollable, text};
+use iced::{Element, Font, Length, Theme};
+use infiltrator_application::rule_statistics_inspector_projection::project_inspector;
+use infiltrator_application::rule_statistics_workbench::{StatisticsAction, StatisticsTab};
 use infiltrator_shared::locales::{Lang, Localizer};
 
-fn metric<'a>(
-    lang: &Lang<'_>,
-    label_key: &str,
-    value: String,
-    color: fn(&Theme) -> iced::Color,
-) -> Element<'a, Message> {
-    column![
-        text(lang.tr(label_key).to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary)
-            }),
-        Space::new().height(2.0),
-        text(value)
-            .size(14)
-            .font(FONT_SEMIBOLD)
-            .style(move |t: &Theme| text::Style {
-                color: Some(color(t))
-            }),
-    ]
-    .width(Length::Fill)
-    .into()
+fn action(action: StatisticsAction) -> Message {
+    Message::RuleStatistics(action)
 }
 
-pub fn rule_hit_card<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    let audit_state = &state.editor.rule_hit_audit;
-    let audit = &audit_state.audit;
-
-    let audit_btn = button(
-        row![
-            svg_icons::icon_themed(Icon::Search, 12.0, |t: &Theme| tokens(t).text_secondary),
-            Space::new().width(theme::SP_XS),
-            text(lang.tr("rule_hit_btn_audit").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([4, 10])
-    .style(style_ghost)
-    .on_press_maybe((!audit_state.is_auditing).then_some(Message::AuditStaleRules));
-
-    let clean_btn = button(
-        row![
-            svg_icons::icon_themed(Icon::Trash2, 12.0, |t: &Theme| tokens(t).danger),
-            Space::new().width(theme::SP_XS),
-            text(lang.tr("rule_hit_btn_clean").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
-        ]
-        .align_y(Alignment::Center),
-    )
-    .padding([4, 10])
-    .style(style_danger)
-    .on_press_maybe(
-        (!audit_state.zero_hit_rule_indices.is_empty()).then_some(Message::DisableZeroHitRules),
+pub fn rule_hit_card<'a, R: Renderer<Font = Font> + 'a>(
+    state: &'a AppState,
+    lang: &Lang<'_>,
+) -> Element<'a, Message, Theme, R> {
+    let model = &state.editor.rule_hit_audit;
+    let display = project_inspector(model, &state.editor.rule_list, &state.shell.lang);
+    let mut tabs = row![];
+    for tab in StatisticsTab::ALL {
+        let region = match tab {
+            StatisticsTab::Summary => InteractionRegion::StatisticsSummary,
+            StatisticsTab::TopHits => InteractionRegion::StatisticsTop,
+            StatisticsTab::Inactive => InteractionRegion::StatisticsInactive,
+        };
+        tabs = tabs.push(
+            container(
+                button(text(lang.tr(tab.label_key()).into_owned()).size(12))
+                    .style(style_ghost)
+                    .on_press(action(StatisticsAction::Tab(tab))),
+            )
+            .id(region.id()),
+        );
+    }
+    let mut body = column![
+        text(display.status).size(12),
+        text(display.source).size(11),
+        tabs.spacing(8)
+    ];
+    if model.tab == StatisticsTab::Summary {
+        let mut metrics = row![];
+        for (key, value) in [
+            ("rule_hit_total_hits", display.metrics.total_hits),
+            ("rule_hit_dead_count", display.metrics.dead_rules),
+            ("rule_hit_cidr_conflicts", display.metrics.cidr_overlaps),
+            ("rule_hit_match_latency", display.metrics.latency),
+        ] {
+            metrics = metrics.push(
+                column![
+                    text(lang.tr(key).into_owned()).size(11),
+                    text(value).size(14).font(FONT_SEMIBOLD)
+                ]
+                .width(Length::Fill),
+            );
+        }
+        body = body
+            .push(metrics.spacing(8))
+            .push(text(display.last_hit).size(11).font(MONO));
+    } else {
+        let mut rows = column![];
+        let empty = display.rows.is_empty();
+        for item in display.rows {
+            rows = rows.push(
+                container(
+                    column![
+                        text(format!("#{} · {}", item.ordinal, item.count)).size(11),
+                        text(item.raw).size(12).font(MONO),
+                        text(item.detail).size(11),
+                    ]
+                    .spacing(4),
+                )
+                .width(Length::Fill)
+                .padding(8),
+            );
+        }
+        if empty {
+            rows = rows.push(text(display.empty_rows).size(12));
+        }
+        body = body.push(scrollable(rows.spacing(6)).height(240));
+        body = body.push(
+            row![
+                button(text(lang.tr("common_previous_page").into_owned())).on_press_maybe(
+                    display
+                        .can_previous
+                        .then_some(action(StatisticsAction::PreviousPage))
+                ),
+                text(display.page).size(11),
+                button(text(lang.tr("common_next_page").into_owned())).on_press_maybe(
+                    display
+                        .can_next
+                        .then_some(action(StatisticsAction::NextPage))
+                ),
+            ]
+            .spacing(8)
+            .wrap(),
+        );
+    }
+    body = body.push(
+        text(display.feedback)
+            .size(12)
+            .style(|theme: &Theme| text::Style {
+                color: Some(tokens(theme).text_primary),
+            }),
     );
-
-    let clear_btn = button(
+    let clear_key = if model.clear_failure.is_some() {
+        "logs_export_retry"
+    } else {
+        "rule_hit_btn_clear"
+    };
+    body = body.push(
         row![
-            svg_icons::icon_themed(Icon::RefreshCw, 12.0, |t: &Theme| tokens(t).text_secondary),
-            Space::new().width(theme::SP_XS),
-            text(lang.tr("rule_hit_btn_clear").to_string())
-                .size(11)
-                .font(FONT_MEDIUM),
+            container(
+                button(text(lang.tr(clear_key).into_owned()))
+                    .on_press_maybe(display.can_reset.then_some(action(StatisticsAction::Reset)))
+            )
+            .id(InteractionRegion::StatisticsReset.id()),
+            container(
+                button(text(lang.tr("rule_hit_btn_audit").into_owned())).on_press_maybe(
+                    display
+                        .can_inspect
+                        .then_some(action(StatisticsAction::Inspect))
+                )
+            )
+            .id(InteractionRegion::StatisticsInspect.id()),
+            container(
+                button(text(lang.tr("rule_hit_btn_clean").into_owned())).on_press_maybe(
+                    display
+                        .can_prepare_cleanup
+                        .then_some(action(StatisticsAction::PrepareCleanup))
+                )
+            )
+            .id(InteractionRegion::StatisticsCleanup.id()),
         ]
-        .align_y(Alignment::Center),
-    )
-    .padding([4, 10])
-    .style(style_ghost)
-    .on_press_maybe(audit.can_clear.then_some(Message::ClearRuleHitCounters));
-
-    let dead_color: fn(&Theme) -> iced::Color = if audit.dead_rules.is_empty() {
-        |t: &Theme| tokens(t).success
-    } else {
-        |t: &Theme| tokens(t).warning
-    };
-
-    let metrics_row = row![
-        metric(
-            lang,
-            "rule_hit_total_hits",
-            audit.total_hits.to_string(),
-            |t: &Theme| tokens(t).accent,
-        ),
-        metric(
-            lang,
-            "rule_hit_dead_count",
-            audit.dead_rules.len().to_string(),
-            dead_color,
-        ),
-        metric(
-            lang,
-            "rule_hit_cidr_conflicts",
-            audit.cidr_overlaps.len().to_string(),
-            |t: &Theme| tokens(t).danger,
-        ),
-        metric(
-            lang,
-            "rule_hit_match_latency",
-            audit
-                .avg_match_latency_us
-                .map(|avg| format!("{avg:.1} µs"))
-                .unwrap_or_else(|| "—".to_owned()),
-            |t: &Theme| tokens(t).text_primary,
-        ),
-    ]
-    .align_y(Alignment::Center)
-    .spacing(theme::SP_SM);
-
-    let last_hit: Element<'_, Message> = match audit.last_hit_rule.as_ref() {
-        Some(rule) => container(
-            row![
-                badge("HIT", BadgeKind::Success),
-                Space::new().width(theme::SP_XS),
-                text(rule.clone())
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).accent)
-                    }),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .into(),
-        None => text(lang.tr("rule_hit_none").to_string())
-            .size(11)
-            .style(|t: &Theme| text::Style {
-                color: Some(tokens(t).text_secondary),
-            })
-            .into(),
-    };
-
-    let summary_feedback: Element<'_, Message> = if let Some(sum) = &audit_state.audit_summary {
-        container(
-            row![
-                svg_icons::icon_themed(Icon::ListChecks, 14.0, |t: &Theme| tokens(t).success),
-                Space::new().width(theme::SP_XS),
-                text(sum.clone())
-                    .size(11)
-                    .font(MONO)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).success)
-                    }),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .into()
-    } else {
-        Element::from(Space::new().height(0))
-    };
-
-    card(
-        Some(lang.tr("rule_hit_title").to_string()),
+        .spacing(8)
+        .wrap(),
+    );
+    if model.clear_failure.is_some() {
+        body = body.push(
+            button(text(lang.tr("modal_close").into_owned()))
+                .on_press(action(StatisticsAction::DismissFailure)),
+        );
+    }
+    container(card(
+        Some(lang.tr("rule_hit_title").into_owned()),
         column![
-            text(lang.tr("rule_hit_desc").to_string())
-                .size(12)
-                .style(|t: &Theme| text::Style {
-                    color: Some(tokens(t).text_secondary)
-                }),
+            text(lang.tr("rule_hit_desc").into_owned()).size(12),
             Space::new().height(theme::SP_XS),
-            metrics_row,
-            Space::new().height(theme::SP_XS),
-            row![
-                text(lang.tr("rule_hit_last_hit").to_string())
-                    .size(11)
-                    .style(|t: &Theme| text::Style {
-                        color: Some(tokens(t).text_secondary)
-                    }),
-                Space::new().width(theme::SP_XS),
-                last_hit,
-            ]
-            .align_y(Alignment::Center),
-            summary_feedback,
-            Space::new().height(theme::SP_XS),
-            row![
-                Space::new().width(Length::Fill),
-                clear_btn,
-                Space::new().width(theme::SP_SM),
-                audit_btn,
-                Space::new().width(theme::SP_SM),
-                clean_btn,
-            ]
-            .align_y(Alignment::Center),
+            body.spacing(theme::SP_SM),
         ]
         .spacing(theme::SP_SM),
-    )
+    ))
+    .id(InteractionRegion::StatisticsInspector.id())
+    .width(Length::Fill)
+    .into()
 }

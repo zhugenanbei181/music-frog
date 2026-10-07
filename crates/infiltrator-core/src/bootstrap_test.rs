@@ -2,8 +2,12 @@
 //! temp-dir homes. No global state, no real core process.
 
 use super::*;
+use crate::settings_io::app_config_manager_in;
+use crate::settings_io::test_support::RedirectGuard;
 use mihomo_config::manager::ConfigManager;
+use mihomo_platform::defaults::DefaultCredentialStore;
 use tempfile::TempDir;
+use tokio::fs::read_to_string;
 
 fn temp_home(tag: &str) -> TempDir {
     tempfile::Builder::new()
@@ -43,13 +47,13 @@ async fn fresh_home_bootstrap_creates_dir_config_and_controller() {
 
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::defaults::DefaultCredentialStore::default(),
+        DefaultCredentialStore::default(),
     )
     .unwrap();
     let profile_path = manager.get_current_path().await.unwrap();
     assert!(profile_path.is_file());
     assert!(manager.get_external_controller().await.is_ok());
-    let profile = tokio::fs::read_to_string(profile_path).await.unwrap();
+    let profile = read_to_string(profile_path).await.unwrap();
     let document = yaml_rust2::YamlLoader::load_from_str(&profile)
         .unwrap()
         .into_iter()
@@ -88,7 +92,7 @@ async fn bootstrap_is_idempotent_on_initialized_home() {
     }
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::defaults::DefaultCredentialStore::default(),
+        DefaultCredentialStore::default(),
     )
     .unwrap();
     assert!(manager.get_external_controller().await.is_ok());
@@ -103,7 +107,7 @@ async fn bootstrap_repairs_missing_external_controller() {
     // must derive a fresh endpoint and write it back.
     let manager = ConfigManager::with_home_and_store(
         dir.path().to_path_buf(),
-        mihomo_platform::defaults::DefaultCredentialStore::default(),
+        DefaultCredentialStore::default(),
     )
     .unwrap();
     manager.save("default", "port: 7890\n").await.unwrap();
@@ -129,8 +133,7 @@ async fn bootstrap_report_is_serializable() {
 async fn bootstrap_follows_settings_configs_dir_redirect() {
     let dir = temp_home("redirect");
     let cloud = dir.path().join("cloud").join("sync");
-    let guard =
-        crate::settings_io::test_support::RedirectGuard::acquire(dir.path().to_path_buf()).await;
+    let guard = RedirectGuard::acquire(dir.path().to_path_buf()).await;
     guard
         .set_configs_dir(dir.path(), Some(cloud.to_str().unwrap()))
         .await;
@@ -141,9 +144,7 @@ async fn bootstrap_follows_settings_configs_dir_redirect() {
     assert!(!dir.path().join("configs").exists());
 
     // 当前 profile 的默认配置同样落在重定向目录。
-    let manager = crate::settings_io::app_config_manager_in(dir.path())
-        .await
-        .unwrap();
+    let manager = app_config_manager_in(dir.path()).await.unwrap();
     assert!(manager.get_current_path().await.unwrap().is_file());
 
     // 幂等：重跑 configs_dir / default_config 步骤必须跳过。

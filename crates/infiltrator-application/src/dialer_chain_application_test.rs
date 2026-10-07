@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
+use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 
 const PROFILE: &str = r#"
 mode: rule
@@ -110,10 +111,7 @@ fn publishing_the_report_reaches_both_surfaces_snapshot() {
     // A draft edit must not drop the profile-level report. The studio is
     // process-wide (other tests publish into it concurrently), so this checks
     // the *shape* — an analysis result is carried over, never cleared.
-    let studio = ProtocolCodecApplication::publish_draft(
-        infiltrator_contract::protocol_fidelity::ProtocolDraft::new("vless"),
-        None,
-    );
+    let studio = ProtocolCodecApplication::publish_draft(ProtocolDraft::new("vless"), None);
     assert!(!studio.dialer.chains.is_empty());
 
     // An invalid document is a typed failure, not an empty report.
@@ -124,7 +122,7 @@ fn publishing_the_report_reaches_both_surfaces_snapshot() {
 #[test]
 fn a_node_save_publishes_the_dialer_verdict_for_the_written_document() {
     clear_studio();
-    let mut draft = infiltrator_contract::protocol_fidelity::ProtocolDraft::new("vless");
+    let mut draft = ProtocolDraft::new("vless");
     draft.name = "landing".into();
     draft.server = "5.5.5.5".into();
     draft.port = 443;
@@ -132,6 +130,12 @@ fn a_node_save_publishes_the_dialer_verdict_for_the_written_document() {
     draft.dialer_proxy = "gateway".into();
     let commit =
         ProtocolCodecApplication::upsert_draft_into_profile(PROFILE, &draft).expect("commit");
+    assert!(
+        ProtocolCodecApplication::dialer_report()
+            .chain_for("landing")
+            .is_none()
+    );
+    ProtocolCodecApplication::publish_commit(&commit);
     let chain = commit.dialer.chain_for("landing").expect("chain");
     assert!(chain.valid());
     assert_eq!(chain.hops.len(), 3);

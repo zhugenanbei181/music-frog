@@ -13,13 +13,23 @@
 //!
 //! test-intent: behavior
 
+use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::tray::spec::{TrayController, TraySpec};
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
+use infiltrator_application::profile_application::ProfileApplication;
+use infiltrator_domain::profiles::ProfileInfo;
+use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
+use std::env::temp_dir;
+use std::fs::{create_dir_all, remove_dir_all};
+use std::future::Future;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::runtime::Builder;
 
 /// Drive one message through the real state machine and report the work
 /// units of the (lazily executed) task so journeys can assert "task armed"
@@ -29,8 +39,8 @@ pub fn feed(state: &mut AppState, message: Message) -> usize {
 }
 
 /// Run an async task body synchronously (the iced task itself is dropped).
-pub fn block_on<F: std::future::Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread()
+pub fn block_on<F: Future>(future: F) -> F::Output {
+    Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
@@ -44,10 +54,10 @@ pub fn fresh_state() -> AppState {
 }
 
 /// Read the canonical profile projection through the application facade.
-pub fn list_profiles() -> Vec<infiltrator_domain::profiles::ProfileInfo> {
+pub fn list_profiles() -> Vec<ProfileInfo> {
     block_on(async {
-        let store = crate::configs_dir::config_manager().await.unwrap();
-        infiltrator_application::profile_application::ProfileApplication::new(store)
+        let store = config_manager().await.unwrap();
+        ProfileApplication::new(store)
             .list_profiles()
             .await
             .unwrap()
@@ -71,16 +81,16 @@ impl TempHome {
         let lock = HOME_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let dir = std::env::temp_dir().join(format!(
+        let dir = temp_dir().join(format!(
             "iced-business-{tag}-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
         ));
-        std::fs::create_dir_all(dir.join("configs")).unwrap();
+        create_dir_all(dir.join("configs")).unwrap();
         assert!(
-            mihomo_platform::paths::set_home_dir_override(dir.clone()),
+            set_home_dir_override(dir.clone()),
             "home override must install while HOME_LOCK is held"
         );
         Self { dir, _lock: lock }
@@ -93,7 +103,7 @@ impl TempHome {
     /// Seed one profile through the real config manager and make it current.
     pub fn seed_profile(&self, name: &str, yaml: &str) {
         block_on(async {
-            let manager = crate::configs_dir::config_manager().await.unwrap();
+            let manager = config_manager().await.unwrap();
             manager.save(name, yaml).await.unwrap();
             manager.set_current(name).await.unwrap();
         });
@@ -102,12 +112,12 @@ impl TempHome {
 
 impl Drop for TempHome {
     fn drop(&mut self) {
-        mihomo_platform::paths::clear_home_dir_override();
-        let _ = std::fs::remove_dir_all(&self.dir);
+        clear_home_dir_override();
+        let _ = remove_dir_all(&self.dir);
     }
 }
 
-impl std::ops::Deref for TempHome {
+impl Deref for TempHome {
     type Target = Path;
     fn deref(&self) -> &Path {
         &self.dir
@@ -183,12 +193,8 @@ pub fn last_toast(state: &AppState) -> Option<(String, ToastStatus)> {
 }
 
 /// Named profile with subscription metadata, for in-memory state domains.
-pub fn subscribed_profile(
-    name: &str,
-    active: bool,
-    url: Option<&str>,
-) -> infiltrator_domain::profiles::ProfileInfo {
-    let mut profile = infiltrator_domain::profiles::ProfileInfo {
+pub fn subscribed_profile(name: &str, active: bool, url: Option<&str>) -> ProfileInfo {
+    let mut profile = ProfileInfo {
         name: name.to_string(),
         path: format!("/configs/{name}.yaml"),
         active,

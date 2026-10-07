@@ -4,21 +4,35 @@
 //!
 //! test-intent: behavior
 
-use super::support::{TempHome, block_on, feed, fresh_state, subscribed_profile};
+use super::support::{FakeTray, TempHome, block_on, feed, fresh_state, subscribed_profile};
 use crate::tray::spec::{
     TRAY_ACTION_ACTIVATE_PROFILE, TRAY_ACTION_MODE_GLOBAL, TRAY_ACTION_SELECT_PROXY,
     TRAY_ACTION_SET_DEFAULT_KERNEL, TRAY_ACTION_SET_PROFILE_AUTO_UPDATE,
-    TRAY_ACTION_UPDATE_ALL_PROFILES, TrayEvent, TrayEventContext, encode_pair_payload,
-    resolve_tray_event_in,
+    TRAY_ACTION_UPDATE_ALL_PROFILES, TrayEvent, TrayEventContext, TrayIntent, TrayMenuItem,
+    encode_pair_payload, resolve_tray_event_in,
 };
 use crate::types::app::CoreDownloadProgress;
 use crate::types::message::Message;
-use crate::types::runtime::RuntimeStatus;
+use crate::types::runtime::{RuntimeStatus, RuntimeStreamState};
+use crate::version_application::application;
+use infiltrator_contract::command::ProxyMode;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_contract::port_conflict::{PortBinding, PortConflict, PortConflictSnapshot};
-use infiltrator_contract::version::CoreRollbackSnapshot;
-use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup};
+use infiltrator_contract::proxy_mode::{ProxyModeSnapshot, ProxyModeStatus};
+use infiltrator_contract::version::{CoreRollbackSnapshot, InstalledCoreVersion};
+use infiltrator_domain::proxy::{Proxy, ProxyBase, ProxyGroup, Shadowsocks};
+use infiltrator_domain::runtime::TrafficData;
 use mihomo_version::manager::VersionManager;
+#[cfg(unix)]
+use std::fs::Permissions;
+#[cfg(unix)]
+use std::fs::create_dir_all;
+#[cfg(unix)]
+use std::fs::set_permissions;
+#[cfg(unix)]
+use std::fs::write;
+#[cfg(unix)]
+use std::path;
 
 /// Journey 8 — 生命周期：StartProxy（无内核二进制）→ ProxyStarted(Err) →
 /// 错误横幅 + Critical 系统通知任务武装（不炸）→ StopProxy → ProxyStopped
@@ -26,12 +40,13 @@ use mihomo_version::manager::VersionManager;
 #[test]
 fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
     let mut state = fresh_state();
-    let tray = super::support::FakeTray::install(&mut state);
+    let tray = FakeTray::install(&mut state);
 
     // Seed every domain ProxyStopped is supposed to clear.
-    state.diag.traffic = Some(infiltrator_domain::runtime::TrafficData { up: 1, down: 2 });
+    state.diag.traffic = Some(TrafficData { up: 1, down: 2 });
     state.diag.logs.push_back("stale log".into());
     state.runtime.proxy_mode = Some("rule".into());
+    state.runtime.proxy_mode_state = ProxyModeSnapshot::demo_fixture();
     state.runtime.script_block_present = true;
     state.runtime.tun_enabled = Some(true);
     state.runtime.runtime_selected_group = "GLOBAL".into();
@@ -70,7 +85,10 @@ fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
 
     // User gives up: StopProxy → ProxyStopped cleanup across all domains.
     let units = feed(&mut state, Message::StopProxy);
-    assert_eq!(state.runtime.status, RuntimeStatus::Stopped);
+    assert!(
+        matches!(state.runtime.status, RuntimeStatus::Error(_)),
+        "a queued stop cannot claim completion"
+    );
     assert!(units >= 1, "shutdown task armed (no runtime → no-op body)");
 
     let units = feed(&mut state, Message::ProxyStopped);
@@ -78,13 +96,11 @@ fn core_lifecycle_degrades_cleanly_from_boot_failure_to_full_stop_cleanup() {
     assert!(state.diag.traffic.is_none(), "traffic cleared");
     assert!(state.diag.logs.is_empty(), "logs cleared");
     assert!(state.runtime.proxy_mode.is_none(), "mode reset");
+    assert_eq!(state.runtime.proxy_mode_state, ProxyModeSnapshot::default());
     assert!(!state.runtime.script_block_present, "script gate closed");
     assert_eq!(state.runtime.tun_enabled, None);
     assert!(state.runtime.runtime_selected_group.is_empty());
-    assert_eq!(
-        state.diag.traffic_stream_state,
-        crate::types::runtime::RuntimeStreamState::Idle
-    );
+    assert_eq!(state.diag.traffic_stream_state, RuntimeStreamState::Idle);
 
     // ProxyStopped pushes the refreshed (stopped) tray spec without dying.
     assert!(
@@ -101,10 +117,20 @@ fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
     let mut state = fresh_state();
     state.runtime.proxy_mode = Some("rule".into());
     state.runtime.script_block_present = false;
+    state.runtime.proxy_mode_state = ProxyModeSnapshot {
+        current: Some(ProxyMode::Rule),
+        script_available: Some(false),
+        status: ProxyModeStatus::Ready,
+        failure: None,
+    };
 
     // Gate rejects synchronously: no optimistic flip, no patch snapshot.
     let units = feed(&mut state, Message::SetProxyMode("script".into()));
-    assert_eq!(units, 1, "refusal arms only the error toast");
+    assert_eq!(
+        units, 0,
+        "refusal stays in the persistent operation surface"
+    );
+    assert!(state.runtime.mode_actions.failure.is_some());
     assert_eq!(
         state.runtime.proxy_mode.as_deref(),
         Some("rule"),
@@ -116,15 +142,27 @@ fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
     );
     assert!(
         state.shell.error_msg.is_none(),
-        "gate refusal is toast-only"
+        "mode rejection does not use the generic error banner"
     );
 
     // script: block present → the gate opens, but with no runtime the
     // request lands in the runtime_unavailable branch (banner + toast).
     state.runtime.script_block_present = true;
+    state.runtime.proxy_mode_state.script_available = Some(true);
+    state.runtime.mode_actions.observe(
+        state.runtime.runtime_generation,
+        1,
+        state.runtime.proxy_mode_state.clone(),
+    );
     let units = feed(&mut state, Message::SetProxyMode("script".into()));
-    assert!(state.shell.error_msg.is_some(), "runtime guard surfaces");
-    assert_eq!(units, 1, "guard toast armed");
+    assert!(
+        state.runtime.mode_actions.failure.is_some(),
+        "runtime guard remains visible in the operation surface"
+    );
+    assert_eq!(
+        units, 0,
+        "missing runtime does not queue a write or a toast"
+    );
     assert_eq!(
         state.runtime.proxy_mode.as_deref(),
         Some("rule"),
@@ -140,11 +178,11 @@ fn script_mode_gate_refuses_without_script_block_then_hits_runtime_guard() {
 fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     let home = TempHome::acquire("kernels");
     let mut state = fresh_state();
-    let tray = super::support::FakeTray::install(&mut state);
+    let tray = FakeTray::install(&mut state);
 
     // LoadKernels task body for real on an empty store.
     let versions = block_on(async {
-        crate::version_application::application()
+        application()
             .unwrap()
             .list_installed()
             .await
@@ -172,7 +210,7 @@ fn kernel_management_round_trip_and_download_progress_tray_throttle() {
     assert_eq!(units, 1, "result chains LoadKernels");
 
     let versions = block_on(async {
-        crate::version_application::application()
+        application()
             .unwrap()
             .list_installed()
             .await
@@ -400,13 +438,13 @@ fn dual_surface_headless_lifecycle_matrix_covers_failure_conflict_and_stop() {
 }
 
 #[cfg(unix)]
-fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
+fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
     use std::os::unix::fs::PermissionsExt;
     let dir = home.join("versions").join(version);
-    std::fs::create_dir_all(&dir).unwrap();
+    create_dir_all(&dir).unwrap();
     let bin = dir.join("mihomo");
-    std::fs::write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
-    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
+    set_permissions(&bin, Permissions::from_mode(0o755)).unwrap();
 }
 
 /// Journey 11 — 托盘全链：MenuActivated → resolve（真实当前状态）→ intent →
@@ -438,7 +476,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(
         matches!(
             resolve_tray_event_in(&event, &ctx),
-            Some(crate::tray::spec::TrayIntent::SelectProxy { group, node })
+            Some(TrayIntent::SelectProxy { group, node })
             if group == "PROXY" && node == "HK-1"
         ),
         "pair payload resolves to the group/node pair"
@@ -489,7 +527,7 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(
         matches!(
             &intent,
-            Some(crate::tray::spec::TrayIntent::SetProfileAutoUpdate { name, enabled })
+            Some(TrayIntent::SetProfileAutoUpdate { name, enabled })
             if name == "Free" && *enabled
         ),
         "resolver flips against the current per-profile flag"
@@ -524,11 +562,11 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     };
     assert!(matches!(
         resolve_tray_event_in(&paid_event, &ctx),
-        Some(crate::tray::spec::TrayIntent::SetProfileAutoUpdate { enabled: false, .. })
+        Some(TrayIntent::SetProfileAutoUpdate { enabled: false, .. })
     ));
     assert!(matches!(
         resolve_tray_event_in(&free_event, &ctx),
-        Some(crate::tray::spec::TrayIntent::SetProfileAutoUpdate { enabled: true, .. })
+        Some(TrayIntent::SetProfileAutoUpdate { enabled: true, .. })
     ));
 
     // Mode switch from the tray: no optimistic flip without a runtime (the
@@ -544,13 +582,16 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert_eq!(units, 1);
     feed(&mut state, Message::SetProxyMode("global".into()));
     assert!(
-        state.shell.error_msg.is_some(),
-        "no runtime → unavailable banner"
+        state.runtime.mode_actions.failure.is_some(),
+        "no runtime → persistent mode issue"
     );
     assert_eq!(
         state.runtime.proxy_mode, None,
         "no optimistic flip without a runtime: the tray never lies"
     );
+    assert!(state.runtime.pending_runtime_patch.is_none());
+    assert_eq!(state.runtime.proxy_mode_state.current, None);
+    assert!(state.runtime.mode_actions.failure.is_some());
 
     // Kernel default switch forwards the version payload.
     let units = feed(
@@ -577,8 +618,8 @@ fn tray_event_chains_resolve_intents_and_drive_state_domains() {
     assert!(state.profile.is_updating_subscription_now);
 }
 
-fn shadowsocks_proxy() -> infiltrator_domain::proxy::Shadowsocks {
-    infiltrator_domain::proxy::Shadowsocks {
+fn shadowsocks_proxy() -> Shadowsocks {
+    Shadowsocks {
         base: ProxyBase::default(),
         ..Default::default()
     }
@@ -591,12 +632,12 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     let mut state = fresh_state();
     state.shell.lang = "zh-CN".into();
     state.runtime.installed_kernels = vec![
-        infiltrator_contract::version::InstalledCoreVersion {
+        InstalledCoreVersion {
             version: "v1.19.18".into(),
             path: "/versions/v1.19.18".into(),
             is_default: true,
         },
-        infiltrator_contract::version::InstalledCoreVersion {
+        InstalledCoreVersion {
             version: "v1.18.0".into(),
             path: "/versions/v1.18.0".into(),
             is_default: false,
@@ -604,13 +645,15 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     ];
 
     let spec = state.current_tray_spec();
-    let crate::tray::spec::TrayMenuItem::Submenu { label, items: kernel_items, .. } = spec
+    let TrayMenuItem::Submenu {
+        label,
+        items: kernel_items,
+        ..
+    } = spec
         .menu
         .items
         .iter()
-        .find(|item| {
-            matches!(item, crate::tray::spec::TrayMenuItem::Submenu { label, .. } if label.contains("内核"))
-        })
+        .find(|item| matches!(item, TrayMenuItem::Submenu { label, .. } if label.contains("内核")))
         .expect("kernels submenu expected")
     else {
         panic!("kernels entry must be a submenu");
@@ -627,13 +670,13 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
     // One nested submenu per version with per-version default/ uninstall
     // actions: the current default's actions are disabled, the other's are
     // enabled and payload-tagged.
-    let version_submenus: Vec<&crate::tray::spec::TrayMenuItem> = kernel_items
+    let version_submenus: Vec<&TrayMenuItem> = kernel_items
         .iter()
-        .filter(|item| matches!(item, crate::tray::spec::TrayMenuItem::Submenu { .. }))
+        .filter(|item| matches!(item, TrayMenuItem::Submenu { .. }))
         .collect();
     assert_eq!(version_submenus.len(), 2);
     for entry in version_submenus {
-        let crate::tray::spec::TrayMenuItem::Submenu {
+        let TrayMenuItem::Submenu {
             label: version,
             items: actions,
             ..
@@ -643,9 +686,9 @@ fn kernel_versions_flow_into_the_tray_spec_submenu() {
         };
         let set_default = actions
             .iter()
-            .find(|item| matches!(item, crate::tray::spec::TrayMenuItem::Action { id, .. } if *id == TRAY_ACTION_SET_DEFAULT_KERNEL))
+            .find(|item| matches!(item, TrayMenuItem::Action { id, .. } if *id == TRAY_ACTION_SET_DEFAULT_KERNEL))
             .expect("set-default action present");
-        let crate::tray::spec::TrayMenuItem::Action {
+        let TrayMenuItem::Action {
             enabled, payload, ..
         } = set_default
         else {

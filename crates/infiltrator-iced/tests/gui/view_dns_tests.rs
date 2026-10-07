@@ -1,10 +1,12 @@
 use super::*;
 use crate::view::dns_form_panel::{
     dns_form_field_widget, domain_mapping_mode_control, filter_mode_control, flush_outcome_label,
-    form_issue_banner, localized_form_issue, token_row,
+    form_issue_banner, token_row,
 };
-use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode};
-use infiltrator_contract::dns_form::DnsWorkbenchForm;
+use infiltrator_application::dns_status_projection::form_issue;
+use infiltrator_contract::dns::{DnsEnhancedMode, DnsFakeIpFilterMode, DnsServerTag};
+use infiltrator_contract::dns_form::{DnsFallbackPolicyDraft, DnsWorkbenchForm};
+use infiltrator_contract::error::{ErrorCode, Failure};
 
 #[test]
 fn test_rebuild_status_badge_kinds() {
@@ -97,10 +99,16 @@ fn test_domain_mapping_and_filter_mode_controls() {
 fn test_server_tag_labels_are_localized() {
     let zh = Lang("zh-CN");
     let en = Lang("en-US");
-    assert_eq!(server_tag_label(DnsServerTag::Domestic, &zh), "国内");
-    assert_eq!(server_tag_label(DnsServerTag::Encrypted, &en), "Encrypted");
-    assert_eq!(server_tag_label(DnsServerTag::Fallback, &en), "Fallback");
-    assert_eq!(server_tag_label(DnsServerTag::Plain, &zh), "明文");
+    assert_eq!(server_tags_text(&[DnsServerTag::Domestic], zh.0), "国内");
+    assert_eq!(
+        server_tags_text(&[DnsServerTag::Encrypted], en.0),
+        "Encrypted"
+    );
+    assert_eq!(
+        server_tags_text(&[DnsServerTag::Fallback], en.0),
+        "Fallback"
+    );
+    assert_eq!(server_tags_text(&[DnsServerTag::Plain], zh.0), "明文");
     let _ = token_row(
         "https://doh.pub/dns-query",
         0,
@@ -132,7 +140,7 @@ fn test_dns_form_panel_renders_the_shared_draft() {
     let (mut state, _) = AppState::new();
     state.editor.dns_form = DnsWorkbenchForm {
         nameserver: "https://doh.pub/dns-query".to_owned(),
-        fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+        fallback_policy: DnsFallbackPolicyDraft {
             geoip: true,
             geoip_code: "CN".to_owned(),
             trigger_ipcidr: "240.0.0.0/4".to_owned(),
@@ -154,14 +162,14 @@ fn test_dns_form_validation_issues_localize_in_both_locales() {
     form.fallback_policy.geoip_code = "CHN".to_owned();
     let issues = form.validate();
     assert!(!issues.is_empty());
-    let zh = localized_form_issue(&issues[0], &Lang("zh-CN"));
-    let en = localized_form_issue(&issues[0], &Lang("en-US"));
+    let zh = form_issue(&issues[0], "zh-CN");
+    let en = form_issue(&issues[0], "en-US");
     assert!(zh.contains("字段"), "{zh}");
     assert!(en.contains("nameserver"), "{en}");
     assert!(!en.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c)));
     for issue in &issues {
-        let _ = localized_form_issue(issue, &Lang("zh-CN"));
-        let _ = localized_form_issue(issue, &Lang("en-US"));
+        let _ = form_issue(issue, "zh-CN");
+        let _ = form_issue(issue, "en-US");
     }
     let _ = form_issue_banner(&issues, &Lang("zh-CN"));
     let _ = form_issue_banner(&issues, &Lang("en-US"));
@@ -169,7 +177,7 @@ fn test_dns_form_validation_issues_localize_in_both_locales() {
 
 #[test]
 fn test_dns_cache_flush_outcome_labels_are_localized() {
-    use infiltrator_contract::dns::DnsFlushOutcome;
+    use infiltrator_contract::dns_cache::DnsFlushOutcome;
     let zh = Lang("zh-CN");
     let en = Lang("en-US");
     assert_eq!(
@@ -189,11 +197,11 @@ fn test_dns_cache_flush_outcome_labels_are_localized() {
     assert!(unsupported.contains("宿主不支持"), "{unsupported}");
     let failed = flush_outcome_label(
         &DnsFlushOutcome::Failed {
-            message: "exit 1".to_owned(),
+            failure: Failure::new(ErrorCode::Permission, "exit 1", false),
         },
         &en,
     );
-    assert!(failed.contains("flush failed"), "{failed}");
+    assert!(failed.contains("Flush failed"), "{failed}");
 }
 
 #[test]
@@ -202,7 +210,7 @@ fn test_dns_form_patch_uses_the_shared_workbench_mapping() {
     state.editor.dns_form = DnsWorkbenchForm {
         nameserver: "https://dns.google/dns-query, quic://dns.adguard.com".to_owned(),
         fallback: "8.8.8.8".to_owned(),
-        fallback_policy: infiltrator_contract::dns_form::DnsFallbackPolicyDraft {
+        fallback_policy: DnsFallbackPolicyDraft {
             geoip: true,
             geoip_code: "CN".to_owned(),
             trigger_ipcidr: "240.0.0.0/4".to_owned(),

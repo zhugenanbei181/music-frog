@@ -1,13 +1,12 @@
 //! Script construction, guarded execution, and transform result assembly.
 
-use regex::Regex;
-use serde_yaml_ng::Value;
-use std::time::{Duration, Instant};
-
 use super::{
     DEFAULT_MAX_MEMORY_BYTES, DEFAULT_SCRIPT_TIMEOUT_MS, HookStage, ScriptContext, ScriptEngine,
     ScriptError, ScriptExecutionResult,
 };
+use regex::Regex;
+use serde_yaml_ng::Value;
+use std::time::{Duration, Instant};
 
 impl Default for ScriptEngine {
     fn default() -> Self {
@@ -63,7 +62,18 @@ impl ScriptEngine {
         yaml_content: &str,
         stage: HookStage,
     ) -> Result<ScriptExecutionResult, ScriptError> {
-        let start = Instant::now();
+        self.execute_transform_detailed_with_clock(script, yaml_content, stage, Instant::now)
+    }
+
+    /// Drive the same transform and unchanged budget using an explicit monotonic clock.
+    pub fn execute_transform_detailed_with_clock(
+        &self,
+        script: &str,
+        yaml_content: &str,
+        stage: HookStage,
+        mut now: impl FnMut() -> Instant,
+    ) -> Result<ScriptExecutionResult, ScriptError> {
+        let start = now();
         let total_size = script.len().saturating_add(yaml_content.len());
         if total_size > self.max_memory_bytes {
             return Err(ScriptError::MemoryExceeded(total_size));
@@ -103,7 +113,7 @@ impl ScriptEngine {
             .map_err(|e| ScriptError::Runtime(format!("Failed to parse input YAML: {e}")))?;
         let matched_directives = self.evaluate_ast_directives(script, &mut ast)?;
 
-        let elapsed = start.elapsed();
+        let elapsed = now().saturating_duration_since(start);
         if elapsed > self.timeout {
             return Err(ScriptError::Timeout(self.timeout.as_millis() as u64));
         }

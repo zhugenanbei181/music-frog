@@ -3,8 +3,6 @@
 //! projection (runs, selection wash, caret blink), and the scene adapter
 //! whose sync systems restamp everything in place.
 
-use std::time::Duration;
-
 use bevy::MinimalPlugins;
 use bevy::app::{App, Startup, Update};
 use bevy::asset::AssetPlugin;
@@ -13,11 +11,15 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Commands, Res, ResMut};
+use bevy::ecs::world::World;
+use bevy::math::Vec2;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::time::{Time, Virtual};
-use bevy::ui::BackgroundColor;
+use bevy::ui::ScrollPosition;
 use bevy::ui::widget::Text;
+use bevy::ui::{BackgroundColor, Display, Node};
 use bevy::ui_widgets::Button;
+use bevy::ui_widgets::ScrollArea;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::scrollarea::{
@@ -31,11 +33,33 @@ use infiltrator_bevy_widgets::text_input::ime::{
 use infiltrator_bevy_widgets::text_input::state::{
     TextFieldInput, TextFieldState, ValidationStatus, field_visual, validation_border_color,
 };
+
+#[test]
+fn owner_restore_cancels_old_ime_and_selection_without_enabling_user_input() {
+    let mut field = TextFieldState::new("old draft");
+    field.apply(TextFieldInput::SelectAll);
+    field.begin_ime_transaction();
+    field.set_preedit("ni");
+    field.set_disabled(true);
+    field.set_readonly(true);
+    assert!(field.restore_text(String::new()));
+    assert_eq!(field.text(), "");
+    assert_eq!(field.selection(), None);
+    assert!(!field.is_in_ime_transaction());
+    assert_eq!(field.preedit(), "");
+    assert!(field.is_disabled());
+    assert!(field.is_readonly());
+    assert!(!field.apply(TextFieldInput::SetText("late input".into())));
+    assert!(!field.rollback_ime_transaction());
+    assert_eq!(field.text(), "");
+}
+use infiltrator_bevy_widgets::text_input::render::sync_field_carets;
 use infiltrator_bevy_widgets::text_input::{
-    TextField, TextFieldAfter, TextFieldCaret, TextFieldPreeditText, TextFieldSelection,
-    TextFieldSelectionText, sync_field_carets, text_field_scene,
+    TextField, TextFieldAfter, TextFieldCaret, TextFieldFocused, TextFieldPreedit,
+    TextFieldPreeditText, TextFieldSelection, TextFieldSelectionText, text_field_scene,
 };
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use std::time::Duration;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -232,6 +256,18 @@ fn caret_blink_reaches_both_states_in_place() {
     app.add_systems(Update, advance_blink_clock.before(sync_field_carets));
     app.update();
 
+    let field = app
+        .world_mut()
+        .query::<(Entity, &TextField)>()
+        .single(app.world())
+        .unwrap()
+        .0;
+    app.world_mut()
+        .get_mut::<TextFieldFocused>(field)
+        .unwrap()
+        .0 = true;
+    app.update();
+
     let world = app.world_mut();
     let mut carets = world.query::<(&TextFieldCaret, Entity)>();
     let mut slots: Vec<(usize, Entity)> = carets
@@ -242,9 +278,8 @@ fn caret_blink_reaches_both_states_in_place() {
     assert_eq!(slots.len(), 2, "both caret bars exist");
     assert_eq!(slots[0].0, 0, "slot 0 is the no-selection caret");
 
-    let visibility = |world: &bevy::ecs::world::World, entity: Entity| {
-        *world.get::<Visibility>(entity).expect("caret visibility")
-    };
+    let visibility =
+        |world: &World, entity: Entity| *world.get::<Visibility>(entity).expect("caret visibility");
     // The active slot (0, the no-selection caret) alternates hidden/visible
     // one period per frame; slot 1 has no cursor and stays hidden. Both
     // blink states are therefore reached, on stable entities.
@@ -533,9 +568,9 @@ fn preedit_state_machine_pinyin_segmentation_and_navigation() {
 #[test]
 fn ime_cursor_area_absolute_screen_computation() {
     let params = ImeCursorAreaParams {
-        field_origin: bevy::math::Vec2::new(100.0, 200.0),
-        field_size: bevy::math::Vec2::new(300.0, 40.0),
-        padding: bevy::math::Vec2::new(12.0, 4.0),
+        field_origin: Vec2::new(100.0, 200.0),
+        field_size: Vec2::new(300.0, 40.0),
+        padding: Vec2::new(12.0, 4.0),
         caret_offset_x: 50.0,
         caret_width: 2.0,
         caret_height: 20.0,
@@ -546,7 +581,7 @@ fn ime_cursor_area_absolute_screen_computation() {
     assert_eq!(area.x(), 100.0 + 12.0 + 50.0); // 162.0
     assert_eq!(area.width(), 2.0);
     assert_eq!(area.height(), 20.0);
-    assert_eq!(area.min(), bevy::math::Vec2::new(162.0, area.y()));
+    assert_eq!(area.min(), Vec2::new(162.0, area.y()));
     assert_eq!(area.right(), 164.0);
     assert_eq!(area.bottom(), area.y() + 20.0);
 
@@ -676,10 +711,7 @@ fn focus_avoidance_auto_scroll_ecs() {
     app.insert_resource(SoftKeyboardState::open(300.0));
     app.add_systems(Startup, |mut commands: Commands| {
         commands
-            .spawn((
-                bevy::ui_widgets::ScrollArea,
-                bevy::ui::ScrollPosition::default(),
-            ))
+            .spawn((ScrollArea, ScrollPosition::default()))
             .with_children(|parent| {
                 parent.spawn((TextField(TextFieldState::new("test")), FocusedTextInput));
             });
@@ -687,7 +719,7 @@ fn focus_avoidance_auto_scroll_ecs() {
     app.update();
 
     let world = app.world_mut();
-    let mut query = world.query::<&bevy::ui::ScrollPosition>();
+    let mut query = world.query::<&ScrollPosition>();
     assert_eq!(query.iter(world).count(), 1);
 }
 
@@ -755,4 +787,53 @@ fn text_input_validation_border_colors() {
         validation_border_color(ValidationStatus::Normal, false, &palette),
         palette.border
     );
+}
+
+#[test]
+fn unfocused_fields_hide_carets_and_empty_selection_wash() {
+    let mut app = headless_app();
+    app.add_systems(
+        Startup,
+        |mut commands: Commands, palette: Res<UiPalette>| {
+            commands.spawn_scene(text_field_scene("".into(), &palette));
+        },
+    );
+    app.update();
+    let world = app.world_mut();
+    for (_, visibility) in world.query::<(&TextFieldCaret, &Visibility)>().iter(world) {
+        assert_eq!(*visibility, Visibility::Hidden);
+    }
+    for (_, node) in world.query::<(&TextFieldSelection, &Node)>().iter(world) {
+        assert_eq!(node.display, Display::None);
+    }
+    for (_, node) in world.query::<(&TextFieldPreedit, &Node)>().iter(world) {
+        assert_eq!(
+            node.display,
+            Display::None,
+            "empty preedit has no visible underline"
+        );
+    }
+    let field = world
+        .query::<(Entity, &TextField)>()
+        .single(world)
+        .unwrap()
+        .0;
+    world.get_mut::<TextFieldFocused>(field).unwrap().0 = true;
+    app.update();
+    app.world_mut()
+        .get_mut::<TextFieldFocused>(field)
+        .unwrap()
+        .0 = false;
+    app.update();
+    for (_, visibility) in app
+        .world_mut()
+        .query::<(&TextFieldCaret, &Visibility)>()
+        .iter(app.world())
+    {
+        assert_eq!(
+            *visibility,
+            Visibility::Hidden,
+            "blur removes every caret immediately"
+        );
+    }
 }

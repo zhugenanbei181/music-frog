@@ -8,6 +8,7 @@ use bevy::asset::AssetPlugin;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::system::{Commands, Res};
+use bevy::ecs::world::World;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::ui::BackgroundColor;
 use infiltrator_bevy_widgets::WidgetsPlugin;
@@ -362,7 +363,7 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
     );
     app.update();
 
-    let row_ids = |world: &mut bevy::ecs::world::World| -> Vec<Entity> {
+    let row_ids = |world: &mut World| -> Vec<Entity> {
         let mut lists = world.query::<(Entity, &List, &Children)>();
         let (_, _, children) = lists.iter(world).next().expect("one list");
         children.iter().copied().collect()
@@ -371,12 +372,10 @@ fn list_scene_mounts_rows_and_selection_flip_reprojects_in_place() {
     assert_eq!(ids.len(), 4);
 
     let palette = UiPalette::new(&Theme::dark());
-    let active_of = |world: &bevy::ecs::world::World, entity: Entity| {
-        world.get::<NavActive>(entity).expect("row active bit").0
-    };
-    let fill_of = |world: &bevy::ecs::world::World, entity: Entity| {
-        world.get::<BackgroundColor>(entity).expect("row fill").0
-    };
+    let active_of =
+        |world: &World, entity: Entity| world.get::<NavActive>(entity).expect("row active bit").0;
+    let fill_of =
+        |world: &World, entity: Entity| world.get::<BackgroundColor>(entity).expect("row fill").0;
     assert!(active_of(app.world_mut(), ids[1]), "row 1 selected");
     assert_eq!(fill_of(app.world_mut(), ids[1]), nav_fill(true, &palette));
 

@@ -1,15 +1,17 @@
 use crate::state::AppState;
 use crate::types::dns::{AdvancedEditMode, DnsTab};
+use crate::types::dns_query::QueryAction;
 use crate::types::editor::EditorLazyState;
 use crate::types::message::Message;
 use crate::types::runtime::RebuildFlowState;
+use crate::view::component_card::card;
 use crate::view::component_forms::{
     banner_alert, editor_frame_surface, form_field_label, form_input_style, form_pick_style,
     form_toggle_row, responsive_form_row, responsive_form_toggle_row, row_card_surface,
     style_accent, style_ghost, text_btn,
 };
 use crate::view::components::{
-    BadgeKind, badge, card, empty_state, icon_button, modern_scrollable, section_header,
+    BadgeKind, badge, empty_state, icon_button, modern_scrollable, section_header,
     segmented_control,
 };
 use crate::view::dns_form_panel::{
@@ -18,11 +20,19 @@ use crate::view::dns_form_panel::{
 use crate::view::dns_hosts_panel::{
     fake_ip_pool_panel, hosts_panel, latency_policy_line, self_heal_panel,
 };
+use crate::view::dns_leak_panel::leak_panel;
+use crate::view::stun_probe_panel::stun_panel;
 use crate::view::svg_icons::Icon;
-use crate::view::theme::{self, FONT_SEMIBOLD, MONO, SP_LG, tokens};
-use iced::widget::{Space, column, container, pick_list, row, text, text_editor, text_input};
+use crate::view::theme;
+use crate::view::theme::{FONT_SEMIBOLD, MONO, SP_LG, tokens};
+use crate::view::tun_stack_card::tun_stack_card;
+use iced::widget::{
+    Row, Space, button, column, container, pick_list, row, text, text_editor, text_input,
+};
 use iced::{Alignment, Element, Length, Theme};
-use infiltrator_contract::dns::DnsServerTag;
+use infiltrator_contract::dns::{
+    DnsUpstreamProtocol, append_server, parse_server_list, remove_server_at,
+};
 use infiltrator_contract::dns_form::DnsFormField;
 use infiltrator_shared::locales::{Lang, Localizer};
 
@@ -89,7 +99,7 @@ fn header_actions<'a>(
     save: Message,
     saving: bool,
     dirty: bool,
-) -> iced::widget::Row<'a, Message> {
+) -> Row<'a, Message> {
     row![
         icon_button(Icon::RefreshCw, 14.0, refresh),
         Space::new().width(theme::SP_SM),
@@ -133,29 +143,19 @@ fn mode_tabs(tab: DnsTab, current: AdvancedEditMode) -> Element<'static, Message
 
 /// Protocol chip label for a nameserver address (shared contract decode).
 pub fn dns_protocol_chip(server: &str) -> &'static str {
-    infiltrator_contract::dns::DnsUpstreamProtocol::from_address(server).chip_label()
+    DnsUpstreamProtocol::from_address(server).chip_label()
 }
 
 pub(crate) fn parse_item_list(raw: &str) -> Vec<String> {
-    infiltrator_contract::dns::parse_server_list(raw)
+    parse_server_list(raw)
 }
 
 pub(crate) fn remove_item_from_list(raw: &str, index: usize) -> String {
-    infiltrator_contract::dns::remove_server_at(raw, index)
+    remove_server_at(raw, index)
 }
 
 pub(crate) fn append_item_to_list(raw: &str, item: &str) -> String {
-    infiltrator_contract::dns::append_server(raw, item)
-}
-
-pub(crate) fn server_tag_label(tag: DnsServerTag, lang: &Lang<'_>) -> String {
-    match tag {
-        DnsServerTag::Domestic => lang.tr("dns_tag_domestic"),
-        DnsServerTag::Fallback => lang.tr("dns_tag_fallback"),
-        DnsServerTag::Encrypted => lang.tr("dns_tag_encrypted"),
-        DnsServerTag::Plain => lang.tr("dns_tag_plain"),
-    }
-    .to_string()
+    append_server(raw, item)
 }
 
 fn dns_form_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Message> {
@@ -518,16 +518,19 @@ fn tun_json_panel<'a>(state: &'a AppState, lang: &Lang<'a>) -> Element<'a, Messa
 }
 
 fn dns_leak_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    crate::view::dns_leak_panel::leak_panel(state, lang)
+    leak_panel(state, lang)
 }
 
 fn stun_probe_panel<'a>(state: &'a AppState, lang: &Lang<'_>) -> Element<'a, Message> {
-    crate::view::stun_probe_panel::stun_panel(state, lang)
+    stun_panel(state, lang)
 }
 
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let lang = Lang(&state.shell.lang);
     let header = row![
+        button(text(lang.tr("dns_query_open")).size(12))
+            .style(style_accent)
+            .on_press(Message::DnsQuery(QueryAction::Open)),
         text(lang.tr("dns_title").to_string())
             .size(24)
             .font(FONT_SEMIBOLD)
@@ -564,13 +567,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 card(
                     None,
                     column![
-                        text("Preparing advanced panels...")
+                        text(lang.tr("page_controls_loading").into_owned())
                             .size(14)
                             .font(FONT_SEMIBOLD)
                             .style(|t: &Theme| text::Style {
                                 color: Some(tokens(t).text_primary)
                             }),
-                        text("Heavy editors are mounted lazily after first paint.")
+                        text(lang.tr("page_controls_loading_hint").into_owned())
                             .size(12)
                             .style(|t: &Theme| text::Style {
                                 color: Some(tokens(t).text_secondary)
@@ -632,7 +635,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         }
         DnsTab::Tun => {
             let mode_tabs = mode_tabs(DnsTab::Tun, state.editor.tun_mode);
-            let stack_card = crate::view::tun_stack_card::tun_stack_card(state, &lang);
+            let stack_card = tun_stack_card(state, &lang);
             let body = if state.editor.tun_mode == AdvancedEditMode::Form {
                 tun_form_panel(state, &lang)
             } else {
@@ -666,6 +669,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .height(Length::Fill)
     .into()
 }
+
+#[cfg(test)]
+use infiltrator_application::dns_latency_projection::server_tags_text;
 
 #[cfg(test)]
 #[path = "../../tests/gui/view_dns_tests.rs"]

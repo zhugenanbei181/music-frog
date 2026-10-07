@@ -1,5 +1,8 @@
 //! Network latency, bandwidth diagnostics, rate tracking, network throttling simulation, and privacy leak detection.
 
+use crate::dns_tester::DnsTester;
+use std::net::Ipv6Addr;
+use std::time;
 use std::time::Instant;
 
 /// Snapshot of connection transfer rates at a given time.
@@ -433,12 +436,12 @@ impl TokenBucket {
         }
     }
 
-    pub fn consume_or_wait(&mut self, bytes: u64, now: Instant) -> std::time::Duration {
+    pub fn consume_or_wait(&mut self, bytes: u64, now: Instant) -> time::Duration {
         self.refill(now);
         let required = bytes as f64;
         if self.available_tokens >= required {
             self.available_tokens -= required;
-            std::time::Duration::ZERO
+            time::Duration::ZERO
         } else {
             let deficit = required - self.available_tokens;
             let wait_secs = if self.rate_bytes_per_sec > 0.0 {
@@ -447,7 +450,7 @@ impl TokenBucket {
                 0.0
             };
             self.available_tokens = 0.0;
-            std::time::Duration::from_secs_f64(wait_secs)
+            time::Duration::from_secs_f64(wait_secs)
         }
     }
 
@@ -547,11 +550,11 @@ impl ThrottlingCalculator {
         self.up_bucket.try_consume(bytes, now)
     }
 
-    pub fn compute_downlink_wait(&mut self, bytes: u64, now: Instant) -> std::time::Duration {
+    pub fn compute_downlink_wait(&mut self, bytes: u64, now: Instant) -> time::Duration {
         self.down_bucket.consume_or_wait(bytes, now)
     }
 
-    pub fn compute_uplink_wait(&mut self, bytes: u64, now: Instant) -> std::time::Duration {
+    pub fn compute_uplink_wait(&mut self, bytes: u64, now: Instant) -> time::Duration {
         self.up_bucket.consume_or_wait(bytes, now)
     }
 
@@ -765,10 +768,7 @@ impl PrivacyLeakDetectionSuite {
         // 1. Fake-IP Bypass check: connection to a Fake-IP address routed DIRECT
         if is_direct
             && !conn.destination_ip.is_empty()
-            && crate::dns_tester::DnsTester::check_fake_ip_range(
-                &conn.destination_ip,
-                &self.fake_ip_cidr,
-            )
+            && DnsTester::check_fake_ip_range(&conn.destination_ip, &self.fake_ip_cidr)
         {
             outcome.fake_ip_bypass = true;
             outcome.details.push(format!(
@@ -847,7 +847,7 @@ impl PrivacyLeakDetectionSuite {
             && log
                 .resolved_ips
                 .iter()
-                .any(|ip| crate::dns_tester::DnsTester::check_fake_ip_range(ip, &self.fake_ip_cidr))
+                .any(|ip| DnsTester::check_fake_ip_range(ip, &self.fake_ip_cidr))
         {
             outcome.fake_ip_bypass = true;
             outcome.details.push(format!(
@@ -875,7 +875,7 @@ fn is_loopback_or_empty(ip_or_addr: &str) -> bool {
 }
 
 fn is_public_ipv6(ip_str: &str) -> bool {
-    if let Ok(ip) = ip_str.parse::<std::net::Ipv6Addr>() {
+    if let Ok(ip) = ip_str.parse::<Ipv6Addr>() {
         let segs = ip.segments();
         let is_link_local = (segs[0] & 0xffc0) == 0xfe80;
         let is_unique_local = (segs[0] & 0xfe00) == 0xfc00;

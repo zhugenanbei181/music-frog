@@ -6,14 +6,17 @@
 //! HTTP client: response-body limits, retries, header extraction and request
 //! construction.
 
+use crate::profile_options_io::apply_saved_options_for;
 use anyhow::{Result, anyhow};
+use infiltrator_domain::subscription;
 use infiltrator_domain::subscription::{
     CheckedSubscriptionUrl, SubscriptionFetchOptions, SubscriptionUserInfo, UserAgentCatalog,
     WafDiagnostic, WafResponseMetadata, decode_subscription_bytes, parse_subscription_userinfo,
     strip_utf8_bom,
 };
 use infiltrator_http::HttpClient;
-use infiltrator_http::reqwest::{Response, header::HeaderMap};
+use infiltrator_http::reqwest::Response;
+use infiltrator_http::reqwest::header::HeaderMap;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_source::{
     ConditionalDocumentResult, ConditionalFetchHeaders, SubscriptionDocument, SubscriptionSource,
@@ -56,10 +59,9 @@ impl SubscriptionSource for HttpSubscriptionSource {
             .await
             .map_err(|error| PortError::Network(error.to_string()))?;
         let content = strip_utf8_bom(&content);
-        let (content, _report) =
-            crate::profile_options_io::apply_saved_options_for(profile, content)
-                .await
-                .map_err(|error| PortError::Io(error.to_string()))?;
+        let (content, _report) = apply_saved_options_for(profile, content)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
         Ok(SubscriptionDocument { content, userinfo })
     }
 
@@ -100,10 +102,9 @@ impl SubscriptionSource for HttpSubscriptionSource {
                 last_modified,
             } => {
                 let content = strip_utf8_bom(&text);
-                let (content, _report) =
-                    crate::profile_options_io::apply_saved_options_for(profile, content)
-                        .await
-                        .map_err(|error| PortError::Io(error.to_string()))?;
+                let (content, _report) = apply_saved_options_for(profile, content)
+                    .await
+                    .map_err(|error| PortError::Io(error.to_string()))?;
                 Ok(ConditionalDocumentResult::Modified {
                     document: SubscriptionDocument { content, userinfo },
                     etag,
@@ -236,7 +237,7 @@ async fn fetch_subscription_conditional(
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
     let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
 
-    if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
+    if subscription::WafChallengeDetector::is_html_disguised(&text) {
         return Err(anyhow!(
             "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
         ));
@@ -294,7 +295,7 @@ pub async fn fetch_subscription_with_info(
     let decoded_bytes = decode_subscription_bytes(bytes, encoding)?;
     let text = String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
 
-    if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
+    if subscription::WafChallengeDetector::is_html_disguised(&text) {
         return Err(anyhow!(
             "订阅返回了 HTML 网页内容而非节点配置，可能已被防爬/5秒盾拦截或套餐已过期"
         ));
@@ -380,7 +381,7 @@ pub async fn fetch_subscription_advanced(
         let text =
             String::from_utf8(decoded_bytes).map_err(|e| anyhow!("UTF-8 编码错误: {}", e))?;
 
-        if infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(&text) {
+        if subscription::WafChallengeDetector::is_html_disguised(&text) {
             let diag = WafChallengeDetector::inspect_response(200, &HeaderMap::new(), &text);
             last_err = anyhow!("订阅返回了网页 HTML 内容: {}", diag.summary);
             continue;
@@ -452,14 +453,10 @@ impl WafChallengeDetector {
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.parse::<u64>().ok()),
         };
-        infiltrator_domain::subscription::WafChallengeDetector::inspect_response(
-            status_code,
-            &metadata,
-            body_sample,
-        )
+        subscription::WafChallengeDetector::inspect_response(status_code, &metadata, body_sample)
     }
 
     pub fn is_html_disguised(body: &str) -> bool {
-        infiltrator_domain::subscription::WafChallengeDetector::is_html_disguised(body)
+        subscription::WafChallengeDetector::is_html_disguised(body)
     }
 }

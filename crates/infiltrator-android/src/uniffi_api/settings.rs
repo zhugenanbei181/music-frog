@@ -2,13 +2,12 @@
 //! (servers, enhanced mode, fallback filter) and Fake-IP configuration
 //! (range, filter list, cache store) plus cache clearing.
 
-use infiltrator_domain::{dns, fake_ip};
-
 use crate::ffi::{FfiBoolResult, FfiErrorCode, FfiStatus};
 use crate::host_support::{
     build_configuration_application, cache_application, get_runtime, map_application_failure,
     normalize_optional_string, sanitize_list,
 };
+use infiltrator_domain::{dns, fake_ip};
 
 // --- DNS API ---
 
@@ -230,7 +229,7 @@ pub(super) fn build_dns_settings_patch(patch: DnsSettingsPatch) -> dns::DnsConfi
 }
 
 pub(super) fn core_dns_fallback_filter_to_record(
-    filter: dns::DnsFallbackFilter,
+    filter: dns::FallbackFilter,
 ) -> DnsFallbackFilterSettings {
     DnsFallbackFilterSettings {
         geoip: filter.geoip,
@@ -243,8 +242,8 @@ pub(super) fn core_dns_fallback_filter_to_record(
 
 pub(super) fn record_to_core_dns_fallback_filter(
     filter: DnsFallbackFilterSettings,
-) -> dns::DnsFallbackFilter {
-    dns::DnsFallbackFilter {
+) -> dns::FallbackFilter {
+    dns::FallbackFilter {
         geoip: filter.geoip,
         geoip_code: normalize_optional_string(filter.geoip_code),
         ipcidr: sanitize_list(Some(filter.ipcidr)),

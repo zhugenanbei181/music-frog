@@ -6,6 +6,7 @@ pub mod overview;
 pub mod proxy;
 pub mod readiness;
 mod runtime_gateway;
+pub mod runtime_proxy;
 pub mod types;
 
 #[cfg(test)]
@@ -14,3 +15,5 @@ mod error_test;
 mod proxy_test;
 #[cfg(test)]
 mod types_test;
+
+pub mod dns_query;

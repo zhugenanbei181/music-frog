@@ -5,24 +5,6 @@
 //! structs remain Bevy-local render projections; these conversion functions
 //! are the explicit adapter between the two worlds.
 
-use bevy::app::{Plugin, Update};
-use bevy::ecs::component::Component;
-use bevy::ecs::event::Event;
-use bevy::ecs::hierarchy::Children;
-use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Res};
-use bevy::scene::{Scene, bsn};
-use bevy::text::TextColor;
-use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, Val, percent, px};
-use bevy::ui::widget::Text;
-use infiltrator_application::surface_application::SurfacePump;
-use infiltrator_contract::command::ProxyMode;
-use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
-use infiltrator_contract::surface::{HostKind, SurfaceKind};
-use infiltrator_contract::surface_snapshot;
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
-
 use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
 use crate::pages::dns::DnsProjection;
@@ -34,15 +16,41 @@ use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewSource, SourceKind};
+use bevy::app;
+use bevy::app::{Plugin, Update};
+use bevy::ecs::component::Component;
+use bevy::ecs::event::Event;
+use bevy::ecs::hierarchy::Children;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Commands, Res};
+use bevy::scene::{Scene, bsn};
+use bevy::text::TextColor;
+use bevy::ui::UiRect;
+use bevy::ui::prelude::{BackgroundColor, FlexDirection, Node, Overflow, Val, percent, px};
+use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::proxy_mode_application::ProxyModeApplication;
+use infiltrator_application::surface_application::{SurfacePump, SurfacePumpBridge};
+use infiltrator_bevy_widgets::localization::LocalizedText;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
+use infiltrator_contract::command::CommandIntent;
+use infiltrator_contract::command::ProxyMode;
+use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::snapshot::CoreLifecycleSnapshot;
+use infiltrator_contract::surface::{HostKind, SurfaceKind};
+use infiltrator_contract::surface_snapshot;
+use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::thread::spawn;
 
 #[path = "surface_demo.rs"]
-mod surface_demo;
+pub(crate) mod surface_demo;
 #[path = "surface_projection.rs"]
 mod surface_projection;
+#[path = "surface_settings.rs"]
+mod surface_settings;
 
 /// A single complete read model update delivered to the Bevy world.
 #[derive(Event, Clone, Debug, PartialEq)]
@@ -88,20 +96,32 @@ pub fn status_banner_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let (label, fill) = match status {
-        surface_snapshot::PageStatus::Loading => {
-            ("正在加载共享数据…".to_owned(), palette.surface_elevated)
-        }
-        surface_snapshot::PageStatus::Empty => {
-            ("当前没有可展示的数据".to_owned(), palette.surface_elevated)
-        }
+        surface_snapshot::PageStatus::Loading => (
+            LocalizedText::plain("surface_loading"),
+            palette.surface_elevated,
+        ),
+        surface_snapshot::PageStatus::Empty => (
+            LocalizedText::plain("surface_empty"),
+            palette.surface_elevated,
+        ),
         surface_snapshot::PageStatus::Unavailable { failure } => (
-            format!("当前宿主不可用 · {}", failure.message),
+            LocalizedText::new(
+                "surface_host_unavailable",
+                vec![("message", failure.message.clone())],
+            ),
             palette.warning,
         ),
-        surface_snapshot::PageStatus::Failed { failure } => {
-            (format!("读取失败 · {}", failure.message), palette.danger)
-        }
-        surface_snapshot::PageStatus::Ready => (String::new(), palette.surface_elevated),
+        surface_snapshot::PageStatus::Failed { failure } => (
+            LocalizedText::new(
+                "surface_read_failed",
+                vec![("message", failure.message.clone())],
+            ),
+            palette.danger,
+        ),
+        surface_snapshot::PageStatus::Ready => (
+            LocalizedText::new("common_message", vec![("message", String::new())]),
+            palette.surface_elevated,
+        ),
     };
     surface_scene(
         vec![Box::new(bsn! {
@@ -109,7 +129,7 @@ pub fn status_banner_scene(
                         width: percent(100),
                         min_width: px(0.0),
                         flex_direction: FlexDirection::Column,
-                        padding: bevy::ui::UiRect::all(Val::Px(space::S12)),
+                        padding: UiRect::all(Val::Px(space::S12)),
                         overflow: Overflow::clip(),
                     }
                     SurfaceStatusBanner {
@@ -118,7 +138,7 @@ pub fn status_banner_scene(
                     }
                     BackgroundColor({ fill })
                     Children [
-                        Text({ label }) TextRole(Role::Caption) TextColor({ palette.ink })
+                        LocalizedText { .. { label } } TextRole(Role::Caption) TextColor({ palette.ink })
                     ]
         })],
         palette,
@@ -146,7 +166,7 @@ impl OverviewSource for SurfaceOverviewAdapter {
         self.0.kind()
     }
 
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<(), String>>) {
+    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
         self.0.set_mode(mode, ack);
     }
 }
@@ -156,14 +176,29 @@ impl OverviewSource for SurfaceOverviewAdapter {
 #[derive(Clone)]
 pub struct ApplicationSurfaceSource {
     pump: SurfacePump,
-    overview: Arc<dyn OverviewSource>,
+    commands: SurfaceCommandOwner,
+}
+
+#[derive(Clone)]
+enum SurfaceCommandOwner {
+    Application(Arc<CoreApplication>),
+    Overview(Arc<dyn OverviewSource>),
 }
 
 impl ApplicationSurfaceSource {
     pub fn new(pump: SurfacePump, overview: Arc<dyn OverviewSource>) -> Self {
-        Self { pump, overview }
+        Self {
+            pump,
+            commands: SurfaceCommandOwner::Overview(overview),
+        }
     }
 
+    pub fn from_application(pump: SurfacePump, application: Arc<CoreApplication>) -> Self {
+        Self {
+            pump,
+            commands: SurfaceCommandOwner::Application(application),
+        }
+    }
     pub fn pump(&self) -> &SurfacePump {
         &self.pump
     }
@@ -178,8 +213,19 @@ impl OverviewSource for ApplicationSurfaceSource {
         SourceKind::LiveCore
     }
 
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<(), String>>) {
-        self.overview.set_mode(mode, ack);
+    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
+        if let SurfaceCommandOwner::Application(application) = &self.commands {
+            let (_, reply) = application.dispatch_tracked(CommandIntent::SetProxyMode { mode });
+            spawn(move || {
+                let result = match reply.recv() {
+                    Ok(result) => ProxyModeApplication::command_receipt(mode, result),
+                    Err(error) => Err(Failure::new(ErrorCode::NotReady, error.to_string(), true)),
+                };
+                let _ = ack.send(result);
+            });
+        } else if let SurfaceCommandOwner::Overview(overview) = &self.commands {
+            overview.set_mode(mode, ack);
+        }
     }
 }
 
@@ -193,7 +239,7 @@ impl SurfaceSource for ApplicationSurfaceSource {
 /// bounded snapshots on the Bevy update schedule and emits one coalesced
 /// contract event for the page projection layer.
 pub struct SurfaceDrainPlugin {
-    bridge: infiltrator_application::surface_application::SurfacePumpBridge,
+    bridge: SurfacePumpBridge,
 }
 
 impl SurfaceDrainPlugin {
@@ -205,10 +251,10 @@ impl SurfaceDrainPlugin {
 }
 
 #[derive(Resource, Clone)]
-struct SurfaceBridge(pub infiltrator_application::surface_application::SurfacePumpBridge);
+struct SurfaceBridge(pub SurfacePumpBridge);
 
 impl Plugin for SurfaceDrainPlugin {
-    fn build(&self, app: &mut bevy::app::App) {
+    fn build(&self, app: &mut app::App) {
         app.insert_resource(SurfaceBridge(self.bridge.clone()));
         app.add_systems(Update, drain_surface);
     }
@@ -264,7 +310,7 @@ impl OverviewSource for LegacyOverviewSurfaceSource {
         self.overview.kind()
     }
 
-    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<(), String>>) {
+    fn set_mode(&self, mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
         self.overview.set_mode(mode, ack);
     }
 }
@@ -297,8 +343,10 @@ impl OverviewSource for DemoSurfaceSource {
         SourceKind::Demo
     }
 
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<(), String>>) {
-        let _ = ack.send(Err("演示数据源不支持共享核心命令".to_owned()));
+    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
+        let _ = ack.send(Err(Failure::unsupported(
+            "Demo data has no shared core command service",
+        )));
     }
 }
 
@@ -307,21 +355,33 @@ impl OverviewSource for DemoSurfaceSource {
 /// not fabricated proxy/profile data.
 pub struct UnavailableSurfaceSource {
     snapshot: surface_snapshot::SurfaceSnapshot,
+    failure: Failure,
+}
+
+impl UnavailableSurfaceSource {
+    pub fn new(surface: SurfaceKind, host: HostKind, failure: Failure) -> Self {
+        Self {
+            snapshot: surface_snapshot::SurfaceSnapshot::unavailable(
+                surface,
+                host,
+                failure.clone(),
+            ),
+            failure,
+        }
+    }
 }
 
 impl Default for UnavailableSurfaceSource {
     fn default() -> Self {
-        Self {
-            snapshot: surface_snapshot::SurfaceSnapshot::unavailable(
-                SurfaceKind::BevyDesktop,
-                HostKind::Desktop,
-                infiltrator_contract::error::Failure::new(
-                    infiltrator_contract::error::ErrorCode::NotReady,
-                    "surface application source is not composed",
-                    true,
-                ),
+        Self::new(
+            SurfaceKind::BevyDesktop,
+            HostKind::Desktop,
+            Failure::new(
+                ErrorCode::NotReady,
+                "surface application source is not composed",
+                true,
             ),
-        }
+        )
     }
 }
 
@@ -340,8 +400,8 @@ impl OverviewSource for UnavailableSurfaceSource {
         SourceKind::LiveCore
     }
 
-    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<(), String>>) {
-        let _ = ack.send(Err("surface application source is not composed".to_owned()));
+    fn set_mode(&self, _mode: ProxyMode, ack: Sender<Result<ProxyMode, Failure>>) {
+        let _ = ack.send(Err(self.failure.clone()));
     }
 }
 

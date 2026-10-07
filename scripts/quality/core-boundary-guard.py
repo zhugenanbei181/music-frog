@@ -151,6 +151,8 @@ def direct_dependencies(manifest: pathlib.Path) -> set[str]:
     dependencies: set[str] = set()
     for table in collect_dependency_tables(document):
         dependencies.update(table)
+        dependencies.update(value["package"] for value in table.values()
+                            if isinstance(value, dict) and isinstance(value.get("package"), str))
     return dependencies
 
 
@@ -161,6 +163,21 @@ def strip_comments(text: str) -> str:
 
 def check(repo_root: pathlib.Path) -> list[str]:
     problems: list[str] = []
+    peer_packages = {"infiltrator-iced", "infiltrator-bevy-ui", "infiltrator-bevy-widgets", "iced", "bevy"}
+    shared_packages = {"infiltrator-domain", "infiltrator-contract", "infiltrator-ports", "infiltrator-application", "infiltrator-composition"}
+    for package in shared_packages:
+        manifest = repo_root / "crates" / package / "Cargo.toml"
+        document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        for dependency in sorted(direct_dependencies(manifest) & peer_packages):
+            problems.append(f"{manifest}: shared layer depends on peer renderer `{dependency}`")
+        for feature, members in document.get("features", {}).items():
+            if feature in peer_packages or feature.startswith(("ui-iced", "ui-bevy", "frontend-")) \
+                    or any(member.split("/", 1)[0].removeprefix("dep:") in peer_packages for member in members):
+                problems.append(f"{manifest}: frontend-identity feature `{feature}` violates peer neutrality")
+        for source in (manifest.parent / "src").rglob("*.rs"):
+            clean = strip_comments(source.read_text(encoding="utf-8"))
+            if re.search(r'#\s*\[\s*cfg(?:_attr)?\s*\([^\]]*feature\s*=\s*"(?:iced|bevy|frontend-[^"]*|ui-iced[^"]*|ui-bevy[^"]*)"', clean):
+                problems.append(f"{source}: frontend-identity compile branch in shared code")
     for package, forbidden in FORBIDDEN_DIRECT.items():
         manifest = repo_root / "crates" / package / "Cargo.toml"
         if not manifest.is_file():

@@ -2,22 +2,27 @@
 //! process binary matching, system app inclusion filter, and direct/proxy/block policies.
 //!
 //! **Update seam**: mutable nodes carry typed markers ([`AppRoutingLine`],
-//! [`AppRuleText`], [`AppProcessText`], [`AppNameText`]). The page self-registers
-//! [`apply_app_routing_projection`] and action observers once per world via
-//! [`AppRoutingPageRoot`]. When [`AppRoutingProjectionUpdated`] fires, texts,
+//! [`AppRuleText`], [`AppProcessText`], [`AppNameText`]). [`AppRoutingPagePlugin`] registers
+//! [`apply_app_routing_projection`] and action observers once at product
+//! assembly. When [`AppRoutingProjectionUpdated`] fires, texts,
 //! rules, and items restamp in place without tree rebuilds.
 
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::localized_widgets::localized_checkbox_scene;
+use crate::pages::app_routing_copy;
+use crate::pages::app_routing_uwp::{apply_projection, on_action_activated, uwp_exemption_scene};
+use crate::pages::app_routing_uwp_copy;
+use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
-use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
-use bevy::ecs::world::DeferredWorld;
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{
@@ -26,26 +31,22 @@ use bevy::ui::prelude::{
 };
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_application::routing_projection::{process_copy, routing_summary, rule_key};
 use infiltrator_bevy_widgets::button::ControlVisual;
-use infiltrator_bevy_widgets::checkbox::checkbox_scene;
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::{LocalizedLabel, LocalizedText};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::surface::surface_scene;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
-
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::route::{PageRoot, Route};
+use infiltrator_contract::uwp::{UwpLoopbackSnapshot, UwpPackageSnapshot};
+use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Root marker on the App Routing page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-#[component(on_insert = bind_app_routing_page)]
 pub struct AppRoutingPageRoot;
-
-/// Once-per-world guard preventing duplicate observer registration.
-#[derive(Resource)]
-struct AppRoutingPageBound;
 
 /// Marker for text lines updated by the projection observer.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -80,61 +81,15 @@ pub struct AddAppRouteButton;
 pub struct SwitchAppRuleButton {
     pub app_id: String,
     pub app_idx: usize,
-    pub current_rule: AppRouteRule,
-}
-
-/// Mode of split tunneling.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum AppRoutingMode {
-    #[default]
-    ProxyAll,
-    BypassList,
-    ProxyList,
-}
-
-impl AppRoutingMode {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::ProxyAll => "全局分流 (全部应用代理)",
-            Self::BypassList => "白名单分流 (指定应用直连)",
-            Self::ProxyList => "黑名单分流 (仅指定应用代理)",
-        }
-    }
-}
-
-/// Rule assigned to an individual application.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum AppRouteRule {
-    #[default]
-    Proxy,
-    Direct,
-    Block,
-}
-
-impl AppRouteRule {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Proxy => "代理 (Proxy)",
-            Self::Direct => "直连 (Direct)",
-            Self::Block => "拦截 (Block)",
-        }
-    }
-
-    pub const fn next(self) -> Self {
-        match self {
-            Self::Proxy => Self::Direct,
-            Self::Direct => Self::Block,
-            Self::Block => Self::Proxy,
-        }
-    }
+    pub current_rule: AppRoutingRule,
 }
 
 /// Color for app routing rule.
-pub fn app_rule_color(rule: AppRouteRule, palette: &UiPalette) -> Color {
+pub fn app_rule_color(rule: AppRoutingRule, palette: &UiPalette) -> Color {
     match rule {
-        AppRouteRule::Proxy => palette.accent,
-        AppRouteRule::Direct => palette.success,
-        AppRouteRule::Block => palette.danger,
+        AppRoutingRule::Proxy => palette.accent,
+        AppRoutingRule::Direct => palette.success,
+        AppRoutingRule::Block => palette.danger,
     }
 }
 
@@ -144,7 +99,7 @@ pub struct AppItem {
     pub id: String,
     pub name: String,
     pub process_name: String,
-    pub rule: AppRouteRule,
+    pub rule: AppRoutingRule,
     pub is_system: bool,
 }
 
@@ -154,75 +109,75 @@ pub struct AppRoutingProjection {
     pub mode: AppRoutingMode,
     pub include_system: bool,
     pub apps: Vec<AppItem>,
-    pub uwp_loopback: infiltrator_contract::uwp::UwpLoopbackSnapshot,
+    pub uwp_loopback: UwpLoopbackSnapshot,
 }
 
 impl AppRoutingProjection {
     /// Believable demo fixture for the App Routing page.
     pub fn demo() -> Self {
         Self {
-            mode: AppRoutingMode::BypassList,
+            mode: AppRoutingMode::ProxySelected,
             include_system: false,
             apps: vec![
                 AppItem {
                     id: "app-1".to_owned(),
-                    name: "Google Chrome 浏览器".to_owned(),
+                    name: "Google Chrome".to_owned(),
                     process_name: "chrome / google-chrome".to_owned(),
-                    rule: AppRouteRule::Proxy,
+                    rule: AppRoutingRule::Proxy,
                     is_system: false,
                 },
                 AppItem {
                     id: "app-2".to_owned(),
-                    name: "Steam 游戏平台".to_owned(),
+                    name: "Steam".to_owned(),
                     process_name: "steam / steamwebhelper".to_owned(),
-                    rule: AppRouteRule::Direct,
+                    rule: AppRoutingRule::Direct,
                     is_system: false,
                 },
                 AppItem {
                     id: "app-3".to_owned(),
-                    name: "Spotify 音乐".to_owned(),
+                    name: "Spotify".to_owned(),
                     process_name: "spotify".to_owned(),
-                    rule: AppRouteRule::Proxy,
+                    rule: AppRoutingRule::Proxy,
                     is_system: false,
                 },
                 AppItem {
                     id: "app-4".to_owned(),
-                    name: "Discord 通讯".to_owned(),
+                    name: "Discord".to_owned(),
                     process_name: "Discord".to_owned(),
-                    rule: AppRouteRule::Proxy,
+                    rule: AppRoutingRule::Proxy,
                     is_system: false,
                 },
                 AppItem {
                     id: "app-5".to_owned(),
-                    name: "WeChat 微信".to_owned(),
+                    name: "WeChat".to_owned(),
                     process_name: "wechat".to_owned(),
-                    rule: AppRouteRule::Direct,
+                    rule: AppRoutingRule::Direct,
                     is_system: false,
                 },
                 AppItem {
                     id: "app-6".to_owned(),
                     name: "systemd-networkd".to_owned(),
                     process_name: "systemd-networkd".to_owned(),
-                    rule: AppRouteRule::Direct,
+                    rule: AppRoutingRule::Direct,
                     is_system: true,
                 },
             ],
-            uwp_loopback: infiltrator_contract::uwp::UwpLoopbackSnapshot::supported(
+            uwp_loopback: UwpLoopbackSnapshot::supported(
                 1,
                 vec![
-                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-1".to_owned(),
                         display_name: "Microsoft Store".to_owned(),
                         package_family_name: "Microsoft.WindowsStore".to_owned(),
                         loopback_exempt: true,
                     },
-                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-2".to_owned(),
                         display_name: "Xbox App".to_owned(),
                         package_family_name: "Microsoft.XboxApp".to_owned(),
                         loopback_exempt: false,
                     },
-                    infiltrator_contract::uwp::UwpPackageSnapshot {
+                    UwpPackageSnapshot {
                         sid: "S-1-15-2-3".to_owned(),
                         display_name: "Windows Terminal".to_owned(),
                         package_family_name: "Microsoft.WindowsTerminal".to_owned(),
@@ -248,11 +203,7 @@ pub fn app_routing_page(
     projection: &AppRoutingProjection,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let summary = format!(
-        "应用分流 · {} (已配置 {} 个应用)",
-        projection.mode.label(),
-        projection.apps.len()
-    );
+    let summary = routing_summary(projection.mode, projection.apps.len(), "en-US");
 
     let app_scenes: Vec<Box<dyn Scene>> = projection
         .apps
@@ -277,7 +228,7 @@ pub fn app_routing_page(
             Children [
                 @{ header_card_scene(summary, projection.include_system, palette) }
                 --
-                @{ crate::pages::app_routing_uwp::uwp_exemption_scene(projection, palette) }
+                @{ uwp_exemption_scene(projection, palette) }
                 --
                 @{ apps_container_scene(app_scenes, palette) }
             ]
@@ -290,7 +241,7 @@ fn header_card_scene(
     palette: &UiPalette,
 ) -> impl Scene + use<> {
     let mut header_a11y = accesskit::Node::new(accesskit::Role::Header);
-    header_a11y.set_label("应用分流概览");
+    header_a11y.set_label("App routing");
 
     surface_scene(
         vec![
@@ -301,7 +252,7 @@ fn header_card_scene(
                                 justify_content: JustifyContent::SpaceBetween,
                                 column_gap: Val::Px(space::S16),
                             }
-                            AccessibilityNode(header_a11y)
+                            AccessibilityNode(header_a11y) LocalizedLabel::plain("app_routing_title")
                             Children [
                                 Node {
                                     align_items: AlignItems::Center,
@@ -329,7 +280,7 @@ fn header_card_scene(
                                     AddAppRouteButton
                                     Button
                                     Children [
-                                        Text({ "添加应用分流".to_owned() }) TextRole(Role::BodyStrong)
+                                        LocalizedText::plain("app_routing_add_action") TextRole(Role::BodyStrong)
                                     ]
                                 ]
                             ]
@@ -341,7 +292,7 @@ fn header_card_scene(
                                 padding: UiRect::top(Val::Px(space::S8)),
                             }
                             Children [
-                                @{ checkbox_scene("显示系统后台进程 (Include System Processes)".to_owned(), include_system, palette) }
+                                @{ localized_checkbox_scene(LocalizedText::plain("app_routing_include_system"), include_system, palette) }
                             ]
             }),
         ],
@@ -363,9 +314,9 @@ fn apps_container_scene(
                                 padding: UiRect::bottom(Val::Px(space::S8)),
                             }
                             Children [
-                                Text({ "进程与应用分流策略列表 (Application Rules)".to_owned() }) TextRole(Role::BodyStrong)
+                                LocalizedText::plain("app_routing_rules_title") TextRole(Role::BodyStrong)
                                 --
-                                Text({ "按进程匹配并重定向流量".to_owned() }) TextRole(Role::Caption)
+                                LocalizedText::plain("app_routing_rules_hint") TextRole(Role::Caption)
                             ]
             }),
             Box::new(bsn! {
@@ -385,8 +336,8 @@ fn apps_container_scene(
 
 fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene + use<> {
     let name = app.name.clone();
-    let proc_str = format!("进程名: {}", app.process_name);
-    let rule_str = app.rule.label().to_owned();
+    let proc_str = process_copy(&app.process_name, "en-US");
+    let rule_str = Lang("en-US").tr(rule_key(app.rule)).into_owned();
     let rule_col = app_rule_color(app.rule, palette);
 
     bsn! {
@@ -435,25 +386,28 @@ fn app_row_scene(idx: usize, app: &AppItem, palette: &UiPalette) -> impl Scene +
                     }
                     Button
                     Children [
-                        Text({ "切换策略".to_owned() }) TextRole(Role::Caption)
+                        LocalizedText::plain("app_routing_switch_policy") TextRole(Role::Caption)
                     ]
                 ]
             ]
     }
 }
 
-// ---- Observer & Update Hook -----------------------------------------------
+// ---- Plugin assembly and native observers -----------------------------------------------
 
-fn bind_app_routing_page(mut world: DeferredWorld<'_>, _context: HookContext) {
-    if world.get_resource::<AppRoutingPageBound>().is_some() {
-        return;
+/// Registers this page once during product assembly; mounting never resets its draft.
+#[derive(Default)]
+pub struct AppRoutingPagePlugin;
+
+impl Plugin for AppRoutingPagePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LastAppRoutingProjection>();
+        app.add_systems(Update, (app_routing_copy::sync, app_routing_uwp_copy::sync));
+        app.add_observer(apply_app_routing_projection);
+        app.add_observer(on_app_routing_action_activated);
+        app.add_observer(on_action_activated);
+        app.add_observer(apply_projection);
     }
-    let mut commands = world.commands();
-    commands.insert_resource(AppRoutingPageBound);
-    commands.add_observer(apply_app_routing_projection);
-    commands.add_observer(on_app_routing_action_activated);
-    commands.add_observer(crate::pages::app_routing_uwp::on_action_activated);
-    commands.add_observer(crate::pages::app_routing_uwp::apply_projection);
 }
 
 pub(crate) fn on_app_routing_action_activated(
@@ -479,93 +433,18 @@ pub(crate) fn on_app_routing_action_activated(
     }
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_app_routing_projection(
     update: On<AppRoutingProjectionUpdated>,
-    palette: Res<UiPalette>,
-    mut last: Option<ResMut<LastAppRoutingProjection>>,
-    mut lines: Query<
-        (&mut Text, &AppRoutingLine),
-        (
-            With<AppRoutingLine>,
-            Without<AppRuleText>,
-            Without<AppNameText>,
-            Without<AppProcessText>,
-        ),
-    >,
-    mut names: Query<
-        (&mut Text, &AppNameText),
-        (
-            With<AppNameText>,
-            Without<AppRoutingLine>,
-            Without<AppRuleText>,
-            Without<AppProcessText>,
-        ),
-    >,
-    mut processes: Query<
-        (&mut Text, &AppProcessText),
-        (
-            With<AppProcessText>,
-            Without<AppRoutingLine>,
-            Without<AppRuleText>,
-            Without<AppNameText>,
-        ),
-    >,
-    mut rules: Query<
-        (&mut Text, &mut TextColor, &AppRuleText),
-        (
-            With<AppRuleText>,
-            Without<AppRoutingLine>,
-            Without<AppNameText>,
-            Without<AppProcessText>,
-        ),
-    >,
-    mut switch_buttons: Query<&mut SwitchAppRuleButton>,
+    mut last: ResMut<LastAppRoutingProjection>,
+    mut buttons: Query<&mut SwitchAppRuleButton>,
 ) {
-    let projection = &update.0;
-
-    for (mut text, line) in &mut lines {
-        match line.0 {
-            AppRoutingLineKind::Summary => {
-                text.0 = format!(
-                    "应用分流 · {} (已配置 {} 个应用)",
-                    projection.mode.label(),
-                    projection.apps.len()
-                );
-            }
+    for mut button in &mut buttons {
+        if let Some(app) = update.0.apps.get(button.app_idx) {
+            button.app_id.clone_from(&app.id);
+            button.current_rule = app.rule;
         }
     }
-
-    for (mut text, marker) in &mut names {
-        if let Some(app) = projection.apps.get(marker.0) {
-            text.0 = app.name.clone();
-        }
-    }
-
-    for (mut text, marker) in &mut processes {
-        if let Some(app) = projection.apps.get(marker.0) {
-            text.0 = format!("进程名: {}", app.process_name);
-        }
-    }
-
-    for (mut text, mut color, marker) in &mut rules {
-        if let Some(app) = projection.apps.get(marker.0) {
-            text.0 = app.rule.label().to_owned();
-            color.0 = app_rule_color(app.rule, &palette);
-        }
-    }
-
-    for mut btn in &mut switch_buttons {
-        if let Some(app) = projection.apps.get(btn.app_idx) {
-            btn.app_id = app.id.clone();
-            btn.current_rule = app.rule;
-        }
-    }
-
-    if let Some(ref mut last_proj) = last {
-        last_proj.0 = Some(projection.clone());
-    }
+    last.0 = Some(update.0.clone());
 }
 
 #[cfg(test)]
@@ -575,13 +454,13 @@ mod tests {
     #[test]
     fn demo_app_routing_fixture() {
         let proj = AppRoutingProjection::demo();
-        assert_eq!(proj.mode, AppRoutingMode::BypassList);
+        assert_eq!(proj.mode, AppRoutingMode::ProxySelected);
         assert_eq!(proj.apps.len(), 6);
         assert_eq!(proj.apps[0].id, "app-1");
-        assert_eq!(proj.apps[0].name, "Google Chrome 浏览器");
+        assert_eq!(proj.apps[0].name, "Google Chrome");
         assert_eq!(proj.apps[0].process_name, "chrome / google-chrome");
-        assert_eq!(proj.apps[0].rule, AppRouteRule::Proxy);
+        assert_eq!(proj.apps[0].rule, AppRoutingRule::Proxy);
         assert_eq!(proj.apps[1].id, "app-2");
-        assert_eq!(proj.apps[1].rule, AppRouteRule::Direct);
+        assert_eq!(proj.apps[1].rule, AppRoutingRule::Direct);
     }
 }

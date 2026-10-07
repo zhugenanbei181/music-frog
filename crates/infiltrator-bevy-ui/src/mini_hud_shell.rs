@@ -5,6 +5,16 @@
 //! (`mini_hud.pinned`, validated by `CommandApplication::update_setting`) and
 //! routes the `Ctrl+Alt+M` shortcut / palette row into the toggle event.
 
+use crate::app::SidebarToggleProjection;
+use crate::command::{CommandSinkHandle, UiCommand};
+use crate::mini_hud::{
+    MiniHudDownWaveform, MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton,
+    MiniHudRoot, MiniHudSystemProxyToggle, MiniHudTunToggle, MiniHudUpWaveform, SetMiniHudPinned,
+    ToggleMiniHud, mini_hud_scene,
+};
+use crate::mini_hud_refresh::refresh_mini_hud;
+use crate::pages::overview::LastOverviewProjection;
+use crate::surface::LatestSurfaceSnapshot;
 use bevy::app::{App, Plugin, Update};
 use bevy::asset::Assets;
 use bevy::color::Color;
@@ -18,21 +28,13 @@ use bevy::image::Image;
 use bevy::scene::CommandsSceneExt;
 use bevy::ui::widget::ImageNode;
 use bevy::ui_widgets::Activate;
+use infiltrator_application::proxy_mode_projection::mode_status_copy;
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_bevy_widgets::chart::sparkline_image;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
+use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
-
-use crate::app::SidebarToggleProjection;
-use crate::command::{CommandSinkHandle, UiCommand};
-use crate::mini_hud::{
-    MiniHudDownWaveform, MiniHudExpandButton, MiniHudMode, MiniHudModel, MiniHudPinButton,
-    MiniHudRoot, MiniHudSystemProxyToggle, MiniHudTunToggle, MiniHudUpWaveform, SetMiniHudPinned,
-    ToggleMiniHud, mini_hud_scene,
-};
-use crate::pages::overview::{LastOverviewProjection, mode_label};
-use crate::surface::LatestSurfaceSnapshot;
 
 /// Mount signature: the overlay is rebuilt only when visibility or a rendered
 /// value actually changed.
@@ -48,8 +50,9 @@ pub fn sync_mini_hud_model(
     toggles: Option<Res<SidebarToggleProjection>>,
     surface: Option<Res<LatestSurfaceSnapshot>>,
     mut model: ResMut<MiniHudModel>,
+    locale: Res<UiLocale>,
 ) {
-    let mut next = MiniHudModel(infiltrator_contract::mini_hud::MiniHudReadModel::default());
+    let mut next = MiniHudModel(MiniHudReadModel::default());
     if let Some(toggles) = toggles.as_deref() {
         next.0 = next.0.with_toggles(&toggles.0);
     }
@@ -68,7 +71,7 @@ pub fn sync_mini_hud_model(
                 sanitize_rate(overview.upload_bps),
                 sanitize_rate(overview.download_bps),
             )
-            .with_mode(mode_label(overview.mode))
+            .with_mode(mode_status_copy(&overview.proxy_mode, locale.code()))
             .with_exit_node(overview.active_exit.name.clone().unwrap_or_default())
             .with_waveform(&overview.traffic_waveform);
     }
@@ -103,10 +106,13 @@ pub fn sync_mini_hud_overlay(
         return;
     }
     *signature = next;
-    for entity in &mounted {
-        commands.entity(entity).despawn();
-    }
     if !mode.0 {
+        for entity in &mounted {
+            commands.entity(entity).despawn();
+        }
+        return;
+    }
+    if !mounted.is_empty() {
         return;
     }
     commands.spawn_scene(mini_hud_scene(&model.0, &palette));
@@ -331,6 +337,7 @@ impl Plugin for MiniHudPlugin {
                 sync_mini_hud_model,
                 sync_mini_hud_overlay,
                 sync_mini_hud_waveforms,
+                refresh_mini_hud,
             )
                 .chain(),
         );

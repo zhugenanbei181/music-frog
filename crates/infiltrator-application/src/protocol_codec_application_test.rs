@@ -2,6 +2,10 @@
 
 use super::*;
 use infiltrator_contract::protocol_fidelity::{ProtocolFamily, ShadowsocksCipher, VlessFlow};
+use infiltrator_contract::protocol_params::{Hysteria2Params, TuicParams};
+use infiltrator_contract::protocol_params_ext::{
+    AmneziaWgParams, AnyTlsParams, PluginOptValue, SshParams, WireGuardParams,
+};
 use infiltrator_domain::profile_converter::ProfileFormat;
 
 const PROFILE: &str = r#"
@@ -376,7 +380,7 @@ fn wireguard_parameters_round_trip_with_mihomo_key_spellings() {
     draft.name = "wg-01".into();
     draft.server = "wg.example.com".into();
     draft.port = 51820;
-    draft.params.wireguard = infiltrator_contract::protocol_params_ext::WireGuardParams {
+    draft.params.wireguard = WireGuardParams {
         private_key: wg_key(),
         public_key: wg_key(),
         pre_shared_key: wg_key(),
@@ -390,7 +394,7 @@ fn wireguard_parameters_round_trip_with_mihomo_key_spellings() {
         persistent_keepalive: 25,
         allowed_ips: vec!["0.0.0.0/0".into()],
         remote_dns_resolve: true,
-        amnezia: infiltrator_contract::protocol_params_ext::AmneziaWgParams {
+        amnezia: AmneziaWgParams {
             jc: Some(4),
             jmin: Some(40),
             jmax: Some(70),
@@ -434,7 +438,7 @@ fn tuic_and_hysteria2_parameters_reach_the_profile_and_back() {
     tuic.port = 443;
     tuic.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".into();
     tuic.password = "pw".into();
-    tuic.params.tuic = infiltrator_contract::protocol_params::TuicParams {
+    tuic.params.tuic = TuicParams {
         congestion_controller: "bbr".into(),
         udp_relay_mode: "quic".into(),
         reduce_rtt: true,
@@ -460,7 +464,7 @@ fn tuic_and_hysteria2_parameters_reach_the_profile_and_back() {
     hy2.server = "hy2.example.com".into();
     hy2.port = 443;
     hy2.password = "pw".into();
-    hy2.params.hysteria2 = infiltrator_contract::protocol_params::Hysteria2Params {
+    hy2.params.hysteria2 = Hysteria2Params {
         ports: "20000-30000,8443".into(),
         hop_interval: 30,
         obfs: "salamander".into(),
@@ -488,7 +492,7 @@ fn ssh_and_anytls_parameters_project_through_the_flat_node() {
     ssh.name = "ssh-01".into();
     ssh.server = "ssh.example.com".into();
     ssh.port = 22;
-    ssh.params.ssh = infiltrator_contract::protocol_params_ext::SshParams {
+    ssh.params.ssh = SshParams {
         username: "root".into(),
         private_key: "-----BEGIN OPENSSH PRIVATE KEY-----".into(),
         passphrase: "phrase".into(),
@@ -515,7 +519,7 @@ fn ssh_and_anytls_parameters_project_through_the_flat_node() {
     anytls.server = "anytls.example.com".into();
     anytls.port = 443;
     anytls.password = "pw".into();
-    anytls.params.anytls = infiltrator_contract::protocol_params_ext::AnyTlsParams {
+    anytls.params.anytls = AnyTlsParams {
         idle_session_timeout: 30000,
         idle_session_check_interval: 15000,
         min_idle_session: 2,
@@ -654,14 +658,14 @@ fn typed_parameter_blocks_are_measured_as_uri_gaps() {
     ss.cipher = "aes-128-gcm".into();
     ss.password = "pw".into();
     ss.params.plugin.name = "shadow-tls".into();
-    ss.params.plugin.opts.insert(
-        "host".into(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("bing.com".into()),
-    );
-    ss.params.plugin.opts.insert(
-        "password".into(),
-        infiltrator_contract::protocol_params_ext::PluginOptValue::Text("pw".into()),
-    );
+    ss.params
+        .plugin
+        .opts
+        .insert("host".into(), PluginOptValue::Text("bing.com".into()));
+    ss.params
+        .plugin
+        .opts
+        .insert("password".into(), PluginOptValue::Text("pw".into()));
     let gaps = ProtocolCodecApplication::uri_fidelity_gaps(&ss);
     assert!(!gaps.contains(&"plugin".to_string()), "{gaps:?}");
     let returned = ProtocolCodecApplication::draft_from_uri(
@@ -695,4 +699,18 @@ proxies:
     )
     .unwrap();
     assert_eq!(audit.unknown_fields, vec!["future-key".to_string()]);
+}
+
+#[test]
+fn staged_profile_splice_does_not_publish_saved_facts_before_commit() {
+    clear_studio();
+    let draft = ss_draft();
+    let staged = ProtocolCodecApplication::publish_draft(draft.clone(), None);
+    let commit = ProtocolCodecApplication::upsert_draft_into_profile(PROFILE, &draft).unwrap();
+    assert_eq!(studio_snapshot(), Some(staged));
+    assert!(commit.audit.structure_preserved);
+    ProtocolCodecApplication::publish_commit(&commit);
+    let saved = studio_snapshot().unwrap();
+    assert_eq!(saved.last_saved_node.as_deref(), Some(draft.name.as_str()));
+    assert_eq!(saved.audit.as_ref(), Some(&commit.audit));
 }

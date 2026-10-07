@@ -4,22 +4,21 @@
 //! Visualizes dynamic traffic propagation: Inbound Applications → Routing Rules →
 //! Outbound Proxies / Direct Links, with proportional ribbon widths and status inks.
 
+use super::bezier::{CubicBezierSegment, PlotPoint};
+use super::mesh::{TelemetryMeshData, build_curve_ribbon_mesh};
+use super::texture::ChartTextureView;
+use crate::chart::to_rgba8;
+use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
-use bevy::ecs::change_detection::DetectChanges;
+use bevy::ecs::change_detection::{DetectChanges, Ref};
 use bevy::ecs::component::Component;
-use bevy::ecs::entity::Entity;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::scene::{Scene, bsn};
 use bevy::time::Time;
 use bevy::ui::prelude::{Node, percent, px};
-use bevy::ui::widget::ImageNode;
-
-use crate::palette::UiPalette;
-
-use super::bezier::{CubicBezierSegment, PlotPoint};
-use super::mesh::{TelemetryMeshData, build_curve_ribbon_mesh};
+use std::collections::HashMap;
 
 /// Category classification for a topology node.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -161,7 +160,7 @@ pub fn category_to_rgba(category: NodeCategory, palette: &UiPalette) -> [u8; 4] 
         NodeCategory::Direct => palette.warning,
         NodeCategory::Reject => palette.danger,
     };
-    crate::chart::to_rgba8(color)
+    to_rgba8(color)
 }
 
 fn blend_pixel(pixels: &mut [u8], width: u32, x: i32, y: i32, ink: [u8; 4], alpha: f32) {
@@ -198,7 +197,7 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
         return pixels;
     }
 
-    let node_map: std::collections::HashMap<&str, &TopologyNode> =
+    let node_map: HashMap<&str, &TopologyNode> =
         spec.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     // 1. Draw connecting Bezier ribbons
@@ -227,9 +226,9 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
             let is_highlighted = link.highlighted || is_full_chain_hovered;
 
             let link_color = if is_highlighted {
-                crate::chart::to_rgba8(palette.accent)
+                to_rgba8(palette.accent)
             } else {
-                crate::chart::to_rgba8(palette.border)
+                to_rgba8(palette.border)
             };
 
             let thickness = if link.bandwidth_bps > 10_000_000.0 {
@@ -270,7 +269,7 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
         let cx = (node.x_fraction * width as f32).round() as i32;
         let cy = (node.y_fraction * height as f32).round() as i32;
         let color = if is_node_hovered {
-            crate::chart::to_rgba8(palette.accent)
+            to_rgba8(palette.accent)
         } else {
             category_to_rgba(node.category, palette)
         };
@@ -322,7 +321,7 @@ pub fn rasterize_topology(spec: &TopologySpec, palette: &UiPalette) -> Vec<u8> {
             PlotPoint::new(p1.x - dx, p1.y),
             p1,
         );
-        let particle_color = crate::chart::to_rgba8(palette.accent);
+        let particle_color = to_rgba8(palette.accent);
         let phase = (spec.flow_phase + link_index as f32 * 0.19).fract();
         for offset in [0.0_f32, 0.52] {
             let point = segment.eval((phase + offset).fract());
@@ -360,7 +359,7 @@ pub fn build_topology_chart_mesh(spec: &TopologySpec, palette: &UiPalette) -> Te
     let width = spec.width as f32;
     let height = spec.height as f32;
 
-    let node_map: std::collections::HashMap<&str, &TopologyNode> =
+    let node_map: HashMap<&str, &TopologyNode> =
         spec.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
     for link in &spec.links {
@@ -380,9 +379,9 @@ pub fn build_topology_chart_mesh(spec: &TopologySpec, palette: &UiPalette) -> Te
                 segment.sample_points(20).into_iter().map(Some).collect();
 
             let color = if link.highlighted {
-                crate::chart::to_rgba8(palette.accent)
+                to_rgba8(palette.accent)
             } else {
-                crate::chart::to_rgba8(palette.border)
+                to_rgba8(palette.border)
             };
 
             let color_f32 = [
@@ -439,7 +438,7 @@ pub fn topology_scene(spec: TopologySpec) -> impl Scene + use<> {
 pub fn sync_topology_charts(
     palette: Res<UiPalette>,
     images: Option<ResMut<Assets<Image>>>,
-    mut charts: Query<(Entity, &mut TopologyPlate, Option<&ImageNode>)>,
+    charts: Query<(Ref<TopologyPlate>, ChartTextureView)>,
     mut commands: Commands,
 ) {
     let retheme = palette.is_changed();
@@ -447,26 +446,14 @@ pub fn sync_topology_charts(
         return;
     };
 
-    for (entity, plate, node) in &mut charts {
-        if !retheme && !plate.is_changed() && node.is_some() {
-            continue;
-        }
+    for (plate, texture) in &charts {
         let spec = &plate.0;
-        match node {
-            Some(node) => {
-                if let Some(mut image) = images.get_mut(&node.image) {
-                    *image = topology_image(spec, &palette);
-                }
-            }
-            None => {
-                let image = topology_image(spec, &palette);
-                let handle = images.add(image);
-                commands.entity(entity).insert(ImageNode {
-                    image: handle,
-                    ..ImageNode::default()
-                });
-            }
-        }
+        texture.sync::<TopologyPlate>(
+            &mut images,
+            retheme || plate.is_changed(),
+            || topology_image(spec, &palette),
+            &mut commands,
+        );
     }
 }
 

@@ -1,11 +1,16 @@
-use super::channel::{Channel, fetch_latest};
+use super::channel::{Channel, fetch_asset_digest, fetch_latest};
 use super::download::{DownloadProgress, Downloader};
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
+use std::env::temp_dir;
+use std::path;
 use std::path::PathBuf;
-use tokio::fs;
+use std::process::id;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
+use tokio::{fs, process};
+use toml::map::Map;
 
 const MAX_VERSION_HISTORY: usize = 8;
 
@@ -72,7 +77,7 @@ impl VersionManager {
     {
         validate_version_label(version)?;
         if is_cancelled() {
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
         fs::create_dir_all(&self.install_dir).await?;
 
@@ -85,17 +90,17 @@ impl VersionManager {
         }
 
         if is_cancelled() {
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
 
         // Provenance first (UP-001): refuse to download anything when the
         // release API does not publish a SHA-256 digest for this platform's
         // archive. The digest is the trusted input for fail-closed
         // verification inside the download pipeline.
-        let expected_digest = super::channel::fetch_asset_digest(version).await?;
+        let expected_digest = fetch_asset_digest(version).await?;
 
         if is_cancelled() {
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
 
         let binary_name = if cfg!(windows) {
@@ -106,16 +111,16 @@ impl VersionManager {
 
         // Download to OS temp directory first; the file name is
         // process-unique so concurrent installs cannot collide.
-        let temp_dir = std::env::temp_dir();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let temp_dir = temp_dir();
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
             .unwrap_or(0);
         let temp_path = temp_dir.join(format!(
             "mihomo-{}-{}-{}-{nanos}",
             version,
             binary_name,
-            std::process::id()
+            id()
         ));
 
         let downloader = Downloader::new();
@@ -138,7 +143,7 @@ impl VersionManager {
 
         if is_cancelled() {
             let _ = fs::remove_file(&temp_path).await;
-            return Err(MihomoError::Version("下载已取消".to_string()));
+            return Err(MihomoError::Canceled);
         }
 
         // Move to final location only after successful download
@@ -341,7 +346,7 @@ impl VersionManager {
 
     async fn read_config(&self) -> Result<toml::Value> {
         if !self.config_file.exists() {
-            return Ok(toml::Value::Table(toml::map::Map::new()));
+            return Ok(toml::Value::Table(Map::new()));
         }
         let content = fs::read_to_string(&self.config_file).await?;
         toml::from_str(&content)
@@ -421,7 +426,7 @@ fn set_default_in_config(
     })?;
     let default = root
         .entry("default".to_string())
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        .or_insert_with(|| toml::Value::Table(Map::new()));
     let default = default.as_table_mut().ok_or_else(|| {
         MihomoError::Config("version selection config.default must be a TOML table".to_string())
     })?;
@@ -451,7 +456,7 @@ fn validate_version_label(version: &str) -> Result<()> {
     Ok(())
 }
 
-async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
+async fn atomic_write(path: &path::Path, content: &[u8]) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
         MihomoError::Config(format!(
             "version config path has no parent: {}",
@@ -463,14 +468,11 @@ async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("config.toml");
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let temporary = parent.join(format!(
-        ".{file_name}.version-tmp-{}-{stamp}",
-        std::process::id()
-    ));
+    let temporary = parent.join(format!(".{file_name}.version-tmp-{}-{stamp}", id()));
 
     let result = async {
         let mut file = fs::OpenOptions::new()
@@ -502,8 +504,8 @@ async fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
 /// print its version and exit cleanly. This runs before the version can be
 /// selected as default, so a corrupt or wrong-architecture artifact is
 /// rejected while every previously installed version remains usable.
-async fn smoke_check_binary(path: &std::path::Path) -> Result<()> {
-    let output = tokio::process::Command::new(path)
+async fn smoke_check_binary(path: &path::Path) -> Result<()> {
+    let output = process::Command::new(path)
         .arg("-v")
         .output()
         .await
@@ -536,14 +538,26 @@ async fn smoke_check_binary(path: &std::path::Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
+    #[cfg(unix)]
+    use std::fs::Permissions;
+    #[cfg(test)]
+    #[cfg(unix)]
+    use std::fs::create_dir_all;
+    #[cfg(test)]
+    #[cfg(unix)]
+    use std::fs::set_permissions;
+    #[cfg(test)]
+    #[cfg(unix)]
+    use std::fs::write;
     use tempfile::TempDir;
 
     #[cfg(unix)]
     fn write_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
         let path = dir.path().join(name);
-        std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write(&path, format!("#!/bin/sh\n{body}")).unwrap();
+        set_permissions(&path, Permissions::from_mode(0o755)).unwrap();
         path
     }
 
@@ -586,20 +600,20 @@ mod tests {
             .install_with_progress_and_cancel("v-test", |_| {}, || true)
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("下载已取消"), "{error}");
+        assert!(matches!(error, MihomoError::Canceled), "{error}");
         assert!(!temp_dir.path().join("versions").exists());
     }
 
     /// set_default now smoke-checks the candidate binary; tests that merely
     /// install a fake version must provide a runnable stand-in.
     #[cfg(unix)]
-    fn plant_runnable_fake_binary(home: &std::path::Path, version: &str) {
+    fn plant_runnable_fake_binary(home: &path::Path, version: &str) {
         use std::os::unix::fs::PermissionsExt;
         let dir = home.join("versions").join(version);
-        std::fs::create_dir_all(&dir).unwrap();
+        create_dir_all(&dir).unwrap();
         let bin = dir.join("mihomo");
-        std::fs::write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
-        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write(&bin, "#!/bin/sh\necho \"Mihomo Meta v1.19.18 test\"\n").unwrap();
+        set_permissions(&bin, Permissions::from_mode(0o755)).unwrap();
     }
 
     #[test]
@@ -627,10 +641,10 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         // Create version directories
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
             .await
             .unwrap();
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.20.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.20.0"))
             .await
             .unwrap();
 
@@ -648,13 +662,13 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         // Create version directories
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.18.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.18.0"))
             .await
             .unwrap();
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.20.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.20.0"))
             .await
             .unwrap();
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
             .await
             .unwrap();
 
@@ -676,7 +690,7 @@ mod tests {
         #[cfg(unix)]
         plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
         #[cfg(not(unix))]
-        tokio::fs::create_dir_all(manager.install_dir.join("v1.19.0"))
+        fs::create_dir_all(manager.install_dir.join("v1.19.0"))
             .await
             .unwrap();
 
@@ -693,7 +707,7 @@ mod tests {
     async fn version_selection_preserves_profile_and_rolls_back_without_network() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir);
-        tokio::fs::write(
+        fs::write(
             temp_dir.path().join("config.toml"),
             "[default]\nprofile = \"work\"\n",
         )
@@ -707,7 +721,7 @@ mod tests {
         manager.set_default("v1.19.29").await.unwrap();
         manager.set_default("v1.19.30").await.unwrap();
 
-        let config = tokio::fs::read_to_string(temp_dir.path().join("config.toml"))
+        let config = fs::read_to_string(temp_dir.path().join("config.toml"))
             .await
             .unwrap();
         let config: toml::Value = toml::from_str(&config).unwrap();
@@ -759,7 +773,7 @@ mod tests {
         manager.set_default("v1.19.28").await.unwrap();
         manager.set_default("v1.19.29").await.unwrap();
 
-        tokio::fs::write(
+        fs::write(
             temp_dir.path().join("versions/v1.19.28/mihomo"),
             "#!/bin/sh\nexit 9\n",
         )
@@ -805,7 +819,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
 
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
@@ -813,7 +827,7 @@ mod tests {
             "mihomo"
         };
         let binary_path = version_dir.join(binary_name);
-        tokio::fs::write(&binary_path, "binary").await.unwrap();
+        fs::write(&binary_path, "binary").await.unwrap();
 
         let result = manager.get_binary_path(Some("v1.19.0")).await;
         assert!(result.is_ok());
@@ -826,7 +840,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
 
         let binary_name = if cfg!(windows) {
             "mihomo.exe"
@@ -837,7 +851,7 @@ mod tests {
         #[cfg(unix)]
         plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
         #[cfg(not(unix))]
-        tokio::fs::write(&binary_path, "binary").await.unwrap();
+        fs::write(&binary_path, "binary").await.unwrap();
 
         manager.set_default("v1.19.0").await.unwrap();
 
@@ -852,7 +866,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
 
         let result = manager.get_binary_path(Some("v1.19.0")).await;
         assert!(result.is_err());
@@ -865,7 +879,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
 
         let result = manager.install("v1.19.0").await;
         assert!(result.is_err());
@@ -883,7 +897,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
 
         let result = manager.uninstall("v1.19.0").await;
         assert!(result.is_ok());
@@ -906,7 +920,7 @@ mod tests {
         let manager = setup_test_manager(&temp_dir);
 
         let version_dir = manager.install_dir.join("v1.19.0");
-        tokio::fs::create_dir_all(&version_dir).await.unwrap();
+        fs::create_dir_all(&version_dir).await.unwrap();
         #[cfg(unix)]
         plant_runnable_fake_binary(temp_dir.path(), "v1.19.0");
 
@@ -930,10 +944,8 @@ mod tests {
 
         // 预先创建一个文件占坑，导致目录创建失败
         let conflict_path = manager.install_dir.join(version);
-        tokio::fs::create_dir_all(&manager.install_dir)
-            .await
-            .unwrap();
-        tokio::fs::write(&conflict_path, "I am a file, not a dir")
+        fs::create_dir_all(&manager.install_dir).await.unwrap();
+        fs::write(&conflict_path, "I am a file, not a dir")
             .await
             .unwrap();
 
@@ -944,6 +956,6 @@ mod tests {
         let _ = manager.install(version).await;
 
         // 如果安装失败，它不应该留下一个半成品目录（如果是文件占坑，它不应该被删掉，但也不应该变成目录）
-        assert!(tokio::fs::metadata(&conflict_path).await.unwrap().is_file());
+        assert!(fs::metadata(&conflict_path).await.unwrap().is_file());
     }
 }

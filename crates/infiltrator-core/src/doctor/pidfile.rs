@@ -7,9 +7,10 @@
 //! core process hint; a recycled pid owned by any other program is reported
 //! as a foreign process and the record treated as stale.
 
+use std::io::ErrorKind;
 use std::path::Path;
-
 use sysinfo::{Pid, ProcessesToUpdate, System};
+use tokio::fs::{read_to_string, remove_file};
 
 /// Substring matched (case-insensitively) against a process name or
 /// executable path to decide whether a recorded pid still belongs to the
@@ -74,9 +75,9 @@ pub(super) async fn read_pid_state(path: &Path) -> PidFileState {
     if !path.exists() {
         return PidFileState::Absent;
     }
-    let content = match tokio::fs::read_to_string(path).await {
+    let content = match read_to_string(path).await {
         Ok(content) => content,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return PidFileState::Absent,
+        Err(err) if err.kind() == ErrorKind::NotFound => return PidFileState::Absent,
         Err(err) => return PidFileState::Unreadable(err.to_string()),
     };
     let trimmed = content.trim();
@@ -120,9 +121,9 @@ pub(super) async fn remove_stale_pid_file(path: &Path) -> anyhow::Result<bool> {
     if !stale {
         return Ok(false);
     }
-    match tokio::fs::remove_file(path).await {
+    match remove_file(path).await {
         Ok(()) => Ok(true),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
         Err(err) => Err(err.into()),
     }
 }

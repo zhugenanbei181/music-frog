@@ -1,84 +1,46 @@
 //! Configuration snapshot use-cases over profile and snapshot ports.
 
-use infiltrator_contract::error::Failure;
+use crate::profile_application::ProfileApplication;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot_history::{
     SNAPSHOT_DEFAULT_KEEP, SnapshotEntry, SnapshotHistorySnapshot, SnapshotPruneReport,
     SnapshotPruneSource,
 };
 use infiltrator_contract::yaml_ast_diff::YamlAstDiffSnapshot;
-use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::backup::prune_snapshots;
 use infiltrator_domain::myers_diff;
-use infiltrator_domain::snapshots::SnapshotMeta;
+use infiltrator_domain::snapshots::{SnapshotMeta, content_hash};
 use infiltrator_ports::profile_store::ProfileStore;
-use infiltrator_ports::runtime_gateway::ManagedRuntime;
 use infiltrator_ports::snapshot_store::SnapshotStore;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
-use std::sync::{Arc, Mutex, OnceLock};
-
-use crate::profile_application::ProfileApplication;
+use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 #[path = "snapshot_application_test.rs"]
 mod snapshot_application_test;
 
+mod restore;
+
 #[derive(Clone)]
 pub struct SnapshotApplication {
     profiles: ProfileApplication,
     snapshots: Arc<dyn SnapshotStore>,
+    observations: Arc<Mutex<SnapshotObservations>>,
+    restores: Arc<Mutex<restore::RestoreState>>,
+    restore_owner: u64,
 }
 
-/// DUAL-09-08: process-wide cache of the most recent snapshot diff so the
-/// Bevy surface (which owns no storage port) can project the same diff the
-/// Iced surface computes on demand.
-fn diff_cache() -> &'static Mutex<Option<YamlAstDiffSnapshot>> {
-    static DIFF: OnceLock<Mutex<Option<YamlAstDiffSnapshot>>> = OnceLock::new();
-    DIFF.get_or_init(|| Mutex::new(None))
+#[derive(Default)]
+struct SnapshotObservations {
+    histories: BTreeMap<String, SnapshotHistorySnapshot>,
+    differences: BTreeMap<String, ComparedSnapshot>,
 }
 
-/// The last snapshot diff computed in this process, if any.
-pub fn last_snapshot_diff() -> Option<YamlAstDiffSnapshot> {
-    diff_cache().lock().ok().and_then(|cache| cache.clone())
-}
-
-/// Replace the process-wide snapshot diff.
-pub fn publish_snapshot_diff(diff: YamlAstDiffSnapshot) {
-    if let Ok(mut cache) = diff_cache().lock() {
-        *cache = Some(diff);
-    }
-}
-
-/// Drop the cached diff (a restore or a fresh snapshot makes it stale).
-pub fn clear_snapshot_diff() {
-    if let Ok(mut cache) = diff_cache().lock() {
-        *cache = None;
-    }
-}
-
-/// DUAL-09-06/07: process-wide cache of the snapshot history a surface just
-/// loaded. The Bevy surface owns no storage port, so it renders exactly the
-/// entries + prune view the shared application computed.
-fn history_cache() -> &'static Mutex<Option<SnapshotHistorySnapshot>> {
-    static HISTORY: OnceLock<Mutex<Option<SnapshotHistorySnapshot>>> = OnceLock::new();
-    HISTORY.get_or_init(|| Mutex::new(None))
-}
-
-/// The last snapshot history computed in this process, if any.
-pub fn last_snapshot_history() -> Option<SnapshotHistorySnapshot> {
-    history_cache().lock().ok().and_then(|cache| cache.clone())
-}
-
-/// Replace the process-wide snapshot history.
-pub fn publish_snapshot_history(history: SnapshotHistorySnapshot) {
-    if let Ok(mut cache) = history_cache().lock() {
-        *cache = Some(history);
-    }
-}
-
-/// Drop the cached history (profile switch, delete, restore).
-pub fn clear_snapshot_history() {
-    if let Ok(mut cache) = history_cache().lock() {
-        *cache = None;
-    }
+struct ComparedSnapshot {
+    document_hash: String,
+    difference: YamlAstDiffSnapshot,
 }
 
 impl SnapshotApplication {
@@ -86,7 +48,43 @@ impl SnapshotApplication {
         Self {
             profiles: ProfileApplication::new(profile_store),
             snapshots,
+            observations: Arc::default(),
+            restores: Arc::default(),
+            restore_owner: restore::allocate_owner(),
         }
+    }
+
+    pub fn history_observation(&self, profile: &str) -> Option<SnapshotHistorySnapshot> {
+        self.observations
+            .lock()
+            .expect("snapshot observations")
+            .histories
+            .get(profile)
+            .cloned()
+    }
+    pub fn diff_observation(&self, profile: &str, document: &str) -> Option<YamlAstDiffSnapshot> {
+        let hash = content_hash(document.as_bytes());
+        self.observations
+            .lock()
+            .expect("snapshot observations")
+            .differences
+            .get(profile)
+            .filter(|observation| observation.document_hash == hash)
+            .map(|observation| observation.difference.clone())
+    }
+    fn clear_diff(&self, profile: &str) {
+        self.observations
+            .lock()
+            .expect("snapshot observations")
+            .differences
+            .remove(profile);
+    }
+    fn publish_history(&self, history: SnapshotHistorySnapshot) {
+        self.observations
+            .lock()
+            .expect("snapshot observations")
+            .histories
+            .insert(history.profile.clone(), history);
     }
 
     pub async fn create_current(&self) -> Result<SnapshotMeta, Failure> {
@@ -103,7 +101,7 @@ impl SnapshotApplication {
             .map_err(Failure::from)?;
         // The new snapshot becomes the newest candidate; a cached diff no
         // longer describes "newest snapshot vs current".
-        clear_snapshot_diff();
+        self.clear_diff(&meta.profile);
         // DUAL-09-06: refresh the shared history view as part of the create, so
         // both surfaces see the new entry (the create itself already succeeded —
         // a history refresh failure must not turn it into a failure).
@@ -121,8 +119,8 @@ impl SnapshotApplication {
     ) -> Result<SnapshotHistorySnapshot, Failure> {
         let keep = SnapshotHistorySnapshot::clamp_keep(keep);
         let mut snapshots = self.list(profile).await?;
-        snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
-        let mut seen = std::collections::HashSet::new();
+        snapshots.sort_by_key(|meta| Reverse(meta.timestamp));
+        let mut seen = HashSet::new();
         let entries: Vec<SnapshotEntry> = snapshots
             .iter()
             .enumerate()
@@ -139,7 +137,7 @@ impl SnapshotApplication {
                 is_duplicate: !seen.insert(meta.sha256.clone()),
             })
             .collect();
-        let pending_prune = infiltrator_domain::backup::prune_snapshots(&snapshots, keep).len();
+        let pending_prune = prune_snapshots(&snapshots, keep).len();
         let duplicate_entries = entries.iter().filter(|entry| entry.is_duplicate).count();
         let history = SnapshotHistorySnapshot {
             profile: profile.to_string(),
@@ -147,11 +145,11 @@ impl SnapshotApplication {
             keep_limit: keep,
             pending_prune,
             duplicate_entries,
-            last_prune: last_snapshot_history()
-                .filter(|cached| cached.profile == profile)
+            last_prune: self
+                .history_observation(profile)
                 .and_then(|cached| cached.last_prune),
         };
-        publish_snapshot_history(history.clone());
+        self.publish_history(history.clone());
         Ok(history)
     }
 
@@ -168,8 +166,8 @@ impl SnapshotApplication {
     ) -> Result<SnapshotPruneReport, Failure> {
         let keep = SnapshotHistorySnapshot::clamp_keep(keep);
         let mut snapshots = self.list(profile).await?;
-        snapshots.sort_by_key(|meta| std::cmp::Reverse(meta.timestamp));
-        let doomed = infiltrator_domain::backup::prune_snapshots(&snapshots, keep);
+        snapshots.sort_by_key(|meta| Reverse(meta.timestamp));
+        let doomed = prune_snapshots(&snapshots, keep);
         let mut removed = 0usize;
         let mut first_error = None;
         for path in doomed {
@@ -189,7 +187,7 @@ impl SnapshotApplication {
         };
         if let Ok(mut history) = self.history(profile, keep).await {
             history.last_prune = Some(report);
-            publish_snapshot_history(history);
+            self.publish_history(history);
         }
         match first_error {
             Some(error) => Err(Failure::from(error)),
@@ -198,7 +196,20 @@ impl SnapshotApplication {
     }
 
     pub async fn list(&self, profile: &str) -> Result<Vec<SnapshotMeta>, Failure> {
-        self.snapshots.list(profile).await.map_err(Failure::from)
+        let identity = self.profiles.load_profile_info(profile).await?.name;
+        let entries = self
+            .snapshots
+            .list(&identity)
+            .await
+            .map_err(Failure::from)?;
+        if entries.iter().any(|entry| entry.profile != identity) {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Snapshot store returned another profile's history",
+                false,
+            ));
+        }
+        Ok(entries)
     }
 
     pub async fn read(&self, profile: &str, path: &Path) -> Result<String, Failure> {
@@ -210,8 +221,8 @@ impl SnapshotApplication {
 
     /// Compute visual Myers AST difference between a historical snapshot and current profile content.
     ///
-    /// The result is published process-wide (with the snapshot identity
-    /// attached) so both surfaces can render the same diff.
+    /// The instance records the actual profile/document identity and snapshot path.
+    /// Readers reject observations for different profiles or changed documents.
     pub async fn diff_snapshot(
         &self,
         profile: &str,
@@ -230,7 +241,17 @@ impl SnapshotApplication {
             &current_detail.name,
         )
         .with_source_path(snapshot_path.to_string_lossy().to_string());
-        publish_snapshot_diff(diff.clone());
+        self.observations
+            .lock()
+            .expect("snapshot observations")
+            .differences
+            .insert(
+                current_detail.name.clone(),
+                ComparedSnapshot {
+                    document_hash: content_hash(current_detail.content.as_bytes()),
+                    difference: diff.clone(),
+                },
+            );
         Ok(diff)
     }
 
@@ -239,27 +260,11 @@ impl SnapshotApplication {
     /// must render an honest empty state instead of a fabricated diff.
     pub async fn diff_newest(&self, profile: &str) -> Result<Option<YamlAstDiffSnapshot>, Failure> {
         let mut snapshots = self.list(profile).await?;
-        snapshots.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.timestamp));
+        snapshots.sort_by_key(|snapshot| Reverse(snapshot.timestamp));
         let Some(newest) = snapshots.first() else {
-            clear_snapshot_diff();
+            self.clear_diff(profile);
             return Ok(None);
         };
         self.diff_snapshot(profile, &newest.path).await.map(Some)
-    }
-
-    pub async fn restore<R: ManagedRuntime + ?Sized>(
-        &self,
-        runtime: Option<Arc<R>>,
-        profile: &str,
-        path: &Path,
-    ) -> Result<(), Failure> {
-        let profile = self.profiles.load_profile_info(profile).await?.name;
-        let content = self.read(&profile, path).await?;
-        self.profiles
-            .save_profile_content(runtime, profile, content, ApplyStrategy::PreferReload)
-            .await?;
-        // The live content now equals the snapshot: any cached diff is stale.
-        clear_snapshot_diff();
-        Ok(())
     }
 }

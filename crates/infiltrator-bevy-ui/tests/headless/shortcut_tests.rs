@@ -3,33 +3,30 @@
 //! `UiCommand`s, and a capture rebind goes out through the shared settings
 //! command path.
 
-use std::sync::Arc;
-
 use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
-use bevy::input::ButtonState;
-use bevy::input::InputPlugin;
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput, NativeKey};
+use bevy::input::{ButtonState, InputPlugin};
 use bevy::scene::ScenePlugin;
 use bevy::window::Window;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
+use infiltrator_bevy_ui::appearance::ThemeMode;
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
+use infiltrator_bevy_ui::mini_hud::MiniHudMode;
 use infiltrator_bevy_ui::shortcuts::{
     BeginChordCapture, ChordPressed, HotkeyCapture, ShortcutBindings,
 };
 use infiltrator_contract::shortcuts::{KeyModifiers, ShortcutAction, ShortcutChord};
 use infiltrator_contract::system_toggle::SystemToggle;
+use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
+use std::sync::Arc;
 
 fn mounted_app() -> (App, Arc<DemoCommandSink>) {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins((AssetPlugin::default(), ScenePlugin, InputPlugin));
-    app.add_plugins(ShellPlugin::new(
-        infiltrator_contract::theme::ThemePreference::Fixed(
-            infiltrator_contract::theme::ThemeSkin::Dark,
-        ),
-    ));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
     let sink = Arc::new(DemoCommandSink::accepting());
     app.insert_resource(CommandSinkHandle(sink.clone()));
     app.update();
@@ -135,19 +132,13 @@ fn an_unbound_chord_submits_nothing() {
 #[test]
 fn the_theme_chord_advances_the_shared_preference() {
     let (mut app, _) = mounted_app();
-    let before = app
-        .world()
-        .resource::<infiltrator_bevy_ui::appearance::ThemeMode>()
-        .0;
+    let before = app.world().resource::<ThemeMode>().0;
     press(
         &mut app,
         KeyCode::KeyD,
         &[KeyCode::ControlLeft, KeyCode::AltLeft],
     );
-    let after = app
-        .world()
-        .resource::<infiltrator_bevy_ui::appearance::ThemeMode>()
-        .0;
+    let after = app.world().resource::<ThemeMode>().0;
     assert_eq!(after, before.next(), "Ctrl+Alt+D advances the preference");
 }
 
@@ -223,11 +214,7 @@ fn capture_refuses_a_chord_owned_by_another_action() {
 #[test]
 fn a_chord_pressed_for_the_mini_hud_toggles_the_mounted_overlay() {
     let (mut app, sink) = mounted_app();
-    assert!(
-        !app.world()
-            .resource::<infiltrator_bevy_ui::mini_hud::MiniHudMode>()
-            .0
-    );
+    assert!(!app.world().resource::<MiniHudMode>().0);
     press(
         &mut app,
         KeyCode::KeyM,
@@ -235,11 +222,7 @@ fn a_chord_pressed_for_the_mini_hud_toggles_the_mounted_overlay() {
     );
     // The shortcut flips the mounted HUD; it is a local view command, so no
     // sink command goes out (the global-chord dispatch is not a settings write).
-    assert!(
-        app.world()
-            .resource::<infiltrator_bevy_ui::mini_hud::MiniHudMode>()
-            .0
-    );
+    assert!(app.world().resource::<MiniHudMode>().0);
     assert!(sink.submitted().is_empty());
     let _ = ChordPressed {
         key: "M".to_string(),

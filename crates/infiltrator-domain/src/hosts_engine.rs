@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 /// Represents a single entry parsed from a hosts file or added programmatically.
@@ -76,7 +77,7 @@ impl HostsEngine {
             self.wildcard_matches.push((suffix, entry.target_ip));
             // Sort by descending suffix length for most specific match first
             self.wildcard_matches
-                .sort_by_key(|(suffix, _)| std::cmp::Reverse(suffix.len()));
+                .sort_by_key(|(suffix, _)| Reverse(suffix.len()));
         } else {
             self.exact_matches
                 .insert(entry.domain_pattern, entry.target_ip);

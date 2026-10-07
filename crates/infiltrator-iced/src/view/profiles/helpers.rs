@@ -1,30 +1,19 @@
 //! Formatting, clipboard and per-profile traffic widgets for the Profiles page.
 
-use crate::host::clipboard_helper::ClipboardHelper;
 use crate::types::message::Message;
 use crate::view::components::{BadgeKind, badge};
-use crate::view::theme::{self, FONT_MEDIUM, MONO, tokens};
+use crate::view::theme;
+use crate::view::theme::{FONT_MEDIUM, MONO, tokens};
 use chrono::{DateTime, Local, Utc};
 use iced::widget::{Space, button, column, progress_bar, row, text};
 use iced::{Alignment, Border, Element, Length, Theme, border};
+use infiltrator_application::profile_metadata_projection::{UsageGrade, traffic, traffic_caption};
+use infiltrator_desktop::clipboard_helper::ClipboardHelper;
 use infiltrator_domain::profiles::ProfileInfo;
+use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
-
-/// Human-readable byte size (B / KB / MB / GB / TB), formatted with two decimals above 1 KB.
-pub(super) fn format_bytes(value: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
-    let mut size = value as f64;
-    let mut unit = 0usize;
-    while size >= 1024.0 && unit < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{value} {}", UNITS[0])
-    } else {
-        format!("{size:.2} {}", UNITS[unit])
-    }
-}
+use std::env::var_os;
+use std::process;
 
 /// Format an optional UTC timestamp as localized datetime with a fallback string.
 pub(super) fn format_datetime(value: Option<DateTime<Utc>>, fallback: &str) -> String {
@@ -41,7 +30,7 @@ pub(super) fn format_datetime(value: Option<DateTime<Utc>>, fallback: &str) -> S
 pub(super) fn read_clipboard_url() -> Option<String> {
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("pbpaste").output() {
+        if let Ok(output) = process::Command::new("pbpaste").output() {
             if output.status.success() {
                 if let Ok(s) = String::from_utf8(output.stdout) {
                     let clean = ClipboardHelper::sanitize_clipboard_text(&s);
@@ -56,7 +45,7 @@ pub(super) fn read_clipboard_url() -> Option<String> {
     }
     #[cfg(target_os = "windows")]
     {
-        if let Ok(output) = std::process::Command::new("powershell")
+        if let Ok(output) = process::Command::new("powershell")
             .args(["-NoProfile", "-Command", "Get-Clipboard"])
             .output()
         {
@@ -74,8 +63,8 @@ pub(super) fn read_clipboard_url() -> Option<String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        if std::env::var_os("WAYLAND_DISPLAY").is_some()
-            && let Ok(output) = std::process::Command::new("wl-paste")
+        if var_os("WAYLAND_DISPLAY").is_some()
+            && let Ok(output) = process::Command::new("wl-paste")
                 .args(["--no-newline"])
                 .output()
             && output.status.success()
@@ -87,8 +76,8 @@ pub(super) fn read_clipboard_url() -> Option<String> {
                 return Some(ClipboardHelper::extract_subscription_url(&clean).unwrap_or(clean));
             }
         }
-        if std::env::var_os("DISPLAY").is_some() {
-            if let Ok(output) = std::process::Command::new("xclip")
+        if var_os("DISPLAY").is_some() {
+            if let Ok(output) = process::Command::new("xclip")
                 .args(["-selection", "clipboard", "-o"])
                 .output()
                 && output.status.success()
@@ -102,7 +91,7 @@ pub(super) fn read_clipboard_url() -> Option<String> {
                     );
                 }
             }
-            if let Ok(output) = std::process::Command::new("xsel")
+            if let Ok(output) = process::Command::new("xsel")
                 .args(["--clipboard", "--output"])
                 .output()
                 && output.status.success()
@@ -167,28 +156,24 @@ pub(super) fn traffic_row<'a>(
     profile: &ProfileInfo,
     lang: &Lang<'_>,
 ) -> Option<Element<'a, Message>> {
-    let total = profile.traffic_total.unwrap_or(0);
-    let upload = profile.traffic_upload.unwrap_or(0);
-    let download = profile.traffic_download.unwrap_or(0);
-    let used = upload.saturating_add(download);
-
-    if profile.traffic_total.is_none()
+    if profile.subscription_url.is_none()
         && profile.traffic_upload.is_none()
         && profile.traffic_download.is_none()
+        && profile.traffic_total.is_none()
         && profile.expire_at.is_none()
     {
         return None;
     }
-
-    let fraction = if total > 0 {
-        (used as f32 / total as f32).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let is_exhausted = total > 0 && fraction >= 0.90;
-    let is_depleted = total > 0 && fraction >= 1.0;
-    let is_warning = total > 0 && (0.80..0.90).contains(&fraction);
-    let now = chrono::Utc::now().timestamp();
+    let facts = traffic(
+        profile.traffic_upload,
+        profile.traffic_download,
+        profile.traffic_total,
+    );
+    let fraction = facts.fraction.unwrap_or(0.0);
+    let is_exhausted = matches!(facts.grade, UsageGrade::High);
+    let is_depleted = matches!(facts.grade, UsageGrade::Exhausted);
+    let is_warning = matches!(facts.grade, UsageGrade::Warning);
+    let now = Utc::now().timestamp();
     let is_expired = profile.expire_at.is_some_and(|exp| exp > 0 && exp <= now);
     let is_expiring_soon = profile
         .expire_at
@@ -196,35 +181,17 @@ pub(super) fn traffic_row<'a>(
 
     let expire_suffix = profile
         .expire_at
-        .and_then(|sec| chrono::DateTime::from_timestamp(sec, 0))
+        .and_then(|sec| DateTime::from_timestamp(sec, 0))
         .map(|exp| {
             let d = exp.with_timezone(&Local).format("%Y-%m-%d").to_string();
             format!(
                 "  {}",
-                infiltrator_shared::i18n_interpolator::interpolate(
-                    &lang.tr("profiles_expires_at"),
-                    &[("d", &d)]
-                )
+                interpolate(&lang.tr("profiles_expires_at"), &[("d", &d)])
             )
         })
         .unwrap_or_default();
 
-    let usage_label = if total > 0 {
-        format!(
-            "↑ {}  ↓ {}  •  {} / {} ({:.1}%){expire_suffix}",
-            format_bytes(upload),
-            format_bytes(download),
-            format_bytes(used),
-            format_bytes(total),
-            fraction * 100.0
-        )
-    } else {
-        format!(
-            "↑ {}  ↓ {}{expire_suffix}",
-            format_bytes(upload),
-            format_bytes(download)
-        )
-    };
+    let usage_label = format!("{}{expire_suffix}", traffic_caption(&facts, lang.0));
 
     let mut info_row = row![
         text(usage_label)
@@ -273,14 +240,14 @@ pub(super) fn traffic_row<'a>(
             .expire_at
             .map(|exp| ((exp - now) / 86400).max(1))
             .unwrap_or(1);
-        let label = infiltrator_shared::i18n_interpolator::interpolate(
+        let label = interpolate(
             &lang.tr("profiles_expiring_soon"),
             &[("days", &days.to_string())],
         );
         info_row = info_row.push(badge(label, BadgeKind::Warning));
     }
 
-    let bar: Element<'a, Message> = if total > 0 {
+    let bar: Element<'a, Message> = if facts.fraction.is_some() {
         progress_bar(0.0..=1.0, fraction)
             .length(Length::Fill)
             .style(move |t: &Theme| {
