@@ -8,10 +8,10 @@ use infiltrator_bevy_ui::pages::overview_speedtest::{
     OverviewSpeedtestDetailBodyText, OverviewSpeedtestDetailButton,
 };
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCloseButton, ModalState};
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::speedtest::SpeedtestSnapshot;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 fn activate<T: Component>(app: &mut App) {
     let entity = app
@@ -40,9 +40,9 @@ fn speedtest_details_render_shared_fold_and_close_escape_and_navigation() {
     app.add_plugins(CommandPumpPlugin::new(sink.clone()));
     let mut projection = DemoOverviewSource::running().current();
     projection.speedtest = SpeedtestSnapshot::demo_fixture();
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let locale = app.world().resource::<UiLocale>().code().to_string();
     let expected = listing(&project_details(&projection.speedtest), &|key| {
-        Lang(&language).tr(key).into_owned()
+        Lang(&locale).tr(key).into_owned()
     });
     app.world_mut()
         .commands()

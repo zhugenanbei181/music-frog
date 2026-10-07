@@ -119,9 +119,12 @@ package = "app.musicfrog.infiltrator_bevy_ui"
 apk_name = "infiltrator-bevy-ui"
 build_targets = ["aarch64-linux-android"]
 
+# BANDROID-020: keep min/target SDK identical to the Compose host
+# (android/app/build.gradle.kts). The generated APK driver crate in
+# scripts/build-bevy-apk.sh carries the permissions; this table must not drift.
 [package.metadata.android.sdk]
-min_sdk_version = 26
-target_sdk_version = 35
+min_sdk_version = 29
+target_sdk_version = 36
 
 [package.metadata.android.application]
 label = "MusicFrog Infiltrator Bevy"

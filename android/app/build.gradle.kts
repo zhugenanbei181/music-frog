@@ -38,6 +38,8 @@ android {
         targetSdk = 36
         versionCode = resolvedVersionCode.get()
         versionName = resolvedVersionName.get()
+        // BANDROID-022: instrumented tests run through the standard AndroidX runner.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -90,6 +92,13 @@ android {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
+    }
+
+    // BANDROID-021: JVM unit tests (android/app/src/test) run without a device.
+    // Android framework calls (e.g. android.util.Log) return defaults so pure
+    // state logic does not need Robolectric.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -162,18 +171,27 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2025.12.01"))
-    implementation("androidx.activity:activity-compose:1.12.2")
+    // BANDROID-024: Android dependency baseline tracks the latest stable
+    // releases. Compose artifacts are versioned by the BOM; the rest are pinned
+    // explicitly. Re-check Google Maven / Maven Central before changing these.
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3-window-size-class")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     // JNA 依赖必须带 @aar 以加载原生库
-    implementation("net.java.dev.jna:jna:5.18.1@aar")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
+
+    // BANDROID-021: JVM unit tests (no device required).
+    testImplementation("junit:junit:4.13.2")
+    // BANDROID-022: instrumented tests (emulator/device only).
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }

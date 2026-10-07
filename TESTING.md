@@ -78,6 +78,23 @@ bash scripts/parity/accept-surface-interactions.sh --all
 
 ---
 
+## Android CI 与测试分层（BANDROID-018～023）
+
+Android 原先没有独立的测试 CI；`.github/workflows/android.yml` 是新增的 L0/L1 编译门（PR/push 触发），`scripts/android-check.sh` 是它的 Rust 侧命令入口。分层与本仓库其它平台一致：
+
+| 层 | 命令 | 说明 |
+| --- | --- | --- |
+| L0/L1 编译门 | `bash scripts/android-check.sh` | 两个 ABI 的 cargo check/clippy；不替代设备 |
+| L1.5 清单/权限 | `python3 scripts/quality/android-manifest-guard.py --mode enforce` | 产品清单权限/VPN service/`foregroundServiceType`/receiver |
+| L1.5 APK 权限 | `BEVY_APK_USE_SYSTEM_TOOLCHAIN=1 BEVY_APK_SKIP_EMULATOR=1 bash scripts/build-bevy-apk.sh` | 构建后经 aapt 断言实际打包权限 |
+| L2 Kotlin 单元 | `( cd android && ./gradlew --no-daemon :app:testDebugUnitTest )` | JVM 逻辑（BANDROID-021） |
+| L2.5 模拟器插桩 | 编译 `:app:assembleDebugAndroidTest`；模拟器跑 `:app:connectedDebugAndroidTest` | 已安装 APK 权限/service 声明、Activity/service/Insets/IME（BANDROID-022） |
+| L3/L4 真机 | `workflow_dispatch`/self-hosted 运行 `scripts/android-device-evidence.sh` | VPN/后台/功耗原始报告（BANDROID-023） |
+
+工具链版本两端统一为 min 29 / target 36 / compile 36 / NDK `29.0.14206865`（BANDROID-020）。`cargo-apk` 只能声明 `uses_permission`，完整 VPN 清单由 Gradle 宿主交付（BANDROID-003/015）。普通 PR 的编译门与守卫通过不构成设备证据。
+
+---
+
 ## 全仓代码行数红线（line budget）
 
 导入、拆分与反规避规范见 [docs/CODE_QUALITY_BASELINE.md](docs/CODE_QUALITY_BASELINE.md)。

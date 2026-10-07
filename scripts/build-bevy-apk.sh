@@ -15,7 +15,7 @@
 # [package.metadata.android] rationale in
 # crates/infiltrator-bevy-ui/Cargo.toml for the entry-contract citations.
 # VALIDATED RUN (BEVY-006 back half, 2026-09-01, userspace toolchain at
-# ~/android-tools-bevy, x86_64 API 35 emulator, KVM): L1 aapt badging +
+# ~/android-tools-bevy, x86_64 API 36 emulator, KVM): L1 aapt badging +
 # L2 crash-free launch + L3 screenshot all passed — but against *snapshot*
 # drivers (git index state, generated under target/android-tools/apk-driver-
 # snapshot{,-x86}) because the working tree was under parallel edit.
@@ -23,15 +23,18 @@
 # logs/apk-build{,2,3}.log died on mid-edit compile errors in the widgets/ui
 # crates, never on toolchain. The driver now packs BOTH ABIs as one fat APK:
 # aarch64-linux-android is the task's canonical artifact, x86_64-linux-android
-# exists solely because the API 35 x86_64 emulator image rejects arm64-only
+# exists solely because the API 36 x86_64 emulator image rejects arm64-only
 # APKs (INSTALL_FAILED_NO_MATCHING_ABIS, observed live) and this emulator is
 # the only KVM-capable smoke surface. The installer picks the matching ABI.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT="${ANDROID_TOOLS_ROOT:-$HOME/android-tools-bevy}"
-API="android-35"
-BUILD_TOOLS="35.0.0"
+# BANDROID-020: keep SDK platform / build-tools / NDK identical to the Compose
+# host (android/app/build.gradle.kts) so "Android compiles in CI" means the same
+# target for both products. Do not let these drift again.
+API="android-36"
+BUILD_TOOLS="36.0.0"
 AVD_NAME="bevy-smoke"
 DRIVER="$REPO_ROOT/target/android-tools/apk-driver"
 PACKAGE="app.musicfrog.infiltrator_bevy_ui"
@@ -58,7 +61,7 @@ if [ "$USE_SYSTEM_TOOLCHAIN" = "1" ]; then
 else
     SDK="$ROOT/android"
     JDK="$ROOT/jdk"
-    NDK_VERSION="27.0.12077973"
+    NDK_VERSION="29.0.14206865"
 fi
 
 mkdir -p "$ROOT/dl" "$ROOT/logs"
@@ -102,7 +105,7 @@ SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
 # --- 3. SDK components -------------------------------------------------------
 # sdkmanager package names use ';' separators; the on-disk layout uses '/',
-# so probe the mapped path (a literal "$SDK/platforms;android-35" never
+# so probe the mapped path (a literal "$SDK/platforms;android-36" never
 # exists and would re-invoke sdkmanager on every run). `yes |` dies with
 # SIGPIPE once sdkmanager stops reading; neutralize that for the pipeline
 # only (pipefail would otherwise abort the script after a *successful*
@@ -182,12 +185,35 @@ bevy_android = "=0.20.0-rc.2"
 package = "app.musicfrog.infiltrator_bevy_ui"
 apk_name = "infiltrator-bevy-ui"
 # Fat APK: see the header — arm64-v8a is the canonical target, x86_64 keeps
-# the API 35 x86_64 emulator image installable for the smoke run.
+# the API 36 x86_64 emulator image installable for the smoke run.
 build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 
+# BANDROID-019: the mobile product host needs these permissions. cargo-apk can
+# only express uses_permission; the VPN <service>/foregroundServiceType and the
+# BootReceiver live in the Gradle product manifest
+# (android/app/src/main/AndroidManifest.xml) — see docs/BEVY_ANDROID_PRODUCT.md.
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.FOREGROUND_SERVICE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.POST_NOTIFICATIONS"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.RECEIVE_BOOT_COMPLETED"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"
+
+# BANDROID-020: min/target SDK must match android/app/build.gradle.kts (29/36).
 [package.metadata.android.sdk]
-min_sdk_version = 26
-target_sdk_version = 35
+min_sdk_version = 29
+target_sdk_version = 36
 
 [package.metadata.android.application]
 label = "MusicFrog Infiltrator Bevy"
@@ -235,6 +261,30 @@ log "aapt badging: $APK"
 "$AAPT" dump badging "$APK" | grep -E "^package|native-code|launchable-activity|sdkVersion|application-label" | tee "$ROOT/logs/aapt-badging.txt"
 "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -E "lib_name|NativeActivity|theme" | tee "$ROOT/logs/aapt-manifest.txt"
 unzip -l "$APK" | grep -E "\.so" | tee "$ROOT/logs/apk-libs.txt"
+
+# --- 9. L1.5 verification: packaged permissions (BANDROID-019) ---------------
+# The generated metadata is the source; this asserts the declaration actually
+# landed in the signed APK. Missing any required permission fails the build so a
+# silently dropped manifest entry cannot ship.
+"$AAPT" dump permissions "$APK" > "$ROOT/logs/aapt-permissions.txt"
+required_permissions=(
+    android.permission.INTERNET
+    android.permission.ACCESS_NETWORK_STATE
+    android.permission.FOREGROUND_SERVICE
+    android.permission.POST_NOTIFICATIONS
+    android.permission.RECEIVE_BOOT_COMPLETED
+    android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED
+)
+missing_permissions=()
+for permission in "${required_permissions[@]}"; do
+    grep -q "name='$permission'" "$ROOT/logs/aapt-permissions.txt" \
+        || missing_permissions+=("$permission")
+done
+if [ "${#missing_permissions[@]}" -ne 0 ]; then
+    log "ERROR: APK missing required permissions: ${missing_permissions[*]}"
+    exit 1
+fi
+log "aapt permissions verified (${#required_permissions[@]} present)"
 
 log "OK: $APK"
 log "next: scripts/verify-bevy-apk.sh"

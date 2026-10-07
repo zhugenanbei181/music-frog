@@ -96,12 +96,14 @@ impl AndroidVpnServicePort {
 
         let proxy = tun2proxy::ArgProxy::try_from(request.proxy_endpoint.as_str())
             .map_err(|error| PortError::Failed(format!("invalid tun2proxy endpoint: {error}")))?;
-        let mut args = tun2proxy::Args::default();
-        args.proxy = proxy;
-        args.tun_fd = Some(request.tun_fd);
-        args.close_fd_on_drop = Some(true);
-        args.ipv6_enabled = request.ipv6;
-        args.setup = false;
+        let mut args = tun2proxy::Args {
+            proxy,
+            tun_fd: Some(request.tun_fd),
+            close_fd_on_drop: Some(true),
+            ipv6_enabled: request.ipv6,
+            setup: false,
+            ..Default::default()
+        };
         if let Some(server) = request.dns_servers.first()
             && let Ok(address) = server.parse()
         {

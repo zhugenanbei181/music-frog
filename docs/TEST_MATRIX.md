@@ -59,3 +59,5 @@ intent → Rust command/result → Iced decision → Android decision（0.30 起
 具体场景、数据规模、恢复循环与资源采样遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md) 的分层验收。共享语义/原生组件先做隔离行为回归；服务进程/IPC、最终 APK、真实 Mihomo/VPN、原生输入与后台功耗分别取得适用证据，不能用桌面、合成事件或无默认特性库检查抵扣。
 
 UI 平权审计的 L1/L2/L3 与本文件的 package/core/device 层级是两个证据维度，报告必须写明所属体系。真实网络、系统权限、设备进程终止与长时功耗采样仅在显式平台 stage 执行，不混入普通 mock/headless 测试。
+
+Android 执行入口（`BANDROID-018`～`BANDROID-023`）：L0/L1 编译门与 Gradle 宿主编译见 `.github/workflows/android.yml` 与 `scripts/android-check.sh`；清单/权限守卫见 `scripts/quality/android-manifest-guard.py`；Kotlin JVM 单元与模拟器插桩分别为 `testDebugUnitTest`、`connectedDebugAndroidTest`；真机/长时证据只在 `workflow_dispatch`/self-hosted stage 运行，报告绑定产物哈希。工具链版本两端统一由 `BANDROID-020` 保证；`cargo-apk` 不能声明 `<service>`，完整 VPN 清单归 Gradle 宿主（`BANDROID-003`/`BANDROID-015`）。

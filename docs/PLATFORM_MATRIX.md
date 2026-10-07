@@ -11,7 +11,7 @@
 | macOS desktop | Iced 与 Bevy 同权产品 | 锁定 amd64/arm64 资产；两端 App bundle 的 Resources 包含匹配内核 | 两套 App/DMG/tarball 模板与共享内核查找代码 | 目标 macOS CI、签名/权限、安装后真实运行验证 |
 | Android arm64-v8a | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-arm64-v8`，构建时复制为 `libmihomo.so` | `scripts/android-build.sh`、Gradle ABI 配置 | 真实设备 VPN、后台、升级和异常退出矩阵 |
 | Android x86_64 | Compose + UniFFI + Kotlin host/VPN | `vendor/mihomo-android-amd64`，用于 emulator/ABI | Gradle 与 fetch 脚本 | emulator/CI ABI smoke、性能与网络隔离验证 |
-| Android Bevy | NativeActivity 界面入口；原生产品宿主尚未组合 | 已有 APK 入口；当前受限 ECS 的 Bevy UI arm64 库使用真实 NDK 交叉编译与严格 Clippy 通过，尚不能证明完整控制产品交付 | 默认入口显式显示未组合状态；桌面结果不外推 | 按 [Android 产品规范](BEVY_ANDROID_PRODUCT.md) 补 UI/VPN 进程与 IPC、原生命令/全页 reader、文本/Insets/剪贴板、列表/节能；最终默认特性包和真机 VPN/恢复/功耗验收前不得作为完整产品发布 |
+| Android Bevy | NativeActivity 界面入口；原生产品宿主尚未组合 | 已有 APK 入口；当前受限 ECS 的 Bevy UI arm64 库使用真实 NDK 交叉编译与严格 Clippy 通过；PR 级 Android 编译门与清单/权限守卫见 `.github/workflows/android.yml`、`scripts/quality/android-manifest-guard.py`（BANDROID-018/019），尚不能证明完整控制产品交付 | 默认入口显式显示未组合状态；桌面结果不外推 | 按 [Android 产品规范](BEVY_ANDROID_PRODUCT.md) 补 UI/VPN 进程与 IPC、原生命令/全页 reader、文本/Insets/剪贴板、列表/节能；工具链版本统一（BANDROID-020）与设备/长时证据（BANDROID-023）补齐前不得作为完整产品发布 |
 | iOS arm64 | `infiltrator-ios` host seam；Native UI/NetworkExtension 未接入 | 由签名 app/extension bundle 交付（策略已定，资产未接入） | `infiltrator-ios` 的 `IosBridge`、保守 capability 测试 | Swift/Objective-C bridge、NetworkExtension entitlement、真机 VPN 与后台验证 |
 | Admin API | 桌面管理与诊断 HTTP API；旧浏览器 UI 已退役 | 不拥有独立 core；由产品宿主提供服务 | `infiltrator-admin`；退役事实见 `TAURI_WEBUI_RETIREMENT_LEDGER.md` | API contract 与调用方断线/重连兼容 |
 | External mihomo dashboard | 已随 WebUI 于 0.20 退役 | 管理能力由原生 Iced / Bevy 同权产品承担 | `TAURI_WEBUI_RETIREMENT_LEDGER.md` | — |

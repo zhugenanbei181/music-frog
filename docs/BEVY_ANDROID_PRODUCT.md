@@ -107,3 +107,20 @@ UI 进程：Bevy Activity / Compose Activity + application 端口代理
 UI 进程终止、任务划走、服务异常死亡、权限撤销和系统强制停止应用分别记录预期；不要求绕过系统强制停止。模拟器证明适用 ABI 的构建/安装/基础渲染，ARM64 真机证明实际 VPN、输入、后台和功耗，两者均绑定当前产物。
 
 每个任务保留未满足的证据层；缺少真机或上游能力时继续完成可独立实施部分，最终状态仍为 OPEN/IN PROGRESS 或适用的明确缺口，不能把“不验证”变成 DONE。
+
+## 9. CI 与自动化测试分层
+
+本节把 §8 的验收表落到机器入口，**不改变验收强度**：产品实现仍归本地 TODO 的 `BANDROID-001`～`BANDROID-017`，证据层归 `BANDROID-018`～`BANDROID-023`。设备与长时证据只在显式 stage 运行，普通 PR 不得冒充。
+
+| 层 | 入口 | 覆盖 | 不覆盖 |
+| --- | --- | --- | --- |
+| L0/L1 Android 编译门 | `.github/workflows/android.yml` → `scripts/android-check.sh` | 两个 ABI 的 cargo check/clippy、Compose `assembleDebug`、Bevy APK 构建 | 运行行为、权限生效、设备 |
+| L1.5 清单/权限 | `scripts/quality/android-manifest-guard.py`（随 `--guards-only` 运行）、`scripts/build-bevy-apk.sh` 的 aapt 断言 | 产品清单权限/VPN service/`foregroundServiceType`/receiver；Bevy APK 实际打包权限 | service 是否真能起、运行时授权 |
+| L2 Kotlin 单元 | `android/app/build.gradle.kts` 的 `testDebugUnitTest`（JUnit4，`BANDROID-021`） | JVM 逻辑 | JNI/VpnService/系统副作用 |
+| L2.5 模拟器插桩 | `android/app/src/androidTest/`；编译门跑 `assembleDebugAndroidTest`，模拟器跑 `connectedDebugAndroidTest`（`BANDROID-022`） | 已安装 APK 的权限/service 声明、Activity/service 接线、Insets/IME | 真机 VPN/后台/功耗 |
+| L3/L4 真机 | `.github/workflows/android-device.yml`（`workflow_dispatch`/self-hosted，`scripts/android-device-evidence.sh`）（`BANDROID-023`） | VPN 流量、防回环、≥8h 后台、功耗原始报告 | —（最终证据层） |
+
+- 工具链版本必须两端统一：Compose 与 Bevy 共用 min 29 / target 36 / compile 36 / NDK `29.0.14206865`（`BANDROID-020`）。版本分叉时“CI 能编译”只对其中一套目标成立。
+- Android 依赖基线跟随**最新稳定版**（`BANDROID-024`）：AGP、Kotlin/Compose 插件、Compose BOM、AndroidX、JNA 与 test 依赖的版本真相只在 `android/build.gradle.kts`、`android/app/build.gradle.kts`；升级前核对 Google Maven / Maven Central 与 AGP↔Gradle↔KGP 兼容表，声明最新版不等于已验证。
+- `cargo-apk` 只能声明 `uses_permission`，**不能声明 `<service>`/`<receiver>`/`foregroundServiceType`**；完整 VPN 清单只能由 Gradle 宿主（`BANDROID-003`/`BANDROID-015`）交付。Bevy smoke APK 的权限声明与产品清单由 `BANDROID-019` 保持同步。
+- 编译门与守卫通过**不等于**产品完成：后台、省电、权限的产品实现仍按 §2/§3/§5 由服务宿主交付，设备证据按 §8 分层取得。该编译门已于 2026-10-07 在本地用真实 NDK 29 / SDK 36 端到端执行并通过（首个运行暴露并修复了 6 个 Android-only clippy 违规，证明 host clippy 看不到这些 cfg 分支）；CI workflow 本身仍须以第一次 GitHub Actions 运行为准。

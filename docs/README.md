@@ -35,6 +35,7 @@
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
 | Bevy UI 开发规范 | `docs/BEVY_UI_FRONTEND.md` | 声明式场景、受限 ECS、模块化 WESL、GPU ABI、handle owner/复用/回收与分层验证；业务和截图激活禁止整仓 World 访问 |
 | Bevy Android 产品工程 | `docs/BEVY_ANDROID_PRODUCT.md` | 现有能力保留扩展，Android UI/VPN 宿主组合、资源治理和设备验收；当前平台状态仍归平台矩阵，排期归本地 TODO |
+| Android CI 与测试分层 | `.github/workflows/android.yml` + `docs/BEVY_ANDROID_PRODUCT.md` §9 | 编译门/清单守卫/单元/插桩/真机证据分层；产品状态仍归平台矩阵 |
 | 双端多尺寸弹性 | `docs/RESPONSIVE_PARITY_LEDGER.md` | 断点单一事实源、四阶形态规范与逐页弹性收口；`DUAL-03-14`/`DUAL-15-01` 的权威验收台账 |
 | 双端 UI/UX 与视觉演进 | `docs/DUAL_SURFACE_UI_UX_ROADMAP.md` | 双端 UI/UX 体验、全流体响应式、设计令牌、连续曲率圆角与微交互的权威实施台账 |
 | 多模态外壳回归矩阵 | `docs/MULTIMODAL_SHELL_MATRIX.md` | 组 15 逐项状态与双侧证据；历史证据标记待按 `scripts/parity/` 重新验收 |

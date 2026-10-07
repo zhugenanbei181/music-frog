@@ -43,7 +43,7 @@ pub fn start_vpn(fd: i32) -> FfiStatus {
             Err(status) => return status,
         };
         let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        return match get_runtime().block_on(application.start(request)) {
+        match get_runtime().block_on(application.start(request)) {
             Ok(snapshot) if snapshot.is_running() => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
                 FfiErrorCode::NotReady,
@@ -53,7 +53,7 @@ pub fn start_vpn(fd: i32) -> FfiStatus {
                 ),
             ),
             Err(failure) => map_application_failure(failure),
-        };
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -76,7 +76,7 @@ pub fn prepare_vpn() -> FfiStatus {
             Err(status) => return status,
         };
         let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        return match get_runtime().block_on(application.prepare(configuration)) {
+        match get_runtime().block_on(application.prepare(configuration)) {
             Ok(snapshot) if snapshot.foreground => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
                 FfiErrorCode::NotReady,
@@ -86,7 +86,7 @@ pub fn prepare_vpn() -> FfiStatus {
                 ),
             ),
             Err(failure) => map_application_failure(failure),
-        };
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -103,7 +103,7 @@ pub fn stop_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
         let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        return match get_runtime().block_on(application.stop()) {
+        match get_runtime().block_on(application.stop()) {
             Ok(snapshot)
                 if matches!(
                     snapshot.state,
@@ -117,7 +117,7 @@ pub fn stop_vpn() -> FfiStatus {
                 format!("VPN stop did not settle: {:?}", snapshot.state),
             ),
             Err(failure) => map_application_failure(failure),
-        };
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -134,14 +134,14 @@ pub fn revoke_vpn() -> FfiStatus {
     #[cfg(target_os = "android")]
     {
         let application = VpnServiceApplication::new(Arc::new(AndroidVpnServicePort::shared()));
-        return match get_runtime().block_on(application.revoke()) {
+        match get_runtime().block_on(application.revoke()) {
             Ok(snapshot) if snapshot.state == VpnSessionState::Revoked => FfiStatus::ok(),
             Ok(snapshot) => FfiStatus::err(
                 FfiErrorCode::InvalidState,
                 format!("VPN revoke did not settle: {:?}", snapshot.state),
             ),
             Err(failure) => map_application_failure(failure),
-        };
+        }
     }
 
     #[cfg(not(target_os = "android"))]
@@ -352,10 +352,10 @@ fn build_proxy_url(doc: &Value) -> Option<String> {
         ("port", "http"),
     ];
     for (key, scheme) in candidates {
-        if let Some(value) = doc.get(key) {
-            if let Some(port) = port_from_value(value) {
-                return Some(format!("{}://127.0.0.1:{}", scheme, port));
-            }
+        if let Some(value) = doc.get(key)
+            && let Some(port) = port_from_value(value)
+        {
+            return Some(format!("{}://127.0.0.1:{}", scheme, port));
         }
     }
     None

@@ -50,4 +50,5 @@ MusicFrog Despicable Infiltrator（音乐青蛙 · 卑鄙的渗透者）是一�
 - Bevy 页面插件一次注册观察者与资源，页面根不使用生命周期 hook 懒注册业务或重置草稿；控件初始化使用受限 `On<Insert<T>>` Observer。生产源码禁止 `DeferredWorld` 与 `App::world()` / `world_mut()`，字体和图标通过受限 `PreStartup` 系统初始化，具体装配边界以 Bevy UI 章程为准。
 - Bevy 自有 shader 的 WESL 模块、GPU ABI、handle owner/复用/回收与验证统一遵循 [Bevy UI 章程 §1.2](docs/BEVY_UI_FRONTEND.md)。相关改动同时检验静置无上传、共享资产隔离、角色退役及有界回收；结构守卫、资产表回收和实际 GPU/Android 设备证据分别负责自身事实。
 - Bevy Android 的保留扩展与缺口补全遵循 [docs/BEVY_ANDROID_PRODUCT.md](docs/BEVY_ANDROID_PRODUCT.md)：复用现有宿主、控件和共享业务，推进 UI/VPN 进程与 IPC、原生输入、业务实体回收、事件驱动节能及真实设备验收；当前平台状态与执行队列分别回指平台矩阵和本地 TODO。
+- Android 目标在 PR/push 上经 `.github/workflows/android.yml`（编译门）与 `scripts/quality/android-manifest-guard.py`（清单/权限守卫）验证；Compose 与 Bevy 工具链版本统一，真机/长时证据只在显式 stage 取得（BANDROID-018～023）。
 - 所有改动以代码、行为测试和适用的平台/打包证据为准；不支持的明确标 `unsupported`，未验证的不写“已验证”。
