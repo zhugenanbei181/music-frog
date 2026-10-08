@@ -104,6 +104,17 @@ pub struct TrafficTopologyLinkSnapshot {
     pub active: bool,
 }
 
+/// RTT jitter bucket distribution across observed probe results (CORE-040-05).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RttJitterHistogram {
+    pub bucket_0_50_ms: u32,
+    pub bucket_50_100_ms: u32,
+    pub bucket_100_200_ms: u32,
+    pub bucket_200_500_ms: u32,
+    pub bucket_over_500_ms: u32,
+    pub jitter_p95_ms: u32,
+}
+
 /// Complete topology observation shared by both primary surfaces.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TrafficTopologySnapshot {
@@ -117,6 +128,8 @@ pub struct TrafficTopologySnapshot {
     pub flow_bps: f64,
     /// `None` means the running config did not report a sniffer block.
     pub sniffer_enabled: Option<bool>,
+    /// RTT delay jitter distribution across observed proxies.
+    pub jitter_histogram: Option<RttJitterHistogram>,
 }
 
 impl TrafficTopologySnapshot {
@@ -163,6 +176,14 @@ impl TrafficTopologySnapshot {
         ];
         let flow_bps = 10_486_437.8;
         let links = adjacent_links(12, flow_bps, true);
+        let jitter_histogram = Some(RttJitterHistogram {
+            bucket_0_50_ms: 12,
+            bucket_50_100_ms: 8,
+            bucket_100_200_ms: 4,
+            bucket_200_500_ms: 1,
+            bucket_over_500_ms: 0,
+            jitter_p95_ms: 185,
+        });
         Self {
             generation: 1,
             revision: 1,
@@ -173,6 +194,7 @@ impl TrafficTopologySnapshot {
             active_connections: 12,
             flow_bps,
             sniffer_enabled: Some(true),
+            jitter_histogram,
         }
     }
 

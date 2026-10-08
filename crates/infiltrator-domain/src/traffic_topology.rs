@@ -4,7 +4,7 @@ use crate::proxy::Proxy;
 use crate::runtime::{ConfigSnapshot, Connection};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::traffic_topology::{
-    TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
+    RttJitterHistogram, TrafficTopologyNodeSnapshot, TrafficTopologySnapshot, TrafficTopologyStage,
     TrafficTopologyStatus, adjacent_links,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -104,7 +104,39 @@ pub fn derive(input: TrafficTopologyInput<'_>) -> TrafficTopologySnapshot {
         active_connections,
         flow_bps,
         sniffer_enabled,
+        jitter_histogram: calculate_jitter_histogram(input.proxies),
     }
+}
+
+fn calculate_jitter_histogram(proxies: &HashMap<String, Proxy>) -> Option<RttJitterHistogram> {
+    let mut delays = Vec::new();
+    for proxy in proxies.values() {
+        for entry in proxy.history() {
+            if entry.delay > 0 {
+                delays.push(entry.delay);
+            }
+        }
+    }
+    if delays.is_empty() {
+        return None;
+    }
+    delays.sort_unstable();
+
+    let mut hist = RttJitterHistogram::default();
+    for &d in &delays {
+        match d {
+            0..=50 => hist.bucket_0_50_ms += 1,
+            51..=100 => hist.bucket_50_100_ms += 1,
+            101..=200 => hist.bucket_100_200_ms += 1,
+            201..=500 => hist.bucket_200_500_ms += 1,
+            _ => hist.bucket_over_500_ms += 1,
+        }
+    }
+
+    let p95_idx = ((delays.len() as f64) * 0.95).ceil() as usize;
+    hist.jitter_p95_ms = delays.get(p95_idx.saturating_sub(1)).copied().unwrap_or(0);
+
+    Some(hist)
 }
 
 fn node(
@@ -389,5 +421,64 @@ mod tests {
                 .detail,
             "not reported"
         );
+    }
+
+    #[test]
+    fn derives_rtt_jitter_histogram_from_proxy_history() {
+        use crate::proxy::ProxyHistory;
+        use crate::proxy_observation::RuntimeProxyObservation;
+
+        let mut proxies = HashMap::new();
+        let history = vec![
+            ProxyHistory {
+                time: "2026-10-08T00:00:00Z".into(),
+                delay: 45,
+            },
+            ProxyHistory {
+                time: "2026-10-08T00:01:00Z".into(),
+                delay: 120,
+            },
+            ProxyHistory {
+                time: "2026-10-08T00:02:00Z".into(),
+                delay: 350,
+            },
+        ];
+        proxies.insert(
+            "Node-1".into(),
+            Proxy::Observed(RuntimeProxyObservation {
+                name: "Node-1".into(),
+                proxy_type: "ss".into(),
+                history: Some(history),
+                udp: None,
+                alive: Some(true),
+                delay: Some(45),
+                server: None,
+                port: None,
+                cipher: None,
+                all: None,
+                now: None,
+            }),
+        );
+
+        let config = ConfigSnapshot::default();
+        let connections = vec![connection(&["Node-1"], "MATCH")];
+        let snapshot = derive(TrafficTopologyInput {
+            generation: 1,
+            revision: 1,
+            lifecycle: CoreLifecycle::Running,
+            upload_bps: 0.0,
+            download_bps: 0.0,
+            config: &config,
+            connections: &connections,
+            proxies: &proxies,
+        });
+
+        let hist = snapshot.jitter_histogram.expect("jitter histogram");
+        assert_eq!(hist.bucket_0_50_ms, 1);
+        assert_eq!(hist.bucket_50_100_ms, 0);
+        assert_eq!(hist.bucket_100_200_ms, 1);
+        assert_eq!(hist.bucket_200_500_ms, 1);
+        assert_eq!(hist.bucket_over_500_ms, 0);
+        assert_eq!(hist.jitter_p95_ms, 350);
     }
 }
