@@ -47,6 +47,7 @@
 
         <service
             android:name=".MihomoVpnService"
+            android:process=":vpn"
             android:exported="false"
             android:foregroundServiceType="systemExempted"
             android:permission="android.permission.BIND_VPN_SERVICE">
