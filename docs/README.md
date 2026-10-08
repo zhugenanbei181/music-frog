@@ -11,20 +11,22 @@
 3. [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)：同权产品、同异律、L1/L2/L3 场景验收与真实证据闭环。
 4. [ARCHITECTURE.md](ARCHITECTURE.md)：Rust、mihomo、宿主与多个 UI 的分层边界。
 5. [CORE_030_REARCHITECTURE.md](CORE_030_REARCHITECTURE.md)：0.20 基线与 0.30 破坏性 Core 重整计划。
-6. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
-7. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
-8. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
-9. [DUAL_SURFACE_UI_UX_ROADMAP.md](DUAL_SURFACE_UI_UX_ROADMAP.md)：**【体验演进总纲】**双端 UI/UX 体验演进与视觉系统主控台账（响应式布局、连续曲率圆角 Squircle、着色器动效与按图索骥推进清单）。
-10. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 的历史无头矩阵；场景交付证据已迁移到 `scripts/parity/`。
-11. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
-12. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
-13. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
-14. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
-15. [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)：Bevy Android 的保留扩展、服务进程隔离、原生输入、实体回收、事件驱动节能与设备验收规范。
+6. [RELEASE_040_MASTER_PLAN.md](RELEASE_040_MASTER_PLAN.md)：**【0.40 实施总纲】**全平台生产级宿主交付、多端生态闭环（Core、Iced 3 桌面端纯 Wayland、Bevy UI 5 跨端平台、原生 Android 客户端）。
+7. [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)：按功能域查找唯一 owner、各端入口和待办编号。
+8. [FRONTENDS.md](FRONTENDS.md)：Iced 与 Bevy UI 对等双主干、Android 的求同存异矩阵。
+9. [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)：双端多尺寸弹性的断点单一事实源、四阶形态规范与逐页收口台账。
+10. [DUAL_SURFACE_UI_UX_ROADMAP.md](DUAL_SURFACE_UI_UX_ROADMAP.md)：**【体验演进总纲】**双端 UI/UX 体验演进与视觉系统主控台账（响应式布局、连续曲率圆角 Squircle、着色器动效与按图索骥推进清单）。
+11. [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)：组 15 的历史无头矩阵；场景交付证据已迁移到 `scripts/parity/`。
+12. [MIHOMO_CORE.md](MIHOMO_CORE.md)：Rust 操作 mihomo 的核心契约、生命周期和安全边界。
+13. [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：平台、架构、打包和验证状态。
+14. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
+15. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
+16. [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)：Bevy Android 的保留扩展、服务进程隔离、原生输入、实体回收、事件驱动节能与设备验收规范。
 ## 文档与待办的权威关系
 
 | 内容 | 唯一入口 | 规则 |
 | --- | --- | --- |
+| 0.40 全平台演进与交付实施总纲 | `docs/RELEASE_040_MASTER_PLAN.md` | Core、Iced 3 桌面端纯 Wayland、Bevy UI 5 跨端平台、原生 Android 客户端的权威实施总纲与分阶段小任务 |
 | 双端同步与功能并集 | `docs/DUAL_SURFACE_PARITY_MASTER_PLAN.md` | Iced 与 Bevy UI 同步演进、功能并集与 UI 表现的权威规范 |
 | 0.20/0.30 Core 重整 | `docs/CORE_030_REARCHITECTURE.md` | 0.20 冻结基线；0.30 允许破坏性替换，领域/契约/端口边界以本文件为准 |
 | 产品当前状态 | `README.md` | 只写当前可验证事实，不写开发流水 |

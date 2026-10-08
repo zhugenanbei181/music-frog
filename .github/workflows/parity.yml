@@ -45,9 +45,12 @@ jobs:
             libxkbcommon-dev libasound2-dev libudev-dev libssl-dev pkg-config \
             libdisplay-info-dev libinput-dev libgbm-dev libseat-dev \
             libpango1.0-dev libdbus-1-dev libsystemd-dev clang \
-            kwin-wayland dbus-x11 libegl-mesa0 mesa-vulkan-drivers jq
+            kwin-wayland dbus libegl-mesa0 mesa-vulkan-drivers jq \
+            libpipewire-0.3-dev libspa-0.2-dev
           python -m pip install Pillow
       - name: Install the capture compositor
+        env:
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig:${{ env.PKG_CONFIG_PATH }}
         run: cargo install --git https://github.com/niri-wm/niri --rev 8ed0da44d974c32c6877d2f4630c314da0717ecb --locked niri --bin niri
       - name: Enforce formatting and strict lints
         run: |

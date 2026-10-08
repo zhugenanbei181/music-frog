@@ -27,7 +27,7 @@ static-openssl = ["dep:openssl", "openssl/vendored"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
 
 [dependencies]
-iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "x11", "wayland"] }
+iced = { version = "0.14", default-features = false, features = ["tokio", "advanced", "wgpu-bare", "canvas", "image", "svg", "wayland"] }
 wgpu = { version = "27.0", default-features = false, features = ["std", "wgsl", "vulkan", "gles"] }
 # naga 27 enters this crate's graph via wgpu 27. When the bevy frontend
 # (infiltrator-bevy-*) shares the workspace build graph, its naga_oil turns
