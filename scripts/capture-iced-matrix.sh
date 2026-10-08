@@ -303,7 +303,7 @@ start_capture_host() {
   chmod 700 "$KWIN_RUNTIME"
   local kwin_log="$RUN_DIR/kwin-wayland.log"
   XDG_RUNTIME_DIR="$KWIN_RUNTIME" WAYLAND_DISPLAY= DISPLAY= \
-    QT_QPA_PLATFORM=wayland setsid timeout --foreground --kill-after=10s 20m \
+    QT_QPA_PLATFORM=wayland setsid timeout --foreground --kill-after=10s 50m \
     kwin_wayland --virtual --socket=wayland-outer --width=1920 --height=1080 \
       --scale=1 --no-global-shortcuts --no-lockscreen \
     &>"$kwin_log" & KWIN_PID=$!
@@ -339,7 +339,7 @@ start_capture_host || exit 3
 # DISPLAY is cleared so winit cannot fall back to any X11 server either.
 XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$KWIN_DISPLAY" DISPLAY= \
   LIBGL_ALWAYS_SOFTWARE=1 RUST_LOG=niri=info \
-  setsid timeout --foreground --kill-after=10s 20m niri --config "$CONF" \
+  setsid timeout --foreground --kill-after=10s 50m niri --config "$CONF" \
   >"$RUN_DIR/niri.log" 2>&1 &
 NIRI_PID=$!
 NIRI_PGID="$(process_group "$NIRI_PID")"
