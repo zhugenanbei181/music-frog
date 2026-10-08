@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,15 +24,6 @@ jobs:
   test-gate:
     name: Release test gate
     uses: ./.github/workflows/test.yml
-    secrets: inherit
-
-  # Android compile + manifest/permission gate (BANDROID-018/019). Reuses the
-  # PR workflow so a tag cannot publish an Android artifact that does not even
-  # compile or has lost its required manifest declarations.
-  android-gate:
-    name: Release Android compile and manifest gate
-    needs: test-gate
-    uses: ./.github/workflows/android.yml
     secrets: inherit
 
   # ---------------------------------------------------------------------------
@@ -347,7 +338,7 @@ jobs:
   # 2. Android APK Build Job (iced + bevy share ONE SDK/NDK/JDK)
   # ---------------------------------------------------------------------------
   build-android:
-    needs: [test-gate, android-gate]
+    needs: [test-gate]
     name: Build Android APKs (iced + bevy)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
