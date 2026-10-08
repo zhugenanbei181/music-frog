@@ -429,21 +429,23 @@ pub(crate) fn frame_cadence_subscription(cadence: RenderCadence) -> Subscription
     use infiltrator_contract::cadence::RenderCadence;
     match cadence {
         RenderCadence::Active => window::frames().map(Message::TickFrame),
-        RenderCadence::Background => Subscription::run_with(cadence, |cadence: &RenderCadence| {
-            let cadence = *cadence;
-            stream::channel(4, move |mut output: mpsc::Sender<Message>| async move {
-                let Some(interval) = cadence.frame_interval() else {
-                    return;
-                };
-                let mut ticker = time::interval(interval);
-                loop {
-                    ticker.tick().await;
-                    if output.try_send(Message::TickFrame(Instant::now())).is_err() {
-                        break;
+        RenderCadence::Background | RenderCadence::Idling => {
+            Subscription::run_with(cadence, |cadence: &RenderCadence| {
+                let cadence = *cadence;
+                stream::channel(4, move |mut output: mpsc::Sender<Message>| async move {
+                    let Some(interval) = cadence.frame_interval() else {
+                        return;
+                    };
+                    let mut ticker = time::interval(interval);
+                    loop {
+                        ticker.tick().await;
+                        if output.try_send(Message::TickFrame(Instant::now())).is_err() {
+                            break;
+                        }
                     }
-                }
+                })
             })
-        }),
+        }
         RenderCadence::Suspended => Subscription::none(),
     }
 }
