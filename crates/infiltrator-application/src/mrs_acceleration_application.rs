@@ -4,6 +4,7 @@ use infiltrator_contract::mrs_acceleration::{
     MrsAccelerationSnapshot, MrsBehaviorKind, MrsCompressionKind, MrsItemSnapshot,
 };
 use infiltrator_contract::snapshot::{CoreLifecycle, CoreSnapshot};
+use infiltrator_domain::mrs::{Behavior, CompressionType, validate_mrs_bytes};
 use infiltrator_domain::runtime::RuleProvider;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -41,6 +42,66 @@ impl MrsAccelerationApplication {
 
         let mmap_active = items.iter().any(|item| item.is_mmap_accelerated);
         MrsAccelerationSnapshot::ready(core.generation, revision, items, mmap_active)
+    }
+
+    /// Parse and validate real MRS bytes from disk, extracting exact binary header metadata.
+    pub fn inspect_mrs_bytes(
+        &self,
+        name: &str,
+        bytes: &[u8],
+        updated_at: &str,
+        source_url: Option<String>,
+    ) -> Result<MrsItemSnapshot, String> {
+        let report = validate_mrs_bytes(bytes).map_err(|e| format!("MRS parse error: {e}"))?;
+
+        if !report.is_valid {
+            return Err(report.errors.join("; "));
+        }
+
+        let header = report
+            .header
+            .ok_or_else(|| "missing MRS header".to_string())?;
+
+        let behavior = match header.behavior {
+            Behavior::Domain => MrsBehaviorKind::Domain,
+            Behavior::IpCidr => MrsBehaviorKind::IpCidr,
+            Behavior::Classical => MrsBehaviorKind::Classical,
+            Behavior::Unknown(_) => MrsBehaviorKind::Unknown,
+        };
+
+        let compression = match header.compression {
+            CompressionType::None => MrsCompressionKind::None,
+            CompressionType::Zstd => MrsCompressionKind::Zstd,
+            CompressionType::Gzip => MrsCompressionKind::Gzip,
+            CompressionType::Unknown(_) => MrsCompressionKind::Unknown,
+        };
+
+        let desc = format!(
+            "{} 条目 · MRS v{} · 真实二进制校验通过",
+            header.rule_count, header.version
+        );
+
+        Ok(MrsItemSnapshot {
+            name: name.to_owned(),
+            behavior,
+            format_version: header.version,
+            compression,
+            rule_count: header.rule_count,
+            payload_size_bytes: header.payload_size,
+            file_size_bytes: bytes.len() as u64,
+            sha256_digest: report.sha256_digest.or(header.sha256),
+            crc32_checksum: report.crc32_checksum.or(header.crc32),
+            is_mmap_accelerated: true,
+            is_valid: true,
+            description: desc,
+            updated_at: if updated_at.is_empty() {
+                "未记录".to_owned()
+            } else {
+                updated_at.to_owned()
+            },
+            source_url,
+            unpack_supported: true,
+        })
     }
 
     /// Project the MRS acceleration read model from live or cached runtime rule providers.
@@ -208,5 +269,38 @@ mod tests {
         let snapshot = app.project(&running_core(), Some(&[]));
         assert_eq!(snapshot.status, MrsAccelerationStatus::Empty);
         assert_eq!(snapshot.total_providers, 0);
+    }
+
+    #[test]
+    fn inspects_real_binary_mrs_bytes_and_projects_ready_state() {
+        use infiltrator_domain::mrs::{Behavior, build_mrs_bytes};
+
+        let payload = b"google.com\nyoutube.com\n";
+        let bytes = build_mrs_bytes(Behavior::Domain, 1, 2, "Test Domains", payload, None);
+
+        let app = MrsAccelerationApplication::new();
+        let item = app
+            .inspect_mrs_bytes(
+                "domains.mrs",
+                &bytes,
+                "2026-10-08 12:00",
+                Some("https://example.com/domains.mrs".into()),
+            )
+            .expect("valid real MRS bytes");
+
+        assert_eq!(item.name, "domains.mrs");
+        assert_eq!(item.behavior, MrsBehaviorKind::Domain);
+        assert_eq!(item.format_version, 1);
+        assert_eq!(item.rule_count, 2);
+        assert_eq!(item.payload_size_bytes, payload.len() as u32);
+        assert!(item.is_valid);
+        assert!(item.is_mmap_accelerated);
+        assert!(item.unpack_supported);
+
+        let snapshot = app.project_with_items(&running_core(), vec![item]);
+        assert_eq!(snapshot.status, MrsAccelerationStatus::Ready);
+        assert_eq!(snapshot.total_providers, 1);
+        assert_eq!(snapshot.total_accelerated_rules, 2);
+        assert!(snapshot.mmap_acceleration_active);
     }
 }
