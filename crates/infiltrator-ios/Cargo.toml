@@ -5,6 +5,9 @@ edition = "2024"
 publish = false
 description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C lifecycle bridges."
 
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
 [dependencies]
 async-trait = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }

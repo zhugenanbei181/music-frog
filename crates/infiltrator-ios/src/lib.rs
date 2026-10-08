@@ -6,6 +6,8 @@
 //! those platform APIs outside the application and accepts a bridge supplied
 //! by the native host.
 
+pub mod ffi;
+
 use async_trait::async_trait;
 use infiltrator_contract::capability::{
     Availability, Capability, CapabilitySnapshot, CapabilityStatus,
