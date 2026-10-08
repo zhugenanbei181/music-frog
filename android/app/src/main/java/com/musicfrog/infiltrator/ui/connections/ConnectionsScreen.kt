@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +23,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,11 +41,20 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
     val hostFilter by viewModel.hostFilter.collectAsState()
     val processFilter by viewModel.processFilter.collectAsState()
+    var selectedConnection by remember { mutableStateOf<ConnectionRecord?>(null) }
 
     if (state.error != null) {
         ErrorDialog(
             message = state.error.orEmpty(),
             onDismiss = { viewModel.clearError() },
+        )
+    }
+
+    if (selectedConnection != null) {
+        ConnectionDetailsDialog(
+            connection = selectedConnection!!,
+            onDismiss = { selectedConnection = null },
+            onClose = { viewModel.closeConnection(selectedConnection!!.id) },
         )
     }
 
@@ -106,6 +121,7 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
                     items(state.connections, key = { it.id }) { connection ->
                         ConnectionRow(
                             connection = connection,
+                            onClick = { selectedConnection = connection },
                             onClose = { viewModel.closeConnection(connection.id) },
                         )
                         HorizontalDivider()
@@ -117,20 +133,80 @@ fun ConnectionsScreen(viewModel: ConnectionsViewModel = viewModel()) {
 }
 
 @Composable
-private fun ConnectionRow(connection: ConnectionRecord, onClose: () -> Unit) {
+private fun ConnectionRow(
+    connection: ConnectionRecord,
+    onClick: () -> Unit,
+    onClose: () -> Unit,
+) {
     val headline = connection.host.ifBlank { connection.id }
     val supporting = buildSupportingText(connection)
 
     StandardListItem(
         headline = headline,
         supporting = supporting,
-        onClick = null,
+        onClick = onClick,
         trailingContent = {
             TextButton(onClick = onClose) {
                 Text(stringResource(R.string.action_disconnect))
             }
         },
     )
+}
+
+@Composable
+private fun ConnectionDetailsDialog(
+    connection: ConnectionRecord,
+    onDismiss: () -> Unit,
+    onClose: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = connection.host.ifBlank { connection.id }) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DetailItem(label = "ID", value = connection.id)
+                DetailItem(label = "Network", value = connection.network.uppercase())
+                DetailItem(label = "Type", value = connection.connectionType)
+                DetailItem(label = "Rule", value = connection.rule.ifBlank { "-" })
+                DetailItem(label = "Process", value = connection.processPath.ifBlank { "-" })
+                DetailItem(label = "Chains", value = connection.chains.joinToString(" > ").ifBlank { "-" })
+                if (connection.destinationIpAsn.isNotBlank()) {
+                    DetailItem(label = "Kernel ASN", value = connection.destinationIpAsn)
+                }
+                if (!connection.destinationGeoIp.isNullOrEmpty()) {
+                    DetailItem(label = "Kernel GeoIP", value = connection.destinationGeoIp!!.joinToString(", "))
+                }
+                DetailItem(
+                    label = "Traffic",
+                    value = "↑ ${formatBytes(connection.upload.toLong())}  ↓ ${formatBytes(connection.download.toLong())}",
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onClose()
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.action_disconnect))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun DetailItem(label: String, value: String) {
+    Column {
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Text(text = value, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 @Composable
@@ -145,12 +221,19 @@ private fun buildSupportingText(connection: ConnectionRecord): String {
     val upload = formatBytes(connection.upload.toLong())
     val download = formatBytes(connection.download.toLong())
 
-    return listOf(
+    val lines = mutableListOf(
         stringResource(R.string.text_connection_rule, rule),
         stringResource(R.string.text_connection_process, process),
         stringResource(R.string.text_connection_traffic, upload, download),
         stringResource(R.string.text_connection_chains, chains),
-    ).joinToString("\n")
+    )
+    if (connection.destinationIpAsn.isNotBlank()) {
+        lines.add("ASN: ${connection.destinationIpAsn}")
+    }
+    if (!connection.destinationGeoIp.isNullOrEmpty()) {
+        lines.add("GeoIP: ${connection.destinationGeoIp!!.joinToString(", ")}")
+    }
+    return lines.joinToString("\n")
 }
 
 private fun formatBytes(bytes: Long): String {
