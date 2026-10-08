@@ -99,8 +99,12 @@ pub enum CustomNodeInput {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CustomNodeText(pub ProtocolStudioSlot);
 
+fn active_language() -> String {
+    env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language())
+}
+
 pub(super) fn slot_initial(slot: ProtocolStudioSlot, studio: &ProtocolStudioSnapshot) -> String {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = active_language();
     slot_text(
         slot,
         studio,
@@ -114,7 +118,7 @@ pub fn custom_node_scene(
     studio: &ProtocolStudioSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = active_language();
     let lang = Lang(&language);
     let slots: Vec<Box<dyn Scene>> = ProtocolStudioSlot::ALL.iter().filter(|slot| **slot != ProtocolStudioSlot::UriPreview).map(|slot| {
         Box::new(bsn! {
@@ -255,7 +259,7 @@ pub(crate) fn on_custom_node_action_activated(
                     form.importing = Some(PendingProtocolImport { request_id, uri });
                 } else {
                     form.studio.last_error = Some(
-                        Lang(&get_system_language())
+                        Lang(&active_language())
                             .tr("protocol_form_no_feedback")
                             .into_owned(),
                     );
@@ -309,7 +313,7 @@ pub(crate) fn on_custom_node_action_activated(
                 form.saving = Some(PendingProtocolSave { request_id, draft });
             } else {
                 form.studio.last_error = Some(
-                    Lang(&get_system_language())
+                    Lang(&active_language())
                         .tr("protocol_form_no_feedback")
                         .into_owned(),
                 );
@@ -346,7 +350,8 @@ mod tests {
     #[test]
     fn slot_initial_reports_shared_facts_and_honest_empty_states() {
         let empty = ProtocolStudioSnapshot::default();
-        let lang = Lang(&get_system_language());
+        let language = active_language();
+        let lang = Lang(&language);
         assert_eq!(
             slot_initial(ProtocolStudioSlot::Chips, &empty),
             lang.tr("protocol_form_no_draft").as_ref()
