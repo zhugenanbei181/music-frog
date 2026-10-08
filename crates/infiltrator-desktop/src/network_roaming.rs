@@ -467,7 +467,7 @@ fn repair_route_anchor(
     }
 }
 
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(unix, test))]
 fn command_status(program: &str, args: &[&str]) -> Result<(), PortError> {
     let mut command = Command::new(program);
     command.args(args);

@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-ports"
-version = "0.40.1"
+version = "0.40.2"
 edition = "2024"
 publish = false
 description = "Runtime-neutral outbound ports for MusicFrog Infiltrator application services."
