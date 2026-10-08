@@ -113,6 +113,34 @@ class AppRoutingViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun selectAll(systemApps: Boolean) {
+        if (_routingMode.value == RoutingMode.ProxyAll) return
+        val current = _apps.value
+        val targets = current.filter { it.isSystem == systemApps && !it.isSelected }
+        viewModelScope.launch {
+            for (app in targets) {
+                withContext(Dispatchers.IO) {
+                    appRoutingTogglePackage(app.packageName)
+                }
+            }
+            loadApps()
+        }
+    }
+
+    fun clearAll(systemApps: Boolean) {
+        if (_routingMode.value == RoutingMode.ProxyAll) return
+        val current = _apps.value
+        val targets = current.filter { it.isSystem == systemApps && it.isSelected }
+        viewModelScope.launch {
+            for (app in targets) {
+                withContext(Dispatchers.IO) {
+                    appRoutingTogglePackage(app.packageName)
+                }
+            }
+            loadApps()
+        }
+    }
+
     fun setRoutingMode(mode: RoutingMode) {
         viewModelScope.launch {
             val status = withContext(Dispatchers.IO) {

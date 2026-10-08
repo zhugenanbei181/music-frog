@@ -1,8 +1,10 @@
 package com.musicfrog.infiltrator.ui.settings.routing
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -123,6 +126,26 @@ fun AppRoutingScreen(viewModel: AppRoutingViewModel = viewModel()) {
                     onClick = { selectedTab = 1 },
                     text = { Text(stringResource(R.string.tab_system_apps)) }
                 )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = { viewModel.selectAll(selectedTab == 1) },
+                    enabled = routingMode != RoutingMode.ProxyAll
+                ) {
+                    Text(stringResource(R.string.action_select_all))
+                }
+                TextButton(
+                    onClick = { viewModel.clearAll(selectedTab == 1) },
+                    enabled = routingMode != RoutingMode.ProxyAll
+                ) {
+                    Text(stringResource(R.string.action_clear_all))
+                }
             }
 
             if (isLoading) {

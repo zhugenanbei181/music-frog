@@ -124,6 +124,8 @@
     <string name="tun_ipv6_desc">Enable IPv6 support</string>
     <string name="label_dns_servers">DNS Servers</string>
     <string name="desc_one_per_line">One server per line</string>
+    <string name="action_select_all">Select All</string>
+    <string name="action_clear_all">Clear All</string>
     <string name="action_save">Save</string>
     <string name="action_reload">Reload</string>
     <string name="action_refresh">Refresh</string>

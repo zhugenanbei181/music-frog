@@ -66,6 +66,12 @@ pub fn winit_settings_for(cadence: RenderCadence) -> WinitSettings {
             focused_mode: UpdateMode::Continuous,
             unfocused_mode: background,
         },
+        RenderCadence::Idling => WinitSettings {
+            focused_mode: UpdateMode::reactive_low_power(Duration::from_millis(
+                RenderCadence::IDLING_FRAME_TIME_MS,
+            )),
+            unfocused_mode: background,
+        },
         RenderCadence::Background => WinitSettings {
             focused_mode: background,
             unfocused_mode: background,

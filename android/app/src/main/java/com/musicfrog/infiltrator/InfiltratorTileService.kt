@@ -76,18 +76,30 @@ class InfiltratorTileService : TileService() {
             VpnStateManager.VpnState.RUNNING -> {
                 tile.state = Tile.STATE_ACTIVE
                 tile.label = getString(R.string.status_active)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tile.subtitle = getString(R.string.app_name)
+                }
             }
             VpnStateManager.VpnState.STARTING -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_starting)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tile.subtitle = null
+                }
             }
             VpnStateManager.VpnState.STOPPING -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_stopping)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tile.subtitle = null
+                }
             }
             else -> {
                 tile.state = Tile.STATE_INACTIVE
                 tile.label = getString(R.string.status_idle)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    tile.subtitle = null
+                }
             }
         }
         tile.updateTile()

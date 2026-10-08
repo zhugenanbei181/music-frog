@@ -17,6 +17,8 @@ use std::time::Duration;
 pub enum RenderCadence {
     /// Foregrounded and visible: the full 60 FPS.
     Active,
+    /// Foregrounded, visible, but static/idling: low-power event-driven 10 FPS (BEVY-040-04).
+    Idling,
     /// Backgrounded (unfocused but visible): the 2 FPS power-saver rate.
     Background,
     /// Occluded/invisible: no scheduled frames at all.
@@ -26,6 +28,8 @@ pub enum RenderCadence {
 impl RenderCadence {
     /// 60 FPS: the active cadence.
     pub const ACTIVE_FRAME_TIME_MS: u64 = 16;
+    /// 10 FPS: the low-power idling cadence.
+    pub const IDLING_FRAME_TIME_MS: u64 = 100;
     /// 2 FPS: the background cadence.
     pub const BACKGROUND_FRAME_TIME_MS: u64 = 500;
     /// Suspended: no scheduled frame.
@@ -55,6 +59,7 @@ impl RenderCadence {
     pub const fn frame_time_ms(self) -> u64 {
         match self {
             Self::Active => Self::ACTIVE_FRAME_TIME_MS,
+            Self::Idling => Self::IDLING_FRAME_TIME_MS,
             Self::Background => Self::BACKGROUND_FRAME_TIME_MS,
             Self::Suspended => Self::SUSPENDED_FRAME_TIME_MS,
         }

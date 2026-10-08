@@ -124,6 +124,8 @@
     <string name="tun_ipv6_desc">启用 IPv6 支持</string>
     <string name="label_dns_servers">DNS 服务器</string>
     <string name="desc_one_per_line">每行一个服务器地址</string>
+    <string name="action_select_all">全选</string>
+    <string name="action_clear_all">清空</string>
     <string name="action_save">保存</string>
     <string name="action_reload">重载</string>
     <string name="action_refresh">刷新</string>
