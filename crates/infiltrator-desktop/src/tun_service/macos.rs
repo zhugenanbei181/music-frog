@@ -38,6 +38,36 @@ pub(super) fn stop_service() -> Result<()> {
     Err(unsupported("stop_service"))
 }
 
+/// Helper identifier for macOS privileged daemon tool (DESK-040-03).
+pub const MACOS_HELPER_ID: &str = "com.musicfrog.infiltrator.helper";
+
+/// Generates standard launchd daemon plist for the privileged TUN helper tool.
+pub fn generate_launchd_plist(helper_bin_path: &Path) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{MACOS_HELPER_ID}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+        <string>--daemon</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+</dict>
+</plist>"#,
+        helper_bin_path.display()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::TunServiceManager;
@@ -71,5 +101,12 @@ mod tests {
                 .expect("error must be the typed UnsupportedPlatformError");
             assert_eq!(typed.platform, "macOS");
         }
+    }
+
+    #[test]
+    fn test_generate_launchd_plist() {
+        let plist = generate_launchd_plist(Path::new("/Library/PrivilegedHelperTools/infiltrator-helper"));
+        assert!(plist.contains("<string>com.musicfrog.infiltrator.helper</string>"));
+        assert!(plist.contains("/Library/PrivilegedHelperTools/infiltrator-helper"));
     }
 }
