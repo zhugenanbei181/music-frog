@@ -71,6 +71,44 @@ pub fn diff_yaml_configs(local_yaml: &str, remote_yaml: &str) -> anyhow::Result<
     })
 }
 
+fn merge_sequences(base: Option<&Value>, local: &Value, remote: &Value) -> Value {
+    let empty_vec = Vec::new();
+    let base_items = base.and_then(|v| v.as_sequence()).unwrap_or(&empty_vec);
+    let local_items = local.as_sequence().unwrap_or(&empty_vec);
+    let remote_items = remote.as_sequence().unwrap_or(&empty_vec);
+
+    let mut merged = Vec::new();
+    let mut seen = HashSet::new();
+
+    for item in base_items {
+        if local_items.contains(item) && remote_items.contains(item) {
+            let key = serde_yaml::to_string(item).unwrap_or_default();
+            seen.insert(key);
+            merged.push(item.clone());
+        }
+    }
+
+    for item in local_items {
+        if !base_items.contains(item) {
+            let key = serde_yaml::to_string(item).unwrap_or_default();
+            if seen.insert(key) {
+                merged.push(item.clone());
+            }
+        }
+    }
+
+    for item in remote_items {
+        if !base_items.contains(item) {
+            let key = serde_yaml::to_string(item).unwrap_or_default();
+            if seen.insert(key) {
+                merged.push(item.clone());
+            }
+        }
+    }
+
+    Value::Sequence(merged)
+}
+
 pub fn resolve_config_conflict(
     base_yaml: &str,
     local_yaml: &str,
@@ -123,6 +161,10 @@ pub fn resolve_config_conflict(
             (Some(b), None, Some(r)) if b == r => None,
             (Some(b), Some(l), None) if b == l => None,
             (Some(_), None, None) => None,
+            (b, Some(l), Some(r)) if l.is_sequence() && r.is_sequence() => {
+                let merged_seq = merge_sequences(b, l, r);
+                Some(merged_seq)
+            }
             (_, l, r) => {
                 // Conflict
                 was_clean = false;
@@ -130,7 +172,14 @@ pub fn resolve_config_conflict(
                 match strategy {
                     MergeStrategy::PreferLocal => l.cloned(),
                     MergeStrategy::PreferRemote => r.cloned(),
-                    MergeStrategy::ThreeWayMerge | MergeStrategy::KeepBothWithRename => l.cloned(),
+                    MergeStrategy::ThreeWayMerge => l.cloned(),
+                    MergeStrategy::KeepBothWithRename => {
+                        if let Some(val_r) = r {
+                            let renamed_k = Value::String(format!("{key_str}_remote"));
+                            merged_map.insert(renamed_k, val_r.clone());
+                        }
+                        l.cloned()
+                    }
                 }
             }
         };
@@ -201,5 +250,33 @@ mod tests {
             resolve_config_conflict(base, local, remote, MergeStrategy::PreferRemote).unwrap();
         assert!(!res_remote.was_clean);
         assert!(res_remote.merged_content.contains("port: 9090"));
+    }
+
+    #[test]
+    fn test_resolve_config_conflict_keep_both_with_rename() {
+        let base = "port: 7890\n";
+        let local = "port: 8080\n";
+        let remote = "port: 9090\n";
+
+        let res = resolve_config_conflict(base, local, remote, MergeStrategy::KeepBothWithRename)
+            .unwrap();
+        assert!(!res.was_clean);
+        assert_eq!(res.conflicted_keys, vec!["port"]);
+        assert!(res.merged_content.contains("port: 8080"));
+        assert!(res.merged_content.contains("port_remote: 9090"));
+    }
+
+    #[test]
+    fn test_resolve_config_conflict_three_way_sequence_merge() {
+        let base = "rules:\n  - DOMAIN,base.com,DIRECT\n";
+        let local = "rules:\n  - DOMAIN,base.com,DIRECT\n  - DOMAIN,local.com,PROXY\n";
+        let remote = "rules:\n  - DOMAIN,base.com,DIRECT\n  - DOMAIN,remote.com,REJECT\n";
+
+        let res =
+            resolve_config_conflict(base, local, remote, MergeStrategy::ThreeWayMerge).unwrap();
+        assert!(res.was_clean);
+        assert!(res.merged_content.contains("DOMAIN,base.com,DIRECT"));
+        assert!(res.merged_content.contains("DOMAIN,local.com,PROXY"));
+        assert!(res.merged_content.contains("DOMAIN,remote.com,REJECT"));
     }
 }
