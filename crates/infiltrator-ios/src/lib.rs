@@ -51,6 +51,34 @@ pub trait IosBridge: Send + Sync {
     fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         Default::default()
     }
+
+    /// Physical resident memory budget monitoring for iOS NetworkExtension (IOS-040-03).
+    fn memory_budget(&self) -> IosMemoryBudgetSnapshot {
+        IosMemoryBudgetSnapshot::default()
+    }
+}
+
+/// Hard physical resident memory ceiling enforced by iOS NetworkExtension (15 MB).
+pub const IOS_NETWORK_EXTENSION_MAX_MEMORY_BYTES: usize = 15 * 1024 * 1024;
+
+/// Lightweight memory footprint snapshot for iOS NetworkExtension runtime monitoring (IOS-040-03).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IosMemoryBudgetSnapshot {
+    pub current_bytes: usize,
+    pub max_bytes: usize,
+    pub is_near_limit: bool,
+}
+
+impl IosMemoryBudgetSnapshot {
+    pub fn new(current_bytes: usize) -> Self {
+        let max_bytes = IOS_NETWORK_EXTENSION_MAX_MEMORY_BYTES;
+        let is_near_limit = current_bytes >= (max_bytes * 8 / 10);
+        Self {
+            current_bytes,
+            max_bytes,
+            is_near_limit,
+        }
+    }
 }
 
 /// Host adapter shared by the Rust application and an injected native iOS
@@ -80,6 +108,10 @@ impl IosHostAdapter {
 
     pub fn offline_startup_snapshot(&self) -> OfflineStartupSnapshot {
         self.bridge.offline_startup_snapshot()
+    }
+
+    pub fn memory_budget(&self) -> IosMemoryBudgetSnapshot {
+        self.bridge.memory_budget()
     }
 }
 
@@ -442,5 +474,15 @@ mod tests {
         assert_eq!(after.generation, before.generation);
         assert_eq!(after.session_token, before.session_token);
         assert_eq!(after.lifecycle, CoreLifecycle::Running);
+    }
+
+    #[test]
+    fn ios_memory_budget_snapshot_calculates_near_limit_watermark() {
+        let low = IosMemoryBudgetSnapshot::new(5 * 1024 * 1024);
+        assert!(!low.is_near_limit);
+        assert_eq!(low.max_bytes, 15 * 1024 * 1024);
+
+        let high = IosMemoryBudgetSnapshot::new(13 * 1024 * 1024);
+        assert!(high.is_near_limit);
     }
 }
