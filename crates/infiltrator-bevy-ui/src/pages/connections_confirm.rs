@@ -11,11 +11,11 @@ use bevy::scene::{Scene, bsn};
 use bevy::ui::prelude::*;
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::{Activate, Button};
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::modal::{ModalDialogCard, ModalScrim};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Event, Clone, Copy, Debug)]
 pub struct RequestCloseAllConfirmation;
@@ -43,7 +43,7 @@ pub enum CloseAllConfirmationAction {
 }
 
 pub fn confirmation_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     let title = lang.tr("modal_confirm_disconnect_all_title").into_owned();
     let detail = lang.tr("modal_confirm_disconnect_all_desc").into_owned();

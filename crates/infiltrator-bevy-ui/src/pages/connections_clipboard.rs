@@ -10,8 +10,8 @@ use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::ui_widgets::Activate;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_bevy_widgets::localization::UiLocale;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Explicit host composition, separate from the SDK editor's clipboard resource.
 /// Presence permits an OS operation; only its actual result acknowledges success.
@@ -41,7 +41,7 @@ pub(crate) fn copy_connection_host(
     }) else {
         return;
     };
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     if host.is_none()
         || cfg!(any(target_os = "android", target_os = "ios"))

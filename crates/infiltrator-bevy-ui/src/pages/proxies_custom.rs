@@ -26,13 +26,13 @@ use bevy::ui_widgets::{Activate, Button};
 use infiltrator_application::protocol_codec_application::ProtocolCodecApplication;
 use infiltrator_application::protocol_form::field_projection;
 use infiltrator_application::protocol_studio_projection::slot_text;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::{TextField, text_field_with_placeholder_scene};
 use infiltrator_contract::protocol_fidelity::ProtocolStudioSnapshot;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Marker for custom node editor card root.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -100,7 +100,7 @@ pub enum CustomNodeInput {
 pub struct CustomNodeText(pub ProtocolStudioSlot);
 
 fn active_language() -> String {
-    env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language())
+    UiLocale::default().code().to_string()
 }
 
 pub(super) fn slot_initial(slot: ProtocolStudioSlot, studio: &ProtocolStudioSnapshot) -> String {

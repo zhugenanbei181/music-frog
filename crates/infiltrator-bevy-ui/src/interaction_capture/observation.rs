@@ -23,10 +23,10 @@ use infiltrator_application::speedtest_detail_projection::{listing, project_deta
 use infiltrator_bevy_widgets::adaptive_modal::{AdaptiveModalRoot, ModalCard, ModalState};
 use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::drawer::DrawerPanel;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::parity::FeatureId;
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(SystemParam)]
 pub struct ObservationMarker<'w> {
@@ -104,7 +104,7 @@ pub fn speedtest_observation(
             return None;
         }
         let snapshot = &surface.latest.0.as_ref()?.speedtest;
-        let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+        let language = UiLocale::default().code().to_string();
         let expected = listing(&project_details(snapshot), &|key| {
             Lang(&language).tr(key).into_owned()
         });

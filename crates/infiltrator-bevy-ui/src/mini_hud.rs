@@ -29,8 +29,7 @@ use infiltrator_bevy_widgets::theme::space;
 use infiltrator_contract::a11y::ShellA11yNode;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Toggle state for Mini HUD mode.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -114,7 +113,7 @@ impl Default for MiniHudQuickToggle {
     }
 }
 fn hud_label(key: &str) -> String {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     Lang(&language).tr(key).into_owned()
 }
 pub fn exit_label(model: &MiniHudReadModel) -> String {

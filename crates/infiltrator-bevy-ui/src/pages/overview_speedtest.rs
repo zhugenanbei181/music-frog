@@ -36,8 +36,7 @@ use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::native::NativeTextField;
 use infiltrator_bevy_widgets::theme::space;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Marker naming which proxy mode a mode pill stands for; the refresh
 /// observer restamps its `ControlVisual` selected bit (the widget layer's
@@ -265,7 +264,7 @@ pub fn overview_speedtest_detail_modal_scene(palette: &UiPalette) -> Box<dyn Sce
                 TextRole(Role::Caption)
             ]
     });
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     adaptive_modal_scene(
         Lang(&language).tr("speedtest_detail_title").into_owned(),
         Lang(&language).tr("modal_close").into_owned(),

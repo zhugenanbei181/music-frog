@@ -17,6 +17,7 @@ use infiltrator_application::protocol_codec_application::{
 use infiltrator_application::protocol_form::{
     ProtocolInputs, field_projection, special_projection, visible,
 };
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::text_input::TextField;
@@ -25,8 +26,7 @@ use infiltrator_bevy_widgets::text_input::text_field_with_placeholder_scene;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::{ProtocolField, ProtocolStudioSlot};
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[derive(Clone, Debug)]
 pub struct PendingProtocolSave {
@@ -98,7 +98,7 @@ pub fn protocol_fields_scene(
     studio: &ProtocolStudioSnapshot,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     let fallback = ProtocolDraft::new("vless");
     let draft = studio.draft.as_ref().unwrap_or(&fallback);
@@ -236,7 +236,7 @@ pub(crate) fn sync_protocol_form(
         form.reset_uri = false;
     }
     form.reset_fields = false;
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     for (mut text, kind) in &mut texts {
         match kind.0 {
