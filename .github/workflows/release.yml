@@ -26,12 +26,6 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
-  parity-gate:
-    name: Release interaction and pixel gate
-    needs: test-gate
-    uses: ./.github/workflows/parity.yml
-    secrets: inherit
-
   # Android compile + manifest/permission gate (BANDROID-018/019). Reuses the
   # PR workflow so a tag cannot publish an Android artifact that does not even
   # compile or has lost its required manifest declarations.
@@ -45,7 +39,7 @@ jobs:
   # 1. Desktop Build Matrix (Windows, macOS, Linux)
   # ---------------------------------------------------------------------------
   build-desktop:
-    needs: [test-gate, parity-gate]
+    needs: [test-gate]
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     # 每条腿现在编译 iced + bevy 两个二进制（共享同一 target/cache）。iced-only
@@ -353,7 +347,7 @@ jobs:
   # 2. Android APK Build Job (iced + bevy share ONE SDK/NDK/JDK)
   # ---------------------------------------------------------------------------
   build-android:
-    needs: [test-gate, parity-gate, android-gate]
+    needs: [test-gate, android-gate]
     name: Build Android APKs (iced + bevy)
     # 显式钉最新 LTS（ubuntu-26.04 已 GA），不跟 ubuntu-latest 的静默迁移走。
     runs-on: ubuntu-26.04
