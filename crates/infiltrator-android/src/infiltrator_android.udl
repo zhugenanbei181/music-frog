@@ -211,6 +211,8 @@ dictionary ConnectionRecord {
   u64 upload;
   u64 download;
   sequence<string> chains;
+  string destination_ip_asn;
+  sequence<string>? destination_geo_ip;
 };
 
 dictionary ConnectionsResult {

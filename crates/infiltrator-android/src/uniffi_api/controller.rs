@@ -58,6 +58,8 @@ pub struct ConnectionRecord {
     pub upload: u64,
     pub download: u64,
     pub chains: Vec<String>,
+    pub destination_ip_asn: String,
+    pub destination_geo_ip: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, uniffi::Record)]
@@ -360,6 +362,8 @@ fn connection_to_record(connection: Connection) -> ConnectionRecord {
         upload: connection.upload,
         download: connection.download,
         chains: connection.chains,
+        destination_ip_asn: connection.metadata.destination_ip_asn,
+        destination_geo_ip: connection.metadata.destination_geo_ip,
     }
 }
 
