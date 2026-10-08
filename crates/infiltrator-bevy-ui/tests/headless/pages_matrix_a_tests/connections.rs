@@ -7,7 +7,7 @@ use infiltrator_bevy_ui::pages::connections_pulse::ConnectionsPulseState;
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_shared::i18n_interpolator::interpolate;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
 fn test_connections_page_mounting_and_default_state() {
@@ -31,20 +31,21 @@ fn test_connections_page_mounting_and_default_state() {
     assert!(subtree_has_text(app.world(), root, "实时流"));
     assert!(subtree_has_text(app.world(), root, "按进程聚合"));
     assert!(subtree_has_text(app.world(), root, "按域名聚合"));
+    let locale = app.world().resource::<UiLocale>().code().to_string();
     assert!(subtree_has_text(
         app.world(),
         root,
-        &Lang(&get_system_language()).tr("conn_drawer_title")
+        &Lang(&locale).tr("conn_drawer_title")
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        &Lang(&get_system_language()).tr("conn_drawer_timing_unsupported")
+        &Lang(&locale).tr("conn_drawer_timing_unsupported")
     ));
     assert!(subtree_has_text(
         app.world(),
         root,
-        &Lang(&get_system_language()).tr("quick_rule_btn")
+        &Lang(&locale).tr("quick_rule_btn")
     ));
     assert!(subtree_has_text(
         app.world(),
@@ -470,13 +471,12 @@ fn test_connections_idle_sweep_submits_and_reports() {
             .iter()
             .all(|command| matches!(command, UiCommand::CloseConnection { .. }))
     );
+    let locale = app.world().resource::<UiLocale>().code().to_string();
     assert!(subtree_has_text(
         app.world(),
         root,
         &interpolate(
-            Lang(&get_system_language())
-                .tr("conn_idle_last_sweep")
-                .as_ref(),
+            Lang(&locale).tr("conn_idle_last_sweep").as_ref(),
             &[("count", "4")]
         )
     ));
@@ -544,6 +544,7 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
 
     // DUAL-13-12: the header exposes the shared sort keys and starts on the
     // same cumulative-download order the Iced surface defaults to.
+    let locale = app.world().resource::<UiLocale>().code().to_string();
     for key in [
         "runtime_conn_sort_download_desc",
         "runtime_conn_sort_upload_desc",
@@ -552,11 +553,7 @@ fn test_connections_sort_pills_reorder_rows_by_instantaneous_rate() {
         "runtime_conn_sort_latest_desc",
         "runtime_conn_sort_host_asc",
     ] {
-        assert!(subtree_has_text(
-            app.world(),
-            root,
-            &Lang(&get_system_language()).tr(key)
-        ));
+        assert!(subtree_has_text(app.world(), root, &Lang(&locale).tr(key)));
     }
     assert_eq!(
         app.world_mut()

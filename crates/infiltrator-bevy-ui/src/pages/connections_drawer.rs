@@ -36,6 +36,7 @@ use bevy::ui_widgets::{Activate, Button, ScrollArea};
 use infiltrator_bevy_widgets::drawer::{DrawerCloseButton, DrawerPlacement, drawer_scene};
 use infiltrator_bevy_widgets::icon::IconId;
 use infiltrator_bevy_widgets::icon_tile::icon_tile_scene;
+use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole};
 use infiltrator_bevy_widgets::theme::space;
@@ -43,8 +44,7 @@ use infiltrator_contract::capability::Availability;
 use infiltrator_contract::connection::timing_availability;
 use infiltrator_domain::connection_view;
 use infiltrator_domain::rules::RuleEntry;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 /// Maximum route-chain hops rendered in the drawer.
 const MAX_DRAWER_CHAIN_HOPS: usize = 6;
@@ -140,7 +140,7 @@ pub fn connection_drawer_scene(palette: &UiPalette) -> impl Scene + use<> {
 }
 
 fn connection_drawer_content(palette: &UiPalette) -> impl Scene + use<> {
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let timing_notice = match timing_availability() {
         Availability::Unsupported { .. } => Lang(&language)
             .tr("conn_drawer_timing_unsupported")
@@ -380,8 +380,7 @@ pub(crate) fn on_connections_drawer_activated(
         let added = connection_view::append_draft_rule(&mut draft.entries, &spec);
         if let Some(entry) = added {
             for mut text in &mut draft_lines {
-                let language =
-                    env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+                let language = UiLocale::default().code().to_string();
                 text.0 = format!(
                     "{}: {}",
                     Lang(&language).tr("conn_drawer_draft"),
@@ -438,7 +437,7 @@ fn restamp_drawer<F, H, S>(
         return;
     };
     let chain = connection_view::route_chain(item);
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
+    let language = UiLocale::default().code().to_string();
     let lang = Lang(&language);
     let translate = |key: &str| lang.tr(key).into_owned();
     for (mut text, field) in fields.iter_mut() {

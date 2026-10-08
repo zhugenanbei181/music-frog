@@ -135,10 +135,11 @@ jobs:
         shell: bash
         run: bash scripts/android-check.sh
 
-      # Compile the Compose host. `:app:assembleDebug` drives the cargoBuild
-      # task (scripts/android-build.sh) so this also validates the JNI/Gradle
-      # wiring, not just the Rust crates.
-      - name: Build Compose host (assembleDebug)
+      # BANDROID-021 & BANDROID-022: Build Compose host, run JVM unit tests, and
+      # compile instrumented tests in a unified Gradle invocation.
+      # Single-invocation Gradle execution constructs a shared task execution graph,
+      # preventing cross-invocation incremental JNI merger collisions.
+      - name: Build Compose host and test APKs
         shell: bash
         run: |
           set -euo pipefail
@@ -146,22 +147,7 @@ jobs:
           # Gradle resolves the project from the CWD, so run inside android/;
           # invoking ./android/gradlew from the repo root makes it look for a
           # settings.gradle at the root and fail ("does not contain a Gradle build").
-          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebug )
-
-      # BANDROID-021: JVM unit tests run without a device.
-      - name: Run Android JVM unit tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          ( cd android && ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest )
-
-      # BANDROID-022: compile the instrumented tests here (no emulator needed);
-      # the actual connectedDebugAndroidTest run is an explicit device stage.
-      - name: Compile instrumented tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebugAndroidTest )
+          ( cd android && ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest )
 
       # Bevy reuses the exact SDK/NDK/JDK this job already provisioned
       # (BEVY_APK_USE_SYSTEM_TOOLCHAIN=1), so no second ~1.2 GB userspace
