@@ -6,6 +6,8 @@
 //! This service publishes the actual result as one [`ScriptSandboxSnapshot`]
 //! consumed by both peer products; neither frontend owns the engine or fold.
 
+#[cfg(feature = "script-engine-boa")]
+use crate::script_engine_boa::BoaScriptEngine;
 use crate::script_engine_direct::DirectiveDslScriptEngine;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::script_run::{
@@ -45,6 +47,8 @@ impl Default for ScriptApplication {
 impl ScriptApplication {
     pub const DEFAULT_MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024; // 64MB
     pub const DEFAULT_TIMEOUT_MS: u64 = 500; // 500ms
+    pub const RULE_HOOK_MAX_MEMORY_BYTES: usize = 16 * 1024 * 1024; // 16MB
+    pub const RULE_HOOK_TIMEOUT_MS: u64 = 50; // 50ms
 
     pub fn new() -> Self {
         let engine =
@@ -55,6 +59,31 @@ impl ScriptApplication {
             circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
             observation: Arc::default(),
         }
+    }
+
+    /// Build a script application tuned for high-frequency rule matching hooks
+    /// with strict 50ms / 16MB guardrails (CORE-040-03).
+    pub fn for_rule_hooks() -> Self {
+        #[cfg(feature = "script-engine-boa")]
+        let engine: Arc<dyn ScriptEnginePort> = Arc::new(BoaScriptEngine::for_rule_hooks());
+        #[cfg(not(feature = "script-engine-boa"))]
+        let engine: Arc<dyn ScriptEnginePort> =
+            Arc::new(DirectiveDslScriptEngine::for_rule_hooks());
+
+        Self {
+            engine,
+            circuit_breaker: Arc::new(Mutex::new(ScriptCircuitBreaker::default())),
+            observation: Arc::default(),
+        }
+    }
+
+    /// Evaluates a rule hook script with strict timeout and memory guardrails.
+    pub fn execute_rule_hook(
+        &self,
+        script: &str,
+        input_yaml: &str,
+    ) -> Result<ScriptExecutionResult, ScriptError> {
+        self.engine.execute(script, input_yaml, HookStage::PreMerge)
     }
 
     /// DUAL-10-01: build the service over an injected engine. This is the seam

@@ -69,6 +69,10 @@ impl BoaScriptEngine {
         }
     }
 
+    pub fn for_rule_hooks() -> Self {
+        Self::new(50, 16 * 1024 * 1024)
+    }
+
     fn loop_iteration_budget(&self) -> u64 {
         self.timeout_ms
             .saturating_mul(LOOP_ITERATIONS_PER_MS)

@@ -36,6 +36,10 @@ impl DirectiveDslScriptEngine {
                 .with_max_memory(max_memory_bytes),
         }
     }
+
+    pub fn for_rule_hooks() -> Self {
+        Self::new(50, 16 * 1024 * 1024)
+    }
 }
 
 impl ScriptEnginePort for DirectiveDslScriptEngine {

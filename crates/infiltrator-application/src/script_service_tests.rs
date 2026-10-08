@@ -259,3 +259,21 @@ async fn readers_replay_only_their_injected_product_owner_and_clear_is_observed_
         assert!(snapshot.script_export.is_none());
     }
 }
+
+#[test]
+fn rule_hooks_profile_enforces_strict_50ms_limit() {
+    let app = ScriptApplication::for_rule_hooks();
+    let caps = app.engine_capabilities();
+    assert_eq!(caps.timeout_ms, ScriptApplication::RULE_HOOK_TIMEOUT_MS);
+    assert_eq!(
+        caps.max_memory_bytes,
+        ScriptApplication::RULE_HOOK_MAX_MEMORY_BYTES
+    );
+
+    let script = "function main(config, profile) { return config; }";
+    let input = "port: 7890\n";
+    let result = app
+        .execute_rule_hook(script, input)
+        .expect("valid rule hook");
+    assert!(!result.transformed_yaml.is_empty());
+}
