@@ -170,6 +170,7 @@ fn owner_for_port(port: u16) -> Option<PortOwner> {
     None
 }
 
+#[cfg(any(unix, test))]
 fn parse_lsof_owner(output: &str) -> Option<PortOwner> {
     let mut pid = None;
     let mut name = None;

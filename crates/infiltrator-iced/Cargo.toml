@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-iced"
-version = "0.40.0"
+version = "0.40.1"
 edition = "2024"
 
 # Lib + thin binary: `src/lib.rs` hosts the module tree and the application

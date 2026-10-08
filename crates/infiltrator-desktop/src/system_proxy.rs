@@ -13,11 +13,11 @@ use infiltrator_ports::system_proxy::SystemProxyPort;
 use mihomo_platform::paths::get_home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
-#[cfg(not(windows))]
 use std::io;
 use std::io::Write;
 #[cfg(windows)]
 use std::iter::once;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::id;

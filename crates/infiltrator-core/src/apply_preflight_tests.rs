@@ -52,14 +52,14 @@ impl CoreLifecyclePort for MockLifecycle {
 
     fn session_token(&self) -> Option<SessionToken> {
         Some(SessionToken::new(
-            self.generation.load(Ordering::SeqCst) as u128,
+            self.generation.load(Ordering::SeqCst) as u128
         ))
     }
 
     fn begin_reload(&self) -> Result<SessionToken, PortError> {
         self.reload_requested.store(true, Ordering::SeqCst);
         Ok(SessionToken::new(
-            self.generation.load(Ordering::SeqCst) as u128,
+            self.generation.load(Ordering::SeqCst) as u128
         ))
     }
 
@@ -68,20 +68,12 @@ impl CoreLifecyclePort for MockLifecycle {
         Ok(())
     }
 
-    fn fail_reload(
-        &self,
-        _session_token: SessionToken,
-        _error: String,
-    ) -> Result<(), PortError> {
+    fn fail_reload(&self, _session_token: SessionToken, _error: String) -> Result<(), PortError> {
         self.reload_failed.store(true, Ordering::SeqCst);
         Ok(())
     }
 
-    async fn wait_for_ready(
-        &self,
-        _generation: u64,
-        _timeout: Duration,
-    ) -> Result<(), PortError> {
+    async fn wait_for_ready(&self, _generation: u64, _timeout: Duration) -> Result<(), PortError> {
         Ok(())
     }
 

@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::io::BufReader;
 #[cfg(windows)]
 use tokio::io::split;
+#[cfg(not(windows))]
 use tokio::net::UnixStream;
 #[cfg(windows)]
 use tokio::net::windows::named_pipe::ClientOptions;

@@ -156,6 +156,7 @@ fn default_route_interface() -> Option<String> {
     None
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn parse_linux_link_mtu(output: &str) -> HashMap<String, u32> {
     output
         .lines()
@@ -171,6 +172,7 @@ fn parse_linux_link_mtu(output: &str) -> HashMap<String, u32> {
         .collect()
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn parse_linux_default_route(output: &str) -> Option<String> {
     output.lines().find_map(|line| {
         let mut fields = line.split_whitespace();

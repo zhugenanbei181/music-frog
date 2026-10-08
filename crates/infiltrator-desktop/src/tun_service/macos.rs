@@ -105,7 +105,9 @@ mod tests {
 
     #[test]
     fn test_generate_launchd_plist() {
-        let plist = generate_launchd_plist(Path::new("/Library/PrivilegedHelperTools/infiltrator-helper"));
+        let plist = generate_launchd_plist(Path::new(
+            "/Library/PrivilegedHelperTools/infiltrator-helper",
+        ));
         assert!(plist.contains("<string>com.musicfrog.infiltrator.helper</string>"));
         assert!(plist.contains("/Library/PrivilegedHelperTools/infiltrator-helper"));
     }

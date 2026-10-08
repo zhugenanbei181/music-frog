@@ -9,11 +9,14 @@ use infiltrator_ports::core_process::CoreProcess;
 use infiltrator_ports::error::PortError;
 use mihomo_api::error;
 use mihomo_platform::desktop::ProcessCoreController;
+#[cfg(unix)]
 use mihomo_platform::paths::get_home_dir;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
 use std::env::var;
 use std::error::Error;
+#[cfg(unix)]
 use std::fs::{Permissions, set_permissions};
 use std::path::{Path, PathBuf};
 use std::process::id;

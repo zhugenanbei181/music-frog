@@ -26,7 +26,6 @@
 use mihomo_api::error::MihomoError;
 #[cfg(unix)]
 use std::fs;
-#[cfg(unix)]
 use std::io;
 use std::path::Path;
 #[cfg(windows)]

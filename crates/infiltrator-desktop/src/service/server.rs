@@ -4,13 +4,16 @@ use super::{
     ServiceError, ServiceRequest, ServiceResponse, ServiceResponsePayload, recv_framed_json,
     send_framed_json,
 };
+#[cfg(unix)]
 use std::fs::{Permissions, set_permissions};
 use std::sync::Arc;
+#[cfg(unix)]
 use tokio::fs::{create_dir_all, remove_file};
 use tokio::io::duplex;
 #[cfg(windows)]
 use tokio::io::split;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+#[cfg(not(windows))]
 use tokio::net::UnixListener;
 #[cfg(windows)]
 use tokio::net::windows::named_pipe::ServerOptions;

@@ -2,9 +2,12 @@ use crate::paths::get_home_dir;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use signal_hook::consts::{SIGINT, SIGTERM};
+use signal_hook::consts::SIGINT;
+#[cfg(not(windows))]
+use signal_hook::consts::SIGTERM;
 #[cfg(windows)]
 use signal_hook::flag::register;
+#[cfg(not(windows))]
 use signal_hook::iterator::Signals;
 use std::backtrace::Backtrace;
 use std::collections::HashMap;

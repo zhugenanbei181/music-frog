@@ -330,12 +330,13 @@ mod process {
     #[cfg(windows)]
     use std::ffi::c_void;
     use std::fs::{File, OpenOptions, canonicalize};
-    #[cfg(target_os = "linux")]
     use std::io;
     #[cfg(windows)]
     use std::mem::size_of;
     use std::path::{Path, PathBuf};
-    use std::process::{Command, Stdio, id};
+    #[cfg(target_os = "linux")]
+    use std::process::id;
+    use std::process::{Command, Stdio};
     #[cfg(windows)]
     use std::ptr::null;
     use sysinfo::{Pid, ProcessStatus, ProcessesToUpdate, System};

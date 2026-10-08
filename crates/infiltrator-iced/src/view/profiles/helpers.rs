@@ -12,6 +12,7 @@ use infiltrator_desktop::clipboard_helper::ClipboardHelper;
 use infiltrator_domain::profiles::ProfileInfo;
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+#[cfg(target_os = "linux")]
 use std::env::var_os;
 use std::process;
 

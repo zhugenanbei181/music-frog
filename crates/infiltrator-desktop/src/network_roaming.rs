@@ -199,6 +199,7 @@ fn command_output(program: &str, args: &[&str]) -> Result<String, PortError> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn parse_linux_default_routes(output: &str) -> Vec<DefaultRoute> {
     let mut routes = output
         .lines()
@@ -466,6 +467,7 @@ fn repair_route_anchor(
     }
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn command_status(program: &str, args: &[&str]) -> Result<(), PortError> {
     let mut command = Command::new(program);
     command.args(args);
@@ -500,6 +502,7 @@ fn command_output_command(command: &mut Command) -> Result<String, PortError> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn parse_route_get_interface(output: &str) -> Option<String> {
     let fields: Vec<&str> = output.split_whitespace().collect();
     fields
