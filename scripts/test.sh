@@ -2,7 +2,6 @@
 set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
-export INFILTRATOR_LANG="${INFILTRATOR_LANG:-zh-CN}"
 if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--no-run" && "$1" != "--guards-only" ) ]]; then
   echo "usage: bash scripts/test.sh [--no-run|--guards-only]" >&2
   exit 2

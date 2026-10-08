@@ -23,7 +23,6 @@ env:
   CARGO_TERM_COLOR: always
   # CI 中禁用增量编译：产物更小、缓存更省、全量构建更可复现。
   CARGO_INCREMENTAL: 0
-  INFILTRATOR_LANG: zh-CN
 
 jobs:
   version-gate:

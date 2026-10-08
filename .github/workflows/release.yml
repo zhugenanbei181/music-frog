@@ -16,7 +16,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  INFILTRATOR_LANG: zh-CN
 
 jobs:
   # The release tag must pass the exact workspace test suite before any

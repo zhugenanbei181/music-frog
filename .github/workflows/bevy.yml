@@ -52,7 +52,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
-  INFILTRATOR_LANG: zh-CN
 
 jobs:
   bevy:
