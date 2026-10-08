@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use infiltrator_contract::capability::Capability;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::subscription_import::SubscriptionImportPort;
+#[cfg(all(unix, not(target_os = "macos")))]
 use std::env::var_os;
 use std::process;
 use tokio::fs::read_to_string;

@@ -22,7 +22,6 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(unix, not(target_os = "macos")))]
 use std::thread::Builder;
-#[cfg(all(unix, not(target_os = "macos")))]
 use std::thread::sleep;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
