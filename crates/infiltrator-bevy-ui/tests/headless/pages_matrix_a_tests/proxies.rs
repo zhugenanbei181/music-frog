@@ -20,16 +20,15 @@ use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_contract::latency_display::LatencyBand;
-use infiltrator_shared::locales::{Lang, Localizer, get_system_language};
-use std::env;
+use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
 fn test_proxies_page_mounting_and_default_state() {
     let sink = Arc::new(DemoCommandSink::accepting());
     let mut app = setup_matrix_a_app(sink);
     let (root, _) = navigate_to(&mut app, Route::Proxies);
-    let language = env::var("INFILTRATOR_LANG").unwrap_or_else(|_| get_system_language());
-    let lang = Lang(&language);
+    let locale = app.world().resource::<UiLocale>().code().to_string();
+    let lang = Lang(&locale);
 
     assert!(subtree_has_text(
         app.world(),
