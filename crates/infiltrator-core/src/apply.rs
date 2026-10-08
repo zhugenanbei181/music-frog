@@ -135,13 +135,17 @@ pub type ApplyResult<T> = result::Result<T, ApplyError>;
 /// mock instead of a live controller (QA-002).
 #[async_trait]
 pub trait ConfigReloader: Send + Sync {
+    /// Preflight validation before hot reload (e.g. PUT /configs?force=false).
+    async fn preflight_check(&self, _path: &Path) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Commit the hot reload to live traffic (e.g. PUT /configs?force=true).
     async fn reload(&self, path: &Path) -> Result<(), String>;
 }
 
 /// Production reloader: resolve the current endpoint per call (port rotation
-/// safe), build a client, `PUT /configs?force=true` with the file path. It is
-/// deliberately independent of the lifecycle owner so CoreApplication and
-/// any lifecycle owner can share the same transaction.
+/// safe), build a client, perform preflight check and then `PUT /configs?force=true`.
 pub struct EndpointConfigReloader {
     endpoints: Arc<dyn EndpointSource>,
 }
@@ -154,6 +158,23 @@ impl EndpointConfigReloader {
 
 #[async_trait]
 impl ConfigReloader for EndpointConfigReloader {
+    async fn preflight_check(&self, path: &Path) -> Result<(), String> {
+        let endpoint = self
+            .endpoints
+            .resolve()
+            .await
+            .map_err(|err| err.to_string())?;
+        let client = MihomoClient::new(&endpoint.url, endpoint.secret)
+            .map_err(|err| format!("controller client: {err}"))?;
+        let path = path
+            .to_str()
+            .ok_or_else(|| "config path is not valid UTF-8".to_string())?;
+        client
+            .reload_config_with_force(Some(path), false)
+            .await
+            .map_err(|err| format!("preflight check rejected: {err}"))
+    }
+
     async fn reload(&self, path: &Path) -> Result<(), String> {
         let endpoint = self
             .endpoints
@@ -166,7 +187,7 @@ impl ConfigReloader for EndpointConfigReloader {
             .to_str()
             .ok_or_else(|| "config path is not valid UTF-8".to_string())?;
         client
-            .reload_config(Some(path))
+            .reload_config_with_force(Some(path), true)
             .await
             .map_err(|err| format!("reload rejected: {err}"))
     }
@@ -228,6 +249,12 @@ pub(crate) async fn reload_and_check(
     path: &Path,
     params: &ApplyParams,
 ) -> Result<ApplyOutcome, String> {
+    // Phase 1: Preflight check without disrupting active connections
+    if let Err(error) = reloader.preflight_check(path).await {
+        return Err(format!("config preflight check failed: {error}"));
+    }
+
+    // Phase 2: Live switch with session token lock
     let session_token = session
         .begin_reload()
         .map_err(|error| format!("core cannot begin hot reload: {error}"))?;
@@ -666,3 +693,7 @@ pub async fn apply_profile_mixin_fidelity<S: SecureStore>(
 #[cfg(test)]
 #[path = "apply_test.rs"]
 mod apply_test;
+
+#[cfg(test)]
+#[path = "apply_preflight_tests.rs"]
+mod apply_preflight_tests;

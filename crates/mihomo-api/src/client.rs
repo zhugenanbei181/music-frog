@@ -149,7 +149,12 @@ impl MihomoClient {
     }
 
     pub async fn reload_config(&self, path: Option<&str>) -> Result<()> {
-        let url = self.build_url_with_query("/configs", &[("force", "true".to_string())])?;
+        self.reload_config_with_force(path, true).await
+    }
+
+    pub async fn reload_config_with_force(&self, path: Option<&str>, force: bool) -> Result<()> {
+        let force_str = if force { "true" } else { "false" };
+        let url = self.build_url_with_query("/configs", &[("force", force_str.to_string())])?;
         let mut req = self.client.put(url);
         if let Some(path) = path {
             req = req.json(&json!({ "path": path }));

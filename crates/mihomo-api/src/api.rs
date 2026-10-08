@@ -29,6 +29,13 @@ pub trait MihomoApi: Send + Sync {
     async fn switch_proxy(&self, group: &str, name: &str) -> Result<()>;
     async fn test_delay(&self, name: &str, url: &str, timeout: u32) -> Result<u32>;
     async fn reload_config(&self, path: Option<&str>) -> Result<()>;
+    async fn reload_config_with_force(&self, path: Option<&str>, force: bool) -> Result<()> {
+        if force {
+            self.reload_config(path).await
+        } else {
+            Ok(())
+        }
+    }
     async fn patch_config(&self, updates: Value) -> Result<()>;
     async fn get_proxy_providers(&self) -> Result<HashMap<String, ProxyProvider>>;
     async fn get_rule_providers(&self) -> Result<HashMap<String, RuleProvider>>;
@@ -123,6 +130,10 @@ impl MihomoApi for MihomoClient {
 
     async fn reload_config(&self, path: Option<&str>) -> Result<()> {
         MihomoClient::reload_config(self, path).await
+    }
+
+    async fn reload_config_with_force(&self, path: Option<&str>, force: bool) -> Result<()> {
+        MihomoClient::reload_config_with_force(self, path, force).await
     }
 
     async fn patch_config(&self, updates: Value) -> Result<()> {
