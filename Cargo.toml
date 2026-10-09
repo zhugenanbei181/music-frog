@@ -106,7 +106,7 @@ regex = "1.11"
 # `--no-default-features` build drops the adapter entirely.
 boa_engine = { version = "0.22.0", default-features = false }
 
-# Bevy UI (同权产品，锁定 =0.20.0-rc.2 与 taskmanager 同锁)
-bevy = { version = "=0.20.0-rc.2", default-features = false }
+# Bevy UI (同权产品，锁定 =0.20.0 GA；升级为架构与发布评审事项，与 taskmanager 同窗升级)
+bevy = { version = "=0.20.0", default-features = false }
 accesskit = "0.24.1"
 unicode-segmentation = "1.12"

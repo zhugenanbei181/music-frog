@@ -7,8 +7,10 @@
 
 ## 1. 基座铁律
 
-- **bevy 锁定 `=0.20.0-rc.2`**：精确到 patch，与 taskmanager 同锁。升级属于架构与发布
-  评审事项（bevy 0.20 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
+- **bevy 锁定 `=0.20.0`（0.20 GA）**：精确到 patch。`0.20.0-rc.2` → `0.20.0` GA 为纯 pin
+  升级（上游 rc.2→GA 仅 13 个提交，无迁移项；WESL 0.6 的 `public`/`private` 可见性机制在
+  bevy 内保持关闭），与 taskmanager 按升级协议同窗跟进。升级属于架构与发布评审事项
+  （bevy 0.20 已把 UI 布局与渲染拆开，`bevy_ui` 单独只排版不上屏，必须闭合
   `bevy_ui_render`）。
 - **依赖边界**：`infiltrator-bevy-widgets` 使用 Bevy、Unicode 文本处理与 `infiltrator-shared` 的中性本地化资源；禁止持有第二套产品文案表或引入 application/宿主/内核依赖。`infiltrator-bevy-ui` 依赖
   bevy + widgets + `infiltrator-contract` + `infiltrator-application`、前端中性的只读 `SurfaceReader` 端口与组合根，但不依赖
@@ -159,7 +161,7 @@ feature 用途，代码零导入）。iced 的 wgpu 栈升级越过 naga 27 后�
 两项目未来共同抽出业务无关控件层（"我们自己的 bevy_ui_widgets 皮肤包"）的判定
 标准：**同一个控件在两个项目中第二次出现时，下沉**。为此：
 
-- bevy 同锁 `=0.20.0-rc.2`；
+- bevy 同锁 `=0.20.0`；
 - widgets 层零业务依赖、纯函数核可无头测试；
 - 控件实现风格对齐（bsn! 场景函数 + typed marker 组件 + 观察者），搬运即迁移。
 

@@ -8,7 +8,7 @@ description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene 
 # Business-agnostic by law (docs/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
 # engines, infiltrator-core or mihomo-*. It is the future
 # extraction candidate shared with taskmanager's bevy frontend, which is why
-# bevy is pinned to the exact same patch (`=0.20.0-rc.2`) so both resolve one ABI.
+# bevy is pinned to the exact same patch (`=0.20.0`) so both resolve one ABI.
 
 # Base `bevy` declaration with an EMPTY feature set. The per-target tables
 # below own the real feature closure; this entry exists because bevy's derive
@@ -23,7 +23,7 @@ unicode-segmentation = { workspace = true }
 infiltrator-shared = { path = "../infiltrator-shared" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 
-# Feature closure (minimal for a bevy_ui surface), locked `=0.20.0-rc.2`:
+# Feature closure (minimal for a bevy_ui surface), locked `=0.20.0`:
 # - bevy_ui: the toolkit layer itself (its layout plugin; pulls bevy_text and
 #   bevy_sprite; nothing 3D).
 # - bevy_ui_widgets: the official unstyled widget package (button / checkbox /
@@ -73,7 +73,7 @@ bevy = { workspace = true, features = [
 # Android (the reason this frontend exists), BEVY-006 front half: same UI
 # closure as desktop, minus `wayland` (winit backend selection is a desktop
 # compositor concern), plus `android-native-activity` — the one feature bevy
-# 0.20.0-rc.2 offers to satisfy android-activity's hard requirement.
+# 0.20.0 offers to satisfy android-activity's hard requirement.
 [target.'cfg(target_os = "android")'.dependencies]
 bevy = { workspace = true, features = [
     "bevy_ui",

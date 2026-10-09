@@ -163,7 +163,7 @@ cat > "$DRIVER/Cargo.toml" <<'EOF'
 # Purpose: the crate's own src/ is not allowed to carry the android entry
 # glue in this task split, but android-activity 0.6.1 requires the packaged
 # cdylib to export `android_main` (extern "Rust",
-# src/native_activity/glue.rs:663) and bevy_winit 0.20.0-rc.2 requires
+# src/native_activity/glue.rs:663) and bevy_winit 0.20.0 requires
 # bevy_android::ANDROID_APP to be set before DefaultPlugins (src/lib.rs:123).
 # This cdylib driver provides exactly that and calls the real shell's run().
 [package]
@@ -177,9 +177,13 @@ name = "infiltrator_bevy_apk_driver"
 crate-type = ["cdylib"]
 
 [dependencies]
-infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui" }
+# BANDROID-004/015: `fixture-demo` is enabled ONLY for this packaging smoke so
+# the APK renders the shell for screenshot forensics. The shipping Gradle host
+# must NOT enable it, so a real product build reports typed `NotReady` instead
+# of a working-looking showcase over an unattached host.
+infiltrator-bevy-ui = { path = "../../../crates/infiltrator-bevy-ui", features = ["fixture-demo"] }
 android-activity = { version = "0.6.1", features = ["native-activity"] }
-bevy_android = "=0.20.0-rc.2"
+bevy_android = "=0.20.0"
 
 [package.metadata.android]
 package = "app.musicfrog.infiltrator_bevy_ui"

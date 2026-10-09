@@ -60,10 +60,17 @@ impl FontSources {
 
     /// The face one typographic role draws with.
     pub fn face(&self, role: Role) -> Handle<Font> {
+        #[cfg(target_os = "android")]
+        return match role {
+            Role::Mono => self.mono.clone(),
+            _ => self.cjk.clone(),
+        };
+
+        #[cfg(not(target_os = "android"))]
         match role {
-            Role::Heading | Role::Display | Role::BodyStrong => self.cjk.clone(),
-            Role::Body => self.cjk.clone(),
-            Role::Caption => self.cjk.clone(),
+            Role::Heading | Role::Display | Role::BodyStrong => self.heading.clone(),
+            Role::Body => self.body.clone(),
+            Role::Caption => self.caption.clone(),
             Role::Mono => self.mono.clone(),
         }
     }

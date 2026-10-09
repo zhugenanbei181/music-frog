@@ -4,7 +4,7 @@ use crate::command_harness::{HostlessProcess, RecordingHandler};
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::surface_application::{SurfacePump, UnavailableSurfaceReader};
 use infiltrator_bevy_ui::command::{UiCommand, UiCommandSink};
-use infiltrator_bevy_ui::launch::{LaunchMode, UnavailableCommandSink};
+use infiltrator_bevy_ui::launch::{LaunchMode, UnavailableCommandSink, missing_host_failure};
 use infiltrator_bevy_ui::projection::{OverviewSource, SourceKind};
 use infiltrator_bevy_ui::surface::{
     ApplicationSurfaceSource, SurfaceSource, UnavailableSurfaceSource,
@@ -46,6 +46,15 @@ fn fixture_mode_requires_explicit_opt_in() {
         assert_eq!(LaunchMode::from_demo_flag(flag), LaunchMode::Product);
     }
     assert_eq!(LaunchMode::from_demo_flag(Some("1")), LaunchMode::Demo);
+}
+
+#[test]
+fn mobile_product_without_a_host_is_not_ready_not_a_silent_demo() {
+    // BANDROID-004: an unattached host must surface a typed terminal state,
+    // never an implicitly interactive demo over no VPN/kernel.
+    let failure = missing_host_failure();
+    assert_eq!(failure.code, ErrorCode::NotReady);
+    assert!(failure.retryable);
 }
 
 #[test]

@@ -12,6 +12,13 @@ description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+
 # Bevy surface is built and tested against Boa unless defaults are disabled.
 default = ["script-engine-boa"]
 script-engine-boa = ["infiltrator-application/script-engine-boa"]
+# Mobile packaging smoke opt-in (BANDROID-004/015). The mobile product entry
+# must not present a working-looking showcase over an unattached host, so the
+# no-host fallback reports a typed `NotReady` unavailable state by default.
+# The cargo-apk smoke driver explicitly enables this feature at build time to
+# render the shell for screenshot forensics; the shipping Gradle host must
+# never enable it, so a real product build stays honest.
+fixture-demo = []
 # Linux release: statically vendor OpenSSL so the artifact carries no libssl
 # soname dependency and can be produced against the pinned old glibc via
 # cargo-zigbuild (same contract as infiltrator-iced's identically named

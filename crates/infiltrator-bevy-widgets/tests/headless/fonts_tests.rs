@@ -34,14 +34,15 @@ fn embedded_faces_register_exactly_four_font_assets() {
     assert!(sources.body.is_strong());
     assert!(sources.caption.is_strong());
     assert!(sources.mono.is_strong());
+    assert!(sources.cjk.is_strong());
     assert_ne!(sources.heading, sources.body, "faces are distinct assets");
 
     let world = app.world_mut();
     let fonts = world.resource::<Assets<Font>>();
     assert_eq!(
         fonts.len(),
-        4,
-        "the four OFL faces are the whole embedded store"
+        5,
+        "the five faces are the whole embedded store"
     );
 }
 
@@ -66,7 +67,7 @@ fn font_initialization_precedes_startup_and_preserves_preexisting_labels() {
         FontSource::Handle(source)
     );
     app.update();
-    assert_eq!(app.world().resource::<Assets<Font>>().len(), 4);
+    assert_eq!(app.world().resource::<Assets<Font>>().len(), 5);
     assert!(app.world().get_entity(label).is_ok());
 }
 
@@ -80,7 +81,7 @@ fn asset_plugins_can_be_registered_after_widgets_before_first_update() {
         commands.spawn_scene(bsn! { TextRole(Role::Body) TextFont::default() });
     });
     app.update();
-    assert_eq!(app.world().resource::<Assets<Font>>().len(), 4);
+    assert_eq!(app.world().resource::<Assets<Font>>().len(), 5);
     assert!(app.world().resource::<FontSources>().body.is_strong());
 }
 

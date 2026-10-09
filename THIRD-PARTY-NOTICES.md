@@ -75,15 +75,15 @@ are original hand-written SVGs modeled on the **Lucide** icon style
 copies of upstream path data and are distributed with this project's license.
 For attribution of inspiration: <https://lucide.dev> (ISC).
 
-## 6. Bevy 0.20.0-rc.2 engine family (`bevy` facade + sub-crates)
+## 6. Bevy 0.20.0 engine family (`bevy` facade + sub-crates)
 
 - Source: crates.io, upstream [bevyengine/bevy](https://github.com/bevyengine/bevy),
-  pinned by `Cargo.lock` to **0.20.0-rc.2**. The crates are not vendored into
+  pinned by `Cargo.lock` to **0.20.0**. The crates are not vendored into
   this repository; they are pulled from crates.io at build time. / 不随仓库分发，
   构建时由 cargo 自 crates.io 拉取。License 逐个实证自本机
   `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/<name>-<version>/Cargo.toml`
   的 `license` 字段。
-- Members (all at 0.20.0-rc.2): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
+- Members (all at 0.20.0): `bevy` (facade), `bevy_internal`, `bevy_a11y`,
   `bevy_android`, `bevy_app`, `bevy_asset`, `bevy_asset_macros`, `bevy_camera`,
   `bevy_clipboard`, `bevy_color`, `bevy_core_pipeline`, `bevy_curve`,
   `bevy_derive`, `bevy_diagnostic`, `bevy_ecs`, `bevy_ecs_macro_logic`,
@@ -110,22 +110,21 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
 ## 7. wgpu 30 / naga 30 rendering stack (added by `bevy_render`)
 
 - Source: crates.io, upstream [gfx-rs/wgpu](https://github.com/gfx-rs/wgpu)
-  (all `wgpu*` and `naga` crates) and
-  [bevyengine/naga_oil](https://github.com/bevyengine/naga_oil/). Pinned by
+  (all `wgpu*` and `naga` crates). Pinned by
   `Cargo.lock`. / 同上，构建时自 crates.io 拉取，license 实证自本机 vendored
   源码的 `Cargo.toml`。
 - Note: the iced client already brought `wgpu`/`naga` **27.x**; the entries
-  below are the **30.x** set added with bevy 0.20.0-rc.2. Both generations
+  below are the **30.x** set added with bevy 0.20.0. Both generations
   coexist in `Cargo.lock`. / 27.x 系 iced 原有；下述为 bevy 新增的 30.x
   条目，两代并存。
 - Core (all **MIT OR Apache-2.0**): `wgpu` 30.0.1, `wgpu-core` 30.0.1,
   `wgpu-hal` 30.0.1, `wgpu-types` 30.0.1, `wgpu-core-deps-apple` 30.0.1,
   `wgpu-core-deps-windows-linux-android` 30.0.1, `wgpu-naga-bridge` 30.0.1,
-  `naga` 30.0.1, `naga-types` 30.0.1, `naga_oil` 0.22.0.
+  `naga` 30.0.1, `naga-types` 30.0.1.
 - WESL shader language support (new with the 0.20 render stack, all **MIT OR
   Apache-2.0**, upstream [wesl-lang/wesl](https://github.com/wesl-lang/wesl)):
-  `wesl` 0.4.4, `wesl-macros` 0.4.4, `wgsl-parse` 0.4.4, `wgsl-types` 0.4.4,
-  and their parser dependency `unsynn` 0.3.0.
+  `wesl` 0.6.0, `wesl-core` 0.1.0, `wesl-macros` 0.6.0, `wgsl-parse` 0.6.0,
+  `wgsl-types` 0.6.0, and their parser dependency `unsynn` 0.3.0.
 - Transitive additions (new name or new version entry, added by the stack
   above):
   - `codespan-reporting` 0.13.1 — **Apache-2.0**
@@ -136,8 +135,8 @@ For attribution of inspiration: <https://lucide.dev> (ISC).
     binding, via `naga`).
   - `bit-set` 0.9.1 / `bit-vec` 0.9.1 — **Apache-2.0 OR MIT** (via `naga`).
   - `pp-rs` 0.2.1 — **BSD-3-Clause** (preprocessor used by `naga`).
-  - `petgraph` 0.8.3 — **MIT OR Apache-2.0** (via `naga_oil` /
-    `tree_magic_mini`); `weak-table` 0.4.0 — **MIT** (via `naga_oil`).
+  - `petgraph` 0.8.3 — **MIT OR Apache-2.0** (via `tree_magic_mini` /
+    `wl-clipboard-rs`); `weak-table` 0.4.0 — **MIT** (via `bevy_render`).
   - `gpu-allocator` 0.28.0 — **MIT OR Apache-2.0**
     ([Traverse-Research/gpu-allocator](https://github.com/Traverse-Research/gpu-allocator));
     `presser` 0.3.1, `range-alloc` 0.1.5, `raw-window-metal` 1.1.0 — **MIT OR
