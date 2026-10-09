@@ -76,6 +76,8 @@
     <string name="text_empty_proxies">未找到代理組</string>
 
     <!-- Settings Main -->
+    <string name="setting_battery_title">背景執行與電池最佳化</string>
+    <string name="setting_battery_desc">申請無限制電池權限，防止鎖定螢幕被系統清除</string>
     <string name="setting_language_title">語言 / Language</string>
     <string name="setting_language_system">跟隨系統</string>
     <string name="setting_language_en">English</string>

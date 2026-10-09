@@ -165,7 +165,7 @@ class MihomoVpnService : VpnService() {
         }
 
         try {
-            val configuration = takePendingConfiguration()
+            val configuration = takePendingConfiguration(this)
                 ?: throw IOException("Rust VPN configuration was not prepared")
             val builder = Builder()
             builder.setMtu(configuration.mtu)
@@ -377,6 +377,18 @@ class MihomoVpnService : VpnService() {
         fun isForegroundActive(): Boolean = foregroundActive
 
         @Synchronized
+        fun setPendingConfiguration(context: android.content.Context, configJson: String): Boolean {
+            val configuration = NativeVpnConfiguration.parse(configJson) ?: return false
+            pendingConfiguration = configuration
+            try {
+                val prefs = context.getSharedPreferences("vpn_persistence", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putString("last_config_json", configJson).apply()
+            } catch (e: Exception) {
+                android.util.Log.w("MihomoVpnService", "Failed to persist last VPN configuration", e)
+            }
+            return true
+        }
+
         fun setPendingConfiguration(configJson: String): Boolean {
             val configuration = NativeVpnConfiguration.parse(configJson) ?: return false
             pendingConfiguration = configuration
@@ -384,10 +396,23 @@ class MihomoVpnService : VpnService() {
         }
 
         @Synchronized
-        private fun takePendingConfiguration(): NativeVpnConfiguration? {
+        private fun takePendingConfiguration(context: android.content.Context): NativeVpnConfiguration? {
             val configuration = pendingConfiguration
-            pendingConfiguration = null
-            return configuration
+            if (configuration != null) {
+                pendingConfiguration = null
+                return configuration
+            }
+            return try {
+                val prefs = context.getSharedPreferences("vpn_persistence", android.content.Context.MODE_PRIVATE)
+                val savedJson = prefs.getString("last_config_json", null)
+                if (savedJson != null) {
+                    NativeVpnConfiguration.parse(savedJson)
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                null
+            }
         }
 
         fun start(context: android.content.Context): Boolean {

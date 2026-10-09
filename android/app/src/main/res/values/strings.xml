@@ -76,6 +76,8 @@
     <string name="text_empty_proxies">No proxy groups found</string>
 
     <!-- Settings Main -->
+    <string name="setting_battery_title">Battery Optimization</string>
+    <string name="setting_battery_desc">Exempt from Doze mode to prevent VPN disconnection</string>
     <string name="setting_language_title">Language</string>
     <string name="setting_language_system">Follow System</string>
     <string name="setting_language_en">English</string>

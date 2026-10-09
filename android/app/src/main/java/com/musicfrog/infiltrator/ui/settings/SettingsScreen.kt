@@ -12,6 +12,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Language
@@ -32,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -66,6 +68,16 @@ fun SettingsScreen(
                     supporting = getLocaleLabel(currentLocale),
                     leadingIcon = Icons.Outlined.Language,
                     onClick = { showLanguageDialog = true }
+                )
+                HorizontalDivider()
+            }
+            item {
+                val context = LocalContext.current
+                StandardListItem(
+                    headline = stringResource(R.string.setting_battery_title),
+                    supporting = stringResource(R.string.setting_battery_desc),
+                    leadingIcon = Icons.Outlined.BatteryChargingFull,
+                    onClick = { requestBatteryExemption(context) }
                 )
                 HorizontalDivider()
             }
@@ -195,6 +207,18 @@ fun LanguageDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
+}
+
+private fun requestBatteryExemption(context: android.content.Context) {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+        if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = android.net.Uri.parse("package:${context.packageName}")
+            }
+            context.startActivity(intent)
+        }
+    }
 }
 
 @Composable

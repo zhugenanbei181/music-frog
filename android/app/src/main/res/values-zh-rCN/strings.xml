@@ -76,6 +76,8 @@
     <string name="text_empty_proxies">未找到代理组</string>
 
     <!-- Settings Main -->
+    <string name="setting_battery_title">后台运行与电池优化</string>
+    <string name="setting_battery_desc">申请无限制电池权限，防止锁屏被系统杀后台</string>
     <string name="setting_language_title">语言 / Language</string>
     <string name="setting_language_system">跟随系统</string>
     <string name="setting_language_en">English</string>

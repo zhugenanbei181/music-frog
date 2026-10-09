@@ -97,7 +97,7 @@ class MihomoHost(private val context: Context) : BridgeHost {
     }
 
     override fun vpnApplyConfiguration(configJson: String): Boolean {
-        return MihomoVpnService.setPendingConfiguration(configJson)
+        return MihomoVpnService.setPendingConfiguration(context, configJson)
     }
 
     override fun vpnStop(): Boolean {
