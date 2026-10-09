@@ -11,17 +11,24 @@
 
 > 以下仅表示**代码已落地并通过 workspace/守卫/Android 编译门**；设备、像素、真机与长时证据仍未取得，不构成 DONE。
 
-| 提交 | 覆盖 | 代码侧状态 | 仍缺 |
+| 提交 | 覆盖 | 代码侧状态 | 仍缺（环境阻断） |
 | --- | --- | --- | --- |
 | `421e87c` | BANDROID-009 | Proxies 大列表接入虚拟窗口/实体池/overscan；2000 节点挂载有界、尾项可达、槽位稳定 | 真机帧耗时/内存/池数基准 |
 | `723142b` | BANDROID-011 | `RenderCadence::Idling` 在 Bevy 可达：静置降到 idle 帧间隔，输入/动画唤醒 | Android 挂起停绘、真机帧/唤醒报告 |
-| `a141aa6` | BANDROID-012 | `SurfacePump` 宿主唤醒句柄（可合并、无界积压修复） | UI 侧消费（EventLoopProxy）与真机后台唤醒 |
-| `9806aa0` | BANDROID-013/017 | 拓扑静置帧不再重栅格化/重上传；真实卡片启用阴影高度 | GPU 真绘制、桌面像素、Android 设备 |
-| `01f2168` | BANDROID-013 | 可选遥测 Mesh2d GPU 路径 + CPU 回退 + handle 复用/退役 | Mesh2d view transform、`Material2d` 管线、宿主相机 |
-| `4e3c13a` | BANDROID-010 | Connections/Logs 大列表接入回收组件（Rules 保留 domain window） | 真机滚动/过滤/重排基准；Rules 对齐回收组件 |
-| `ea7f053` | 依赖 | `brotli 9`、`toml 1`、`jni 0.22`（JNI bridge 迁移），android-check 通过 | — |
+| `a141aa6` | BANDROID-012 | `SurfacePump` 宿主唤醒句柄（可合并、无界积压修复） | UI 侧 EventLoopProxy 消费与真机后台唤醒 |
+| `9806aa0` | BANDROID-013/017 | 拓扑静置帧不再重栅格化/重上传；真实卡片启用阴影高度 | 桌面像素、Android 设备 |
+| `01f2168`,`6f55ca8` | BANDROID-013 | 遥测 Mesh2d GPU 管线完成（View/`clip_from_world`、`Material2d`、handle 复用/退役）+ CPU 回退 | 真实 Vulkan/Android GPU 出图（§1.2 需设备） |
+| `4e3c13a` | BANDROID-010 | Connections/Logs 大列表接入回收组件 | 真机滚动/过滤/重排基准；Rules 对齐回收组件 |
+| `6f55ca8` | BANDROID-016 / BEVY-030 | 2.5D 地球（来源/精度/未知语义、经纬度不可编造、弧线/粒子、Flat/Eco 回退） | 真机帧/内存/功耗 |
+| `ea7f053` | 依赖 | `brotli 9`、`toml 1`、`jni 0.22`（JNI bridge 迁移） | — |
+| `9004631`,`7e26067` | BANDROID-001..008 | 服务进程独立初始化、`:vpn` bridge 注册、Android `SurfacePump`/`attach_application` 入口、UI↔`:vpn` 绑定、生命周期/Insets/剪贴板原生适配、IME 归一化（BANDROID-007 经核实为 **typed unsupported**：winit 0.30 Android 后端不产 `WindowEvent::Ime`，android-activity 0.6.1 无 GameTextInput） | 全部真机/APK/Gradle 证据 |
+| `ac51a7a` | BEVY-020 / BANDROID-014 | 日志有界环形缓冲；返回栈/触觉端口/减少动效接缝 | 真机返回/读屏/触觉 |
+| `f3437d9` | BEVY-028/033/034/036/037/038/039/040/041 | 反应式 DAG、自愈启发式、OKLCH 色阶、TSDB+时间回放、沙盒、游戏手柄、冷启动缓存、混沌数字孪生、跨项目 ABI | 产品页接线与设备 |
+| `ff95457` | BEVY-027/029/031/032/035 | SDF 边抗锯齿+实例化批次+降级开关、多窗口/PiP、无障碍/相机/原生视图接缝、程序化音频+全局静音、可变字重+BiDi 镜像 | 真机 a11y/相机/音频 |
 
-**硬阻断（本机不可验证，必须留 OPEN）**：BANDROID-001…008/015/022…024 需真机 + JDK/Gradle；平台安装包需各 OS 真机；parity L3 需虚拟 KWin/niri 采集；≥8h 后台与功耗需硬件。
+**硬阻断（本机不可验证，必须留 OPEN）**：BANDROID-001…008/015/022…024 的设备/APK/Gradle 部分需真机 + JDK/Gradle；平台安装包需各 OS 真机；parity L3 需虚拟 KWin/niri 采集；≥8h 后台与功耗需硬件；BEVY-031 的 TalkBack/VoiceOver 与相机、BEVY-032 的真实音频输出、BANDROID-007 的完整中文 IME 亦归设备/上游。
+
+**未落地（明确登记，不静默）**：BANDROID-015 的默认特性 release APK 整合仅到“代码就绪”（`android/bevy-host` 模块 + driver 模板，未接入 `settings.gradle.kts`，未构建）；BANDROID-018..024 的首次 CI 运行、模拟器插桩 stage、真机长时 stage 均待 CI/设备；所有 BEVY 高级能力的产品页接线（`infiltrator-bevy-ui` 页面消费）尚未逐项接入。
 
 
 ## A. 横切阻断（先决，串行）
