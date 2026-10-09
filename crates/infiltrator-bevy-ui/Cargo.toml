@@ -117,6 +117,7 @@ path = "src/lib.rs"
 [package.metadata.android]
 package = "app.musicfrog.infiltrator_bevy_ui"
 apk_name = "infiltrator-bevy-ui"
+res = "../../android/app/src/main/res"
 build_targets = ["aarch64-linux-android"]
 
 # BANDROID-020: keep min/target SDK identical to the Compose host
