@@ -22,6 +22,7 @@
 14. [UPSTREAM.md](UPSTREAM.md)：Rust、mihomo、Web、Android 依赖的版本与升级流程。
 15. [TEST_MATRIX.md](TEST_MATRIX.md)：功能域、UI、平台和真实 core 的分层回归矩阵。
 16. [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)：Bevy Android 的保留扩展、服务进程隔离、原生输入、实体回收、事件驱动节能与设备验收规范。
+17. [DUAL_SURFACE_GAP_LEDGER.md](DUAL_SURFACE_GAP_LEDGER.md)：双端平权剩余缺口总清单（派生缺口视图，映射 owner/文件/证据，供多 agent 分 lane 认领）。
 ## 文档与待办的权威关系
 
 | 内容 | 唯一入口 | 规则 |
@@ -37,6 +38,7 @@
 | UI 求同存异 | `docs/FRONTENDS.md` | 每个前端必须显式选择 shared/local/accepted difference/unsupported |
 | Bevy UI 开发规范 | `docs/BEVY_UI_FRONTEND.md` | 声明式场景、受限 ECS、模块化 WESL、GPU ABI、handle owner/复用/回收与分层验证；业务和截图激活禁止整仓 World 访问 |
 | Bevy Android 产品工程 | `docs/BEVY_ANDROID_PRODUCT.md` | 现有能力保留扩展，Android UI/VPN 宿主组合、资源治理和设备验收；当前平台状态仍归平台矩阵，排期归本地 TODO |
+| 双端平权缺口总清单 | `docs/DUAL_SURFACE_GAP_LEDGER.md` | 派生缺口视图：把每处未平权隐患映射到 owner 编号、文件级动作与所需证据；不新建事实，执行顺序归 `TODO.md`，场景身份归 `scripts/parity/` |
 | Android CI 与测试分层 | `.github/workflows/android.yml` + `docs/BEVY_ANDROID_PRODUCT.md` §9 | 编译门/清单守卫/单元/插桩/真机证据分层；产品状态仍归平台矩阵 |
 | 双端多尺寸弹性 | `docs/RESPONSIVE_PARITY_LEDGER.md` | 断点单一事实源、四阶形态规范与逐页弹性收口；`DUAL-03-14`/`DUAL-15-01` 的权威验收台账 |
 | 双端 UI/UX 与视觉演进 | `docs/DUAL_SURFACE_UI_UX_ROADMAP.md` | 双端 UI/UX 体验、全流体响应式、设计令牌、连续曲率圆角与微交互的权威实施台账 |
