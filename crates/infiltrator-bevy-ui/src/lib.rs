@@ -17,6 +17,7 @@
 
 use infiltrator_bevy_widgets::shader_fx::ModernSurfacePlugin;
 use infiltrator_contract::theme::ThemePreference;
+use std::sync::OnceLock;
 pub mod a11y;
 pub mod app;
 pub mod appearance;
@@ -77,6 +78,19 @@ pub fn run() {
 /// Explicit isolated composition for screenshots and UI development.
 pub fn run_demo() {
     run_with_command_sink_and_surface(Arc::new(command::DemoCommandSink::accepting()), None, None);
+}
+
+static ATTACHED_APPLICATION: OnceLock<Arc<CoreApplication>> = OnceLock::new();
+
+/// Attach an application instance composed by a native host (e.g. Android host)
+/// before or during launch (BANDROID-004).
+pub fn attach_application(application: Arc<CoreApplication>) {
+    let _ = ATTACHED_APPLICATION.set(application);
+}
+
+/// Retrieve the attached application instance, if any.
+pub fn attached_application() -> Option<Arc<CoreApplication>> {
+    ATTACHED_APPLICATION.get().cloned()
 }
 
 /// Render the actual host initialization failure on every page and reject commands.

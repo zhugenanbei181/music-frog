@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-composition"
-version = "0.40.4"
+version = "0.40.5"
 edition = "2024"
 publish = false
 description = "Composition roots that wire concrete outbound and host adapters into the application layer."

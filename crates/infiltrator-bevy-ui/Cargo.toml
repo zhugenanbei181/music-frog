@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-bevy-ui"
-version = "0.40.4"
+version = "0.40.5"
 edition = "2024"
 publish = false
 description = "Bevy UI frontend shell for MusicFrog Infiltrator: a peer desktop+mobile product."

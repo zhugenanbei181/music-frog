@@ -58,9 +58,13 @@ fn run_product() {
 
 #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 fn run_product() {
-    // When standalone mobile host bridge is unattached, run interactive self-contained
-    // showcase rather than displaying an unresponsive unavailable failure screen.
-    crate::run_demo();
+    if let Some(app) = crate::attached_application() {
+        crate::run_with_application(app);
+    } else {
+        // When standalone mobile host bridge is unattached, run interactive self-contained
+        // showcase rather than displaying an unresponsive unavailable failure screen.
+        crate::run_demo();
+    }
 }
 
 /// A failed composition returns terminal rejection for every attempted operation.
