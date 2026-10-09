@@ -77,7 +77,7 @@ pub async fn start_static_server(
 /// `admin_dir` is optional: `Some(dir)` keeps the legacy static-panel hosting
 /// (`/admin/` serving the directory), `None` runs the server in API-only mode
 /// (the WebUI was retired in 0.20 — see
-/// docs/TAURI_WEBUI_RETIREMENT_LEDGER.md; the REST surface remains for the
+/// docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md; the REST surface remains for the
 /// Doctor loopback client and future embedders).
 pub async fn start_admin_server<C: AdminApiContext>(
     admin_dir: Option<PathBuf>,

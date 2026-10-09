@@ -1,5 +1,7 @@
 # 代码质量规范与工程底线
 
+> 层级：L2
+
 本文件规定全仓代码质量底线。产品语义与双端交付规则分别由 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 负责；结构门禁不能替代行为测试或像素实证。
 
 ## 文件与职责
@@ -25,7 +27,7 @@
 
 - domain/contract/ports/application/composition 保持前端中性；不依赖具体 UI crate，不按前端身份编译。
 - UI 提交 typed 意图、消费投影，业务折叠在唯一 domain/application/projection owner 完成。Iced 使用 TEA，Bevy 使用 ECS、`bsn!` 与 Observer。共享 reader 与用例入口也不得各写一份排序、过滤或状态推导。
-- Bevy 生产代码禁止接收或透传整个 `World`，不得用独占系统修补业务调度，也不得通过 `App::world()` / `world_mut()` 或 `DeferredWorld` 包装绕开；插件装配同样不豁免。使用最小 `Query`/资源/事件参数与职责明确的 `SystemParam`，字体与图标在受限 `PreStartup` 系统初始化，实体生命周期通过系统顺序和 `ApplyDeferred` 闭合；框架接线边界与结构门禁见 [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)。
+- Bevy 生产代码禁止接收或透传整个 `World`，不得用独占系统修补业务调度，也不得通过 `App::world()` / `world_mut()` 或 `DeferredWorld` 包装绕开；插件装配同样不豁免。使用最小 `Query`/资源/事件参数与职责明确的 `SystemParam`，字体与图标在受限 `PreStartup` 系统初始化，实体生命周期通过系统顺序和 `ApplyDeferred` 闭合；框架接线边界与结构门禁见 [BEVY_UI_FRONTEND.md](bevy-ui/BEVY_UI_FRONTEND.md)。
 - Bevy 页面根组件不以 `on_insert` hook 注册业务观察者或重置资源。页面插件一次装配，路由只管理实体生命周期；草稿、分页与 Tab 状态遵循各自 owner 的状态机。控件初始化使用受限 `On<Insert<T>>` Observer，生产源码禁止 `DeferredWorld` 参数、字段和包装器。
 - Bevy 查询与系统参数不能以 `allow(clippy::type_complexity)` / `allow(clippy::too_many_arguments)` 消音。复杂访问使用实际 `QueryData` / `QueryFilter`，相关原生控件目标按一个交互或投影职责组合 `SystemParam`；资源、事实与业务模型仍由唯一 owner 持有，不能把整个页面状态或跨页面服务塞入参数对象。互斥筛选和 `ParamSet` 的访问顺序必须完整保留。
 - 外壳计数、活动配置、配额和速率只回放共享 application 的不可变投影；禁止固定示例数字或在 UI 缓存中重新汇总。完整数据量与显示窗口分开，未观测、真实零值和已失效观测不能混同；失败保留上次真实值，配置/会话变化不能复用另一对象的数据。原生波形只回放共享样本，不生成装饰性流量柱。

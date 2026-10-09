@@ -1,6 +1,8 @@
 # Bevy UI 前端章程
 
-本文是 Bevy UI 前端工具链与实现方式的权威说明。Bevy UI 与 Iced 是同权的独立发行产品，遵循 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)；不存在维护端与战略端的业务地位差别。Bevy 保留 ECS、`bsn!` 场景树、Observer 与图形渲染优势；平台覆盖与交互缺口分别记录，不能因控件生态差异缩减业务操作深度。
+> 层级：L2
+
+本文是 Bevy UI 前端工具链与实现方式的权威说明。Bevy UI 与 Iced 是同权的独立发行产品，遵循 [UI_PARITY_AUDIT.md](../UI_PARITY_AUDIT.md)；不存在维护端与战略端的业务地位差别。Bevy 保留 ECS、`bsn!` 场景树、Observer 与图形渲染优势；平台覆盖与交互缺口分别记录，不能因控件生态差异缩减业务操作深度。
 参考实现：taskmanager 的 `taskmanager-bevy-ui`（同为 bevy 0.20 产品级 UI，bsn! 场景法
 + 观察者绑定 + 纯核/场景适配器二分 + 中立主题 token）。本章程的多条铁律直接来自该
 项目的成文法律与踩坑记录。
@@ -173,56 +175,31 @@ feature 用途，代码零导入）。iced 的 wgpu 栈升级越过 naga 27 后�
 
 页面与控件使用 `bsn!` 场景、Observer 和受限 ECS 参数。截图激活器按场景安装原生交互系统；几何观察仅查询布局、继承裁剪和可见性，回执写入只消费已观测区域与窗口身份。运行代码不接收整个 `World`，不手工 `flush` 调用业务流程。控件禁用同步在页面退役队列完成后执行，再在 UI Prepare 前提交 SDK 标记与无障碍状态。
 
-当前交互、像素、测试和缺口的唯一状态来源是 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 与 `scripts/parity/` 的实际解析报告。结构守卫与 headless 通过不能证明全部场景平权；历史截图、旧施工台账和单个架构编译结果不能代替当前完整验收。
+当前交互、像素、测试和缺口的唯一状态来源是 [UI_PARITY_AUDIT.md](../UI_PARITY_AUDIT.md) 与 `scripts/parity/` 的实际解析报告。结构守卫与 headless 通过不能证明全部场景平权；历史截图、旧施工台账和单个架构编译结果不能代替当前完整验收。
 
-Android 共享宿主交叉编译与 Bevy 移动产品宿主、APK 实际运行是不同证据。移动产品组合、平台包与真机/模拟器验收仍按 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md) 和实际产物推进。TalkBack 的上游能力边界保持明确，不把桌面无障碍证据外推到 Android。
+Android 共享宿主交叉编译与 Bevy 移动产品宿主、APK 实际运行是不同证据。移动产品组合、平台包与真机/模拟器验收仍按 [PLATFORM_MATRIX.md](../PLATFORM_MATRIX.md) 和实际产物推进。TalkBack 的上游能力边界保持明确，不把桌面无障碍证据外推到 Android。
 
-Android 的进程所有权、原生输入、安全区、业务列表回收、数据唤醒与低功耗闭环统一遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)。已有页面、控件算法、共享异步桥接与二维图形继续保留扩展；宿主未组合和设备未验证分别补齐，不能通过缩减能力消除缺口。
+Android 的进程所有权、原生输入、安全区、业务列表回收、数据唤醒与低功耗闭环统一遵循 [BEVY_ANDROID_PRODUCT.md](../android/BEVY_ANDROID_PRODUCT.md)。已有页面、控件算法、共享异步桥接与二维图形继续保留扩展；宿主未组合和设备未验证分别补齐，不能通过缩减能力消除缺口。
 
-## 5. 阶段路线与历史台账
+## 5. 阶段路线与当前结论
 
-| 里程碑 | 内容 | 任务 |
-| --- | --- | --- |
-| M0（历史实现，按当前门禁复验） | 两 crate 落地、bsn! 壳、无头测试、守卫全绿 | BEVY-001 |
-| M1（历史实现，按当前门禁复验） | 主题双模式热切换、字体嵌入、accesskit 最小闭环、控件包装与自研补齐 | BEVY-002 / BEVY-003 |
-| M2（历史实现，按当前门禁复验） | bsn 机械守卫；路由+Overview 页面；真实 mihomo 数据泵与模式切换 | BEVY-004 / BEVY-005 |
-| M3（移动产物与运行证据待复验） | Android APK 打包 + 模拟器真实渲染 smoke；真机 ARM smoke 验证 | BEVY-006 / BEVY-011 |
-| M4（0.30 推进中） | 10+ 业务页面大迁移、高性能 Virtual List、移动端响应式断点 (<600px)、Android VpnService 宿主解耦 | BEVY-012 ~ BEVY-026 |
+历史阶段（M0~M4）与 0.30 的 15 项前端补强均已并入当前实现，任务码保留在 `TODO.md`；以下为当前有效结论：
 
-## 5.5 0.30 大一统前端 15 项核心补强方案
-
-0.30 Bevy UI 产品同时覆盖桌面（Windows/macOS/Linux）与移动端（Android），并与 Iced 保持同权交付。以下方案记录其原生实现路线，验收仍要求双端共享语义与适用的 L1/L2/L3 证据：
-
-1. **BEVY-012 原生路由架构与 10+ 业务页面枚举**：
-   扩展 `Route` 为 11 个全量业务页面枚举（`Overview`, `Proxies`, `Profiles`, `Rules`, `Connections`, `Logs`, `Dns`, `Doctor`, `AppRouting`, `Sync`, `Settings`）；统一走 `ContentSlot` 有界子树替换，保证幂等切换与零内存泄漏。
-2. **BEVY-013 高性能无分配 Virtual List 状态机与视口物理回收**：
-   复用 `visible_window_with_overscan`、动态行高、虚拟垫片与实体池，接入节点/网格、连接、日志和规则的真实页面。行根数量受视口与 overscan 约束，槽位复用核对稳定业务身份；完整数据与交互语义保留。实际帧耗时和内存按 Android 产品规范测量，算法存在不能证明实体回收已接通。
-3. **BEVY-014 移动端响应式断点系统 (<600px) 与自适应双模外壳**：
-   设立 `MOBILE_PX = 600.0` 与 `TABLET_PX = 1024.0` 响应式断点；在移动端 (<600px) 自动从桌面 240px 左侧 Rail 切换为「顶部状态栏 + 底部 Tab 导航栏 + 抽屉菜单」，并将触控热区由 36px 自动垫高至 48px 无障碍标准。
-4. **BEVY-015 Android VpnService 宿主无感解耦适配器**：
-   保留 shared `VpnServicePort`/`VpnServiceApplication`、Kotlin Builder/通知和 Rust tun2proxy；服务进程独立组合 application 与原生 bridge，经宿主 IPC 向 UI 提供 shared `StartVpn`/`StopVpn` 意图与快照。进程、FD、重启和 UI 退出所有权按 Android 产品规范实现；UniFFI/JNI 接缝本身不能证明已完成进程隔离。
-5. **BEVY-016 动态图表自适应容器宽度与双曲线共用量程渲染**：
-   废除硬编码 876px 宽度；改造 `ChartSpec` 支持百分比/弹性容器几何测量，并在上下行双曲线中引入统一动态最大量程归一化，解决上传下载量级悬殊时的视觉错位。
-6. **BEVY-017 节点选择器网格/列表双模与低开销延迟着色**：
-   迁移 Proxies 页面；支持 URLTest / Fallback / Selector 策略组折叠展开，支持按延迟高低三色染色（绿 <100ms / 橙 <300ms / 红超时），支持 Filter Alive 与拼音模糊匹配。
-7. **BEVY-018 订阅流水线与配置聚合器页面投影**：
-   迁移 Profiles 页面；展示订阅到期时间、剩余流量胶囊条、多订阅聚合合并开关，集成原子更新进度条与失败智能退避提示。
-8. **BEVY-019 分流规则树与实时命中染色诊断器**：
-   迁移 Rules 页面；展示 DOMAIN-SUFFIX, IP-CIDR, GEOIP, MRS 规则流，集成 Rule Tracer 模拟输入框，按真实规则树实时高亮匹配链路。
-9. **BEVY-020 环形缓冲日志流与低开销正则高亮面板**：
-   迁移 Logs 页面；对接底层的 500 条定长 RingBuffer，提供 DEBUG/INFO/WARN/ERROR 多级标签过滤与低开销关键词正则高亮。
-10. **BEVY-021 实时连接审计与细粒度流阻断控制器**：
-    迁移 Connections 页面；消费 WebSocket 连接快照流，富化 GeoIP/ASN 图标，支持按速率/总流量动态排序，支持单连接一键掐断与全量断开。
-11. **BEVY-022 智能 DNS 解析与 Fake-IP 状态可视化**：
-    迁移 DNS 页面；实时监控 DNS 解析延迟、Fake-IP 池占用率、DoT/DoH 状态，并主动告警 Android Private DNS 严格模式冲突。
-12. **BEVY-023 系统自愈诊断与网络环境探活面板**：
-    迁移 Doctor 页面；一键自检内核健康度、TUN 网卡分配、端口占用、DNS 污染及直连外网探活，提供一键自愈修复按钮。
-13. **BEVY-024 进程级分流与应用代理多端交互卡片**：
-    迁移 AppRouting 页面；桌面端枚举系统活动进程并提取应用图标，Android 端读取已安装 App 列表，以 Checkbox 矩阵精准下发分流白名单。
-14. **BEVY-025 WebDAV 三向合并冲突解决器与同步面板**：
-    迁移 Sync 页面；展示上次同步时间与代数（Generation），在配置冲突时提供 Local / Remote / Base 三栏差异并列比对与逐项合并。
-15. **BEVY-026 全局模态弹窗、Toast 浮层与 AccessKit 语义全链路闭环**：
-    实现基于 Scrim 遮罩的通用 Modal 弹窗系统与非阻塞 Toast 消息栈，每个新增控件与弹窗附带 AccessKit 语义节点。桌面与移动读屏分别以适用的实际平台证据验收；语义节点存在不代表 TalkBack 或 VoiceOver 已接通。
+1. **BEVY-012 原生路由架构与 11 个业务页面枚举**：`Route` 枚举 `Overview`、`Proxies`、`Profiles`、`Rules`、`Connections`、`Logs`、`Dns`、`Doctor`、`AppRouting`、`Sync`、`Settings`；统一经 `ContentSlot` 有界子树替换，保证幂等切换与零内存泄漏。
+2. **BEVY-013 高性能无分配 Virtual List 与视口物理回收**：复用 `visible_window_with_overscan`、动态行高、虚拟垫片与实体池，接入节点/网格、连接、日志和规则页面；行根数量受视口与 overscan 约束，槽位复用核对稳定业务身份。实际帧耗时和内存按 Android 产品规范测量，算法存在不能证明实体回收已接通。
+3. **BEVY-014 移动端响应式断点 (<600px) 与自适应双模外壳**：`MOBILE_PX = 600.0`、`TABLET_PX = 1024.0`；移动端从桌面 240px 左侧 Rail 切换为「顶部状态栏 + 底部 Tab 导航栏 + 抽屉菜单」，触控热区由 36px 垫高至 48px。
+4. **BEVY-015 Android VpnService 宿主无感解耦适配器**：保留 shared `VpnServicePort`/`VpnServiceApplication`、Kotlin Builder/通知和 Rust tun2proxy；服务进程独立组合 application 与原生 bridge，经宿主 IPC 向 UI 提供 `StartVpn`/`StopVpn` 意图与快照。UniFFI/JNI 接缝本身不能证明已完成进程隔离。
+5. **BEVY-016 动态图表自适应容器宽度与双曲线共用量程**：废除硬编码 876px 宽度，`ChartSpec` 支持弹性容器几何测量与上下行统一动态最大量程归一化。
+6. **BEVY-017 节点选择器网格/列表双模与低开销延迟着色**：URLTest / Fallback / Selector 策略组折叠展开，按延迟三色染色（绿 <100ms / 橙 <300ms / 红超时），支持 Filter Alive 与拼音模糊匹配。
+7. **BEVY-018 订阅流水线与配置聚合器页面投影**：订阅到期时间、剩余流量胶囊条、多订阅聚合合并开关、原子更新进度与失败退避提示。
+8. **BEVY-019 分流规则树与实时命中染色诊断器**：DOMAIN-SUFFIX、IP-CIDR、GEOIP、MRS 规则流，Rule Tracer 模拟输入与真实规则树匹配链路高亮。
+9. **BEVY-020 环形缓冲日志流与低开销正则高亮面板**：500 条定长 RingBuffer，DEBUG/INFO/WARN/ERROR 多级过滤与低开销关键词正则高亮。
+10. **BEVY-021 实时连接审计与细粒度流阻断控制器**：消费 WebSocket 连接快照流，富化 GeoIP/ASN 图标，按速率/总流量排序，单连接掐断与全量断开。
+11. **BEVY-022 智能 DNS 解析与 Fake-IP 状态可视化**：DNS 解析延迟、Fake-IP 池占用率、DoT/DoH 状态，告警 Android Private DNS 严格模式冲突。
+12. **BEVY-023 系统自愈诊断与网络环境探活面板**：自检内核健康度、TUN 网卡分配、端口占用、DNS 污染与直连外网探活，提供一键自愈修复。
+13. **BEVY-024 进程级分流与应用代理多端交互卡片**：桌面枚举系统活动进程并提取图标，Android 读取已安装 App 列表，以 Checkbox 矩阵下发分流白名单。
+14. **BEVY-025 WebDAV 三向合并冲突解决器与同步面板**：上次同步时间与代数（Generation），冲突时提供 Local / Remote / Base 三栏比对与逐项合并。
+15. **BEVY-026 全局模态弹窗、Toast 浮层与 AccessKit 语义闭环**：Scrim 遮罩通用 Modal 与非阻塞 Toast 消息栈，新增控件与弹窗附带 AccessKit 语义节点；桌面与移动读屏分别以适用的实际平台证据验收，语义节点存在不代表 TalkBack 或 VoiceOver 已接通。
 
 ## 6. 验收命令
 
@@ -246,7 +223,7 @@ PID/标题绑定截图，零宿主会话串扰）产出真实渲染证据到 `do
 `INFILTRATOR_BEVY_SKIN`、`INFILTRATOR_BEVY_WINDOW_SIZE`、
 `INFILTRATOR_CAPTURE_MARKER`（CAPTURE_READY 标记）。
 
-## 8. 进阶十五大维度演进与实事求是性能预算 (0.30+ / 1.0 终局路线)
+## 8. 进阶十五大维度与性能预算
 
 为确保 Bevy UI 在超越传统桌面与移动端 UI 框架（Iced / Qt / Flutter / GPUI）的同时，**坚决不抛弃原生 GUI 的高效率、低内存占用与即时响应**，确立如下进阶十五大演进维度与**实事求是、严禁夸口**的性能指标红线。
 
@@ -270,21 +247,9 @@ PID/标题绑定截图，零宿主会话串扰）产出真实渲染证据到 `do
 
 ---
 
-### 8.2 待实测的性能与内存目标
+### 8.2 性能与内存预算
 
-下表是历史规划目标，尚无绑定当前源码、产物和硬件的完整基准回执，不能称为实测结果或当前发行承诺。验收须记录产品、平台、构建模式、特性、硬件、数据规模、采样方法和原始报告；RAM/CPU、帧延迟和产物体积分别测量，不能从 headless 外推窗口或移动端。
-
-| 性能与资源指标 | 极简原生态 (Eco / Native) | 均衡态 (Balanced - 默认) | 沉浸态 (Pro / Enhanced) | 测量口径与验收事实 |
-| :--- | :---: | :---: | :---: | :--- |
-| **无头测试基线 RAM** | **12 ~ 20 MB** | **15 ~ 25 MB** | **20 ~ 30 MB** | `MinimalPlugins` 纯 ECS 结构，无窗口与 GPU 驱动开销 |
-| **窗口冷启动 RAM (Linux/Wayland)** | **35 ~ 50 MB** | **45 ~ 65 MB** | **60 ~ 85 MB** | 包含 Wgpu 驱动运行时、Vulkan 堆栈及嵌入式字体表常驻 |
-| **万级节点常驻 RAM** | **45 ~ 60 MB** | **55 ~ 75 MB** | **70 ~ 95 MB** | 待测真实页面的视口行槽、每行组件树与完整数据内存；不将行槽数等同总实体数 |
-| **静止待机 CPU** | **0.0% ~ 0.05%** | **0.0% ~ 0.1%** | **0.1% ~ 0.2%** | Winit `ControlFlow::Wait` 事件驱动，零静态帧无谓空转 |
-| **后台 / 最小化 CPU** | 待测 | 待测 | 待测 | 核心管理与数据接收仍可运行；不能承诺实际 CPU 恒为零 |
-| **核心交互单帧响应延迟** | **< 16 ms (60Hz)** | **< 8.3 ms (120Hz)** | **< 8.3 ms (120Hz)** | 节点切换、搜索过滤在单帧内完成 ECS 状态盖章与重绘 |
-| **拼音模糊搜索 10,000 节点** | **< 3 ms** | **< 5 ms** | **< 5 ms** | 待验证实际搜索实现、数据集与原始耗时分布 |
-| **桌面 Release 二进制体积** | **~ 22 MB** | **~ 26 MB** | **~ 32 MB** | `strip = true` + `lto = "thin"` + `opt-level = 3` 剥离后单文件 |
-| **Android APK 单架构体积** | **~ 18 MB** | **~ 22 MB** | **~ 28 MB** | `arm64-v8a` release 构建剥离调试符号后体积 |
+RAM/CPU、帧延迟和产物体积尚无绑定当前源码、产物和硬件的完整基准回执，不作实测结果或当前发行承诺。验收须记录产品、平台、构建模式、特性、硬件、数据规模、采样方法和原始报告；RAM/CPU、帧延迟和产物体积分别测量，不能从 headless 外推窗口或移动端。降级档位沿用 Eco / Balanced（默认）/ Pro 三态。
 
 ### 8.3 收放自如的降级原则
 

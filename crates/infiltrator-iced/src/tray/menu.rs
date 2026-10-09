@@ -1,7 +1,7 @@
 //! Pure [`TraySpec`] builder: turns one [`TraySpecContext`] snapshot into the
 //! complete localized menu tree (0.20 full-feature tray, aligned with the
 //! retired Tauri tray minus the browser entries — see
-//! `docs/TAURI_WEBUI_RETIREMENT_LEDGER.md` §1.1).
+//! `docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md` §1.1).
 //!
 //! Red line: a pure function of the snapshot — no app-state access, no I/O,
 //! no backend calls — so the whole menu is testable headlessly.

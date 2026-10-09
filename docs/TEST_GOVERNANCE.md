@@ -1,9 +1,8 @@
 # Bevy UI 测试质量治理与断言契约规范 (Test Governance & Zero-Tautology Policy)
 
-文件拆分与导入必须遵守 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md)，测试同样受 800 行预算约束。
+> 层级：L2
 
-本文档是 MusicFrog Infiltrator 项目 Iced 与 Bevy UI 同权产品的**测试质量刚性宪章**。
-为确保工程长期演进中的高保真度与可维护性，**严禁编写任何形式的无业务断言、废话断言与报菜名断言**。
+本文档是 Iced 与 Bevy UI 同权产品的**测试质量刚性宪章**：**严禁任何形式的无业务断言、废话断言与报菜名断言**。文件拆分、导入与 800 行预算遵守 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md)。
 
 ---
 

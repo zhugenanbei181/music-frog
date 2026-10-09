@@ -3,7 +3,8 @@
 //! This module is the **single authoritative source for breakpoint thresholds**
 //! (`600 / 840 / 1200`). `infiltrator-bevy-widgets` cannot depend on this crate
 //! (it is business-agnostic by charter), so it mirrors the same numbers and
-//! `scripts/quality/responsive-parity-guard.py` fails closed if the two drift.
+//! `crates/infiltrator-bevy-ui/tests/headless/responsive_ui_tests.rs` fails if
+//! the two drift.
 //! See `docs/RESPONSIVE_PARITY_LEDGER.md`.
 
 use serde::{Deserialize, Serialize};

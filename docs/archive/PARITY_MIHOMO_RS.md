@@ -1,5 +1,7 @@
 # mihomo-rs 2.2 对标与补齐排期
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 对标对象：[mihomo-rs](https://github.com/DINGDANGMAOUP/mihomo-rs) `v2.2.0`（commit `cdb1489`）。
 审计结论（2026-08-31）：v2.1.0 → v2.2.0 功能增量为零（仅版本号 + Homebrew 发布脚本），实质能力在 2.1.0 已定型；
 其形态为 SDK + CLI（约 8.6k 行），本仓库为双端 GUI 管理器（约 68.5k 行）。

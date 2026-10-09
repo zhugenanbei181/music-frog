@@ -1,8 +1,9 @@
 # MusicFrog Infiltrator 0.40 全平台演进与交付实施总纲
 
+> 层级：L2
+>
 > **版本代号**：0.40 — Multi-Platform Production Delivery & Full-Ecosystem Closure
 > **战略定位**：多平台生产级宿主交付与全生态功能闭环。
-> **基线继承**：承接 0.30 达成的“Iced 与 Bevy UI 双端 60 场景三级平权终验闭环”及“受限 ECS 架构治理”成果，向真实物理平台、真机移动设备、纯粹 Wayland 桌面与全生态高级业务深度推进。
 > **覆盖范围**：Core 核心中枢、Iced 3 桌面端平台、Bevy UI 5 跨端平台、原生 Android（Jetpack Compose）客户端。
 > **图形底线**：Linux 桌面全面强制纯 Wayland（Wayland-Native Only），彻底剥离 X11 特性与依赖。
 
@@ -10,15 +11,9 @@
 
 ## 一、架构原则与技术边界
 
-1. **唯一真相与 Clean Architecture 单向依赖**：
-   严格遵循 `domain → contract → ports → application → composition → host adapters / UI surfaces`。UI 仅提交意图（`CommandIntent`）与消费不可变快照（`DomainState`）；Rust 是所有 Mihomo 控制操作与网络业务的唯一产品边界。
-2. **纯粹 Wayland 桌面标准（Linux 桌面强制 Wayland）**：
-   - 彻底废除 X11 依赖与特性编译，Linux 桌面端（Iced 与 Bevy UI）仅保留 `wayland` 特性支持。
-   - 窗口管理、透明视窗、连续圆角曲率阴影、窗口拖拽与系统托盘全面接入 Wayland 原生协议生态（`xdg-shell`、`ext-foreign-toplevel-list`、Wayland CSD、SNI）。
-   - 拒绝 X11 / Xwayland 兜底伪兼容，纯 Wayland 为 Linux 生产发布与质量门禁的唯一图形标准。
-3. **真实物理设备与生产级交付**：
-   - 拒绝伪事实：不支持即明确标注 `unsupported`，未在目标物理平台验证不声明“已支持”。
-   - 移动平台以真实 Android 设备（ARM64 真机）与 iOS 环境为最终验收标准，不以外壳编译或无头测试替代端侧交付。
+1. **唯一真相与 Clean Architecture 单向依赖**：严格遵循 `domain → contract → ports → application → composition → host adapters / UI surfaces`。UI 仅提交意图（`CommandIntent`）与消费不可变快照（`DomainState`）；Rust 是所有 Mihomo 控制操作与网络业务的唯一产品边界。分层细节见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+2. **纯粹 Wayland 桌面标准（Linux 桌面强制 Wayland）**：彻底废除 X11 依赖与特性编译，Linux 桌面端（Iced 与 Bevy UI）仅保留 `wayland` 特性；窗口管理、透明视窗、连续圆角曲率阴影、拖拽与系统托盘全面接入 Wayland 原生协议（`xdg-shell`、`ext-foreign-toplevel-list`、Wayland CSD、SNI）。拒绝 X11 / Xwayland 兜底伪兼容，纯 Wayland 为 Linux 生产发布与质量门禁的唯一图形标准。
+3. **真实物理设备与生产级交付**：不支持即明确标注 `unsupported`，未在目标物理平台验证不声明“已支持”；移动平台以真实 Android 设备（ARM64 真机）与 iOS 环境为最终验收标准，不以外壳编译或无头测试替代端侧交付。
 
 ---
 
@@ -35,52 +30,12 @@
 
 ## 三、四大核心维度的技术规范
 
-### 1. Core 核心中枢规范
-- **两阶段热重载事务**：支持带有 Session Token 与 Generation 校验的平滑配置更新（`PUT /configs?force=false` 预检 → `force=true` 切换），失败立即秒级原子回退，杜绝内核崩溃风险。
-- **真实 MRS 二进制规则集对接**：剔除 0.30 遗留的规则集字节估算逻辑，通过内核原生 API 读回真实的编译缓存大小、mmap 内存映射状态与规则命中率。
-- **规则沙箱安全熔断**：完善 QuickJS 与 Boa 双引擎沙箱，设立严格的资源执行边界（单次执行上限 50ms、内存上限 16MB），异常时安全降级。
-- **WebDAV 三向智能合并器**：针对多端同步冲突，实现基于 YAML AST 的三向差异合并（Base, Local, Remote），无冲突字段自动采纳，冲突段打上标准化标注意图。
-- **五段流向拓扑与 RTT 抖动直方图**：推导 `Inbound → Sniffer → RuleSet → ProxyGroup → Outbound` 全链路实时数据，提供丢包率与 RTT 波动直方图统计。
+四个维度的规范与验收条件全部落在下方 Four Waves 的任务条目中，本节只列维度归属：
 
-### 2. Iced 桌面端规范（强制纯 Wayland）
-- **Linux 强制纯 Wayland**：
-  - 移除 `infiltrator-iced` 中的 `"x11"` Cargo 特性，完全依赖 `"wayland"`。
-  - CSD 视窗支持基于 Wayland 的亚克力磨砂、原生圆角阴影与拖拽调整尺寸。
-  - 特权提权：对接 Polkit 动作授权策略文件与 systemd 服务单元。
-- **Windows 特权服务模式**：
-  - 支持 Windows Service 后台注册，实现开机免登录自启动与无 UAC 弹窗的 TUN 静默接管。
-  - UWP 回环豁免扫描与一键自愈恢复。
-- **macOS 特权守护进程与公证**：
-  - 交付基于 `launchd` 的专用特权 Helper Tool，通过 XPC 通信接管 TUN 网卡与 `networksetup`。
-  - 对接 Apple NotaryTool 自动化代码签名与公证。
-
-### 3. Bevy UI 跨端规范（桌面 3 端 + 移动 2 端）
-- **桌面 3 端（Linux 纯 Wayland / Windows / macOS）**：
-  - WESL 着色器资产治理：落地 SDF 超椭圆连续曲率卡片材质，严格回收 GPU Handle。
-  - 遥测动效：Mesh2d / GPU Bloom 实时高刷流量波形图，3D/2.5D 链路拓扑流向粒子。
-  - 多视窗协同：主界面、独立 Mini HUD 悬浮小窗与系统托盘状态机同步。
-- **Android 移动端（Bevy NativeActivity / GameActivity）**：
-  - UI 进程与 `:vpn` 服务分进程隔离（BANDROID-001/002）。
-  - 对接 GameActivity / 原生 `InputConnection`，打通中文 IME 状态机（候选词/选区/预输入/撤销）。
-  - 原生 `WindowInsetsCompat` 消费：动态避让状态栏、手势区、挖孔与软键盘。
-  - 大规模列表虚拟化：2000+ 节点、10000+ 连接下实体池有界回收复用。
-  - 低功耗事件驱动调度（`reactive_low_power`）：静置停止无谓重绘，后台冷休眠。
-- **iOS 移动端（Bevy + `infiltrator-ios`）**：
-  - 完善 `infiltrator-ios::IosBridge`，对接 Swift 宿主、PacketTunnelProvider 与 Keychain。
-  - Metal 渲染后端、刘海屏与动态岛 SafeArea Insets 适配，原生触控惯性手势。
-  - 15MB 严格物理内存上限控制：裁剪 Rust 扩展体积，采用轻量化有界快照传输。
-
-### 4. 原生 Android 客户端规范（Jetpack Compose + Kotlin + UniFFI）
-- **UI 与 `:vpn` 双进程架构与 Binder IPC**：
-  - UI 进程与后台前台服务彻底解耦，UI 退出或划走不中断 VPN 隧道。
-  - 无 Activity 冷启动：系统开机自启、Always-on VPN 与系统快捷瓦片独立唤醒。
-- **UniFFI 意图与 60 场景业务全量对齐**：
-  - 完整暴露多源聚合向导、连接透视链路分析（GeoIP / ASN）、高级规则列表与 Fake-IP 映射池。
-- **Material 3 体验现代化与专属特性**：
-  - Material You 动态主题配色、AMOLED 纯黑模式、平板与折叠屏大屏分栏适配。
-  - 分应用代理（Per-App Proxy）：白名单/黑名单模式、应用搜索与系统应用过滤。
-  - 快速设置瓦片（Quick Settings Tile）：单触启停、长按状态面板。
-  - 动态常驻通知栏：显示实时流速与出口节点切换快捷按钮。
+- **Core 核心中枢**：两阶段热重载、真实 MRS、脚本沙箱熔断、WebDAV 三向合并、五段流量拓扑（Wave 1）。
+- **Iced 桌面（纯 Wayland）**：Wayland CSD 与 Polkit、Windows Service、macOS launchd Helper 与公证（Wave 4）。
+- **Bevy UI 跨端**：WESL/SDF、GPU 遥测、多视窗（桌面 3 端）；GameActivity/IME/Insets/列表/节能（Android）；IosBridge/Metal/内存上限（iOS，Wave 2/3）。
+- **原生 Android（Compose）**：双进程 Binder IPC、UniFFI 对齐、Material 3、分应用代理、瓦片与常驻通知（Wave 1/2）。
 
 ---
 
@@ -127,7 +82,7 @@
   - **验收条件**：kill 杀死 UI 进程后后台 VPN 保持连通且流量不中断；重新启动 UI 能够读回真实运行状态。
 - **`AND-040-02`：UniFFI 60 场景业务契约全量对齐**
   - **主 Owner**：`infiltrator-android::uniffi_api`
-  - **内容**：更新 `infiltrator_android.udl`，将 0.30 沉淀的聚合向导、链路 GeoIP/ASN、规则追踪与 Fake-IP 映射表完整暴露至 Kotlin。
+  - **内容**：更新 `infiltrator_android.udl`，将聚合向导、链路 GeoIP/ASN、规则追踪与 Fake-IP 映射表完整暴露至 Kotlin。
   - **验收条件**：`scripts/android-check.sh` 编译无 warning，Kotlin 侧能完整调用全部新增 API。
 
 ---
@@ -238,12 +193,4 @@
 
 ## 五、质量保障与工程不变量
 
-1. **单文件行数预算（≤800 行）**：
-   生产代码、集成测试与示例文件严格遵守单文件 ≤800 非注释非空行，按业务边界拆分，禁止压行。
-2. **零假红与零伪事实**：
-   未实现功能一律标明 `unsupported`；测试断言遵循零废话契约，杜绝硬编码语言或静态伪造指标。
-3. **分层守卫全量拦截**：
-   - 结构守卫：`scripts/quality/check-structure.sh` 覆盖率 100%。
-   - 行数守卫：`scripts/quality/line-guard.py --mode enforce` 0 违规。
-   - Android 清单守卫：`scripts/quality/android-manifest-guard.py` 0 遗漏。
-   - 格式与 Lint：`cargo fmt --check` 零差异，`cargo clippy -D warnings` 零警告。
+行数预算、拆分规则、分层守卫命令与“零伪事实 / 零废话断言”底线以 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md) 与 [TEST_GOVERNANCE.md](TEST_GOVERNANCE.md) 为唯一来源；0.40 新增能力同样受其约束。

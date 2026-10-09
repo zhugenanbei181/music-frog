@@ -1,6 +1,6 @@
 //! Wilkinson's "Nice Numbers" algorithm for clean, ergonomic chart axis grid lines and tick labels.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Pure mathematical model generating human-readable rounded tick steps (1, 2, 5, 10 * 10^p).
 
 /// Calculates a "nice" rounded number approximately equal to x.

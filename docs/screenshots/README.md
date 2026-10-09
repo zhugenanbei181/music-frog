@@ -1,5 +1,7 @@
 # Iced 前端截图（demo 模式 / native render evidence）
 
+> 层级：L3
+
 本目录存放 infiltrator-iced 前端的**原生 iced 渲染证据**：应用以内置 demo 模式
 （确定性假数据，`INFILTRATOR_DEMO=1` + `--demo`）在一个**后台合成器栈**中启动，
 截图通过 niri IPC（`niri msg action screenshot-window`）完成，并绑定到精确的

@@ -1,6 +1,6 @@
 //! Reorderable list state machine supporting drag-and-drop and keyboard reordering.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Pure state machine enabling users to reorder proxy node priority chains, rules, and profiles.
 
 use bevy::ecs::resource::Resource;

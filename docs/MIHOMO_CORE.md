@@ -1,16 +1,18 @@
 # mihomo 核心控制契约
 
+> 层级：L2
+
 mihomo 是外部 Go 二进制，不是本仓库内的 Rust library。Rust 对它的生命周期、配置和 controller API 的控制质量，决定了所有 UI 的稳定性，因此这是本项目最高优先级的边界。
 
 ## 1. 三个控制面
 
-| 控制面 | 负责内容 | 当前实现 | 目标约束 |
+| 控制面 | 负责内容 | 当前实现 | 约束 |
 | --- | --- | --- | --- |
 | 生命周期面 | binary、config、data dir、PID、启动/停止、退出原因 | `mihomo-platform`、`infiltrator-desktop`、Android `MihomoHost.kt` | 每个平台一个 adapter；上层只看到 typed lifecycle |
 | Controller 面 | REST/WebSocket、secret、runtime snapshot、命令和流 | `mihomo-api::MihomoClient` / `infiltrator-ports::overview::OverviewReader` | 所有 UI 共享同一 API 语义；transport DTO 不泄漏成 UI 状态 |
 | 配置/版本面 | profile 文件、订阅、reload、core 下载/安装/切换 | `mihomo-config`、`infiltrator-core`、`mihomo-version` | 写入有事务、切换有回滚、版本和配置兼容有矩阵 |
 
-Rust 的目标调用链：
+Rust 的调用链：
 
 ```text
 frontend intent
@@ -23,7 +25,7 @@ frontend intent
 
 ## 2. 生命周期状态机
 
-目标状态至少区分：
+状态至少区分：
 
 ```text
 Absent → Starting → Ready → Running
@@ -40,13 +42,13 @@ Absent → Starting → Ready → Running
 - `Failed` 必须携带阶段、退出码或 controller 错误；不能降级成 `false` 或空快照。
 - 每次成功启动、停止、profile 切换或 core 版本切换都产生新的 `core_generation`。旧 generation 的 stream、延迟测试和写命令不得作用于新实例。
 
-当前桌面/Android 主启动和 apply 路径已经由 `CoreApplication` 统一执行 readiness 重试；其余旧 use-case 仍有分散 controller 查询，迁移时继续收敛到同一个 application 结果流。
+主启动和 apply 路径统一由 `CoreApplication` 执行 readiness 重试；其余 use-case 必须收敛到同一 application 结果流，不保留分散的 controller 查询。
 
-## 3. CoreApplication / CoreLifecyclePort 的目标形状
+## 3. CoreApplication / CoreLifecyclePort 的形状
 
-地基已于 0.30 先落在 `infiltrator-domain`、`infiltrator-ports` 和 `infiltrator-application`：`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务已不再要求具体 session，Desktop/Android 已切换到 `CoreApplication`；profile/订阅 use-case 也已切到 `ProfileApplication`。旧 session 与 profile 高阶 facade 已删除，剩余是把其他 use-case 从旧 core facade 移入 application。
+`CoreLifecyclePort` 使用稳定的 `CoreLifecycle` 与 generation，配置 apply 事务不再要求具体 session；Desktop/Android 以 `CoreApplication` 为启动与 apply 入口，profile/订阅 use-case 归 `ProfileApplication`。
 
-不要求立即创建同名 struct，但所有功能应逐步收敛到以下概念：
+所有功能收敛到以下概念（不要求立即创建同名 struct）：
 
 ```text
 CoreApplication
@@ -108,6 +110,6 @@ CoreApplication
 | 重建 | profile 切换、配置解析失败、reload 失败、旧状态保留、成功后 generation 变化 |
 | 运行态 | controller 未启动、secret 错误、HTTP 错误、WebSocket 断线/重连、取消读取 |
 | 版本更新 | 资产不存在、digest 不匹配、解压失败、安装中断、健康检查失败、回滚 |
-| 多端 | Iced、Tauri/Web、Android 对同一 intent 得到同一语义结果；表面差异单独登记 |
+| 多端 | Iced、Bevy UI、Android 对同一 intent 得到同一语义结果；表面差异单独登记 |
 
 普通单元测试不得启动真实 mihomo 或访问外网；用 `MihomoApi` mock、loopback HTTP/WebSocket mock 和 fake lifecycle adapter。真实二进制只在明确的 release/core smoke 中运行。

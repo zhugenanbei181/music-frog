@@ -1,6 +1,6 @@
 //! Unified Async-to-ECS lock-free drain pipeline.
 //!
-//! Charter law (docs/BEVY_UI_FRONTEND.md):
+//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! - Non-blocking drain on the app thread every frame (never stalls UI).
 //! - Newest snapshot coalescing: drops stale intermediates when frame rendering
 //!   falls behind high-frequency polling.
@@ -143,7 +143,7 @@ pub fn drain_domain_pipeline<T: Send + Sync + Clone + 'static>(
 
 /// Multi-page energy-efficient polling cadence governor.
 ///
-/// Implements charter law (docs/BEVY_UI_FRONTEND.md §8.2):
+/// Implements charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.2):
 /// Standby CPU 0.0% ~ 0.05%, Background/Minimized CPU 0.00%.
 #[derive(Resource, Clone, Debug, PartialEq)]
 pub struct MultiPageCadenceGovernor {

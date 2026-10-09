@@ -1,6 +1,6 @@
 //! Global Command Palette (`Ctrl+K` / search): pure state machine + BSN scene.
 //!
-//! Charter law (docs/BEVY_UI_FRONTEND.md):
+//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! - 100% `bsn!` scene composition for the modal scrim and floating search dialog;
 //! - Pure state machine core ([`CommandPaletteState`]) testable headlessly;
 //! - The rows are the shared `infiltrator_contract::command_catalogue` list —

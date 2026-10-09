@@ -1,15 +1,10 @@
 # Bevy UI Core Maturity Gaps Ledger (Bevy UI 前端深度成熟度全景台账)
 
-> 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
+> 层级：L3
 
-本文档归档 MusicFrog Infiltrator 项目中 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 前端在演进至成熟生产级桌面与移动统一客户端（对标 Clash Verge Rev、Mihomo Party、Flclash）过程中的 10 大核心维度与 150 项深度工程缺口，作为后续实施的权威交付台账。
+本文档归档 `infiltrator-bevy-ui` 与 `infiltrator-bevy-widgets` 前端在演进至成熟生产级桌面与移动统一客户端过程中的 10 大核心维度与 150 项深度工程缺口，作为 Bevy UI 端单端实现追溯台账。
 
-> **双端对齐与主纲从属说明（2026-09-03）**：
-> 本文档是最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 在 `infiltrator-bevy-ui` 前端的专属落地执行切片。本文列出的 10 大维度与 Master Plan 的 10 大业务组 1:1 对齐，所有特性与 Iced 前端保持同步推进与对等验收。
-
-> **状态口径校准（2026-09-12）**：
-> 下方 `[DONE]` 表示“`infiltrator-bevy-ui` / `infiltrator-bevy-widgets` 中已有对应场景、组件与无头测试”，属于 `bevy-ready` 量级，**不是** `parity-ready`：它不证明 Iced 端有对等 live parity，也不证明任何宿主/发行包验证。
-> 文中模块路径为历史记录，可能随 0.30 重整漂移（例如 `script_engine` / `mrs` / `profile_converter` 现位于 `infiltrator-domain`），以工作树源码为准。双端状态以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准。
+> **状态口径**：下方 `[DONE]` 表示 `infiltrator-bevy-ui` / `infiltrator-bevy-widgets` 中已有对应场景、组件与无头测试，属于 `bevy-ready` 量级，**不是** `parity-ready`：它不证明 Iced 端有对等 live parity，也不证明任何宿主/发行包验证。历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。文中模块路径以工作树源码为准。双端状态以 L2 双端平权与主控文档为准。
 
 ---
 
@@ -186,7 +181,7 @@
 135. **BEVY-GAP-135 高级主题色谱、纯黑 OLED 模式与排版密度定制**：扩展针对移动端 OLED 屏幕的纯黑 (True Black) 模式以极致省电；提供排版密度调节（舒适 Comfortable / 紧凑 Compact）。模块：`crates/infiltrator-bevy-widgets/src/theme.rs`。验收：紧凑模式下一屏展示更多行数据，主题色自由切换。
 
 ### 大类十：引擎调步、低功耗渲染与底层组件架构 (Engine, Performance & Architecture)
-本类保留既有实现与演进目标；Android 产品接线和实测要求统一遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)，执行项为本地 TODO 的 `BANDROID-001`～`BANDROID-017`。组件算法、响应式辅助类型或合成 IME 通过不能证明业务页面回收、Winit 事件等待、原生文本或系统剪贴板已接通；下列历史 CPU、GPU、体积与启动数字均须以当前产物实测，不作已验证承诺。
+本类保留既有实现与演进目标；Android 产品接线和实测要求统一遵循 L2 Android 产品工程章程，执行项为本地 TODO 的 `BANDROID-001`～`BANDROID-017`。组件算法、响应式辅助类型或合成 IME 通过不能证明业务页面回收、Winit 事件等待、原生文本或系统剪贴板已接通；下列历史 CPU、GPU、体积与启动数字均须以当前产物实测，不作已验证承诺。
 
 136. **BEVY-GAP-136 实时双向内核通信契约通道落地 (BEVY-005 Seam)**：保留 application-owned pump 与 typed 事件/命令，执行器和 Mihomo transport 由 composition/outbound 注入；Android 经服务 IPC 组合完整 reader，休眠 UI 由宿主主动唤醒。入口：`controller.rs`/`surface.rs`。验收：11 页真实结果、请求终态、饱和/取消/旧会话隔离和有界排水；不以投影或入队宣称远端成功。
 137. **BEVY-GAP-137 多模态引擎渲染调步机制 (Cadence & Low Power Policy)**：保留共享 cadence 与 Winit 策略，扩展交互、可见动画、静置、后台和 Android 挂起；UI 观察与 VPN 服务治理分离。入口：`infiltrator-bevy-ui/src/cadence.rs`。验收：无变化静态界面不空转，实际帧/唤醒/CPU/GPU/功耗报告按 Android 产品规范记录，不能承诺零耗电。

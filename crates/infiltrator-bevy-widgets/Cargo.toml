@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene functions over the official unstyled bevy_ui_widgets."
 
-# Business-agnostic by law (docs/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
+# Business-agnostic by law (docs/bevy-ui/BEVY_UI_FRONTEND.md): this crate uses Bevy, Unicode and shared copy resources — never application
 # engines, infiltrator-core or mihomo-*. It is the future
 # extraction candidate shared with taskmanager's bevy frontend, which is why
 # bevy is pinned to the exact same patch (`=0.20.0`) so both resolve one ABI.

@@ -1,15 +1,10 @@
 # Iced Core Maturity Gaps Ledger (Iced 前端深度成熟度全景台账)
 
-> 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
+> 层级：L3
 
-本文档归档 MusicFrog Infiltrator 项目中 `infiltrator-iced` 前端在演进至成熟生产级桌面应用过程中的 4 大核心维度与 11 项深度缺口，并作为全量特性落地的权威交付台账。
+本文档归档 `infiltrator-iced` 前端在演进至成熟生产级桌面应用过程中的 4 大核心维度与 11 项深度缺口，作为 Iced 端单端实现追溯台账。
 
-> **双端对齐与主纲从属说明（2026-09-03）**：
-> 本文档是最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 在 `infiltrator-iced` 前端的专属落地执行切片。依据双端同步演进原则，本文档列出的全部特性均在 `infiltrator-bevy-ui` 对应有严格对等的场景实现与无头测试。
-
-> **状态口径校准（2026-09-12）**：
-> 下表中“已落地”仅表示 `infiltrator-iced` 中**已有对应 view 模块与单端测试**，属于 `iced-ready` 量级，**不是** `parity-ready`：它不证明 Bevy 端有对等 live parity，也不证明任何宿主/发行包验证。
-> 本文件是单端实现追溯台账，不是交付准入；双端状态以 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md) 为准，多尺寸弹性的双端验收另见 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)。
+> **状态口径**：下表中“已落地”仅表示 `infiltrator-iced` 中**已有对应 view 模块与单端测试**，属于 `iced-ready` 量级，**不是** `parity-ready`：它不证明 Bevy 端有对等 live parity，也不证明任何宿主/发行包验证。历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。本文件是单端实现追溯台账，不是交付准入；双端状态以 L2 双端平权与主控文档为准，多尺寸弹性的双端验收另见 L2 弹性台账。
 
 ---
 

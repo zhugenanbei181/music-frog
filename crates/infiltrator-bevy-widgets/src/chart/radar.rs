@@ -1,6 +1,6 @@
 //! Multi-dimensional proxy node health radar and bandwidth saturation detector.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md §8.1.7 & §8.1.10):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md §8.1.7 & §8.1.10):
 //! Mathematical pure core computing normalized n-dimensional polygon radar metrics,
 //! composite node health grading, and real-time bandwidth saturation burst alerts.
 

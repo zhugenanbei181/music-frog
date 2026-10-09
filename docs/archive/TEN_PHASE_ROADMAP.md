@@ -1,5 +1,7 @@
 # MusicFrog Infiltrator 十大演进阶段与百项任务实施台账 (TEN-PHASE ROADMAP)
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 本台账记录 Infiltrator 对标业界成熟客户端（Clash Verge Rev、Clash Party、Flclash、ClashMi）的全景差距与 10 个演进阶段、100 项具体工程落地任务。
 
 > **台账归宿与演进定位（2026-09-03）**：

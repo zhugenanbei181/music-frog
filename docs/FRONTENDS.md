@@ -1,12 +1,13 @@
 # 多 UI 求同存异矩阵
 
+> 层级：L2
+
 Iced 与 Bevy UI 是同权、独立发行的产品；Android Compose 是原生移动伴侣。三者共享 Rust 意图、结果与能力语义，各自保留 toolkit 状态与布局。产品平权与 L1/L2/L3 验收的唯一规范见 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)。
-从 0.30 起，三类前端都通过 `infiltrator-application` 的 contract 接入；application 通过 `ApplicationRuntime` port 工作，Tokio 只在 composition/outbound/host adapter 实现，不能通过 `MihomoClient`、Reqwest 类型或 Tokio channel 进入前端契约。Desktop、Android、iOS 是与 UI 正交的同级 host adapter，负责各自的进程、VPN、权限和系统能力。当前实现边界与未完成的双端 live parity 见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
+从 0.30 起，三类前端都通过 `infiltrator-application` 的 contract 接入；application 通过 `ApplicationRuntime` port 工作，Tokio 只在 composition/outbound/host adapter 实现，不能通过 `MihomoClient`、Reqwest 类型或 Tokio channel 进入前端契约。Desktop、Android、iOS 是与 UI 正交的同级 host adapter，负责各自的进程、VPN、权限和系统能力。当前实现边界与未完成的双端 live parity 见 [DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md](archive/DUAL_SURFACE_ARCHITECTURE_AUDIT_030.md)。
 
-Bevy Android 与 Compose 的宿主复用、进程/IPC、输入和节能联合接线遵循 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)。已有能力保留扩展，缺失项进入本地 TODO；移动平台交付证据不能用桌面或组件结果代替。
+Bevy Android 与 Compose 的宿主复用、进程/IPC、输入和节能联合接线遵循 [BEVY_ANDROID_PRODUCT.md](android/BEVY_ANDROID_PRODUCT.md)。已有能力保留扩展，缺失项进入本地 TODO；移动平台交付证据不能用桌面或组件结果代替。
 
-> **双端同步战略演进说明（2026-09-03 升级）**：
-> 依据最高主控台账 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)，Iced 与 Bevy UI 正式确立为**对等双主干 Surface**。二者彻底告别“先后跟随”模式，在**功能完备度**与**UI/UX 表现**上步调一致、严格同步演进。双端全面对标 Clash Verge Rev、Mihomo Party、Flclash、Surge 的最完善功能并集。
+> **双端对等主干**：Iced 与 Bevy UI 是对等双主干 Surface，功能完备度与 UI/UX 表现严格同步演进，并集目标与执行台账见 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)。
 
 ## 1. 决策标记
 

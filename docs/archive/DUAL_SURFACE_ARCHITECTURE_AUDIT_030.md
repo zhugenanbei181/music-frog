@@ -1,5 +1,7 @@
 # 0.30 双 UI 底层架构审计
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 > 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
 
 审计日期：2026-09-05  

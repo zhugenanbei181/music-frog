@@ -1,5 +1,7 @@
 # Mihomo 客户端全景成熟度差距分析与演进实施台账 (Maturity Gap Analysis & Implementation Ledger)
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 > 双端平权证据按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 重新验收。本文历史 `parity-ready`/mock 状态只保留原证据范围，不代表 L2 交互或 L3 像素完成；已退役的源码字符串 guard 不再作为交付依据。
 
 本文档实事求是地记录本项目与业界一线成熟客户端（Clash Verge Rev、Mihomo Party、Flclash、Clash Nyanpasu 以及 Surge/Shadowrocket/Stash 等）的全景技术差距，并作为分批落地实施的唯一基准台账。

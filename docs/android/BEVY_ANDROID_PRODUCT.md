@@ -1,8 +1,10 @@
 # Bevy Android 产品工程规范
 
-本文规定 Bevy Android 从界面入口推进为完整 Mihomo 客户端时必须满足的宿主、交互、资源与验收契约。它细化 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [BEVY_UI_FRONTEND.md](BEVY_UI_FRONTEND.md)，不改变 Iced、Bevy UI 同权产品与 Android Compose 原生伴侣的定位。
+> 层级：L2
 
-当前平台状态只读取 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)；功能 owner 只登记于 [FUNCTIONAL_MAP.md](FUNCTIONAL_MAP.md)；实施依赖、现有证据和未完成项记入本地 [TODO.md](../TODO.md)。双端场景状态仍由 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 与结构化证据解析，不在本文另建完成率。
+本文规定 Bevy Android 从界面入口推进为完整 Mihomo 客户端时必须满足的宿主、交互、资源与验收契约。它细化 [ARCHITECTURE.md](../ARCHITECTURE.md) 和 [BEVY_UI_FRONTEND.md](../bevy-ui/BEVY_UI_FRONTEND.md)，不改变 Iced、Bevy UI 同权产品与 Android Compose 原生伴侣的定位。
+
+当前平台状态只读取 [PLATFORM_MATRIX.md](../PLATFORM_MATRIX.md)；功能 owner 只登记于 [FUNCTIONAL_MAP.md](../FUNCTIONAL_MAP.md)；实施依赖、现有证据和未完成项记入本地 [TODO.md](../../TODO.md)。双端场景状态仍由 [UI_PARITY_AUDIT.md](../UI_PARITY_AUDIT.md) 与结构化证据解析，不在本文另建完成率。
 
 ## 1. 保留与扩展原则
 
@@ -10,7 +12,7 @@
 - 新宿主接线与性能整改复用已有 owner。禁止为移动端另建配置事实、业务状态机、Mihomo 客户端语义或第二套控件算法；现有缺陷不属于需要保留的行为。
 - Compose 与 Bevy 共用 Android 宿主能力，现有 Compose 用户流程继续可用。桌面 Iced/Bevy 的能力、输入、数据语义和操作深度不得因移动适配退化。
 - 界面、组件、宿主组合、发行产物、设备验收分别证明。没有对应平台证据时保留 typed unavailable/unsupported；规划中的能力不能据此发布为已支持。
-- 工具链和依赖版本以 manifest/lockfile 为准，升级流程遵守 [UPSTREAM.md](UPSTREAM.md)。场景、受限 ECS、文件预算与本地化继续遵守前端章程及 [CODE_QUALITY_BASELINE.md](CODE_QUALITY_BASELINE.md)。
+- 工具链和依赖版本以 manifest/lockfile 为准，升级流程遵守 [UPSTREAM.md](../UPSTREAM.md)。场景、受限 ECS、文件预算与本地化继续遵守前端章程及 [CODE_QUALITY_BASELINE.md](../CODE_QUALITY_BASELINE.md)。
 
 ## 2. UI 与 VPN 宿主的进程及所有权
 
@@ -84,14 +86,14 @@ UI 进程：Bevy Activity / Compose Activity + application 端口代理
 - 保留 application/runtime 异步执行和有界 snapshot/event 桥接。UI system 禁止网络请求的同步等待或 `block_on`；执行器由 composition 注入。
 - 快照可以合并为最新状态，日志按共享容量保留，命令终态必须可靠关联。队列饱和、断线、取消、超时和服务重启各有明确策略；每次 ECS 排水有界，不能耗尽一帧处理全部后台积压。
 - 保留现有真实双通道波形、共享量程、缩放/十字准星、二维拓扑、流动粒子和下钻。修正静态重复光栅化：按数据版本、尺寸、主题及实际动画状态失效缓存，保持纹理和控件身份。
-- shader 语言、模块分工、GPU ABI、handle 复用与回收统一遵循 [Bevy 前端章程 §1.2](BEVY_UI_FRONTEND.md)。在现有 CPU 图形路径上安排 Mesh2d/WESL 波形与可选 Bloom 扩展，按同一真实样本和相同显示语义比较 CPU/GPU/帧耗时与功耗。保留兼容回退，不宣称 GPU 路径或高刷动效零成本。
+- shader 语言、模块分工、GPU ABI、handle 复用与回收统一遵循 [Bevy 前端章程 §1.2](../bevy-ui/BEVY_UI_FRONTEND.md)。在现有 CPU 图形路径上安排 Mesh2d/WESL 波形与可选 Bloom 扩展，按同一真实样本和相同显示语义比较 CPU/GPU/帧耗时与功耗。保留兼容回退，不宣称 GPU 路径或高刷动效零成本。
 - 已有 Squircle 材质必须接到实际原生卡片，主题/尺寸更新复用材质身份，静态帧不重复上传；平面回退保留原有控件结构和可读性。图形实现与产品宿主可独立推进，设备放行仍联合验收。
 - 交互式 3D/2.5D 地球、节点标记与流向弧线进入后续增强。地理位置必须携带真实来源、精度与未知状态；节点名、国家 Emoji 或延迟不能推断精确坐标，图形弧线不能冒充实际网络逐跳路径。
 - 高级渲染按需加载、离页释放或休眠，支持低电量、热状态、减少动效及性能模式降级；不能影响代理或基础节点选择。共享业务语义和 Iced 等价操作面继续按双端审计验收，框架特有像素效果可登记 local。
 
 ## 8. 分层验收与交付门槛
 
-验收层级使用 [TEST_MATRIX.md](TEST_MATRIX.md) 的 package/core/device 矩阵；UI 场景另按 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 的 L1/L2/L3 验收，两个体系的同名层级不能互相替代。
+验收层级使用 [TEST_MATRIX.md](../TEST_MATRIX.md) 的 package/core/device 矩阵；UI 场景另按 [UI_PARITY_AUDIT.md](../UI_PARITY_AUDIT.md) 的 L1/L2/L3 验收，两个体系的同名层级不能互相替代。
 
 | 范围 | 必须取得的证据 | 不足以替代的证据 |
 | --- | --- | --- |
@@ -120,7 +122,7 @@ UI 进程终止、任务划走、服务异常死亡、权限撤销和系统强�
 | L2.5 模拟器插桩 | `android/app/src/androidTest/`；编译门跑 `assembleDebugAndroidTest`，模拟器跑 `connectedDebugAndroidTest`（`BANDROID-022`） | 已安装 APK 的权限/service 声明、Activity/service 接线、Insets/IME | 真机 VPN/后台/功耗 |
 | L3/L4 真机 | `.github/workflows/android-device.yml`（`workflow_dispatch`/self-hosted，`scripts/android-device-evidence.sh`）（`BANDROID-023`） | VPN 流量、防回环、≥8h 后台、功耗原始报告 | —（最终证据层） |
 
-- 工具链版本：两端 min 29 / target 36 / NDK `29.0.14206865` 统一；Compose `compileSdk 37`（最新稳定 AndroidX/Compose 要求，`BANDROID-024`，compileSdk 与 targetSdk 解耦），Bevy 按 target 36 编译。版本分叉时“CI 能编译”只对其中一套目标成立。
+- 工具链版本（min/target SDK、NDK、Compose `compileSdk`）两端统一，`compileSdk` 与 `targetSdk` 解耦（`BANDROID-024`）；Bevy 与 Compose 按统一 target 编译。版本分叉时“CI 能编译”只对其中一套目标成立。
 - Android 依赖基线跟随**最新稳定版**（`BANDROID-024`）：AGP、Kotlin/Compose 插件、Compose BOM、AndroidX、JNA 与 test 依赖的版本真相只在 `android/build.gradle.kts`、`android/app/build.gradle.kts`；升级前核对 Google Maven / Maven Central 与 AGP↔Gradle↔KGP 兼容表，声明最新版不等于已验证。
 - `cargo-apk` 只能声明 `uses_permission`，**不能声明 `<service>`/`<receiver>`/`foregroundServiceType`**；完整 VPN 清单只能由 Gradle 宿主（`BANDROID-003`/`BANDROID-015`）交付。Bevy smoke APK 的权限声明与产品清单由 `BANDROID-019` 保持同步。
-- 编译门与守卫通过**不等于**产品完成：后台、省电、权限的产品实现仍按 §2/§3/§5 由服务宿主交付，设备证据按 §8 分层取得。该编译门已于 2026-10-07 在本地用真实 NDK 29 / SDK 36 端到端执行并通过（首个运行暴露并修复了 6 个 Android-only clippy 违规，证明 host clippy 看不到这些 cfg 分支）；CI workflow 本身仍须以第一次 GitHub Actions 运行为准。
+- 编译门与守卫通过**不等于**产品完成：后台、省电、权限的产品实现仍按 §2/§3/§5 由服务宿主交付，设备证据按 §8 分层取得；CI workflow 本身仍须以第一次 GitHub Actions 运行为准。

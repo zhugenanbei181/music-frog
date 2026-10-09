@@ -5,7 +5,7 @@
 //! (≈60 FPS), 500ms background (2 FPS), 0ms suspended. This crate is
 //! business-agnostic by charter and cannot depend on contract, so the mirror
 //! is enforced by `crates/infiltrator-bevy-ui/tests/headless/cadence_tests.rs`
-//! and the numeric scan in `scripts/quality/multimodal-shell-guard.py`.
+//! (the retired numeric-scan guard is replaced by that headless mirror test).
 //! [`FramePacingMode::PowerSaver`] is the widget layer's own intermediate
 //! energy saver and has no product-cadence counterpart.
 

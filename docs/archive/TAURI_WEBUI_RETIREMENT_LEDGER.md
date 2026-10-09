@@ -1,5 +1,7 @@
 # Tauri/WebUI 退役台账（0.20 移除基线）
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 > 本文是移除 Tauri 桌面宿主与 WebUI 管理面板前的完整功能台账，双职能：
 > **iced 0.20 按图索骥补齐**（下文「iced 对照矩阵」中所有 PARTIAL/MISSING 项），
 > **bevyui 0.30 参考实现规格**（能力面 + admin REST 契约 + 三端差异规则）。

@@ -1,4 +1,4 @@
-//! DUAL-10-01 migration (§5 of `docs/SCRIPT_ENGINE_DECISION.md`): the real
+//! DUAL-10-01 migration (§5 of `docs/archive/SCRIPT_ENGINE_DECISION.md`): the real
 //! ECMAScript adapter, compiled by default.
 //!
 //! This module is compiled when the `script-engine-boa` feature is enabled,

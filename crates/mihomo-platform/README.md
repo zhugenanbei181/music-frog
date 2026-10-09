@@ -15,4 +15,4 @@
 
 ## 4. Verification (验证与测试指引)
 - 运行测试（工作区全量统一入口）: `bash scripts/test.sh`
-- 质量门禁: 遵守 `line-guard.py`（单文件 ≤ 800 行）与 `doc-link-guard.py`
+- 质量门禁: 遵守 `line-guard.py`（单文件 ≤ 800 行）与 `doc-governance-guard.py`

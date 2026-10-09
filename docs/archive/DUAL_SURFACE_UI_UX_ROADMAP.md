@@ -1,5 +1,7 @@
 # MusicFrog Infiltrator: 双端 UI/UX 体验演进与视觉系统主控台账 (Dual-Surface UI/UX Experience Roadmap)
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 > **权威声明**：本文档是 MusicFrog Infiltrator 项目在 **UI/UX 体验、双端视觉设计系统（Design System）、全流体响应式布局（Responsive Layout）、平滑圆角（Squircle / G2 连续曲率）、现代材质着色器与物理微交互** 上的唯一最高权威主控台账。
 > 架构分层遵守 [ARCHITECTURE.md](ARCHITECTURE.md)；双端功能并集对标遵守 [DUAL_SURFACE_PARITY_MASTER_PLAN.md](DUAL_SURFACE_PARITY_MASTER_PLAN.md)；多视口弹性断点遵守 [RESPONSIVE_PARITY_LEDGER.md](RESPONSIVE_PARITY_LEDGER.md)；外壳无头回归遵守 [MULTIMODAL_SHELL_MATRIX.md](MULTIMODAL_SHELL_MATRIX.md)。
 

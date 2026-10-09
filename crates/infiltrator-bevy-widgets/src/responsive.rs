@@ -1,6 +1,6 @@
 //! Standardized 4-tier responsive breakpoint and multi-end adaptive layout engine.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md): Multi-end adaptive presentation layer for
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md): Multi-end adaptive presentation layer for
 //! Bevy UI. Standardizes four breakpoint tiers (Compact/Medium/Expanded/Ultra),
 //! density modes (Compact/Comfortable), orientations, adaptive sidebar/nav modes,
 //! master-detail coordination models, and modal-to-actionsheet transformations.

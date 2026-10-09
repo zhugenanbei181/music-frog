@@ -19,7 +19,7 @@
 - **Bevy UI 产品**：Bevy UI，面向桌面 + 移动 + iOS 的统一 surface。
 - **移动伴侣**：Android（Compose + UniFFI），承接 VPN/TUN、分应用路由与移动生命周期。
 
-> 早期的 Tauri + Vue Web 客户端已于 `0.20` 退役，内嵌 admin server 保留 API-only 的诊断用途。台账见 [docs/TAURI_WEBUI_RETIREMENT_LEDGER.md](docs/TAURI_WEBUI_RETIREMENT_LEDGER.md)。
+> 早期的 Tauri + Vue Web 客户端已于 `0.20` 退役，内嵌 admin server 保留 API-only 的诊断用途。台账见 [docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md](docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md)。
 
 ## 能做什么（用户可见）
 

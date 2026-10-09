@@ -1,6 +1,6 @@
 //! Strongly typed UI Command Bus and EntityObserver/Trigger Infrastructure.
 //!
-//! Charter law (docs/BEVY_UI_FRONTEND.md):
+//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! All UI user interactions (button clicks, switches, mode selections,
 //! reconnects, clears) dispatch through typed commands into a centralized
 //! command sink handle. No direct blocking calls in UI systems.

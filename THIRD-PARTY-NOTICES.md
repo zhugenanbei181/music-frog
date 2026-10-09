@@ -243,5 +243,5 @@ checkouts (`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`). /
   (MIT / Apache-2.0 / ICU and similar permissive terms) and are governed by
   their own manifests, per §3 above.
 - Purpose: the opt-in real ECMAScript interpreter behind the shared
-  `ScriptEnginePort` seam. See `docs/SCRIPT_ENGINE_DECISION.md` §5.1/§7 for the
+  `ScriptEnginePort` seam. See `docs/archive/SCRIPT_ENGINE_DECISION.md` §5.1/§7 for the
   migration record and its honest limits (no heap quota, loop-budget timeout).

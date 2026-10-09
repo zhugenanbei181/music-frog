@@ -1,5 +1,7 @@
 # 脚本引擎决策记录 / Script Engine Decision Record
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 - 记录项：`DUAL-10-01`（ECMAScript 嵌入式轻量执行沙箱；引擎为纯 Rust `boa_engine`，
   **不是 QuickJS**）
 - 状态：**默认构建即编译并执行真实 ECMAScript 引擎**。**2026-09-23 更新**：§5 迁移计划

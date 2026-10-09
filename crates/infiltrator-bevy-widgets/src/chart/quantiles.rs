@@ -1,6 +1,6 @@
 //! Statistical latency quantiles (P50, P90, P99) and empirical CDF distribution curves.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Pure mathematical model analyzing latency distribution curves for proxy nodes and DNS servers.
 
 use bevy::color::Color;

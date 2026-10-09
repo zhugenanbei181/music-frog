@@ -1,5 +1,7 @@
 # DESKTOP_SMOKE — isolated real desktop-behavior verification rig
 
+> 层级：L2
+
 `scripts/desktop-smoke.sh` verifies the **real** desktop-facing behavior of the
 iced application — the SNI tray (StatusNotifierItem + com.canonical.dbusmenu),
 OS notifications (org.freedesktop.Notifications) and XDG/dconf side effects —
@@ -95,7 +97,7 @@ mktemp, sha256sum, git`. Tray additionally: `cargo, kwin_wayland, niri` (same
 stack as `scripts/capture-iced-matrix.sh`). Nothing is installed by the script;
 missing pieces are reported with exit code 2.
 
-Optional, not installed on this machine (as of 2026-08-31): `waybar`
+Optional, not installed on this machine: `waybar`
 (visual SNI host — `pacman -S waybar`; the harness Watcher substitutes for
 protocol assertions), `mako` or `dunst` (visual notification daemon —
 `pacman -S mako`; the harness recorder substitutes for transport assertions).

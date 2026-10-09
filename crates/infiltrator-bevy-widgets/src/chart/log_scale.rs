@@ -1,6 +1,6 @@
 //! Continuous logarithmic scale mapper for high dynamic range network telemetry (1 KB/s to 1 GB/s).
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Pure mathematical model mapping exponential multi-order-of-magnitude traffic rates to [0.0..1.0]
 //! visual coordinates, preventing low-rate clipping while cleanly displaying massive burst peaks.
 

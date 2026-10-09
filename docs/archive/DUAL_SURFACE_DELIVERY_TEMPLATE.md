@@ -1,5 +1,7 @@
 # 双端交付模板（0.30）
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 任何共享功能必须按一个 `DUAL-组号-项号` 交付。这个模板是完成定义，不是建议清单。
 
 交付必须同时满足 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md) 的 L1/L2/L3。登记 `FeatureId`、两端精确 nextest ID、适用状态机分支和标准/紧凑像素回执；只拥有 headless 测试或源码名称不能关闭条目。

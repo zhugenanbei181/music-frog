@@ -1,6 +1,6 @@
 //! Right-click context menu system with viewport boundary flipping and action dispatch.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md):
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Pure state machine with analytical edge clamping and declarative `bsn!` overlay panel.
 
 use crate::icon::IconId;

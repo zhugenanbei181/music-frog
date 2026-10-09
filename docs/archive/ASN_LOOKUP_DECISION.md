@@ -1,5 +1,7 @@
 # ASN / GeoIP 归属透视：证据与决策（DUAL-13-05）
 
+> 层级：终端（已归档，冻结）：现行规则见 `docs/archive/README.md` 登记的取代者；本页链接可能指向迁移前位置。
+
 > 结论先行：**不引入客户端 MMDB 解析器**。v1.19.18 内核的 `/connections` metadata 已原生携带
 > `destinationGeoIP` 与 `destinationIPASN`，客户端只做诚实三态投影（见台账 `DUAL-13-05`，已从
 > `planned` 推进为 `shared-ready`）。本地 `geoip.metadb` / `ASN.mmdb` 的格式与候选 crate 证据保留在

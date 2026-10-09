@@ -1,15 +1,17 @@
 # 功能域地图
 
-双端平权证据的 owner 是 `infiltrator-contract::parity::FeatureId`（场景身份与分支要求）和 `scripts/parity/`（声明、真实测试发现、像素回执校验）。两端的交互由各自 UI crate 实现；验收规则见 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)。
+> 层级：L2
 
-本表按用户功能而不是按目录排列。目录是实现位置，功能域才是协作和 TODO 的归属单位；一个功能域只能有一个 Rust 逻辑 owner，Iced 与 Bevy UI 双端作为对等消费者同步呈现。
+双端平权证据的 owner 是 `infiltrator-contract::parity::FeatureId`（场景身份与分支要求）和 `scripts/parity/`（声明、真实测试发现、像素回执校验）；验收规则见 [UI_PARITY_AUDIT.md](UI_PARITY_AUDIT.md)。
+
+下表是功能域唯一事实源，按用户功能而非目录排列：一个功能域只能有一个 Rust 逻辑 owner，Iced 与 Bevy UI 双端作为对等消费者同步呈现；目录只是实现位置，功能域才是协作和 TODO 的归属单位。
 
 | 功能域 | 用户意图 | 当前主要 owner | UI / 宿主入口 | 重整重点 |
 | --- | --- | --- | --- | --- |
 | Core 生命周期 | 启动、停止、重启、状态检查、健康探测 | `infiltrator-application::CoreApplication` + `infiltrator-ports`；具体进程在 host/composition | Iced、Bevy UI、Android `MihomoHost` | CORE-001/002：统一 session、readiness、generation |
 | Bevy 页面装配与实体生命周期 | 一次接线、受限 ECS、路由恢复草稿与原生控件初始化 | `pages::plugin::PageBindingsPlugin` 组合各页面插件；控件层 Observer 与调度负责原生状态 | Bevy UI 的 `PagesPlugin` 与 `WidgetsPlugin` | 页面根不持有 World/hook；不靠重挂载重置业务资源 |
 | 独立桌面产品宿主 | 初始化原生端口、配置、命令服务与全页读取；退出回收宿主 | `infiltrator-desktop::product::DesktopProductSession`；命令组合 `composition::desktop_command_application` | Iced / Bevy 默认桌面入口；显式演示模式使用 fixture | 命令/读取共享引擎，启动失败不得退回演示数据 |
-| Android 移动产品与进程 IPC | UI/VPN 分进程、无 Activity 初始化、命令/结果/快照绑定与重连 | 产品组合唯一 owner 为 `infiltrator-android::composition`；Android 原生 IPC adapter 承载同一 application 边界 | Compose / Bevy Activity 与 Kotlin `MihomoVpnService` | `BANDROID-001`/`BANDROID-004`；规范见 [BEVY_ANDROID_PRODUCT.md](BEVY_ANDROID_PRODUCT.md)，跨进程不共享静态状态 |
+| Android 移动产品与进程 IPC | UI/VPN 分进程、无 Activity 初始化、命令/结果/快照绑定与重连 | 产品组合唯一 owner 为 `infiltrator-android::composition`；Android 原生 IPC adapter 承载同一 application 边界 | Compose / Bevy Activity 与 Kotlin `MihomoVpnService` | `BANDROID-001`/`BANDROID-004`；规范见 [BEVY_ANDROID_PRODUCT.md](android/BEVY_ANDROID_PRODUCT.md)，跨进程不共享静态状态 |
 | Android VPN 生命周期与网络资源 | 授权、前台、TUN FD、独立内核、无回环、重启和撤销 | `infiltrator-application::vpn_application::VpnServiceApplication` 为语义 owner；`infiltrator-android::vpn_service` 与 Kotlin service 实现端口 | Compose / Bevy 共享 VPN 命令和通知操作 | `BANDROID-002`；保留 tun2proxy 路线，服务资源不归 Activity |
 | Android 窗口与原生输入宿主 | Activity/Surface 生命周期、Insets、IME、返回与系统剪贴板 | `infiltrator-android` 原生窗口 adapter 为宿主 owner；中性事件复用既有契约，Bevy 消费者保留 | Bevy Android 原生 Activity；Compose 使用同一宿主能力与业务意图 | `BANDROID-003`/`BANDROID-005`/`BANDROID-006`/`BANDROID-007`/`BANDROID-008`/`BANDROID-014`；原生接线与合成事件分别验收 |
 | Bevy 业务列表实体回收 | 完整集合的可见窗口、行槽/网格复用与稳定对象操作 | `infiltrator-bevy-widgets::list` 为几何/回收算法 owner；页面仅映射共享业务身份 | Proxies、Connections、Logs、Rules 及既有原生滚动 | `BANDROID-009`/`BANDROID-010`；不截断业务集合，Iced 等价可达性继续验收 |
@@ -105,20 +107,18 @@
 5. 适用的目标平台、打包或真实 core smoke 已验证；
 6. `USAGE_SPEC.md`、`DUAL_SURFACE_PARITY_MASTER_PLAN.md` 记录已更新。
 
-共享工作流文案由 `infiltrator-shared/src/locales_table_workflow_{zh,en}.rs` 定义；Bevy 原位本地化由 `infiltrator-bevy-widgets/src/localization.rs` 回放；`infiltrator-bevy-ui/src/localization.rs` 只将共享产品语言偏好接入控件资源。代理地区标识与拼音匹配继续使用 `infiltrator-shared` 的唯一地区/搜索实现，不在 UI 重建词典。
+共享工作流文案由 `infiltrator-shared/src/locales_table_workflow_{zh,en}.rs` 定义；Bevy 原位本地化由 `infiltrator-bevy-widgets/src/localization.rs` 回放，`infiltrator-bevy-ui/src/localization.rs` 只将共享产品语言偏好接入控件资源。代理地区标识与拼音匹配复用 `infiltrator-shared` 的唯一地区/搜索实现，不在 UI 重建词典。
 
-诊断报告的唯一 owner 为 `application::doctor_application`，诊断/修复/初始化命令与 `ApplicationSurfaceReader` 必须持有同一实例的克隆。状态和文案折叠由 `application::doctor_projection` 负责，双端原生请求关联由 `doctor_actions` 状态模型驱动；Bevy 动态检查行按稳定 ID 原位协调。
+诊断报告唯一 owner 为 `application::doctor_application`，诊断/修复/初始化命令与 `ApplicationSurfaceReader` 必须持有同一实例的克隆；状态和文案折叠归 `application::doctor_projection`，双端原生请求关联由 `doctor_actions` 驱动，Bevy 动态检查行按稳定 ID 原位协调。
 
-DNS 泄漏报告的同一事实到文案、行序和状态色阶由 `application::dns_leak_projection` 唯一折叠，Iced 与 Bevy 只映射原生样式；宿主错误和探测中/失败/重试状态由共享 DNS 用例 owner 保留；独立 `SurfaceSnapshot::dns_leak` 不因配置页失败丢失。
+DNS 泄漏报告的事实到文案、行序和状态色阶由 `application::dns_leak_projection` 唯一折叠，Iced 与 Bevy 只映射原生样式；宿主错误与探测中/失败/重试状态由共享 DNS 用例 owner 保留，独立 `SurfaceSnapshot::dns_leak` 不因配置页失败丢失。配额文案与状态色阶唯一 owner 为 `application::subscription_quota_projection`，原始事实来自 `SubscriptionQuotaApplication`，两端不在 UI 汇总流量或补造示例值。
 
-配额文案与状态色阶唯一 owner 为 `application::subscription_quota_projection`；原始事实来自 `SubscriptionQuotaApplication`，两端不在 UI 汇总流量或补造示例值。
+节点延迟历史复用 `application::proxy_inspection_projection`、`proxy_inspection_reader` 与双端原生节点检查器；Iced 的历史入口不拥有独立雷达事实或样本写入路径。配置事务状态复用 `application::profile_editor_projection::transaction` 和实际共享回执，不由 Settings 合成成功。
 
-节点延迟历史复用 `application::proxy_inspection_projection`、`proxy_inspection_reader` 与双端原生节点检查器。Iced 的历史入口不拥有独立雷达事实或样本写入路径；配置事务状态复用 `application::profile_editor_projection::transaction` 和实际共享回执，不由 Settings 合成成功。
+配置应用回执由实际运行宿主持有的 `mihomo_config::manager::ConfigManager` 实例记录；`ports::profile_store` 只暴露按配置身份读取的中性数据，contract 只定义不可变回执，禁止全局发布/读取函数。
 
-配置应用回执由实际运行宿主持有的 `mihomo_config::manager::ConfigManager` 实例记录；`ports::profile_store` 只暴露按配置身份读取的中性数据。contract 仅定义不可变回执，禁止全局发布/读取函数。
+配置编辑文档和选项观测归 `application::profile_editor_observations`，由注入的 ProfileApplication 实例持有并在克隆间共享；独立产品不共享观测。读取票据绑定实例、配置、目标代次和各自操作序号，两个文档按同一 `ProfileSourceIdentity` 回放。`SurfaceSnapshot::profile_editor` 独立于列表页面发布文档、选项、各自读取状态与实际来源核验；失败保留原观测，保存门控由共享 `profile_edit_session` 决定。
 
-配置编辑文档和选项观测归 `application::profile_editor_observations`，由注入的 ProfileApplication 实例持有并在克隆间共享。独立产品不共享观测；读取票据绑定实例、配置、目标代次和各自操作序号，两个文档按同一 ProfileSourceIdentity 回放。`SurfaceSnapshot::profile_editor` 独立于列表页面发布文档、选项、各自读取状态与实际来源核验；失败保留原观测，保存门控由共享 `profile_edit_session` 决定。contract 只保留数据，旧全局发布函数退役。
+活动配额的观测保留和失效归 `application::subscription_quota_application` 的产品实例 owner；纯数值派生归 domain，语言和色阶归共享 quota projection。读取票据在异步工作前分配，活动配置与订阅来源身份独立读取前后核验，失败只保留同配置、同订阅来源、同内核代次和会话的实际观测；来源只发布哈希，不发布订阅凭据。
 
-活动配额的观测保留和失效归 `application::subscription_quota_application` 的产品实例 owner；纯数值派生仍归 domain，语言和色阶归共享 quota projection。读取票据在异步工作前分配；活动配置与订阅来源身份独立读取前后核验，失败只保留同配置、同订阅来源、同内核代次和会话的实际观测。来源只发布哈希，不发布订阅凭据。
-
-产品运行态错误的中性原因定义归 `contract::error::FailureReason`，唯一语言映射归 `application::failure_projection`，文案仍归 `infiltrator-shared`。编辑器、配额与内核下载取消复用此投影；具体下载器以 `MihomoError::Canceled` 经版本端口保留取消类别与恢复策略，Iced 不再匹配错误正文。Iced 运行态操作、服务和恢复提示复用共享资源；未迁移的其它运行态错误和通知不能因结构 i18n 门通过而视为已本地化。
+产品运行态错误的中性原因定义归 `contract::error::FailureReason`，唯一语言映射归 `application::failure_projection`，文案仍归 `infiltrator-shared`。编辑器、配额与内核下载取消复用此投影；具体下载器以 `MihomoError::Canceled` 经版本端口保留取消类别与恢复策略，Iced 不匹配错误正文。未迁移的运行态错误和通知不得因结构 i18n 门通过而视为已本地化。
