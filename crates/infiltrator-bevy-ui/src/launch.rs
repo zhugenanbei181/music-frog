@@ -2,7 +2,10 @@
 use crate::command::{UiCommand, UiCommandSink};
 use crate::command_events::CommandExecutedEvent;
 use infiltrator_contract::command::RequestId;
-use infiltrator_contract::error::{ErrorCode, Failure};
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+use infiltrator_contract::error::ErrorCode;
+use infiltrator_contract::error::Failure;
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use infiltrator_contract::surface::{HostKind, SurfaceKind};
 use std::sync::Mutex;
 use std::{env, mem};

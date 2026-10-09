@@ -14,9 +14,11 @@
 //!   `infiltrator_contract::window_chrome` shape, and the capability report is
 //!   what this host honestly implements.
 
+#[cfg(not(target_os = "android"))]
 use crate::a11y::semantic_node;
 use bevy::app::{App, AppExit, Plugin, Startup};
 use bevy::ecs::component::Component;
+#[cfg(not(target_os = "android"))]
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::message::MessageWriter;
 use bevy::ecs::observer::On;
@@ -25,23 +27,29 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::picking::events::{PointerClick, PointerPress};
 use bevy::scene::{Scene, bsn};
+#[cfg(not(target_os = "android"))]
 use bevy::text::TextColor;
 #[cfg(target_os = "android")]
 use bevy::ui::prelude::Display;
-use bevy::ui::prelude::{
-    AlignItems, BackgroundColor, FlexDirection, Node, UiRect, Val, percent, px,
-};
+use bevy::ui::prelude::Node;
+#[cfg(not(target_os = "android"))]
+use bevy::ui::prelude::{AlignItems, BackgroundColor, FlexDirection, UiRect, Val, percent, px};
+#[cfg(not(target_os = "android"))]
 use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use bevy::window::{PrimaryWindow, Window};
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::button::pill_caption_scene;
 use infiltrator_bevy_widgets::palette::UiPalette;
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::text::{Role, TextRole};
+#[cfg(not(target_os = "android"))]
 use infiltrator_bevy_widgets::theme::space;
+#[cfg(not(target_os = "android"))]
 use infiltrator_contract::a11y::ShellA11yNode;
-use infiltrator_contract::window_chrome::{
-    CHROME_DRAG_STRIP_HEIGHT_PX, NativeShadow, WindowChrome, WindowChromeSupport,
-};
+#[cfg(not(target_os = "android"))]
+use infiltrator_contract::window_chrome::CHROME_DRAG_STRIP_HEIGHT_PX;
+use infiltrator_contract::window_chrome::{NativeShadow, WindowChrome, WindowChromeSupport};
 
 /// Marker on the draggable chrome bar.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
