@@ -34,8 +34,9 @@ jobs:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     # 每条腿现在编译 iced + bevy 两个二进制（共享同一 target/cache）。iced-only
-    # 时代的 45 分钟不够，超时会把整条腿已完成的编译全部浪费掉。
-    timeout-minutes: 75
+    # 时代的 45 分钟不够；macOS Intel runner（macos-15-intel）明显更慢，75 分钟
+    # 仍会把整条腿超时并浪费已完成的编译，故放宽到 150 分钟。
+    timeout-minutes: 150
     strategy:
       # A failed platform must stop the release fan-out; publish-release is
       # gated on every matrix leg and partial releases are never useful.
