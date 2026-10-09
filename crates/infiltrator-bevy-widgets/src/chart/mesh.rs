@@ -274,6 +274,7 @@ pub fn build_bar_mesh(
     mesh
 }
 
-/// The telemetry fragment source, registered and retained by
-/// [`crate::telemetry_gpu`]. The draw pipeline itself remains host-installed.
+/// The telemetry fragment source, registered, retained and drawn by
+/// [`crate::telemetry_gpu`]'s Mesh2d [`Material2d`](bevy::sprite_render::Material2d)
+/// pipeline. A host only needs a `Camera2d` (plus a transform on the plate).
 pub const TELEMETRY_SHADER_WESL: &str = include_str!("../shaders/telemetry.wesl");

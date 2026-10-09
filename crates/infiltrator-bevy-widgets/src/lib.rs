@@ -20,6 +20,7 @@ use chart::histogram::sync_histogram_charts;
 use chart::ring_buffer::{TelemetryCadenceManager, update_telemetry_cadence};
 use chart::texture::release_retired;
 use chart::topology::{advance_topology_flow, sync_topology_charts};
+use globe::{advance_globe_rotation, sync_globe_charts};
 pub mod abi;
 pub mod accordion;
 pub mod adaptive_modal;
@@ -46,6 +47,7 @@ pub mod focus;
 pub mod fonts;
 pub mod gamepad_ui;
 pub mod gesture;
+pub mod globe;
 pub mod haptics;
 pub mod i18n;
 pub mod icon;
@@ -238,6 +240,7 @@ impl Plugin for WidgetsPlugin {
             Update,
             (
                 (advance_topology_flow, sync_topology_charts).chain(),
+                (advance_globe_rotation, sync_globe_charts).chain(),
                 update_telemetry_cadence,
                 scrollarea::focus_avoidance_auto_scroll_system,
                 responsive::sync_responsive_context_from_window,

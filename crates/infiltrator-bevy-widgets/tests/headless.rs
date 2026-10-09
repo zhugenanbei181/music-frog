@@ -20,6 +20,8 @@ mod combobox_tests;
 mod drawer_tests;
 #[path = "headless/fonts_tests.rs"]
 mod fonts_tests;
+#[path = "headless/globe_tests.rs"]
+mod globe_tests;
 #[path = "headless/icon_tests.rs"]
 mod icon_tests;
 #[path = "headless/icon_tile_tests.rs"]

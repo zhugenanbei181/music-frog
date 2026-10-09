@@ -9,6 +9,7 @@ use bevy::ecs::message::MessageCursor;
 use bevy::image::Image;
 use bevy::render::mesh::{Mesh, Mesh2d};
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
+use bevy::sprite_render::MeshMaterial2d;
 use bevy::ui::widget::ImageNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
 use infiltrator_bevy_widgets::chart::topology::{
@@ -16,7 +17,8 @@ use infiltrator_bevy_widgets::chart::topology::{
 };
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::telemetry_gpu::{
-    TelemetryMeshOwner, TelemetryRenderMode, TelemetryShaderLibraries,
+    TelemetryMaterial, TelemetryMeshOwner, TelemetryRenderMode, TelemetryShaderLibraries,
+    TelemetryUniform,
 };
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
 use std::thread::sleep;
@@ -27,6 +29,7 @@ fn app() -> App {
     app.add_plugins((MinimalPlugins, AssetPlugin::default(), ScenePlugin));
     app.init_asset::<Image>();
     app.init_asset::<Mesh>();
+    app.init_asset::<TelemetryMaterial>();
     app.add_plugins(WidgetsPlugin::new(&Theme::dark()));
     app
 }
@@ -40,6 +43,14 @@ fn mesh_handle(app: &App, entity: Entity) -> Handle<Mesh> {
         .get::<TelemetryMeshOwner>(entity)
         .expect("the GPU owner must exist")
         .mesh
+        .clone()
+}
+
+fn material_handle(app: &App, entity: Entity) -> Handle<TelemetryMaterial> {
+    app.world()
+        .get::<MeshMaterial2d<TelemetryMaterial>>(entity)
+        .expect("the GPU material binding must exist")
+        .0
         .clone()
 }
 
@@ -77,33 +88,65 @@ fn mode_toggles_between_gpu_mesh_and_cpu_fallback_without_leaking() {
     assert!(app.world().get::<Mesh2d>(entity).is_none());
     assert!(
         app.world()
+            .get::<MeshMaterial2d<TelemetryMaterial>>(entity)
+            .is_none()
+    );
+    assert!(
+        app.world()
             .resource::<Assets<Image>>()
             .contains(&image_handle(&app, entity))
     );
     assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 0);
+    assert_eq!(app.world().resource::<Assets<TelemetryMaterial>>().len(), 0);
 
-    // GPU: the mesh owner and binding appear; the CPU fallback stays mounted.
+    // GPU: the mesh/material owner and both bindings appear; the CPU fallback
+    // stays mounted.
     *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Gpu;
     app.update();
     app.update();
     let owned_id = mesh_handle(&app, entity).id();
+    let owned_material = material_handle(&app, entity);
+    let owned_material_id = owned_material.id();
     assert!(app.world().get::<Mesh2d>(entity).is_some());
     assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 1);
+    assert_eq!(app.world().resource::<Assets<TelemetryMaterial>>().len(), 1);
+    assert_eq!(
+        app.world()
+            .resource::<Assets<TelemetryMaterial>>()
+            .get(&owned_material)
+            .unwrap()
+            .uniform,
+        TelemetryUniform::neutral()
+    );
     assert!(
         app.world()
             .resource::<Assets<Image>>()
             .contains(&image_handle(&app, entity)),
         "the CPU texture is the guaranteed fallback while GPU is active"
     );
+    // The test must not keep a strong handle if it expects the asset freed.
+    drop(owned_material);
 
-    // Back to CPU: the owner and binding are released and the mesh returns.
+    // Back to CPU: the owner and both bindings are released and the assets
+    // return to baseline.
     *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Cpu;
     app.update();
     app.update();
     assert!(app.world().get::<TelemetryMeshOwner>(entity).is_none());
     assert!(app.world().get::<Mesh2d>(entity).is_none());
+    assert!(
+        app.world()
+            .get::<MeshMaterial2d<TelemetryMaterial>>(entity)
+            .is_none()
+    );
     assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 0);
     assert!(!app.world().resource::<Assets<Mesh>>().contains(owned_id));
+    assert_eq!(app.world().resource::<Assets<TelemetryMaterial>>().len(), 0);
+    assert!(
+        !app.world()
+            .resource::<Assets<TelemetryMaterial>>()
+            .contains(owned_material_id)
+    );
 }
 
 #[test]
@@ -121,6 +164,11 @@ fn gpu_mode_falls_back_to_cpu_when_mesh_assets_are_unavailable() {
     assert!(app.world().get::<Mesh2d>(entity).is_none());
     assert!(
         app.world()
+            .get::<MeshMaterial2d<TelemetryMaterial>>(entity)
+            .is_none()
+    );
+    assert!(
+        app.world()
             .resource::<Assets<Image>>()
             .contains(&image_handle(&app, entity)),
         "the CPU texture still paints when the GPU path is unavailable"
@@ -135,6 +183,7 @@ fn static_telemetry_frames_do_not_reupload_the_mesh() {
     app.update();
     app.update();
     let handle = mesh_handle(&app, entity);
+    let material = material_handle(&app, entity);
     let mut cursor = MessageCursor::default();
     modifications(&app, &mut cursor, handle.id());
 
@@ -148,7 +197,8 @@ fn static_telemetry_frames_do_not_reupload_the_mesh() {
         );
     }
 
-    // A real content change updates the same identity exactly once.
+    // A real content change updates the same mesh identity exactly once and
+    // reuses the material handle.
     app.world_mut()
         .get_mut::<TopologyPlate>(entity)
         .unwrap()
@@ -158,41 +208,107 @@ fn static_telemetry_frames_do_not_reupload_the_mesh() {
     app.update();
     assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
     assert_eq!(mesh_handle(&app, entity).id(), handle.id());
+    assert_eq!(
+        material_handle(&app, entity).id(),
+        material.id(),
+        "a content change reuses the owned material handle"
+    );
 
-    // A theme switch refreshes the mesh too.
+    // A theme switch refreshes the mesh too, still reusing the material.
     app.world_mut()
         .commands()
         .trigger(ThemeSwitch(ThemeSkin::Light));
     app.update();
     app.update();
     assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
+    assert_eq!(mesh_handle(&app, entity).id(), handle.id());
+    assert_eq!(material_handle(&app, entity).id(), material.id());
     drop(handle);
+    drop(material);
 }
 
 #[test]
-fn retiring_telemetry_view_releases_its_owned_mesh() {
+fn a_missing_telemetry_asset_is_repaired_without_replacing_the_surviving_handle() {
+    let mut app = app();
+    *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Gpu;
+    let entity = spawn_topology(&mut app);
+    app.update();
+    app.update();
+    let mesh = mesh_handle(&app, entity);
+    let material = material_handle(&app, entity);
+
+    // Removing the mesh asset rebuilds only the mesh; the material survives.
+    app.world_mut()
+        .resource_mut::<Assets<Mesh>>()
+        .remove(mesh.id());
+    app.update();
+    app.update();
+    let repaired_mesh = mesh_handle(&app, entity);
+    assert_ne!(repaired_mesh.id(), mesh.id());
+    assert!(
+        app.world()
+            .resource::<Assets<Mesh>>()
+            .contains(repaired_mesh.id())
+    );
+    assert_eq!(
+        material_handle(&app, entity).id(),
+        material.id(),
+        "the surviving material handle is reused, not replaced"
+    );
+
+    // Removing the material asset rebuilds only the material; the mesh survives.
+    app.world_mut()
+        .resource_mut::<Assets<TelemetryMaterial>>()
+        .remove(material.id());
+    app.update();
+    app.update();
+    let repaired_material = material_handle(&app, entity);
+    assert_ne!(repaired_material.id(), material.id());
+    assert_eq!(
+        mesh_handle(&app, entity).id(),
+        repaired_mesh.id(),
+        "the surviving mesh handle is reused, not replaced"
+    );
+}
+
+#[test]
+fn retiring_telemetry_view_releases_its_owned_mesh_and_material() {
     let mut app = app();
     *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Gpu;
     let entity = spawn_topology(&mut app);
     app.update();
     app.update();
     assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 1);
+    assert_eq!(app.world().resource::<Assets<TelemetryMaterial>>().len(), 1);
     let owned_id = mesh_handle(&app, entity).id();
+    let owned_material = material_handle(&app, entity).id();
 
     app.world_mut().entity_mut(entity).remove::<TopologyPlate>();
     app.update();
     app.update();
     assert!(app.world().get::<TelemetryMeshOwner>(entity).is_none());
     assert!(app.world().get::<Mesh2d>(entity).is_none());
+    assert!(
+        app.world()
+            .get::<MeshMaterial2d<TelemetryMaterial>>(entity)
+            .is_none()
+    );
     assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 0);
     assert!(!app.world().resource::<Assets<Mesh>>().contains(owned_id));
+    assert_eq!(app.world().resource::<Assets<TelemetryMaterial>>().len(), 0);
+    assert!(
+        !app.world()
+            .resource::<Assets<TelemetryMaterial>>()
+            .contains(owned_material)
+    );
 }
 
 #[test]
-fn one_hundred_gpu_cpu_mount_retire_cycles_return_mesh_assets_to_baseline() {
+fn one_hundred_gpu_cpu_mount_retire_cycles_return_assets_to_baseline() {
     let mut app = app();
     app.update();
-    let baseline = app.world().resource::<Assets<Mesh>>().len();
+    let mesh_baseline = app.world().resource::<Assets<Mesh>>().len();
+    let material_baseline = app.world().resource::<Assets<TelemetryMaterial>>().len();
     for cycle in 0..100 {
         let entity = spawn_topology(&mut app);
         app.update();
@@ -201,32 +317,52 @@ fn one_hundred_gpu_cpu_mount_retire_cycles_return_mesh_assets_to_baseline() {
         app.update();
         assert_eq!(
             app.world().resource::<Assets<Mesh>>().len(),
-            baseline + 1,
-            "gpu {cycle}"
+            mesh_baseline + 1,
+            "gpu mesh {cycle}"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<TelemetryMaterial>>().len(),
+            material_baseline + 1,
+            "gpu material {cycle}"
         );
         *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Cpu;
         app.update();
         app.update();
         assert_eq!(
             app.world().resource::<Assets<Mesh>>().len(),
-            baseline,
-            "cpu {cycle}"
+            mesh_baseline,
+            "cpu mesh {cycle}"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<TelemetryMaterial>>().len(),
+            material_baseline,
+            "cpu material {cycle}"
         );
         *app.world_mut().resource_mut::<TelemetryRenderMode>() = TelemetryRenderMode::Gpu;
         app.update();
         app.update();
         assert_eq!(
             app.world().resource::<Assets<Mesh>>().len(),
-            baseline + 1,
-            "restore {cycle}"
+            mesh_baseline + 1,
+            "restore mesh {cycle}"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<TelemetryMaterial>>().len(),
+            material_baseline + 1,
+            "restore material {cycle}"
         );
         app.world_mut().despawn(entity);
         app.update();
         app.update();
         assert_eq!(
             app.world().resource::<Assets<Mesh>>().len(),
-            baseline,
-            "retire {cycle}"
+            mesh_baseline,
+            "retire mesh {cycle}"
+        );
+        assert_eq!(
+            app.world().resource::<Assets<TelemetryMaterial>>().len(),
+            material_baseline,
+            "retire material {cycle}"
         );
     }
 }

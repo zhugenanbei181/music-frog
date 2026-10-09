@@ -4,6 +4,7 @@ use super::donut::DonutChartPlate;
 use super::histogram::HistogramPlate;
 use super::topology::{TopologyPaint, TopologyPlate};
 use super::{ChartPaint, ChartPlate};
+use crate::globe::{GlobePaint, GlobePlate};
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
@@ -28,7 +29,7 @@ pub struct ChartTextureView {
 
 impl ChartTextureViewItem<'_, '_> {
     /// Repaint only the owned asset; restoring a binding needs no rasterization.
-    pub(super) fn sync<P: Component>(
+    pub(crate) fn sync<P: Component>(
         &self,
         images: &mut Assets<Image>,
         repaint: bool,
@@ -78,6 +79,7 @@ pub(crate) struct RetiredChart {
     donut: Without<DonutChartPlate>,
     histogram: Without<HistogramPlate>,
     topology: Without<TopologyPlate>,
+    globe: Without<GlobePlate>,
 }
 
 /// Retiring a plate on a retained entity also drops its private texture owner.
@@ -91,7 +93,7 @@ pub(crate) fn release_retired(
             continue;
         };
         let mut entity = commands.entity(view.entity);
-        entity.remove::<(ChartTexture, ChartPaint, TopologyPaint)>();
+        entity.remove::<(ChartTexture, ChartPaint, TopologyPaint, GlobePaint)>();
         if view.node.is_some_and(|node| node.image == texture.image) {
             entity.remove::<ImageNode>();
         }
