@@ -22,10 +22,11 @@
 //! smoothed over.
 
 use crate::ime_native::{native_editor_active, report_native_ime};
+use crate::pages::connections_clipboard::ClipboardHostPlugin;
 use bevy::app::PostUpdate;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::entity::Entity;
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -40,7 +41,7 @@ use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_bevy_widgets::multiline_editor::MultilineEditor;
 use infiltrator_bevy_widgets::text_input::ime::ImeCursorArea;
 use infiltrator_bevy_widgets::text_input::render::sync_ime_cursor_areas;
-use infiltrator_bevy_widgets::text_input::state::TextFieldState;
+use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused};
 use infiltrator_contract::ime::{
     ImeCompositionAction, ImeCompositionEvent, ImeCompositionTracker, ImeCursorRect,
@@ -158,6 +159,240 @@ pub fn apply_composition_action(field: &mut TextFieldState, action: ImeCompositi
     }
 }
 
+/// One editing command a native text-input adapter can ask the focused
+/// controlled field to perform (BANDROID-007). These are the operations an
+/// Android `InputConnection` reports through `performEditorAction` /
+/// `sendKeyEvent` and are distinct from the composition lifecycle above.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeEditAction {
+    SelectAll,
+    MoveLeft,
+    MoveRight,
+    MoveWordLeft,
+    MoveWordRight,
+    Home,
+    End,
+    Backspace,
+    Delete,
+    BackspaceWord,
+    DeleteWord,
+}
+
+/// The typed text-input vocabulary a native `InputConnection`/`GameTextInput`
+/// adapter feeds into the shell (BANDROID-007).
+///
+/// This is the mobile sibling of [`shared_composition_event`]: the adapter
+/// calls one method per platform callback and the shell applies it to the same
+/// [`ImeCompositionTracker`] and controlled [`TextFieldState`] the windowed
+/// `bevy::window::Ime` path already drives. Composition lifecycle, selection,
+/// deletion, candidate commits and editing actions are distinct variants so an
+/// adapter never has to guess how a platform callback maps onto the owner.
+#[derive(Message, Clone, Debug, PartialEq, Eq)]
+pub enum NativeTextInput {
+    /// `onCreateInputConnection`: the IME opened a composition session.
+    Open,
+    /// `setComposingText`: the inline composition changed (empty finishes).
+    Preedit(String),
+    /// `commitText`: the composition committed `text`.
+    Commit(String),
+    /// A candidate was selected: commit its `text` (same finalize as `Commit`).
+    CandidateCommit(String),
+    /// `finishComposingText`/`closeConnection`: drop the uncommitted text.
+    Cancel,
+    /// `setSelection(start, end)`: replace the controlled selection.
+    Selection { start: usize, end: usize },
+    /// `deleteSurroundingText`: remove `before`/`after` chars at the caret.
+    Delete { before: usize, after: usize },
+    /// `performEditorAction`/`sendKeyEvent`: one editing action.
+    Edit(NativeEditAction),
+    /// Hardware/OS back: close the IME first, then the host may navigate.
+    Back,
+}
+
+/// What one native text-input event did to the shell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeInputOutcome {
+    /// Nothing to do (no focused owner, or an action that changed nothing).
+    #[default]
+    Ignored,
+    /// The controlled owner changed.
+    Applied,
+    /// The composition closed and the field rolled back to its snapshot.
+    RolledBack,
+    /// A second commit arrived after the composition already committed.
+    DuplicateCommitDropped,
+    /// OS back closed the IME first; the host must not navigate.
+    BackConsumed,
+    /// OS back found no composition; the host may navigate.
+    BackIgnored,
+}
+
+/// The shell's native text-input session (BANDROID-007).
+///
+/// `committed_after_composition` latches a finished composition so the
+/// duplicate `commitText` an adapter can emit right after a candidate commit is
+/// dropped instead of inserting twice. It is only armed when the commit
+/// followed a real composition, so plain per-character `commitText` typing is
+/// never collapsed.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct NativeImeSession {
+    committed_after_composition: bool,
+    ime_closed_by_back: bool,
+    last_outcome: NativeInputOutcome,
+}
+
+impl NativeImeSession {
+    /// The outcome of the most recent native text-input event.
+    pub const fn last_outcome(&self) -> NativeInputOutcome {
+        self.last_outcome
+    }
+
+    /// Whether OS back closed the IME and no new composition has reopened it.
+    pub const fn is_ime_closed_by_back(&self) -> bool {
+        self.ime_closed_by_back
+    }
+}
+
+/// Apply one native text-input event to the shared tracker and controlled
+/// field, returning what happened. Pure so the adapter's callback order can be
+/// asserted without a window.
+pub fn apply_native_text_input(
+    session: &mut NativeImeSession,
+    tracker: &mut ImeCompositionTracker,
+    event: NativeTextInput,
+    field: &mut TextFieldState,
+) -> NativeInputOutcome {
+    let outcome = match event {
+        NativeTextInput::Open => {
+            session.committed_after_composition = false;
+            session.ime_closed_by_back = false;
+            let action = tracker.apply(ImeCompositionEvent::Opened);
+            apply_composition_action(field, action);
+            NativeInputOutcome::Applied
+        }
+        NativeTextInput::Preedit(text) => {
+            if !text.is_empty() {
+                session.committed_after_composition = false;
+            }
+            session.ime_closed_by_back = false;
+            let action = tracker.apply(ImeCompositionEvent::Preedit(text));
+            apply_composition_action(field, action);
+            NativeInputOutcome::Applied
+        }
+        NativeTextInput::Commit(text) | NativeTextInput::CandidateCommit(text) => {
+            if session.committed_after_composition {
+                return finish_native(session, NativeInputOutcome::DuplicateCommitDropped);
+            }
+            let was_composing = tracker.is_composing();
+            let action = tracker.apply(ImeCompositionEvent::Commit(text));
+            apply_composition_action(field, action);
+            session.committed_after_composition = was_composing;
+            NativeInputOutcome::Applied
+        }
+        NativeTextInput::Cancel => {
+            let action = tracker.apply(ImeCompositionEvent::Closed);
+            let rolled = apply_composition_action(field, action);
+            session.committed_after_composition = false;
+            if rolled {
+                NativeInputOutcome::RolledBack
+            } else {
+                NativeInputOutcome::Ignored
+            }
+        }
+        NativeTextInput::Selection { start, end } => {
+            if apply_native_selection(field, start, end) {
+                NativeInputOutcome::Applied
+            } else {
+                NativeInputOutcome::Ignored
+            }
+        }
+        NativeTextInput::Delete { before, after } => {
+            if apply_native_delete(field, before, after) {
+                NativeInputOutcome::Applied
+            } else {
+                NativeInputOutcome::Ignored
+            }
+        }
+        NativeTextInput::Edit(action) => {
+            if field.apply(native_edit_input(action)) {
+                NativeInputOutcome::Applied
+            } else {
+                NativeInputOutcome::Ignored
+            }
+        }
+        NativeTextInput::Back => {
+            if tracker.is_composing() || field.is_in_ime_transaction() {
+                let action = tracker.apply(ImeCompositionEvent::Closed);
+                apply_composition_action(field, action);
+                session.committed_after_composition = false;
+                session.ime_closed_by_back = true;
+                NativeInputOutcome::BackConsumed
+            } else {
+                NativeInputOutcome::BackIgnored
+            }
+        }
+    };
+    finish_native(session, outcome)
+}
+
+fn finish_native(
+    session: &mut NativeImeSession,
+    outcome: NativeInputOutcome,
+) -> NativeInputOutcome {
+    session.last_outcome = outcome;
+    outcome
+}
+
+fn native_edit_input(action: NativeEditAction) -> TextFieldInput {
+    match action {
+        NativeEditAction::SelectAll => TextFieldInput::SelectAll,
+        NativeEditAction::MoveLeft => TextFieldInput::Left(false),
+        NativeEditAction::MoveRight => TextFieldInput::Right(false),
+        NativeEditAction::MoveWordLeft => TextFieldInput::WordLeft(false),
+        NativeEditAction::MoveWordRight => TextFieldInput::WordRight(false),
+        NativeEditAction::Home => TextFieldInput::Home,
+        NativeEditAction::End => TextFieldInput::End,
+        NativeEditAction::Backspace => TextFieldInput::Backspace,
+        NativeEditAction::Delete => TextFieldInput::Delete,
+        NativeEditAction::BackspaceWord => TextFieldInput::BackspaceWord,
+        NativeEditAction::DeleteWord => TextFieldInput::DeleteWord,
+    }
+}
+
+/// Place the caret at `start` and extend the selection to `end` using the
+/// controlled field's own navigation, so the field's state stays authoritative.
+fn apply_native_selection(field: &mut TextFieldState, start: usize, end: usize) -> bool {
+    let (start, end) = if start <= end {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    let len = field.text().chars().count();
+    let start = start.min(len);
+    let end = end.min(len);
+    let mut changed = field.apply(TextFieldInput::Home);
+    for _ in 0..start {
+        changed |= field.apply(TextFieldInput::Right(false));
+    }
+    for _ in start..end {
+        changed |= field.apply(TextFieldInput::Right(true));
+    }
+    changed
+}
+
+/// Remove `before` chars behind and `after` chars ahead of the caret through the
+/// field's own grapheme-aware backspace/delete.
+fn apply_native_delete(field: &mut TextFieldState, before: usize, after: usize) -> bool {
+    let mut changed = false;
+    for _ in 0..before {
+        changed |= field.apply(TextFieldInput::Backspace);
+    }
+    for _ in 0..after {
+        changed |= field.apply(TextFieldInput::Delete);
+    }
+    changed
+}
+
 /// Installs the IME cursor-area sync and composition routing.
 #[derive(Resource, Default)]
 struct CompositionTarget(Option<Entity>);
@@ -174,16 +409,23 @@ impl Plugin for ShellImePlugin {
         // windowed one already has it via `WindowPlugin` (registration is
         // idempotent).
         app.add_message::<Ime>()
+            .add_message::<NativeTextInput>()
             .init_resource::<InputFocus>()
             .init_resource::<UiScale>()
             .init_resource::<ImeHostReport>()
             .init_resource::<ShellImeComposition>()
+            .init_resource::<NativeImeSession>()
             .init_resource::<CompositionTarget>()
+            // BANDROID-007/008: the native text-input host seams (IME
+            // composition and system clipboard paste) share this shell install
+            // point, so headless compositions see the same ports as the host.
+            .add_plugins(ClipboardHostPlugin::default())
             // The widget layer recomputes the caret rect after a preedit
             // change, so the pipeline is: route → widget caret → window plan.
             .add_systems(
                 Update,
-                route_ime_composition
+                (route_ime_composition, route_native_text_input)
+                    .chain()
                     .in_set(ShellImeSet::Composition)
                     .before(sync_ime_cursor_areas),
             )
@@ -192,6 +434,22 @@ impl Plugin for ShellImePlugin {
                 PostUpdate,
                 report_native_ime.after(ImeSystems::UpdatePosition),
             );
+    }
+}
+
+/// Feed the focused field the native adapter's typed events through the shared
+/// tracker, and record whether OS back consumed the event (BANDROID-007).
+fn route_native_text_input(
+    mut events: MessageReader<NativeTextInput>,
+    mut session: ResMut<NativeImeSession>,
+    mut tracker: ResMut<ShellImeComposition>,
+    mut fields: Query<(&TextFieldFocused, &mut TextField)>,
+) {
+    for event in events.read() {
+        let Some((_, mut field)) = fields.iter_mut().find(|(focused, _)| focused.0) else {
+            continue;
+        };
+        apply_native_text_input(&mut session, &mut tracker.0, event.clone(), &mut field.0);
     }
 }
 
@@ -235,6 +493,7 @@ fn route_ime_composition(
 /// Project the focused field's real caret onto the window's IME slot.
 fn sync_window_ime(
     mut report: ResMut<ImeHostReport>,
+    session: Res<NativeImeSession>,
     mut windows: Query<(Entity, &mut Window), With<PrimaryWindow>>,
     fields: Query<(Entity, &TextFieldFocused, &ImeCursorArea)>,
     sdk: Res<InputFocus>,
@@ -243,11 +502,29 @@ fn sync_window_ime(
     if native_editor_active(&sdk, &native) {
         return;
     }
+    let focused_field = fields
+        .iter()
+        .find(|(_, focused, _)| focused.0)
+        .map(|(entity, _, _)| entity);
+    if session.is_ime_closed_by_back() {
+        // OS back closed the keyboard first; keep the OS IME disabled until a
+        // new composition or field focus reopens it.
+        if let Ok((window_entity, mut window)) = windows.single_mut() {
+            if window.ime_enabled {
+                window.ime_enabled = false;
+            }
+            report.window = Some(window_entity);
+        } else {
+            report.window = None;
+        }
+        report.focused_field = focused_field;
+        report.plan = ImeFocusPlan::DISABLED;
+        return;
+    }
     let target = fields
         .iter()
         .find(|(_, focused, _)| focused.0)
         .map(|(entity, _, area)| (entity, cursor_rect(area)));
-    let focused_field = target.map(|(entity, _)| entity);
     let cursor = target.map(|(_, rect)| rect);
 
     let Ok((window_entity, mut window)) = windows.single_mut() else {

@@ -1,5 +1,6 @@
 //! Android host/application composition for the 0.30 seam.
 
+use crate::native_host::clipboard::AndroidClipboardPort;
 use crate::runtime::AndroidBridgeAdapter;
 use crate::vpn_service::AndroidVpnServicePort;
 use infiltrator_application::command_application::CommandApplication;
@@ -76,6 +77,11 @@ where
         .with_vpn(VpnServiceApplication::new(Arc::new(
             AndroidVpnServicePort::shared(),
         )));
+    // BANDROID-008: the shared import command reads the real system clipboard
+    // through the registered Activity channel. The port resolves lazily, so a
+    // composition built before the Activity registers still reaches it; until
+    // then the command keeps its typed unsupported result.
+    handler = handler.with_import_source(Arc::new(AndroidClipboardPort::from_registry()));
     if let Some(gateway) = gateway {
         application
             .install_log_gateway(gateway.clone())

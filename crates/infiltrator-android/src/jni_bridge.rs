@@ -1,10 +1,21 @@
+use crate::jni_clipboard::JniClipboardChannel;
+use crate::native_host::clipboard::clear_native_clipboard_channel;
+use crate::native_host::clipboard::set_native_clipboard_channel;
+use crate::native_host::declare_touch_host;
+use crate::native_host::insets::RawInsetsPx;
+use crate::native_host::lifecycle::ActivityPhase;
+use crate::native_host::lifecycle::HostLifecycleFact;
+use crate::native_host::lifecycle::LifecycleUpdate;
+use crate::native_host::lifecycle::WindowFocus;
+use crate::native_host::push_lifecycle_fact;
+use crate::native_host::push_raw_insets;
 use crate::service_init::init_android_process;
 use crate::{FfiErrorCode, FfiStatus};
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
 use jni::signature::RuntimeMethodSignature;
 use jni::strings::JNIString;
-use jni::sys::{jint, jstring};
+use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::android_bridge::{AndroidBridge, set_android_bridge};
@@ -279,6 +290,111 @@ pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterB
     status.code as jint
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterNativeHost<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    host: JObject<'local>,
+) -> jint {
+    let mut status = FfiStatus::ok();
+    env.with_env(|env| -> errors::Result<()> {
+        status = register_native_host(env, host);
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
+    status.code as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeClearNativeHost<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+) -> jint {
+    // Release the retired Activity's global ref. The pushed lifecycle/insets
+    // facts are plain state overwritten by the next Activity, so they are not
+    // cleared here (another live UI Activity may own them).
+    env.with_env(|_env| -> errors::Result<()> {
+        clear_native_clipboard_channel();
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
+    FfiErrorCode::Ok as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeOnLifecycle<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    generation: jlong,
+    phase: jint,
+    focused: jboolean,
+    visible: jboolean,
+) -> jint {
+    let mut status = FfiErrorCode::InvalidState as jint;
+    env.with_env(|_env| -> errors::Result<()> {
+        let Some(phase) = ActivityPhase::from_code(phase) else {
+            status = FfiErrorCode::InvalidInput as jint;
+            return Ok(());
+        };
+        let fact = HostLifecycleFact {
+            generation: generation.max(0) as u64,
+            phase,
+            focus: if focused {
+                WindowFocus::Focused
+            } else {
+                WindowFocus::Unfocused
+            },
+            visible,
+        };
+        status = match push_lifecycle_fact(fact) {
+            LifecycleUpdate::Applied { .. } => FfiErrorCode::Ok as jint,
+            LifecycleUpdate::Stale => FfiErrorCode::InvalidState as jint,
+        };
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
+    status
+}
+
+/// BANDROID-006: push one `WindowInsetsCompat` observation (physical pixels).
+#[allow(clippy::too_many_arguments)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeOnInsets<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    density: jfloat,
+    system_top: jint,
+    system_right: jint,
+    system_bottom: jint,
+    system_left: jint,
+    ime_top: jint,
+    ime_right: jint,
+    ime_bottom: jint,
+    ime_left: jint,
+) -> jint {
+    let mut status = FfiErrorCode::InvalidState as jint;
+    env.with_env(|_env| -> errors::Result<()> {
+        let raw = RawInsetsPx::from_edges(
+            density,
+            system_top,
+            system_right,
+            system_bottom,
+            system_left,
+            ime_top,
+            ime_right,
+            ime_bottom,
+            ime_left,
+        );
+        let _ = push_raw_insets(raw);
+        status = FfiErrorCode::Ok as jint;
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
+    status
+}
+
 fn init_dirs(env: &mut Env, data_dir: &JString, cache_dir: &JString) -> FfiStatus {
     let data_dir = match read_java_string(env, data_dir, "dataDir") {
         Ok(value) => value,
@@ -332,6 +448,38 @@ fn register_bridge(env: &mut Env, host: JObject) -> FfiStatus {
     FfiStatus::ok()
 }
 
+/// BANDROID-005..008: register the Activity's native host adapter. It becomes
+/// the process clipboard channel and declares that this host delivers touch.
+fn register_native_host(env: &mut Env, host: JObject) -> FfiStatus {
+    if host.is_null() {
+        return FfiStatus::err(FfiErrorCode::InvalidInput, "native host is null");
+    }
+
+    let vm = match env.get_java_vm() {
+        Ok(vm) => vm,
+        Err(err) => {
+            return FfiStatus::err(
+                FfiErrorCode::InvalidState,
+                format!("get java vm failed: {err}"),
+            );
+        }
+    };
+
+    let global = match env.new_global_ref(host) {
+        Ok(global) => global,
+        Err(err) => {
+            return FfiStatus::err(
+                FfiErrorCode::InvalidState,
+                format!("create native host global ref failed: {err}"),
+            );
+        }
+    };
+
+    set_native_clipboard_channel(Arc::new(JniClipboardChannel::new(vm, global)));
+    declare_touch_host();
+    FfiStatus::ok()
+}
+
 fn read_java_string(
     env: &mut Env,
     input: &JString,
@@ -351,11 +499,11 @@ fn read_java_string(
     })
 }
 
-fn parse_method_signature(method: &str, sig: &str) -> Result<RuntimeMethodSignature> {
+pub(crate) fn parse_method_signature(method: &str, sig: &str) -> Result<RuntimeMethodSignature> {
     RuntimeMethodSignature::from_str(sig)
         .map_err(|err| MihomoError::Service(format!("jni signature for {method} failed: {err}")))
 }
 
-fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
+pub(crate) fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {
     MihomoError::Service(format!("jni {context} failed: {err}"))
 }

@@ -5,6 +5,7 @@
 //! structs remain Bevy-local render projections; these conversion functions
 //! are the explicit adapter between the two worlds.
 
+use crate::lifecycle::UiObservationGate;
 use crate::pages::app_routing::AppRoutingProjection;
 use crate::pages::connections::ConnectionsProjection;
 use crate::pages::dns::DnsProjection;
@@ -16,11 +17,13 @@ use crate::pages::rules::RulesProjection;
 use crate::pages::settings::settings_core::SettingsProjection;
 use crate::pages::sync::SyncProjection;
 use crate::projection::{OverviewOrigin, OverviewProjection, OverviewSource, SourceKind};
+use crate::route::SurfaceSourceHandle;
 use bevy::app;
 use bevy::app::{Plugin, Update};
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{Scene, bsn};
@@ -45,6 +48,8 @@ use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use std::thread::spawn;
 
+#[path = "host_insets.rs"]
+pub mod host_insets;
 #[path = "surface_demo.rs"]
 pub(crate) mod surface_demo;
 #[path = "surface_projection.rs"]
@@ -260,7 +265,39 @@ impl Plugin for SurfaceDrainPlugin {
     }
 }
 
-fn drain_surface(bridge: Res<SurfaceBridge>, mut commands: Commands) {
+/// Triggered when the host reports the UI surface is back. The shell must read
+/// back one complete snapshot instead of replaying a stale backlog.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HostSurfaceRestoreRequested;
+
+/// Read back the composed source's current full snapshot and feed it through
+/// the same coalesced projection path the frame drain uses.
+pub fn read_back_surface_snapshot(source: &dyn SurfaceSource, commands: &mut Commands) {
+    commands.trigger(SurfaceSnapshotUpdated(source.surface_snapshot()));
+}
+
+/// Host lifecycle restore hook. `SurfaceSourceHandle` is absent in a
+/// pull-only composition, in which case the request is a no-op.
+pub(crate) fn on_surface_restore_requested(
+    _request: On<HostSurfaceRestoreRequested>,
+    source: Option<Res<SurfaceSourceHandle>>,
+    mut commands: Commands,
+) {
+    if let Some(source) = source {
+        read_back_surface_snapshot(source.0.as_ref(), &mut commands);
+    }
+}
+
+fn drain_surface(
+    bridge: Res<SurfaceBridge>,
+    gate: Option<Res<UiObservationGate>>,
+    mut commands: Commands,
+) {
+    // A destroyed surface stops UI observation: queued frames are not replayed
+    // while the host reports no surface; restore reads a full snapshot instead.
+    if gate.is_some_and(|gate| !gate.permits_observation()) {
+        return;
+    }
     if let Some(snapshot) = bridge
         .0
         .drain_events()

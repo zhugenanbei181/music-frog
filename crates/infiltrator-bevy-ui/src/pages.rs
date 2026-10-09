@@ -63,6 +63,7 @@ pub mod logs_export_focus;
 pub mod logs_export_render;
 pub mod logs_export_scene;
 pub mod logs_follow;
+pub mod logs_ring;
 pub mod logs_rows;
 pub mod logs_search;
 pub mod logs_virtual;

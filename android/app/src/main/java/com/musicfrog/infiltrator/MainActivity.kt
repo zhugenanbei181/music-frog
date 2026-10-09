@@ -22,6 +22,7 @@ import com.musicfrog.infiltrator.ui.theme.InfiltratorTheme
 
 class MainActivity : AppCompatActivity() {
     private var bridgeHost: BridgeHost? = null
+    private var nativeHost: NativeHostAdapter? = null
     private var pendingImportUrl = mutableStateOf<String?>(null)
 
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
@@ -29,7 +30,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         initRustBridge()
-        
+        // BANDROID-005/006/008: push the real Activity lifecycle, insets and
+        // clipboard into the shared typed seams.
+        nativeHost = NativeHostAdapter(this).also { it.attach() }
+
         // Handle initial intent
         handleIntent(intent)
         
@@ -105,7 +109,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        nativeHost?.onWindowFocusChanged(hasFocus)
+    }
+
     override fun onDestroy() {
+        nativeHost?.detach()
+        nativeHost = null
         super.onDestroy()
         VpnStateManager.unregister(this)
     }

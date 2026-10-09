@@ -2,9 +2,13 @@
 use super::*;
 use bevy::ecs::message::Messages;
 use bevy::input::{ButtonInput, keyboard::KeyCode};
-use infiltrator_bevy_ui::pages::connections_clipboard::CopyConnectionHostButton;
+use infiltrator_bevy_ui::pages::connections_clipboard::{
+    ClipboardHost, ClipboardPasteIntent, ClipboardPasteOutcome, ClipboardPasteReport,
+    ClipboardPort, ClipboardRead, ClipboardWrite, CopyConnectionHostButton,
+};
 use infiltrator_bevy_ui::toast::ShellToast;
 use infiltrator_bevy_widgets::drawer::DrawerCloseButton;
+use infiltrator_bevy_widgets::text_input::TextFieldFocused;
 use infiltrator_bevy_widgets::toast::ToastKind;
 use infiltrator_contract::capability::Availability;
 use infiltrator_contract::command::CommandIntent;
@@ -234,4 +238,236 @@ fn connection_drawer_refresh_dismisses_removed_identity_and_rejects_replay() {
         .trigger(Activate { entity: disconnect });
     app.update();
     assert!(sink.submitted().is_empty());
+}
+
+// ---- BANDROID-008: typed system-clipboard host seam ------------------------
+
+/// A scripted host clipboard adapter: reads return `read`, writes record the
+/// text and return `write`, so a false success cannot pass unnoticed.
+struct FakeClipboard {
+    read: ClipboardRead,
+    write: ClipboardWrite,
+    writes: Mutex<Vec<String>>,
+}
+
+impl FakeClipboard {
+    fn written() -> Self {
+        Self {
+            read: ClipboardRead::Empty,
+            write: ClipboardWrite::Written,
+            writes: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn reading(read: ClipboardRead) -> Self {
+        Self {
+            read,
+            write: ClipboardWrite::Written,
+            writes: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn failing(write: ClipboardWrite) -> Self {
+        Self {
+            read: ClipboardRead::Empty,
+            write,
+            writes: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn writes(&self) -> Vec<String> {
+        self.writes.lock().expect("clipboard writes").clone()
+    }
+}
+
+impl ClipboardPort for FakeClipboard {
+    fn read_text(&self) -> ClipboardRead {
+        self.read.clone()
+    }
+
+    fn write_text(&self, text: &str) -> ClipboardWrite {
+        self.writes
+            .lock()
+            .expect("clipboard writes")
+            .push(text.to_owned());
+        self.write.clone()
+    }
+}
+
+fn install_clipboard(app: &mut App, fake: &Arc<FakeClipboard>) {
+    let port: Arc<dyn ClipboardPort> = fake.clone();
+    app.insert_resource(ClipboardHost::with_port(port));
+}
+
+fn copy_toasts(app: &mut App) -> Vec<ShellToast> {
+    app.world_mut()
+        .resource_mut::<Messages<ShellToast>>()
+        .drain()
+        .collect()
+}
+
+fn trigger_copy(app: &mut App) {
+    let copy = app
+        .world_mut()
+        .query_filtered::<Entity, With<CopyConnectionHostButton>>()
+        .single(app.world())
+        .unwrap();
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: copy });
+    app.world_mut().flush();
+}
+
+#[test]
+fn connection_copy_reports_success_only_after_a_real_host_write() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let fake = Arc::new(FakeClipboard::written());
+    install_clipboard(&mut app, &fake);
+    navigate_to(&mut app, Route::Connections);
+    open(&mut app);
+
+    trigger_copy(&mut app);
+    let toasts = copy_toasts(&mut app);
+    assert_eq!(toasts.len(), 1);
+    assert_eq!(
+        toasts[0].kind,
+        ToastKind::Info,
+        "a confirmed write succeeds"
+    );
+    assert_eq!(
+        fake.writes(),
+        vec!["api.github.com".to_owned()],
+        "the real host adapter performed the write"
+    );
+    assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn connection_copy_surfaces_denied_write_without_success() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let fake = Arc::new(FakeClipboard::failing(ClipboardWrite::Denied));
+    install_clipboard(&mut app, &fake);
+    navigate_to(&mut app, Route::Connections);
+    open(&mut app);
+
+    trigger_copy(&mut app);
+    let toasts = copy_toasts(&mut app);
+    assert_eq!(toasts.len(), 1);
+    assert_eq!(
+        toasts[0].kind,
+        ToastKind::Danger,
+        "a denied write is surfaced, never a success"
+    );
+    assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn connection_copy_surfaces_write_failure_without_success() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let fake = Arc::new(FakeClipboard::failing(ClipboardWrite::Failed(
+        "clipboard busy".to_owned(),
+    )));
+    install_clipboard(&mut app, &fake);
+    navigate_to(&mut app, Route::Connections);
+    open(&mut app);
+
+    trigger_copy(&mut app);
+    let toasts = copy_toasts(&mut app);
+    assert_eq!(toasts.len(), 1);
+    assert_eq!(toasts[0].kind, ToastKind::Danger);
+    assert!(
+        toasts[0].text.contains("clipboard busy"),
+        "the typed failure reason is surfaced: {}",
+        toasts[0].text
+    );
+    assert!(sink.submitted().is_empty());
+}
+
+#[test]
+fn clipboard_read_results_are_typed_with_zero_false_success() {
+    let empty = ClipboardHost::with_port(Arc::new(FakeClipboard::reading(ClipboardRead::Empty)));
+    assert_eq!(empty.read_text(), ClipboardRead::Empty);
+    let denied = ClipboardHost::with_port(Arc::new(FakeClipboard::reading(ClipboardRead::Denied)));
+    assert_eq!(denied.read_text(), ClipboardRead::Denied);
+    let invalid = ClipboardHost::with_port(Arc::new(FakeClipboard::reading(
+        ClipboardRead::Invalid("not a subscription"),
+    )));
+    assert_eq!(
+        invalid.read_text(),
+        ClipboardRead::Invalid("not a subscription")
+    );
+    // No installed port is a typed unsupported, never an empty success.
+    assert_eq!(
+        ClipboardHost::default().read_text(),
+        ClipboardRead::Unsupported("no native clipboard host")
+    );
+}
+
+#[test]
+fn clipboard_paste_inserts_only_real_host_text() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+    let fake = Arc::new(FakeClipboard::reading(ClipboardRead::Value(
+        "https://example.com/sub\u{200B}".to_owned(),
+    )));
+    install_clipboard(&mut app, &fake);
+    let field = app
+        .world_mut()
+        .spawn((TextField(TextFieldState::new("")), TextFieldFocused(true)))
+        .id();
+
+    app.world_mut().trigger(ClipboardPasteIntent);
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<ClipboardPasteReport>().outcome,
+        ClipboardPasteOutcome::Pasted("https://example.com/sub".chars().count()),
+        "the sanitized host text was inserted"
+    );
+    assert_eq!(
+        app.world().get::<TextField>(field).unwrap().0.text(),
+        "https://example.com/sub",
+        "the zero-width character was stripped before insertion"
+    );
+
+    // An empty clipboard is a typed empty outcome, never a fake paste.
+    let empty = Arc::new(FakeClipboard::reading(ClipboardRead::Empty));
+    install_clipboard(&mut app, &empty);
+    app.world_mut().trigger(ClipboardPasteIntent);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ClipboardPasteReport>().outcome,
+        ClipboardPasteOutcome::Empty
+    );
+}
+
+#[test]
+fn clipboard_paste_denied_and_invalid_are_surfaced() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink.clone());
+
+    let denied = Arc::new(FakeClipboard::reading(ClipboardRead::Denied));
+    install_clipboard(&mut app, &denied);
+    app.world_mut().trigger(ClipboardPasteIntent);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ClipboardPasteReport>().outcome,
+        ClipboardPasteOutcome::Denied,
+        "a denied read is surfaced, never a silent paste"
+    );
+
+    let invalid = Arc::new(FakeClipboard::reading(ClipboardRead::Invalid(
+        "not a subscription",
+    )));
+    install_clipboard(&mut app, &invalid);
+    app.world_mut().trigger(ClipboardPasteIntent);
+    app.update();
+    assert_eq!(
+        app.world().resource::<ClipboardPasteReport>().outcome,
+        ClipboardPasteOutcome::Invalid("not a subscription"),
+        "invalid host content is surfaced with its reason"
+    );
 }

@@ -19,6 +19,7 @@ use crate::command_palette_shell::CommandPalettePlugin;
 use crate::gesture::{GestureHostReport, ShellGesturePlugin};
 use crate::host_capabilities::HostCapabilitiesPlugin;
 use crate::ime::ShellImePlugin;
+use crate::lifecycle::HostLifecyclePlugin;
 use crate::localization::LocalizationPlugin;
 use crate::mini_hud_shell::MiniHudPlugin;
 use crate::pages::profiles_editor::ProfilesEditorPlugin;
@@ -32,6 +33,7 @@ use crate::shell_readout::{sync_core_status, sync_quota, sync_text};
 use crate::shell_scene::shell_scene_with_toggles;
 use crate::shell_waveform;
 use crate::shortcuts::ShortcutsPlugin;
+use crate::surface::host_insets::{HostInsetsPlugin, KeyboardAvoidance};
 use crate::toast::ShellToastPlugin;
 use crate::tray_status::TrayStatusPlugin;
 use crate::{shell_mode_issue, shell_modes};
@@ -494,6 +496,12 @@ impl Plugin for ShellPlugin {
         // reduce-motion / energy preference input) are part of the shell, so a
         // headless composition and the native host share the same defaults.
         app.add_plugins(HostCapabilitiesPlugin::default());
+        // BANDROID-005: the typed Activity/surface lifecycle consumer (pause,
+        // occlusion, surface loss/restore, recreation) and its observation gate.
+        app.add_plugins(HostLifecyclePlugin);
+        // BANDROID-006: the typed native window-insets seam (permanent safe
+        // area vs transient keyboard avoidance).
+        app.add_plugins(HostInsetsPlugin);
         app.insert_resource(ThemeMode(self.preference));
         app.init_resource::<SystemAppearance>();
 
@@ -761,6 +769,7 @@ fn sync_responsive_shell(
 pub fn sync_safe_area_insets(
     mut safe_insets: Option<ResMut<SafeAreaInsets>>,
     mut host_report: Option<ResMut<GestureHostReport>>,
+    keyboard: Option<Res<KeyboardAvoidance>>,
     layout: Res<ShellLayoutState>,
     mut shell_roots: Query<&mut Node, SyncSafeAreaInsetsShellRootsFilter>,
     mut bottom_navs: Query<&mut Node, SyncSafeAreaInsetsBottomNavsFilter>,
@@ -820,14 +829,20 @@ pub fn sync_safe_area_insets(
         );
     }
 
-    // 1. Bottom Navigation Bar safe area avoidance (bottom gesture bar)
-    let bottom_nav_height = Val::Px(BOTTOM_NAV_HEIGHT_PX + insets_bottom);
-    let bottom_nav_padding = if insets_bottom > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
+    // BANDROID-006: the IME inset is transient keyboard avoidance. It widens
+    // the bottom avoidance to `max(permanent_bottom, ime)` and is never added
+    // on top of the permanent navigation-bar margin (no duplicate margins).
+    let keyboard_bottom = keyboard.as_ref().map_or(0.0, |k| k.bottom_px);
+    let avoidance_bottom = insets_bottom.max(keyboard_bottom);
+
+    // 1. Bottom Navigation Bar safe area avoidance (bottom gesture bar / IME)
+    let bottom_nav_height = Val::Px(BOTTOM_NAV_HEIGHT_PX + avoidance_bottom);
+    let bottom_nav_padding = if avoidance_bottom > 0.0 || insets_left > 0.0 || insets_right > 0.0 {
         UiRect::new(
             Val::Px(insets_left),
             Val::Px(insets_right),
             Val::Px(0.0),
-            Val::Px(space::S6 + insets_bottom),
+            Val::Px(space::S6 + avoidance_bottom),
         )
     } else {
         UiRect::bottom(Val::Px(space::S6))
@@ -873,8 +888,8 @@ pub fn sync_safe_area_insets(
 
     // 3. Shell Root horizontal & fallback bottom/top safe area avoidance
     let is_compact = layout.mode == LayoutMode::BottomNav;
-    let root_bottom_pad = if !is_compact && insets_bottom > 0.0 {
-        insets_bottom
+    let root_bottom_pad = if !is_compact && avoidance_bottom > 0.0 {
+        avoidance_bottom
     } else {
         0.0
     };

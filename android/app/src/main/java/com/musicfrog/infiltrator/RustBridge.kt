@@ -25,6 +25,25 @@ object RustBridge {
     private external fun nativePing(): String
     private external fun nativeInit(dataDir: String, cacheDir: String): Int
     private external fun nativeRegisterBridge(host: BridgeHost): Int
+    private external fun nativeRegisterNativeHost(host: NativeHostBridge): Int
+    private external fun nativeClearNativeHost(): Int
+    private external fun nativeOnLifecycle(
+        generation: Long,
+        phase: Int,
+        focused: Boolean,
+        visible: Boolean,
+    ): Int
+    private external fun nativeOnInsets(
+        density: Float,
+        systemTop: Int,
+        systemRight: Int,
+        systemBottom: Int,
+        systemLeft: Int,
+        imeTop: Int,
+        imeRight: Int,
+        imeBottom: Int,
+        imeLeft: Int,
+    ): Int
 
     fun ensureLoaded(): Boolean {
         if (loaded) {
@@ -50,6 +69,62 @@ object RustBridge {
     fun registerBridge(host: BridgeHost): Int {
         return if (ensureLoaded()) {
             nativeRegisterBridge(host)
+        } else {
+            255
+        }
+    }
+
+    /** BANDROID-005/006/008: register the Activity's native host adapter. */
+    fun registerNativeHost(host: NativeHostBridge): Int {
+        return if (ensureLoaded()) {
+            nativeRegisterNativeHost(host)
+        } else {
+            255
+        }
+    }
+
+    /** Release the retired Activity's native host global ref. */
+    fun clearNativeHost(): Int {
+        return if (ensureLoaded()) {
+            nativeClearNativeHost()
+        } else {
+            255
+        }
+    }
+
+    /** Push one Activity lifecycle/focus observation. */
+    fun onLifecycle(generation: Long, phase: Int, focused: Boolean, visible: Boolean): Int {
+        return if (ensureLoaded()) {
+            nativeOnLifecycle(generation, phase, focused, visible)
+        } else {
+            255
+        }
+    }
+
+    /** Push one `WindowInsetsCompat` observation in physical pixels. */
+    fun onInsets(
+        density: Float,
+        systemTop: Int,
+        systemRight: Int,
+        systemBottom: Int,
+        systemLeft: Int,
+        imeTop: Int,
+        imeRight: Int,
+        imeBottom: Int,
+        imeLeft: Int,
+    ): Int {
+        return if (ensureLoaded()) {
+            nativeOnInsets(
+                density,
+                systemTop,
+                systemRight,
+                systemBottom,
+                systemLeft,
+                imeTop,
+                imeRight,
+                imeBottom,
+                imeLeft,
+            )
         } else {
             255
         }

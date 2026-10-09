@@ -14,12 +14,15 @@ use bevy::math::Vec2;
 use bevy::scene::{CommandsSceneExt, ScenePlugin};
 use bevy::window::{Ime, PrimaryWindow, Window};
 use infiltrator_bevy_ui::app::ShellPlugin;
-use infiltrator_bevy_ui::ime::{ImeHostReport, ShellImeComposition, ShellImePlugin};
+use infiltrator_bevy_ui::ime::{
+    ImeHostReport, NativeEditAction, NativeImeSession, NativeInputOutcome, NativeTextInput,
+    ShellImeComposition, ShellImePlugin, apply_native_text_input,
+};
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text_input::ime::ImeCursorArea;
-use infiltrator_bevy_widgets::text_input::state::TextFieldState;
+use infiltrator_bevy_widgets::text_input::state::{TextFieldInput, TextFieldState};
 use infiltrator_bevy_widgets::text_input::{TextField, TextFieldFocused, text_field_scene};
-use infiltrator_contract::ime::{ImeCursorSource, ImePhase, ImeViewport};
+use infiltrator_contract::ime::{ImeCompositionTracker, ImeCursorSource, ImePhase, ImeViewport};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
 
 fn ime_app() -> App {
@@ -348,5 +351,227 @@ fn a_mounted_shell_keeps_its_ime_disabled_until_a_field_is_focused() {
     assert_eq!(
         report.support.source(),
         Some(ImeCursorSource::SurfaceComputed)
+    );
+}
+
+// ---- BANDROID-007: native text-input host seam -----------------------------
+
+fn native_session() -> (NativeImeSession, ImeCompositionTracker, TextFieldState) {
+    (
+        NativeImeSession::default(),
+        ImeCompositionTracker::new(),
+        TextFieldState::new("代理"),
+    )
+}
+
+#[test]
+fn a_native_preedit_then_commit_inserts_once_through_the_existing_owner() {
+    let (mut session, mut tracker, mut field) = native_session();
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Open,
+            &mut field
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Preedit("ni hao".to_owned()),
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(field.preedit(), "ni hao");
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Commit("你好".to_owned()),
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(field.text(), "代理你好");
+    assert_eq!(field.preedit(), "");
+    assert!(!tracker.is_composing());
+}
+
+#[test]
+fn a_native_cancel_rolls_the_field_back_to_the_snapshot() {
+    let (mut session, mut tracker, mut field) = native_session();
+    apply_native_text_input(
+        &mut session,
+        &mut tracker,
+        NativeTextInput::Open,
+        &mut field,
+    );
+    apply_native_text_input(
+        &mut session,
+        &mut tracker,
+        NativeTextInput::Preedit("ni".to_owned()),
+        &mut field,
+    );
+    assert_eq!(field.preedit(), "ni");
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Cancel,
+            &mut field
+        ),
+        NativeInputOutcome::RolledBack
+    );
+    assert_eq!(field.text(), "代理");
+    assert_eq!(field.preedit(), "");
+    assert!(!tracker.is_composing());
+}
+
+#[test]
+fn a_duplicate_native_commit_is_dropped_without_double_inserting() {
+    let (mut session, mut tracker, mut field) = native_session();
+    apply_native_text_input(
+        &mut session,
+        &mut tracker,
+        NativeTextInput::Open,
+        &mut field,
+    );
+    apply_native_text_input(
+        &mut session,
+        &mut tracker,
+        NativeTextInput::Preedit("ni hao".to_owned()),
+        &mut field,
+    );
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Commit("你好".to_owned()),
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    // A candidate selection re-delivering the same commit must not insert twice.
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::CandidateCommit("你好".to_owned()),
+            &mut field,
+        ),
+        NativeInputOutcome::DuplicateCommitDropped
+    );
+    assert_eq!(field.text(), "代理你好");
+
+    // Plain per-character commits have no composition, so a repeated char is
+    // real input and must not be collapsed.
+    let mut plain_session = NativeImeSession::default();
+    let mut plain_tracker = ImeCompositionTracker::new();
+    let mut plain = TextFieldState::new("");
+    apply_native_text_input(
+        &mut plain_session,
+        &mut plain_tracker,
+        NativeTextInput::Commit("a".to_owned()),
+        &mut plain,
+    );
+    apply_native_text_input(
+        &mut plain_session,
+        &mut plain_tracker,
+        NativeTextInput::Commit("a".to_owned()),
+        &mut plain,
+    );
+    assert_eq!(plain.text(), "aa");
+}
+
+#[test]
+fn a_native_selection_delete_and_edit_action_reach_the_owner() {
+    let (mut session, mut tracker, mut field) = native_session();
+    field.apply(TextFieldInput::SetText("abcdef".to_owned()));
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Selection { start: 1, end: 4 },
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(field.selection(), Some((1, 4)));
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Delete {
+                before: 1,
+                after: 0,
+            },
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(field.text(), "aef", "the selected run was removed");
+    assert_eq!(
+        apply_native_text_input(
+            &mut session,
+            &mut tracker,
+            NativeTextInput::Edit(NativeEditAction::End),
+            &mut field,
+        ),
+        NativeInputOutcome::Applied
+    );
+    assert_eq!(field.cursor(), 3);
+}
+
+#[test]
+fn os_back_closes_the_ime_before_navigation() {
+    let mut app = ime_app();
+    let window = primary_window(&mut app);
+    let field = spawn_field(
+        &mut app,
+        true,
+        ImeCursorArea::from_rect(40.0, 60.0, 2.0, 18.0),
+    );
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextField(TextFieldState::new("代理")));
+    app.update();
+
+    app.world_mut().write_message(NativeTextInput::Open);
+    app.world_mut()
+        .write_message(NativeTextInput::Preedit("ni".to_owned()));
+    app.update();
+    assert!(
+        window_of(&app, window).ime_enabled,
+        "the OS IME is open while composing"
+    );
+    assert_eq!(field_preedit(&app, field), "ni");
+
+    app.world_mut().write_message(NativeTextInput::Back);
+    app.update();
+    assert_eq!(
+        app.world().resource::<NativeImeSession>().last_outcome(),
+        NativeInputOutcome::BackConsumed,
+        "a composing back is consumed by the IME, not navigation"
+    );
+    assert_eq!(
+        field_text(&app, field),
+        "代理",
+        "back rolled the uncommitted composition back"
+    );
+    assert!(
+        !window_of(&app, window).ime_enabled,
+        "back closed the OS IME before any navigation"
+    );
+    assert!(!app.world().resource::<ImeHostReport>().is_enabled());
+
+    // With no composition, back is left for the host to navigate.
+    app.world_mut().write_message(NativeTextInput::Back);
+    app.update();
+    assert_eq!(
+        app.world().resource::<NativeImeSession>().last_outcome(),
+        NativeInputOutcome::BackIgnored
     );
 }

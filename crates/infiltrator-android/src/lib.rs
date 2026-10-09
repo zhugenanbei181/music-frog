@@ -8,6 +8,9 @@ mod host_session;
 mod host_support;
 #[cfg(target_os = "android")]
 mod jni_bridge;
+#[cfg(target_os = "android")]
+mod jni_clipboard;
+pub mod native_host;
 pub mod product;
 pub mod runtime;
 pub mod service_init;

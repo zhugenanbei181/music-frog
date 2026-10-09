@@ -21,14 +21,25 @@ import android.util.Log
  */
 class BevyHostActivity : NativeActivity() {
     private var vpnBinding: VpnServiceBinding? = null
+    private var nativeHost: NativeHostAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The `:vpn` process owns the service; this UI process only binds to it.
         vpnBinding = VpnServiceBinding(this, BindingLog).also { it.bind() }
+        // BANDROID-005/006/008: push the real Activity lifecycle, insets and
+        // clipboard into the shared typed seams.
+        nativeHost = NativeHostAdapter(this).also { it.attach() }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        nativeHost?.onWindowFocusChanged(hasFocus)
     }
 
     override fun onDestroy() {
+        nativeHost?.detach()
+        nativeHost = null
         vpnBinding?.unbind()
         vpnBinding = null
         super.onDestroy()

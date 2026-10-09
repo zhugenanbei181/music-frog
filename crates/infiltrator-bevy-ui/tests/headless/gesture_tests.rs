@@ -571,3 +571,65 @@ fn test_connection_row_swipe_to_action_spring_slides_content_and_reveals_drawer(
     let (_, drawer_closed) = drawer_q.iter(app.world()).next().expect("drawer exists");
     assert_eq!(drawer_closed.display, Display::None);
 }
+
+/// BANDROID-006: native `WindowInsets` flow through the existing safe-area
+/// consumer and the transient keyboard avoidance replaces (never adds to) the
+/// permanent navigation-bar margin.
+#[test]
+fn native_window_insets_move_the_bottom_nav_without_duplicate_margins() {
+    use bevy::ui::prelude::px;
+    use infiltrator_bevy_ui::app::{BOTTOM_NAV_HEIGHT_PX, BottomNavBar, ShellLayoutState};
+    use infiltrator_bevy_ui::surface::host_insets::{EdgeInsets, WindowInsets, WindowInsetsInput};
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(ThemeSkin::Dark)));
+    app.world_mut()
+        .resource_mut::<ShellLayoutState>()
+        .set_width(375.0);
+    app.update();
+
+    // Permanent nav bar (48px) plus an open keyboard (300px).
+    let insets = WindowInsets::physical(
+        1.0,
+        EdgeInsets::new(24.0, 0.0, 0.0, 0.0),
+        EdgeInsets::new(0.0, 48.0, 0.0, 0.0),
+        EdgeInsets::ZERO,
+        EdgeInsets::new(0.0, 300.0, 0.0, 0.0),
+    );
+    app.world_mut().trigger(WindowInsetsInput(insets));
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let mut navs = world.query::<(&Node, &BottomNavBar)>();
+        let (node, _) = navs.single(world).expect("one bottom nav bar");
+        assert_eq!(
+            node.height,
+            px(BOTTOM_NAV_HEIGHT_PX + 300.0),
+            "keyboard avoidance replaces the permanent bottom margin"
+        );
+        assert_ne!(
+            node.height,
+            px(BOTTOM_NAV_HEIGHT_PX + 48.0 + 300.0),
+            "the permanent and transient insets must not be summed"
+        );
+    }
+
+    // Keyboard hidden again: the permanent nav-bar margin remains.
+    let hidden = WindowInsets::physical(
+        1.0,
+        EdgeInsets::new(24.0, 0.0, 0.0, 0.0),
+        EdgeInsets::new(0.0, 48.0, 0.0, 0.0),
+        EdgeInsets::ZERO,
+        EdgeInsets::ZERO,
+    );
+    app.world_mut().trigger(WindowInsetsInput(hidden));
+    app.update();
+
+    let world = app.world_mut();
+    let mut navs = world.query::<(&Node, &BottomNavBar)>();
+    let (node, _) = navs.single(world).expect("one bottom nav bar");
+    assert_eq!(node.height, px(BOTTOM_NAV_HEIGHT_PX + 48.0));
+}
