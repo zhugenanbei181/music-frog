@@ -10,11 +10,19 @@ crate-type = ["cdylib", "rlib"]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
+[features]
+default = []
+# BANDROID-003/004: the Gradle Bevy host links the Bevy UI renderer and this
+# crate's Android product composition into one native driver. It is off by
+# default so the `:vpn` cdylib and the Compose host never pull the Bevy stack.
+bevy-host = ["dep:infiltrator-bevy-ui"]
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 infiltrator-application = { path = "../infiltrator-application" }
+infiltrator-bevy-ui = { path = "../infiltrator-bevy-ui", optional = true }
 infiltrator-composition = { path = "../infiltrator-composition" }
 infiltrator-contract = { path = "../infiltrator-contract" }
 infiltrator-domain = { path = "../infiltrator-domain" }

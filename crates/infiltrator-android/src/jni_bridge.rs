@@ -1,4 +1,4 @@
-use crate::tls::ensure_rustls_provider;
+use crate::service_init::init_android_process;
 use crate::{FfiErrorCode, FfiStatus};
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{Global, JObject, JString, JValue, Reference as _};
@@ -8,10 +8,9 @@ use jni::sys::{jint, jstring};
 use jni::{Env, EnvUnowned, JavaVM, errors};
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::android_bridge::{AndroidBridge, set_android_bridge};
-use mihomo_platform::paths::set_home_dir_override;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::result;
+use std::sync::Arc;
 
 const SIG_NOARGS_BOOL: &str = "()Z";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
@@ -116,8 +115,7 @@ impl JniBridge {
                     Some(value) => Some(env.new_string(value)?),
                     None => None,
                 };
-                let mut values =
-                    vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
+                let mut values = vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
                 if let Some(arg3_value) = arg3_value.as_ref() {
                     values.push(JValue::Object(arg3_value.as_ref()));
                 }
@@ -295,14 +293,13 @@ fn init_dirs(env: &mut Env, data_dir: &JString, cache_dir: &JString) -> FfiStatu
         return FfiStatus::err(FfiErrorCode::InvalidInput, "dir is empty");
     }
 
-    ensure_rustls_provider();
-
-    let override_ok = set_home_dir_override(PathBuf::from(data_dir));
-    if !override_ok {
-        log::warn!("data dir override already set");
+    // The same typed seam the `:vpn` service process calls directly: install
+    // the rustls provider and the process-local home override without any
+    // Activity having run.
+    match init_android_process(data_dir, cache_dir) {
+        Ok(_) => FfiStatus::ok(),
+        Err(error) => FfiStatus::err(FfiErrorCode::InvalidInput, error.to_string()),
     }
-
-    FfiStatus::ok()
 }
 
 fn register_bridge(env: &mut Env, host: JObject) -> FfiStatus {

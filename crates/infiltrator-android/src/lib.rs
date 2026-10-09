@@ -1,4 +1,6 @@
 pub mod api;
+#[cfg(feature = "bevy-host")]
+pub mod bevy_host;
 pub mod composition;
 pub mod domain_snapshot;
 pub mod ffi;
@@ -6,7 +8,9 @@ mod host_session;
 mod host_support;
 #[cfg(target_os = "android")]
 mod jni_bridge;
+pub mod product;
 pub mod runtime;
+pub mod service_init;
 mod tls;
 mod uniffi_api;
 pub mod vpn_route;

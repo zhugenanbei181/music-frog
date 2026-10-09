@@ -47,6 +47,20 @@
             </intent-filter>
         </activity>
 
+        <!-- BANDROID-003: Bevy product host. Not the default launcher until the
+             native driver is packaged and BANDROID-003 selects the shipping
+             surface; see docs/android/BEVY_ANDROID_PRODUCT.md §4. -->
+        <activity
+            android:name=".BevyHostActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Infiltrator"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|mnc|colorMode|density|fontScale|fontWeightAdjustment|keyboard|layoutDirection|locale|navigation|smallestScreenSize|touchscreen|uiMode">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="infiltrator_bevy_android" />
+        </activity>
+
         <service
             android:name=".MihomoVpnService"
             android:process=":vpn"

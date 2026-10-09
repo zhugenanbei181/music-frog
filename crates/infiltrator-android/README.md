@@ -5,6 +5,7 @@ Android 平台端 UniFFI 绑定层与原生生命周期桥接，负责向 Androi
 
 ## 2. Boundary (依赖边界与禁止耦合)
 - 依赖上游: `infiltrator-core`, `mihomo-platform`, `infiltrator-shared`
+- 可选 `bevy-host` feature: 仅当 Gradle Bevy 宿主需要把共享 application 与 Android surface pump 注入 Bevy UI 时开启，届时额外依赖 `infiltrator-bevy-ui`（`crate::bevy_host`）。默认关闭，`:vpn` cdylib 与 Compose 宿主不引入 Bevy 渲染栈。
 - 禁止反向依赖: 禁止反向依赖桌面端 (`infiltrator-desktop`, `infiltrator-iced`, `src-tauri`)
 - 零转发导入原则: 禁止一切 re-export（`pub use` / `pub(crate) use` 转发层，含 glob），禁止 `use ... as 别名`（`as _` 匿名 trait 导入除外）；一切导入走定义模块的规范路径。由 `scripts/quality/import-guard.py` 在 CI 强制。
 
@@ -27,4 +28,4 @@ Android 原生宿主必须按系统生命周期把事实传入这条 Rust seam�
 
 ## 5. Verification (验证与测试指引)
 - 运行测试（工作区全量统一入口）: `bash scripts/test.sh`
-- 质量门禁: 遵守 `line-guard.py`（单文件 ≤ 800 行）与 `doc-link-guard.py`
+- 质量门禁: 遵守 `line-guard.py`（单文件 ≤ 800 行）与 `doc-governance-guard.py`

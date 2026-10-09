@@ -1,0 +1,28 @@
+# BANDROID-003/004 — Bevy Android native driver (template, isolated).
+#
+# This crate is NOT a member of the repository workspace (it declares its own
+# empty [workspace] so `cargo build --workspace` at the repo root ignores it).
+# It is built by android/bevy-host/build.gradle.kts for aarch64-linux-android.
+#
+# See ../README.md. Nothing here is claimed verified until the Gradle/NDK/device
+# checklist passes.
+
+[package]
+name = "infiltrator-bevy-android-driver"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+# The NativeActivity `android.app.lib_name` declared on BevyHostActivity.
+name = "infiltrator_bevy_android"
+crate-type = ["cdylib"]
+
+[dependencies]
+# `bevy-host` links the Bevy UI renderer plus the Android product composition
+# (`product.rs`) and the launch entry (`bevy_host.rs`).
+infiltrator-android = { path = "../../../crates/infiltrator-android", features = ["bevy-host"] }
+android-activity = { version = "0.6.1", features = ["native-activity"] }
+bevy_android = "=0.20.0"
+
+[workspace]
