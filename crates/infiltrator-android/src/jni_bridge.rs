@@ -1,14 +1,17 @@
 use crate::tls::ensure_rustls_provider;
 use crate::{FfiErrorCode, FfiStatus};
-use jni::objects::{GlobalRef, JObject, JString, JValue};
+use jni::errors::LogErrorAndDefault;
+use jni::objects::{Global, JObject, JString, JValue, Reference as _};
+use jni::signature::RuntimeMethodSignature;
+use jni::strings::JNIString;
 use jni::sys::{jint, jstring};
-use jni::{JNIEnv, JavaVM, errors};
+use jni::{Env, EnvUnowned, JavaVM, errors};
 use mihomo_api::error::{MihomoError, Result};
 use mihomo_platform::android_bridge::{AndroidBridge, set_android_bridge};
 use mihomo_platform::paths::set_home_dir_override;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::{ptr, result};
+use std::result;
 
 const SIG_NOARGS_BOOL: &str = "()Z";
 const SIG_NOARGS_STRING: &str = "()Ljava/lang/String;";
@@ -20,48 +23,41 @@ const SIG_STRING_BOOL: &str = "(Ljava/lang/String;)Z";
 
 struct JniBridge {
     vm: JavaVM,
-    host: GlobalRef,
+    host: Global<JObject<'static>>,
 }
 
 impl JniBridge {
-    fn new(vm: JavaVM, host: GlobalRef) -> Self {
+    fn new(vm: JavaVM, host: Global<JObject<'static>>) -> Self {
         Self { vm, host }
     }
 
-    fn env(&self) -> Result<jni::AttachGuard<'_>> {
-        self.vm
-            .attach_current_thread()
-            .map_err(|err| MihomoError::Service(format!("attach jni thread failed: {err}")))
-    }
-
     fn call_bool(&self, method: &str, sig: &str, args: &[JValue]) -> Result<bool> {
-        let mut env = self.env()?;
-        let value = env
-            .call_method(self.host.as_obj(), method, sig, args)
-            .map_err(|err| map_jni_error(method, err))?;
-        value.z().map_err(|err| map_jni_error(method, err))
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, sig)?;
+        let signature = signature.method_signature();
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<bool> {
+                env.call_method(self.host.as_obj(), &name, &signature, args)?
+                    .z()
+            })
+            .map_err(|err| map_jni_error(method, err))
     }
 
     fn call_string(&self, method: &str, sig: &str, args: &[JValue]) -> Result<Option<String>> {
-        let mut env = self.env()?;
-        let value = env
-            .call_method(self.host.as_obj(), method, sig, args)
-            .map_err(|err| map_jni_error(method, err))?;
-        let obj = value.l().map_err(|err| map_jni_error(method, err))?;
-        if obj.is_null() {
-            return Ok(None);
-        }
-        let jstr = JString::from(obj);
-        let text = env
-            .get_string(&jstr)
-            .map_err(|err| map_jni_error(method, err))?
-            .into();
-        Ok(Some(text))
-    }
-
-    fn to_java_string<'a>(env: &mut JNIEnv<'a>, value: &str) -> Result<JString<'a>> {
-        env.new_string(value)
-            .map_err(|err| MihomoError::Service(format!("create java string failed: {err}")))
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, sig)?;
+        let signature = signature.method_signature();
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<Option<String>> {
+                let value = env.call_method(self.host.as_obj(), &name, &signature, args)?;
+                let obj = value.l()?;
+                if obj.is_null() {
+                    return Ok(None);
+                }
+                let text = JString::cast_local(env, obj)?.try_to_string(env)?;
+                Ok(Some(text))
+            })
+            .map_err(|err| map_jni_error(method, err))
     }
 
     fn call_bool_result(&self, method: &str, sig: &str, args: &[JValue]) -> Result<()> {
@@ -81,23 +77,23 @@ impl JniBridge {
         arg1: &str,
         arg2: &str,
     ) -> Result<Option<String>> {
-        let mut env = self.env()?;
-        let arg1 = Self::to_java_string(&mut env, arg1)?;
-        let arg2 = Self::to_java_string(&mut env, arg2)?;
-        let args = [JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
-        let value = env
-            .call_method(self.host.as_obj(), method, SIG_STR_STR_STRING, &args)
-            .map_err(|err| map_jni_error(method, err))?;
-        let obj = value.l().map_err(|err| map_jni_error(method, err))?;
-        if obj.is_null() {
-            return Ok(None);
-        }
-        let jstr = JString::from(obj);
-        let text = env
-            .get_string(&jstr)
-            .map_err(|err| map_jni_error(method, err))?
-            .into();
-        Ok(Some(text))
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, SIG_STR_STR_STRING)?;
+        let signature = signature.method_signature();
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<Option<String>> {
+                let arg1 = env.new_string(arg1)?;
+                let arg2 = env.new_string(arg2)?;
+                let args = [JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
+                let value = env.call_method(self.host.as_obj(), &name, &signature, &args)?;
+                let obj = value.l()?;
+                if obj.is_null() {
+                    return Ok(None);
+                }
+                let text = JString::cast_local(env, obj)?.try_to_string(env)?;
+                Ok(Some(text))
+            })
+            .map_err(|err| map_jni_error(method, err))
     }
 
     fn call_bool_with_args(
@@ -108,21 +104,26 @@ impl JniBridge {
         arg2: &str,
         arg3: Option<&str>,
     ) -> Result<()> {
-        let mut env = self.env()?;
-        let arg1 = Self::to_java_string(&mut env, arg1)?;
-        let arg2 = Self::to_java_string(&mut env, arg2)?;
-        let arg3_value = match arg3 {
-            Some(value) => Some(Self::to_java_string(&mut env, value)?),
-            None => None,
-        };
-        let mut values = vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
-        if let Some(arg3_value) = arg3_value.as_ref() {
-            values.push(JValue::Object(arg3_value.as_ref()));
-        }
-        let ok = env
-            .call_method(self.host.as_obj(), method, sig, &values)
-            .map_err(|err| map_jni_error(method, err))?
-            .z()
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, sig)?;
+        let signature = signature.method_signature();
+        let ok = self
+            .vm
+            .attach_current_thread(|env| -> errors::Result<bool> {
+                let arg1 = env.new_string(arg1)?;
+                let arg2 = env.new_string(arg2)?;
+                let arg3_value = match arg3 {
+                    Some(value) => Some(env.new_string(value)?),
+                    None => None,
+                };
+                let mut values =
+                    vec![JValue::Object(arg1.as_ref()), JValue::Object(arg2.as_ref())];
+                if let Some(arg3_value) = arg3_value.as_ref() {
+                    values.push(JValue::Object(arg3_value.as_ref()));
+                }
+                env.call_method(self.host.as_obj(), &name, &signature, &values)?
+                    .z()
+            })
             .map_err(|err| map_jni_error(method, err))?;
         if ok {
             Ok(())
@@ -134,12 +135,16 @@ impl JniBridge {
     }
 
     fn call_bool_with_string(&self, method: &str, value: &str) -> Result<bool> {
-        let mut env = self.env()?;
-        let value = Self::to_java_string(&mut env, value)?;
-        let args = [JValue::Object(value.as_ref())];
-        env.call_method(self.host.as_obj(), method, SIG_STRING_BOOL, &args)
-            .map_err(|err| map_jni_error(method, err))?
-            .z()
+        let name = JNIString::new(method);
+        let signature = parse_method_signature(method, SIG_STRING_BOOL)?;
+        let signature = signature.method_signature();
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<bool> {
+                let value = env.new_string(value)?;
+                let args = [JValue::Object(value.as_ref())];
+                env.call_method(self.host.as_obj(), &name, &signature, &args)?
+                    .z()
+            })
             .map_err(|err| map_jni_error(method, err))
     }
 }
@@ -219,14 +224,16 @@ impl AndroidBridge for JniBridge {
     }
 
     async fn tun_set_enabled(&self, enabled: bool) -> Result<bool> {
-        let mut env = self.env()?;
-        let args = [JValue::Bool(enabled.into())];
-        let ok = env
-            .call_method(self.host.as_obj(), "tunSetEnabled", SIG_BOOL_BOOL, &args)
-            .map_err(|err| map_jni_error("tunSetEnabled", err))?
-            .z()
-            .map_err(|err| map_jni_error("tunSetEnabled", err))?;
-        Ok(ok)
+        let name = JNIString::new("tunSetEnabled");
+        let signature = parse_method_signature("tunSetEnabled", SIG_BOOL_BOOL)?;
+        let signature = signature.method_signature();
+        let args = [JValue::Bool(enabled)];
+        self.vm
+            .attach_current_thread(|env| -> errors::Result<bool> {
+                env.call_method(self.host.as_obj(), &name, &signature, &args)?
+                    .z()
+            })
+            .map_err(|err| map_jni_error("tunSetEnabled", err))
     }
 
     async fn tun_is_enabled(&self) -> Result<bool> {
@@ -235,46 +242,51 @@ impl AndroidBridge for JniBridge {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativePing(
-    env: JNIEnv,
-    _object: JObject,
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativePing<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
 ) -> jstring {
-    match env.new_string("ok") {
-        Ok(value) => value.into_raw(),
-        Err(err) => {
-            log::warn!("nativePing failed: {err}");
-            ptr::null_mut()
-        }
-    }
+    env.with_env(|env| -> errors::Result<jstring> { Ok(env.new_string("ok")?.into_raw()) })
+        .resolve::<LogErrorAndDefault>()
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeInit(
-    mut env: JNIEnv,
-    _object: JObject,
-    data_dir: JString,
-    cache_dir: JString,
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeInit<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    data_dir: JString<'local>,
+    cache_dir: JString<'local>,
 ) -> jint {
-    let status = init_dirs(&mut env, data_dir, cache_dir);
+    let mut status = FfiStatus::ok();
+    env.with_env(|env| -> errors::Result<()> {
+        status = init_dirs(env, &data_dir, &cache_dir);
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
     status.code as jint
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterBridge(
-    mut env: JNIEnv,
-    _object: JObject,
-    host: JObject,
+pub extern "system" fn Java_com_musicfrog_infiltrator_RustBridge_nativeRegisterBridge<'local>(
+    mut env: EnvUnowned<'local>,
+    _object: JObject<'local>,
+    host: JObject<'local>,
 ) -> jint {
-    let status = register_bridge(&mut env, host);
+    let mut status = FfiStatus::ok();
+    env.with_env(|env| -> errors::Result<()> {
+        status = register_bridge(env, host);
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
     status.code as jint
 }
 
-fn init_dirs(env: &mut JNIEnv, data_dir: JString, cache_dir: JString) -> FfiStatus {
-    let data_dir = match read_java_string(env, &data_dir, "dataDir") {
+fn init_dirs(env: &mut Env, data_dir: &JString, cache_dir: &JString) -> FfiStatus {
+    let data_dir = match read_java_string(env, data_dir, "dataDir") {
         Ok(value) => value,
         Err(status) => return status,
     };
-    let cache_dir = match read_java_string(env, &cache_dir, "cacheDir") {
+    let cache_dir = match read_java_string(env, cache_dir, "cacheDir") {
         Ok(value) => value,
         Err(status) => return status,
     };
@@ -293,7 +305,7 @@ fn init_dirs(env: &mut JNIEnv, data_dir: JString, cache_dir: JString) -> FfiStat
     FfiStatus::ok()
 }
 
-fn register_bridge(env: &mut JNIEnv, host: JObject) -> FfiStatus {
+fn register_bridge(env: &mut Env, host: JObject) -> FfiStatus {
     if host.is_null() {
         return FfiStatus::err(FfiErrorCode::InvalidInput, "host is null");
     }
@@ -324,7 +336,7 @@ fn register_bridge(env: &mut JNIEnv, host: JObject) -> FfiStatus {
 }
 
 fn read_java_string(
-    env: &mut JNIEnv,
+    env: &mut Env,
     input: &JString,
     label: &str,
 ) -> result::Result<String, FfiStatus> {
@@ -334,14 +346,17 @@ fn read_java_string(
             format!("{label} is null"),
         ));
     }
-    env.get_string(input)
-        .map(|value| value.into())
-        .map_err(|err| {
-            FfiStatus::err(
-                FfiErrorCode::InvalidInput,
-                format!("read {label} failed: {err}"),
-            )
-        })
+    input.try_to_string(env).map_err(|err| {
+        FfiStatus::err(
+            FfiErrorCode::InvalidInput,
+            format!("read {label} failed: {err}"),
+        )
+    })
+}
+
+fn parse_method_signature(method: &str, sig: &str) -> Result<RuntimeMethodSignature> {
+    RuntimeMethodSignature::from_str(sig)
+        .map_err(|err| MihomoError::Service(format!("jni signature for {method} failed: {err}")))
 }
 
 fn map_jni_error(context: &str, err: errors::Error) -> MihomoError {

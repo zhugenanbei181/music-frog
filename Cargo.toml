@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 # 双路构建面：runtime/application + Iced 桌面产品线 + Bevy 统一产品线。
-# - WebUI/Tauri 已退役（台账：docs/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
+# - WebUI/Tauri 已退役（台账：docs/archive/TAURI_WEBUI_RETIREMENT_LEDGER.md）。
 # - Iced 与 Bevy UI 是独立发行的同权产品。
 # - 两端均承担完整语义与等价交互深度，原生布局和渲染可以不同。
 # - 两个前端共享 contract/application，具体 host/outbound adapter 由组合根注入。
@@ -43,7 +43,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 quick-xml = { version = "0.42", features = ["serialize", "async-tokio"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite", "chrono"] }
 axum = "0.8"
-brotli = "8.0"
+brotli = "9.0"
 tower-http = { version = "0.7", features = ["fs"] }
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4.45", features = ["serde"] }
@@ -58,7 +58,7 @@ md5 = "0.7"
 
 serde_json = "1.0"
 log = "0.4"
-toml = "0.8"
+toml = "1"
 yaml-rust2 = "0.11"
 serde_yaml_ng = "0.10"
 serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
@@ -75,7 +75,7 @@ sha2 = "0.11"
 ipnet = "2.12"
 zip = "8.6"
 sysinfo = "0.39"
-jni = "0.21"
+jni = "0.22"
 tokio-stream = "0.1"
 uniffi = "0.32"
 uniffi_bindgen = "0.32"
@@ -97,7 +97,7 @@ tempfile = "3.27"
 mockito = "1.7"
 clap = { version = "4.6", features = ["derive"] }
 regex = "1.11"
-# DUAL-10-01 migration (§5 of docs/SCRIPT_ENGINE_DECISION.md): a pure-Rust
+# DUAL-10-01 migration (§5 of docs/archive/SCRIPT_ENGINE_DECISION.md): a pure-Rust
 # ECMAScript interpreter, pulled in by the `script-engine-boa` feature which is
 # part of the default feature set. The default workspace build/test compiles
 # and exercises it; the bundled directive DSL remains the default *selected*
