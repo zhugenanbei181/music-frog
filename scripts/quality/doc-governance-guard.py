@@ -124,6 +124,11 @@ def check_file(path: pathlib.Path, root: pathlib.Path, valid_tasks: set[str], to
             continue
         if target_rel.startswith("target/"):
             continue
+        # TODO.md is a gitignored local ledger (root leaf doc). The doc map is
+        # allowed to reference it, but it is absent from CI checkouts, so it can
+        # never be reported as a broken link.
+        if target_rel == "TODO.md":
+            continue
         if not target.exists():
             violations.append(f"broken relative link '{link}'")
             continue
