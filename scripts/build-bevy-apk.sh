@@ -188,7 +188,9 @@ bevy_android = "=0.20.0"
 [package.metadata.android]
 package = "app.musicfrog.infiltrator_bevy_ui"
 apk_name = "infiltrator-bevy-ui"
-res = "res"
+# cargo-apk 0.10 renamed the resource-directory key from `res` to `resources`;
+# with the old key the dir is silently ignored and aapt cannot resolve the icon.
+resources = "res"
 # Fat APK: see the header — arm64-v8a is the canonical target, x86_64 keeps
 # the API 36 x86_64 emulator image installable for the smoke run.
 build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
