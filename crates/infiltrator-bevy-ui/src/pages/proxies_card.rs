@@ -587,14 +587,18 @@ pub fn group_card_scene(
     };
     let group_name = group.name.clone();
 
-    let sorted_proxies: Vec<(usize, &ProxyNode)> = group.proxies.iter().enumerate().collect();
-
-    let node_scenes: Vec<Box<dyn Scene>> = sorted_proxies
-        .into_iter()
-        .map(|(n_idx, node)| {
-            Box::new(proxy_node_scene(g_idx, n_idx, &group_name, node, palette)) as Box<dyn Scene>
-        })
-        .collect();
+    let node_scenes: Vec<Box<dyn Scene>> = if group.expanded {
+        let sorted_proxies: Vec<(usize, &ProxyNode)> = group.proxies.iter().enumerate().collect();
+        sorted_proxies
+            .into_iter()
+            .map(|(n_idx, node)| {
+                Box::new(proxy_node_scene(g_idx, n_idx, &group_name, node, palette))
+                    as Box<dyn Scene>
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let nodes_display = if group.expanded {
         Display::Flex
