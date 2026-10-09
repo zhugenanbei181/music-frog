@@ -413,8 +413,11 @@ jobs:
           # invoking ./android/gradlew from the repo root makes it look for a
           # settings.gradle at the root and fail ("does not contain a Gradle build").
           ( cd android && ./gradlew --no-daemon --stacktrace assembleRelease )
-          find android/app/build/outputs/apk -type f -name '*-release.apk' \
-            -exec cp {} dist-android/ \;
+          for apk in $(find android/app/build/outputs/apk -type f -name '*-release.apk'); do
+            base="$(basename "$apk")"
+            normalized="Infiltrator-Android-${base#app-}"
+            cp "$apk" "dist-android/$normalized"
+          done
           test -n "$(find dist-android -type f -name '*.apk' -size +0c -print -quit)"
           find dist-android -type f -name '*.apk' -size +0c -print
 
@@ -455,7 +458,7 @@ jobs:
           mkdir -p dist-android-bevy
           APK="target/android-tools/apk-driver/target/release/apk/infiltrator-bevy-ui.apk"
           test -s "$APK"
-          cp "$APK" dist-android-bevy/
+          cp "$APK" "dist-android-bevy/Infiltrator-Bevy-Android-universal-release.apk"
           find dist-android-bevy -type f -size +0c -print
 
       - name: Upload iced Android Artifacts
@@ -506,7 +509,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-dist
-          find all-artifacts/ -type f -exec cp {} release-dist/ \;
+          # Only consolidate official end-user packages (installers, packages, archives and APKs).
+          # Filter out intermediate build artifacts (bare core binaries, internal plists, license txts, build json metadata).
+          find all-artifacts/ -type f \( \
+            -name 'Infiltrator*.exe' -o \
+            -name 'Infiltrator*.dmg' -o \
+            -name 'Infiltrator*.AppImage' -o \
+            -name '*.deb' -o \
+            -name 'Infiltrator*.tar.gz' -o \
+            -name 'Infiltrator*.zip' -o \
+            -name 'Infiltrator*.apk' \
+          \) -exec cp {} release-dist/ \;
           cd release-dist
 
           # Generate SHA256SUMS.txt

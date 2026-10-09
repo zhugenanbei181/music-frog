@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-bevy-widgets"
-version = "0.40.2"
+version = "0.40.3"
 edition = "2024"
 publish = false
 description = "Business-agnostic Bevy UI widget layer for MusicFrog: bsn! scene functions over the official unstyled bevy_ui_widgets."
