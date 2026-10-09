@@ -8,6 +8,7 @@
 //! with `Display::None`, so no slow connection glows.
 
 use crate::cadence::CadenceActivity;
+use crate::host_capabilities::HostPreferences;
 use crate::pages::connections::LastConnectionsProjection;
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
@@ -70,6 +71,7 @@ pub(crate) fn animate_connection_pulses(
     time: Res<Time<Virtual>>,
     palette: Res<UiPalette>,
     last: Option<Res<LastConnectionsProjection>>,
+    preferences: Option<Res<HostPreferences>>,
     mut state: Option<ResMut<ConnectionsPulseState>>,
     mut activity: Option<ResMut<CadenceActivity>>,
     mut pulses: Query<(&mut BackgroundColor, &mut Node, &ConnHighThroughputPulse)>,
@@ -85,12 +87,17 @@ pub(crate) fn animate_connection_pulses(
     let Some(state) = state.as_deref_mut() else {
         return;
     };
-    if active {
+    let animations_suppressed = preferences
+        .as_deref()
+        .is_some_and(|prefs| prefs.animations_suppressed());
+    // BANDROID-014: reduce-motion / energy saver drops the breathing animation
+    // and its cadence engagement, leaving a static high-throughput glow.
+    if active && !animations_suppressed {
         state.phase =
             (state.phase + time.delta_secs() * connection_rate::PULSE_BREATH_HZ).rem_euclid(1.0);
         // A running visible animation keeps the shell on the active cadence.
         if let Some(activity) = activity.as_deref_mut() {
-            activity.wake();
+            activity.wake_animation();
         }
     } else {
         state.phase = 0.0;

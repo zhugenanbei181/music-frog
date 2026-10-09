@@ -19,12 +19,13 @@
 //! The Iced shell consumes the same policy for its animation frame tick, so
 //! both surfaces detune to the same rates.
 
+use crate::host_capabilities::HostPreferences;
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
-use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::ecs::system::{Query, Res, ResMut, SystemParam};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseWheel};
 use bevy::input::touch::TouchInput;
@@ -80,10 +81,13 @@ pub const CADENCE_IDLE_FRAMES: u32 = 30;
 /// Tracks the recent interaction and running animations that must keep the
 /// render loop at the `Active` cadence. The engagement is a short frame
 /// debounce: it decays every frame, and any input event or animation frame
-/// re-arms it.
+/// re-arms it. Input and animation engagement are tracked separately so the
+/// host's reduce-motion / energy preference can drop animation-driven heat
+/// without making the shell unresponsive to the user.
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CadenceActivity {
-    engaged_frames: u32,
+    input_frames: u32,
+    animation_frames: u32,
 }
 
 impl Default for CadenceActivity {
@@ -91,27 +95,42 @@ impl Default for CadenceActivity {
         // A cold start paints at full rate; idle decay begins once the shell
         // has settled.
         Self {
-            engaged_frames: CADENCE_IDLE_FRAMES,
+            input_frames: CADENCE_IDLE_FRAMES,
+            animation_frames: 0,
         }
     }
 }
 
 impl CadenceActivity {
-    /// Mark the shell engaged for the next [`CADENCE_IDLE_FRAMES`] frames.
-    /// Input tracking calls this per event; an animation system calls it on
-    /// every frame it advances a visible animation.
+    /// Mark the shell engaged by user input for the next
+    /// [`CADENCE_IDLE_FRAMES`] frames. Input tracking calls this per event.
     pub fn wake(&mut self) {
-        self.engaged_frames = CADENCE_IDLE_FRAMES;
+        self.input_frames = CADENCE_IDLE_FRAMES;
     }
 
-    /// Whether input or an animation was seen recently enough to stay hot.
+    /// Mark the shell engaged by a running visible animation. An animation
+    /// system calls this on every frame it advances a visible animation.
+    pub fn wake_animation(&mut self) {
+        self.animation_frames = CADENCE_IDLE_FRAMES;
+    }
+
+    /// Whether input or an animation was seen recently enough to stay hot,
+    /// before the host preference is applied.
     pub const fn is_engaged(&self) -> bool {
-        self.engaged_frames > 0
+        self.input_frames > 0 || self.animation_frames > 0
+    }
+
+    /// Whether the shell should stay hot given the host preference. Input
+    /// always keeps it hot; animation-driven engagement is dropped when the
+    /// host asks to reduce motion or conserve power.
+    pub const fn is_engaged_with(&self, preferences: HostPreferences) -> bool {
+        self.input_frames > 0 || (self.animation_frames > 0 && !preferences.animations_suppressed())
     }
 
     /// Advance one frame, decaying the engagement toward idle.
     pub fn decay(&mut self) {
-        self.engaged_frames = self.engaged_frames.saturating_sub(1);
+        self.input_frames = self.input_frames.saturating_sub(1);
+        self.animation_frames = self.animation_frames.saturating_sub(1);
     }
 }
 
@@ -158,6 +177,19 @@ pub fn winit_settings_for(cadence: RenderCadence) -> WinitSettings {
     }
 }
 
+/// Cohesive cadence resources for [`sync_window_cadence`]: the live window
+/// facts plus the host preference that decides whether animation-driven
+/// engagement counts. Bundled so the system keeps a small typed parameter list
+/// (BEVY-ECS-009).
+#[derive(SystemParam)]
+pub struct CadenceSurface<'w> {
+    activity: Res<'w, CadenceActivity>,
+    preferences: Res<'w, HostPreferences>,
+    applied: ResMut<'w, AppliedCadence>,
+    state: ResMut<'w, WindowCadenceState>,
+    settings: ResMut<'w, WinitSettings>,
+}
+
 /// Keep the shared cadence and the winit update modes aligned with the live
 /// window facts and the current activity. Only a real change rewrites the
 /// resource, so the resource never fights another writer.
@@ -165,12 +197,9 @@ pub fn sync_window_cadence(
     mut focused_events: MessageReader<WindowFocused>,
     mut occluded_events: MessageReader<WindowOccluded>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    activity: Res<CadenceActivity>,
-    mut applied: ResMut<AppliedCadence>,
-    mut state: ResMut<WindowCadenceState>,
-    mut settings: ResMut<WinitSettings>,
+    mut surface: CadenceSurface,
 ) {
-    let mut next = *state;
+    let mut next = *surface.state;
     for event in focused_events.read() {
         next.focused = event.focused;
     }
@@ -180,13 +209,14 @@ pub fn sync_window_cadence(
     if let Ok(window) = windows.single() {
         next.visible = next.visible && window.visible;
     }
-    let cadence = next.cadence_with(activity.is_engaged());
-    if next == *state && cadence == applied.0 {
+    let engaged = surface.activity.is_engaged_with(*surface.preferences);
+    let cadence = next.cadence_with(engaged);
+    if next == *surface.state && cadence == surface.applied.0 {
         return;
     }
-    *state = next;
-    applied.0 = cadence;
-    *settings = winit_settings_for(cadence);
+    *surface.state = next;
+    surface.applied.0 = cadence;
+    *surface.settings = winit_settings_for(cadence);
 }
 
 /// Decay the engagement by one frame and re-arm it on any user input. Runs
@@ -240,6 +270,7 @@ impl Plugin for CadencePlugin {
             .init_resource::<WindowCadenceState>()
             .init_resource::<CadenceActivity>()
             .init_resource::<AppliedCadence>()
+            .init_resource::<HostPreferences>()
             .init_resource::<WinitSettings>()
             .add_systems(
                 Update,

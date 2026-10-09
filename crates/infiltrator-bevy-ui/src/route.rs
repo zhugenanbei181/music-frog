@@ -144,7 +144,10 @@ use infiltrator_contract::surface_snapshot::{PageId, PageStatus, SurfaceSnapshot
 use std::collections::HashSet;
 use std::sync::Arc;
 
+pub mod host_back;
 pub mod mount;
+
+use self::host_back::{BackLayerStack, on_host_back};
 
 /// The app's pages. New pages append a variant and an arm in
 /// [`page_scene`] — never a second mount path.
@@ -428,6 +431,7 @@ impl Plugin for PagesPlugin {
         app.add_plugins(ProxyInspectionPlugin);
         app.init_resource::<ActiveRoute>();
         app.init_resource::<RouteHistory>();
+        app.init_resource::<BackLayerStack>();
         app.init_resource::<LastOverviewProjection>();
         app.init_resource::<TopologyDrilldownFilter>();
         app.init_resource::<LastDnsProjection>();
@@ -651,6 +655,7 @@ impl Plugin for PagesPlugin {
         app.add_observer(on_page_root_added);
         app.add_observer(on_navigate_back);
         app.add_observer(on_navigate_forward);
+        app.add_observer(on_host_back);
         // The Overview page's per-frame token reskin (banner / dot / mode
         // chip / stop button compare-and-set from the live palette).
         app.add_systems(Update, reskin_overview_tokens);

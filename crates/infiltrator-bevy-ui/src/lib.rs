@@ -1,7 +1,7 @@
 //! MusicFrog Infiltrator — independent Bevy UI product.
 //!
 //! The ECS desktop/mobile peer of the Iced product (charter:
-//! docs/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
+//! docs/bevy-ui/BEVY_UI_FRONTEND.md). This module hosts the windowed launcher
 //! composition only: `DefaultPlugins` is singleton infrastructure and stays
 //! out of [`app::ShellPlugin`] so headless tests exercise the real shell
 //! without a window.
@@ -33,6 +33,7 @@ pub mod controller;
 pub mod domain_state;
 pub mod gesture;
 pub mod history;
+pub mod host_capabilities;
 pub mod ime;
 mod ime_native;
 pub mod interaction_capture;

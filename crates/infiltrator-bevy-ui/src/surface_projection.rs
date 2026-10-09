@@ -9,6 +9,7 @@ use infiltrator_domain::app_routing::{AppRoutingMode, AppRoutingRule};
 
 use crate::pages::doctor::{DoctorCheckItem, DoctorProjection};
 use crate::pages::logs::LogEntry;
+use crate::pages::logs_ring::bounded_tail;
 use crate::pages::profiles::ProfileItem;
 use crate::pages::proxies::{ProxyGroup, ProxyNode};
 use crate::pages::rules::{RuleItem, RuleProviderItem};
@@ -286,17 +287,19 @@ pub(super) fn logs_projection(snapshot: &surface_snapshot::SurfaceSnapshot) -> L
             session_token: snapshot.core.session_token,
             total_entries: value.total_entries,
             active_level: value.active_level.as_deref().map(LogLevel::from_identifier),
-            entries: value
-                .entries
-                .iter()
-                .map(|entry| LogEntry {
-                    id: entry.id,
-                    timestamp: entry.timestamp.clone(),
-                    level: LogLevel::from_identifier(&entry.level),
-                    tag: entry.tag.clone(),
-                    message: entry.message.clone(),
-                })
-                .collect(),
+            entries: bounded_tail(
+                value
+                    .entries
+                    .iter()
+                    .map(|entry| LogEntry {
+                        id: entry.id,
+                        timestamp: entry.timestamp.clone(),
+                        level: LogLevel::from_identifier(&entry.level),
+                        tag: entry.tag.clone(),
+                        message: entry.message.clone(),
+                    })
+                    .collect(),
+            ),
         })
         .unwrap_or_else(|| {
             let mut projection = empty_logs();

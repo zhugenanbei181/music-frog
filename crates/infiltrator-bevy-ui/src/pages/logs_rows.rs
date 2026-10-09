@@ -1,5 +1,6 @@
 //! Log row topology is scoped to its container; data updates preserve stable native rows.
 use crate::pages::logs::{LogsProjectionUpdated, log_row_scene};
+use crate::pages::logs_ring::LogsRing;
 use crate::pages::logs_virtual::LogsVirtualNodes;
 use bevy::app::{App, Plugin};
 use bevy::ecs::component::Component;
@@ -7,7 +8,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::CommandsSceneExt;
 use infiltrator_bevy_widgets::palette::UiPalette;
 
@@ -24,6 +25,7 @@ impl Plugin for LogsRowsPlugin {
 }
 fn reconcile_rows(
     update: On<LogsProjectionUpdated>,
+    mut ring: ResMut<LogsRing>,
     containers: Query<(Entity, Option<&Children>), With<LogRowsContainer>>,
     virtual_containers: Query<(), With<LogsVirtualNodes>>,
     identities: Query<&LogRowIdentity>,
@@ -39,17 +41,22 @@ fn reconcile_rows(
     let Ok((root, children)) = containers.single() else {
         return;
     };
+    // BEVY-020: reconcile against the ring's bounded window. Observer order is
+    // not guaranteed, so ingestion is idempotent and performed here too; the
+    // mounted row count tracks the window, never the raw stream.
+    ring.ingest(&update.0);
+    let projection = ring.snapshot();
     let existing: Vec<_> = children
         .into_iter()
         .flat_map(|children| children.iter())
         .filter_map(|child| identities.get(*child).ok().map(|id| id.0))
         .collect();
-    let requested: Vec<_> = update.0.entries.iter().map(|entry| entry.id).collect();
+    let requested: Vec<_> = projection.entries.iter().map(|entry| entry.id).collect();
     if existing == requested {
         return;
     }
     commands.entity(root).despawn_children();
-    for (index, entry) in update.0.entries.iter().enumerate() {
+    for (index, entry) in projection.entries.iter().enumerate() {
         commands
             .spawn_scene(log_row_scene(index, entry, &palette))
             .insert(ChildOf(root));

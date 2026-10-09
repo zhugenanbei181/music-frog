@@ -162,7 +162,9 @@ fn animation_end_leaves_the_active_cadence() {
 
     // A running animation re-arms the engagement every frame.
     for _ in 0..3 {
-        app.world_mut().resource_mut::<CadenceActivity>().wake();
+        app.world_mut()
+            .resource_mut::<CadenceActivity>()
+            .wake_animation();
         app.update();
         assert_eq!(
             app.world().resource::<WinitSettings>().focused_mode,
@@ -242,5 +244,56 @@ fn new_input_wakes_the_idling_window_back_to_active() {
         app.world().resource::<WinitSettings>().focused_mode,
         UpdateMode::Continuous,
         "input wakes the idling shell back to the active cadence"
+    );
+}
+
+/// BANDROID-014: a host reduce-motion / energy preference drops animation-driven
+/// cadence heat while input still wakes the shell.
+#[test]
+fn reduce_motion_drops_animation_driven_cadence() {
+    use infiltrator_bevy_ui::host_capabilities::{EnergyPreference, HostPreferences};
+
+    let mut app = cadence_app();
+    for _ in 0..=CADENCE_IDLE_FRAMES {
+        app.update();
+    }
+    assert_ne!(
+        app.world().resource::<WinitSettings>().focused_mode,
+        UpdateMode::Continuous
+    );
+
+    *app.world_mut().resource_mut::<HostPreferences>() = HostPreferences {
+        reduce_motion: true,
+        energy: EnergyPreference::Balanced,
+    };
+
+    // An animation wake no longer holds the active cadence.
+    for _ in 0..3 {
+        app.world_mut()
+            .resource_mut::<CadenceActivity>()
+            .wake_animation();
+        app.update();
+    }
+    assert_ne!(
+        app.world().resource::<WinitSettings>().focused_mode,
+        UpdateMode::Continuous,
+        "reduce-motion must not let an animation keep the shell hot"
+    );
+
+    // Input still wakes the shell.
+    let window = primary_window(&mut app);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyM,
+        logical_key: Key::Character("m".into()),
+        state: ButtonState::Pressed,
+        text: Some("m".into()),
+        repeat: false,
+        window,
+    });
+    app.update();
+    assert_eq!(
+        app.world().resource::<WinitSettings>().focused_mode,
+        UpdateMode::Continuous,
+        "input still wakes the shell under reduce-motion"
     );
 }

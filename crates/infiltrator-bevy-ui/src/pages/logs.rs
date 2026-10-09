@@ -10,6 +10,7 @@
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::logs_export::{LogsExportPlugin, LogsExportState};
 use crate::pages::logs_follow::{LogFollowLabel, LogsFollowPlugin};
+use crate::pages::logs_ring::LogsRing;
 use crate::pages::logs_rows::{LogRowIdentity, LogRowsContainer, LogsRowsPlugin};
 use crate::pages::logs_search::{LogsSearchPlugin, logs_search_scene};
 use crate::pages::logs_virtual::{LOGS_VIRTUAL_THRESHOLD, LogsVirtualNodes};
@@ -463,14 +464,19 @@ pub struct LogsPagePlugin;
 
 impl Plugin for LogsPagePlugin {
     fn build(&self, app: &mut App) {
+        // BEVY-020: the ring owns the bounded window. `apply_logs_projection`
+        // ingests into it and republishes `LastLogsProjection`; the row
+        // reconciler ingests idempotently too, so observer order does not
+        // matter.
         app.init_resource::<LastLogsProjection>()
-            .add_plugins((
-                LogsRowsPlugin,
-                LogsSearchPlugin,
-                LogsFollowPlugin,
-                LogsExportPlugin,
-            ))
+            .init_resource::<LogsRing>()
             .add_observer(apply_logs_projection);
+        app.add_plugins((
+            LogsRowsPlugin,
+            LogsSearchPlugin,
+            LogsFollowPlugin,
+            LogsExportPlugin,
+        ));
         app.add_observer(on_logs_action_activated);
     }
 }
@@ -512,6 +518,7 @@ struct LogCopy {
 fn apply_logs_projection(
     update: On<LogsProjectionUpdated>,
     palette: Res<UiPalette>,
+    mut ring: ResMut<LogsRing>,
     mut last: ResMut<LastLogsProjection>,
     mut copies: Query<LogCopy>,
     mut filter_buttons: Query<(
@@ -520,7 +527,10 @@ fn apply_logs_projection(
         &LogLevelFilterButton,
     )>,
 ) {
-    let projection = &update.0;
+    // BEVY-020: ingest into the bounded window and restamp from its snapshot.
+    // The raw event may carry a whole stream; only the ring's tail is stored.
+    ring.ingest(&update.0);
+    let projection = ring.snapshot();
     for mut copy in &mut copies {
         if copy.summary.is_some() {
             if let Some(ref mut localized) = copy.localized {
@@ -559,7 +569,7 @@ fn apply_logs_projection(
             palette.surface_elevated
         };
     }
-    last.0 = Some(projection.clone());
+    last.0 = Some(projection);
 }
 
 #[cfg(test)]

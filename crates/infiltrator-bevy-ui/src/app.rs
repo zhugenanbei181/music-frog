@@ -17,6 +17,7 @@ use crate::chrome::WindowChromePlugin;
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::command_palette_shell::CommandPalettePlugin;
 use crate::gesture::{GestureHostReport, ShellGesturePlugin};
+use crate::host_capabilities::HostCapabilitiesPlugin;
 use crate::ime::ShellImePlugin;
 use crate::localization::LocalizationPlugin;
 use crate::mini_hud_shell::MiniHudPlugin;
@@ -489,6 +490,10 @@ impl Plugin for ShellPlugin {
         // widget recognizer → shared semantic snapshot) is part of the shell,
         // so headless compositions exercise the same recognition path.
         app.add_plugins(ShellGesturePlugin);
+        // BANDROID-014: the typed host seams (haptics capability gate and the
+        // reduce-motion / energy preference input) are part of the shell, so a
+        // headless composition and the native host share the same defaults.
+        app.add_plugins(HostCapabilitiesPlugin::default());
         app.insert_resource(ThemeMode(self.preference));
         app.init_resource::<SystemAppearance>();
 

@@ -2,10 +2,12 @@
 //! same [`VirtualListState`] / [`VirtualEntityPool`] the Proxies and
 //! Connections pages consume).
 //!
-//! The business ring buffer is never truncated: [`LogsProjection`] keeps every
-//! entry and the recycler only bounds the mounted row roots. Log rows wrap, so
-//! the window uses the engine's dynamic height index: each mounted row feeds
-//! its measured layout height back so the scroll extent stays honest.
+//! The mounted row topology is always bounded: the shared recycler bounds the
+//! visible window of the page's in-memory ring ([`crate::pages::logs_ring`],
+//! BEVY-020), and the projection the page reads is that same bounded window.
+//! Log rows wrap, so the window uses the engine's dynamic height index: each
+//! mounted row feeds its measured layout height back so the scroll extent stays
+//! honest.
 //!
 //! The large-list path is selected by [`LOGS_VIRTUAL_THRESHOLD`]; below it the
 //! page keeps its full-mount vocabulary. Stable [`LogRowIdentity`] markers,
