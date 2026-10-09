@@ -1,4 +1,5 @@
 //! Native text-span replay. Search decisions arrive as immutable neutral runs.
+use crate::bidi::LayoutDirection;
 use crate::fonts::FontSources;
 use crate::palette::UiPalette;
 use crate::text::{Role, TextRole, role_typography};
@@ -7,12 +8,12 @@ use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
-use bevy::ecs::query::{QueryData, With, Without};
+use bevy::ecs::query::{Changed, QueryData, With, Without};
 use bevy::ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy::ecs::system::{Commands, Query, Res};
 use bevy::scene::{CommandsSceneExt, bsn};
-use bevy::text::{TextColor, TextFont, TextSpan};
-use bevy::ui::prelude::{Display, Node};
+use bevy::text::{Justify, TextColor, TextFont, TextLayout, TextSpan};
+use bevy::ui::prelude::{Display, FlexDirection, Node};
 use bevy::ui::widget::Text;
 use infiltrator_contract::search_text::SearchTextRun;
 
@@ -23,6 +24,18 @@ pub struct TextRuns(pub Vec<SearchTextRun>);
 pub struct TextRunSpan;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct TextRunsInk(pub Color);
+
+/// Authoring input that propagates a writing direction onto a run block's
+/// layout: the root flex row and inline text alignment mirror together.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TextRunsDirection(pub LayoutDirection);
+
+/// Cached base (LTR) layout so re-applying a direction stays idempotent.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct AppliedRunLayout {
+    base_flex: FlexDirection,
+    base_justify: Justify,
+}
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct RunRoot {
@@ -48,7 +61,39 @@ struct RunSpanData {
 pub struct TextRunsPlugin;
 impl Plugin for TextRunsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, replay_runs.in_set(TextRunsSet));
+        app.add_systems(
+            Update,
+            (replay_runs.in_set(TextRunsSet), sync_text_runs_direction).chain(),
+        );
+    }
+}
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct DirectionRoot {
+    entity: Entity,
+    direction: &'static TextRunsDirection,
+    node: &'static mut Node,
+    layout: &'static mut TextLayout,
+    applied: Option<&'static AppliedRunLayout>,
+}
+fn sync_text_runs_direction(
+    mut commands: Commands,
+    mut roots: Query<DirectionRoot, (With<TextRuns>, Changed<TextRunsDirection>)>,
+) {
+    for mut root in &mut roots {
+        let base_flex = root
+            .applied
+            .map_or(root.node.flex_direction, |state| state.base_flex);
+        let base_justify = root
+            .applied
+            .map_or(root.layout.justify, |state| state.base_justify);
+        let (flex, justify) = root.direction.0.mirror_layout(base_flex, base_justify);
+        root.node.flex_direction = flex;
+        root.layout.justify = justify;
+        commands.entity(root.entity).insert(AppliedRunLayout {
+            base_flex,
+            base_justify,
+        });
     }
 }
 fn replay_runs(

@@ -15,6 +15,41 @@ use bevy::ui::UiSystems;
 use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
 use std::f32::consts::TAU;
 
+/// Minimum screen-space anti-aliasing width in device pixels.
+///
+/// Mirrors the `max(fwidth(d), 0.7)` floor in `modern_surface.wesl`: an SDF
+/// edge thinner than one device pixel would otherwise alias. Shared by the
+/// analytic GPU coverage helper and the CPU fallback so both agree at the
+/// extremes.
+pub const MIN_EDGE_AA_PX: f32 = 0.7;
+
+/// Analytic SDF edge/glyph coverage from a signed distance and its
+/// screen-space derivative.
+///
+/// `screen_space_derivative` is the per-pixel change of the distance field
+/// (`fwidth(distance)` in a fragment shader). Coverage ramps over one
+/// derivative-wide band centred on the edge, clamped to [`MIN_EDGE_AA_PX`] so
+/// a vanishing derivative never collapses the band. It is monotonic
+/// non-increasing in `distance`: 1.0 strictly inside, 0.0 strictly outside.
+///
+/// This is the CPU mirror of `sdf_edge_coverage` in `shaders/squircle.wesl`.
+/// [`sdf_edge_coverage_cpu`] is the explicit fallback when no derivative is
+/// available.
+pub fn sdf_edge_coverage(distance: f32, screen_space_derivative: f32) -> f32 {
+    let width = screen_space_derivative.abs().max(MIN_EDGE_AA_PX);
+    let t = ((distance + width * 0.5) / width).clamp(0.0, 1.0);
+    (1.0 - t * t * (3.0 - 2.0 * t)).clamp(0.0, 1.0)
+}
+
+/// CPU fallback edge coverage: a linear ramp over `pixel_scale` device pixels.
+///
+/// Used when screen-space derivatives are unavailable (CPU raster, unsupported
+/// targets). It stays monotonic non-increasing in `distance` and agrees with
+/// [`sdf_edge_coverage`] at the saturated inside/outside extents.
+pub fn sdf_edge_coverage_cpu(distance: f32, pixel_scale: f32) -> f32 {
+    (1.0 - distance / pixel_scale.max(1e-4)).clamp(0.0, 1.0)
+}
+
 /// Fallback mode for shader effects on low-power or non-shader targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ShaderFallbackMode {
@@ -53,9 +88,16 @@ impl SdfRoundedBox {
     }
 
     /// Evaluates coverage factor [0.0, 1.0] for anti-aliasing given pixel scale.
+    ///
+    /// Uses the explicit CPU fallback ramp [`sdf_edge_coverage_cpu`].
     pub fn coverage_at(&self, point: Vec2, pixel_scale: f32) -> f32 {
-        let dist = self.distance_at(point);
-        (1.0 - dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0)
+        sdf_edge_coverage_cpu(self.distance_at(point), pixel_scale)
+    }
+
+    /// Analytic GPU coverage from the point's distance and its screen-space
+    /// derivative, mirroring `sdf_edge_coverage` in the fragment shader.
+    pub fn edge_coverage_at(&self, point: Vec2, screen_space_derivative: f32) -> f32 {
+        sdf_edge_coverage(self.distance_at(point), screen_space_derivative)
     }
 }
 
@@ -99,9 +141,16 @@ impl SdfSquircle {
     }
 
     /// Evaluates coverage factor [0.0, 1.0] for anti-aliasing given pixel scale.
+    ///
+    /// Uses the explicit CPU fallback ramp [`sdf_edge_coverage_cpu`].
     pub fn coverage_at(&self, point: Vec2, pixel_scale: f32) -> f32 {
-        let dist = self.distance_at(point);
-        (1.0 - dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0)
+        sdf_edge_coverage_cpu(self.distance_at(point), pixel_scale)
+    }
+
+    /// Analytic GPU coverage from the point's distance and its screen-space
+    /// derivative, mirroring `sdf_edge_coverage` in the fragment shader.
+    pub fn edge_coverage_at(&self, point: Vec2, screen_space_derivative: f32) -> f32 {
+        sdf_edge_coverage(self.distance_at(point), screen_space_derivative)
     }
 
     /// Evaluates border band coverage factor [0.0, 1.0].
@@ -110,8 +159,8 @@ impl SdfSquircle {
             return 0.0;
         }
         let outer_cov = self.coverage_at(point, pixel_scale);
-        let inner_dist = self.distance_at(point) + self.border_width;
-        let inner_cov = (1.0 - inner_dist / pixel_scale.max(1e-4)).clamp(0.0, 1.0);
+        let inner_cov =
+            sdf_edge_coverage_cpu(self.distance_at(point) + self.border_width, pixel_scale);
         (outer_cov - inner_cov).clamp(0.0, 1.0)
     }
 }
@@ -181,9 +230,15 @@ impl OklchColor {
 }
 
 use crate::palette::UiPalette;
+use crate::surface::SurfacePanel;
+use crate::theme::CornerCurvature;
 use crate::theme::space;
 use bevy::ecs::hierarchy::Children;
+use bevy::ecs::query::With;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
+use bevy::ui::ComputedNode;
 use bevy::ui::prelude::{
     BackgroundColor, BorderRadius, FlexDirection, Node, UiRect, Val, percent, px,
 };
@@ -459,7 +514,368 @@ impl Plugin for ModernSurfacePlugin {
             app.init_asset::<ModernSurfaceMaterial>();
         }
         app.init_resource::<SurfaceShaderMode>();
-        app.add_systems(PostUpdate, (release_retired, sync).after(UiSystems::Layout));
+        app.init_resource::<CardRenderStrategy>();
+        app.init_resource::<CardInstanceSyncState>();
+        app.add_systems(
+            PostUpdate,
+            (release_retired, sync, sync_card_instances).after(UiSystems::Layout),
+        );
+    }
+}
+
+/// Maximum number of card instances packed into one instanced draw call.
+pub const MAX_CARD_INSTANCES_PER_BATCH: usize = 256;
+
+/// Per-instance attribute format for the card instance buffer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InstanceAttributeFormat {
+    Float32x2,
+    Float32x4,
+}
+
+impl InstanceAttributeFormat {
+    /// Byte width of one attribute value.
+    pub const fn byte_size(self) -> u32 {
+        match self {
+            Self::Float32x2 => 8,
+            Self::Float32x4 => 16,
+        }
+    }
+}
+
+/// One per-instance attribute in [`CARD_INSTANCE_LAYOUT`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InstanceAttribute {
+    pub shader_location: u32,
+    pub format: InstanceAttributeFormat,
+    pub offset: u32,
+}
+
+/// Instance buffer layout: byte stride plus per-instance attribute locations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CardInstanceLayout {
+    pub stride: u32,
+    pub attributes: &'static [InstanceAttribute],
+}
+
+/// One card packed for the instanced card draw.
+///
+/// Field order and byte offsets match [`CARD_INSTANCE_LAYOUT`] and the
+/// `CardInstance` struct in `shaders/surface_uniform.wesl`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
+pub struct CardInstance {
+    /// Screen-space center offset in logical pixels.
+    pub translation: [f32; 2],
+    /// Logical size in pixels.
+    pub size: [f32; 2],
+    /// Corner radius, smoothing, border width and elevation slot.
+    pub shape: [f32; 4],
+    /// Linear-space fill color.
+    pub fill: [f32; 4],
+    /// Linear-space border color.
+    pub border: [f32; 4],
+}
+
+impl CardInstance {
+    /// Packed byte width of one instance.
+    pub const BYTE_SIZE: u32 = 64;
+
+    pub const fn new(
+        translation: [f32; 2],
+        size: [f32; 2],
+        shape: [f32; 4],
+        fill: [f32; 4],
+        border: [f32; 4],
+    ) -> Self {
+        Self {
+            translation,
+            size,
+            shape,
+            fill,
+            border,
+        }
+    }
+}
+
+/// Instance buffer layout for [`CardInstance`] (stride 64 bytes).
+pub const CARD_INSTANCE_LAYOUT: CardInstanceLayout = CardInstanceLayout {
+    stride: CardInstance::BYTE_SIZE,
+    attributes: &[
+        InstanceAttribute {
+            shader_location: 0,
+            format: InstanceAttributeFormat::Float32x2,
+            offset: 0,
+        },
+        InstanceAttribute {
+            shader_location: 1,
+            format: InstanceAttributeFormat::Float32x2,
+            offset: 8,
+        },
+        InstanceAttribute {
+            shader_location: 2,
+            format: InstanceAttributeFormat::Float32x4,
+            offset: 16,
+        },
+        InstanceAttribute {
+            shader_location: 3,
+            format: InstanceAttributeFormat::Float32x4,
+            offset: 32,
+        },
+        InstanceAttribute {
+            shader_location: 4,
+            format: InstanceAttributeFormat::Float32x4,
+            offset: 48,
+        },
+    ],
+};
+
+/// Bounded builder that packs cards into a single instanced draw batch.
+#[derive(Debug)]
+pub struct CardInstanceBatchBuilder {
+    instances: Vec<CardInstance>,
+    cap: usize,
+    overflow: usize,
+}
+
+impl Default for CardInstanceBatchBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CardInstanceBatchBuilder {
+    /// A builder bounded by [`MAX_CARD_INSTANCES_PER_BATCH`].
+    pub fn new() -> Self {
+        Self::with_cap(MAX_CARD_INSTANCES_PER_BATCH)
+    }
+
+    /// A builder bounded by `cap`, never exceeding the global maximum.
+    pub fn with_cap(cap: usize) -> Self {
+        Self {
+            instances: Vec::new(),
+            cap: cap.min(MAX_CARD_INSTANCES_PER_BATCH),
+            overflow: 0,
+        }
+    }
+
+    pub fn cap(&self) -> usize {
+        self.cap
+    }
+
+    pub fn len(&self) -> usize {
+        self.instances.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.instances.is_empty()
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.instances.len() >= self.cap
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.cap.saturating_sub(self.instances.len())
+    }
+
+    /// Instances rejected because the batch was already at its cap.
+    pub fn overflow_count(&self) -> usize {
+        self.overflow
+    }
+
+    /// Accept one instance; returns `false` (and counts an overflow) when full.
+    pub fn push(&mut self, instance: CardInstance) -> bool {
+        if self.instances.len() < self.cap {
+            self.instances.push(instance);
+            true
+        } else {
+            self.overflow += 1;
+            false
+        }
+    }
+
+    /// Accept as many instances as fit, returning the accepted count.
+    pub fn extend<I: IntoIterator<Item = CardInstance>>(&mut self, instances: I) -> usize {
+        let mut accepted = 0;
+        for instance in instances {
+            if self.push(instance) {
+                accepted += 1;
+            }
+        }
+        accepted
+    }
+
+    /// Freeze the packed instances into a drawable batch.
+    pub fn build(self) -> CardInstanceBatch {
+        CardInstanceBatch {
+            instances: self.instances,
+            overflow: self.overflow,
+        }
+    }
+}
+
+/// Packed instances plus the layout needed for one instanced draw call.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CardInstanceBatch {
+    instances: Vec<CardInstance>,
+    overflow: usize,
+}
+
+impl CardInstanceBatch {
+    pub fn as_slice(&self) -> &[CardInstance] {
+        &self.instances
+    }
+
+    pub fn instance_count(&self) -> u32 {
+        self.instances.len() as u32
+    }
+
+    pub fn instance_bytes(&self) -> u64 {
+        self.instances.len() as u64 * u64::from(CARD_INSTANCE_LAYOUT.stride)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.instances.is_empty()
+    }
+
+    pub fn overflow_count(&self) -> usize {
+        self.overflow
+    }
+
+    /// Compact descriptor for one instanced draw: layout, count and byte length.
+    pub fn draw_descriptor(&self) -> CardInstancedDraw {
+        CardInstancedDraw {
+            layout: CARD_INSTANCE_LAYOUT,
+            instance_count: self.instance_count(),
+            buffer_byte_len: self.instance_bytes(),
+        }
+    }
+}
+
+/// Compact descriptor for one instanced draw: layout, count and byte length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CardInstancedDraw {
+    pub layout: CardInstanceLayout,
+    pub instance_count: u32,
+    pub buffer_byte_len: u64,
+}
+
+/// Degradation switch selecting how retained cards reach the screen.
+///
+/// [`Self::GpuInstanced`] batches cards into one instanced draw.
+/// [`Self::CpuFallback`] keeps the analytic coverage on the CPU with no GPU
+/// draw. [`Self::Flat`] disables the effect and paints a flat fill. The sync
+/// path honours the switch; a static frame never re-uploads.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CardRenderStrategy {
+    #[default]
+    GpuInstanced,
+    CpuFallback,
+    Flat,
+}
+
+impl CardRenderStrategy {
+    /// Whether the GPU-instanced batch path is active.
+    pub const fn uses_gpu(self) -> bool {
+        matches!(self, Self::GpuInstanced)
+    }
+
+    /// Whether the sync path should emit an instanced batch this frame.
+    pub const fn emits_instanced_batch(self) -> bool {
+        self.uses_gpu()
+    }
+
+    /// Whether the analytic CPU coverage fallback is the active renderer.
+    pub const fn uses_cpu_fallback(self) -> bool {
+        matches!(self, Self::CpuFallback)
+    }
+}
+
+/// Retained instanced-card state; the only seam that commits a batch upload.
+#[derive(Resource, Default)]
+pub struct CardInstanceSyncState {
+    batch: CardInstanceBatch,
+    strategy: Option<CardRenderStrategy>,
+    upload_serial: u64,
+}
+
+impl CardInstanceSyncState {
+    /// The most recently committed batch.
+    pub fn batch(&self) -> &CardInstanceBatch {
+        &self.batch
+    }
+
+    /// Monotonic count of committed (re)uploads; static frames do not advance it.
+    pub fn upload_serial(&self) -> u64 {
+        self.upload_serial
+    }
+
+    /// The strategy applied to the committed batch.
+    pub fn applied_strategy(&self) -> Option<CardRenderStrategy> {
+        self.strategy
+    }
+}
+
+/// Build one instance from a laid-out card, or `None` for invalid geometry.
+fn card_instance_from_computed(
+    computed: &ComputedNode,
+    palette: &UiPalette,
+) -> Option<CardInstance> {
+    let scale = computed.inverse_scale_factor();
+    let dimensions = computed.size() * scale;
+    let corner = computed.border_radius.top_left;
+    if !dimensions.is_finite()
+        || dimensions.min_element() <= 0.0
+        || !corner.is_finite()
+        || corner.min_element() < 0.0
+        || corner.x != corner.y
+    {
+        return None;
+    }
+    let curvature = CornerCurvature::squircle(corner.x * scale);
+    let fill = LinearRgba::from(palette.surface);
+    let border = LinearRgba::from(palette.border);
+    Some(CardInstance::new(
+        [0.0, 0.0],
+        [dimensions.x, dimensions.y],
+        [
+            curvature.radius_px,
+            curvature.smoothing,
+            palette.hairline_px,
+            0.0,
+        ],
+        [fill.red, fill.green, fill.blue, fill.alpha],
+        [border.red, border.green, border.blue, border.alpha],
+    ))
+}
+
+/// Batch retained cards into one instanced draw, honouring the strategy switch.
+///
+/// A static frame (same strategy and same packed content) commits nothing, so
+/// [`CardInstanceSyncState::upload_serial`] stays put. Switching to
+/// [`CardRenderStrategy::CpuFallback`] or [`CardRenderStrategy::Flat`] commits
+/// an empty batch, selecting the fallback renderer.
+pub fn sync_card_instances(
+    strategy: Res<CardRenderStrategy>,
+    palette: Res<UiPalette>,
+    cards: Query<&ComputedNode, With<SurfacePanel>>,
+    mut state: ResMut<CardInstanceSyncState>,
+) {
+    let strategy = *strategy;
+    let mut builder = CardInstanceBatchBuilder::new();
+    if strategy.emits_instanced_batch() {
+        for computed in &cards {
+            if let Some(instance) = card_instance_from_computed(computed, &palette) {
+                builder.push(instance);
+            }
+        }
+    }
+    let batch = builder.build();
+    if state.strategy != Some(strategy) || state.batch != batch {
+        state.batch = batch;
+        state.strategy = Some(strategy);
+        state.upload_serial += 1;
     }
 }
 

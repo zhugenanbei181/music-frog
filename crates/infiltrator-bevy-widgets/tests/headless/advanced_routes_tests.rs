@@ -2,7 +2,11 @@ use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::color::Color;
 use bevy::math::{Vec2, Vec3};
-use infiltrator_bevy_widgets::haptics::{HapticPattern, ProceduralTone};
+use infiltrator_bevy_widgets::haptics::{
+    AdsrEnvelope, AudioHapticOutput, AudioHapticsSettings, EmittedFeedback, FeedbackDispatcher,
+    FeedbackIntent, FeedbackTriggerEvent, HapticPattern, MAX_TONE_FRAMES, PcmBuffer,
+    ProceduralTone,
+};
 use infiltrator_bevy_widgets::particle::{GreatCircleArc, ParticleEmitter, TrafficParticle};
 use infiltrator_bevy_widgets::reactive::{
     ReactiveDagResource, ReactiveEvaluationStats, ReactiveGraphPlugin, SignalInput, SignalOutput,
@@ -12,6 +16,7 @@ use infiltrator_bevy_widgets::signal_dag::{PluginWidgetAst, ReactiveDag};
 use infiltrator_bevy_widgets::tsdb::{
     MultiTierTsdb, TelemetrySample, TimeTravelScrubber, compute_network_health_score,
 };
+use std::sync::Mutex;
 
 #[test]
 fn test_shader_fx_sdf_rounded_box_and_oklch_ladder() {
@@ -90,6 +95,153 @@ fn test_haptics_and_procedural_tone_generator() {
 
     let chime = ProceduralTone::success_chime();
     assert_eq!(chime.frequency_hz, 523.25);
+}
+
+#[test]
+fn test_adsr_envelope_shape() {
+    let env = AdsrEnvelope::new(0.01, 0.02, 0.5, 0.03);
+    // Before the note starts the envelope is silent.
+    assert_eq!(env.evaluate(-0.1, 0.1), 0.0);
+    assert_eq!(env.evaluate(0.0, 0.1), 0.0);
+    // Attack ramps linearly to 1.0.
+    assert!((env.evaluate(0.005, 0.1) - 0.5).abs() < 1e-4);
+    assert_eq!(env.evaluate(0.01, 0.1), 1.0);
+    // Decay falls from 1.0 toward the sustain level.
+    assert!((env.evaluate(0.02, 0.1) - 0.75).abs() < 1e-4);
+    assert!((env.evaluate(0.03, 0.1) - 0.5).abs() < 1e-4);
+    // Sustain holds flat until the note duration.
+    assert_eq!(env.evaluate(0.08, 0.1), 0.5);
+    // Release ramps down to silence.
+    assert!((env.evaluate(0.115, 0.1) - 0.25).abs() < 1e-4);
+    assert_eq!(env.evaluate(0.14, 0.1), 0.0);
+}
+
+#[test]
+fn test_pcm_frame_count_and_duration_math() {
+    let tone = ProceduralTone {
+        frequency_hz: 440.0,
+        duration_secs: 0.1,
+        envelope: AdsrEnvelope::new(0.005, 0.01, 0.5, 0.0),
+    };
+    assert!((tone.total_duration_secs() - 0.1).abs() < 1e-6);
+    assert_eq!(tone.frame_count(1_000), 100);
+    assert_eq!(tone.frame_count(0), 0);
+
+    let pcm = tone.render_pcm(1_000);
+    assert_eq!(pcm.len(), 100);
+    assert_eq!(pcm.sample_rate_hz, 1_000);
+    assert!((pcm.duration_secs() - 0.1).abs() < 1e-3);
+    assert!(
+        pcm.frames
+            .iter()
+            .all(|sample| (-1.0..=1.0).contains(sample))
+    );
+
+    // A release tail extends the rendered buffer.
+    let tail = ProceduralTone {
+        frequency_hz: 440.0,
+        duration_secs: 0.1,
+        envelope: AdsrEnvelope::new(0.005, 0.01, 0.5, 0.05),
+    };
+    assert_eq!(tail.frame_count(1_000), 150);
+    assert_eq!(tail.render_pcm(1_000).len(), 150);
+
+    // Synthesis stays bounded even for an absurd duration.
+    let huge = ProceduralTone {
+        frequency_hz: 440.0,
+        duration_secs: 10_000.0,
+        envelope: AdsrEnvelope::new(0.0, 0.0, 1.0, 0.0),
+    };
+    assert_eq!(huge.frame_count(48_000), MAX_TONE_FRAMES);
+    assert!(huge.render_pcm(48_000).len() <= MAX_TONE_FRAMES);
+
+    // A zero sample rate is a typed empty buffer, never a divide-by-zero.
+    let silent = tone.render_pcm(0);
+    assert_eq!(silent.sample_rate_hz, 0);
+    assert!(silent.is_empty());
+    assert_eq!(silent.duration_secs(), 0.0);
+}
+
+#[derive(Default)]
+struct RecordingOutput {
+    vibrations: Mutex<Vec<u32>>,
+    tones: Mutex<Vec<usize>>,
+}
+
+impl AudioHapticOutput for RecordingOutput {
+    fn vibrate(&self, duration_ms: u32) {
+        self.vibrations.lock().unwrap().push(duration_ms);
+    }
+
+    fn play_tone(&self, pcm: &PcmBuffer) {
+        self.tones.lock().unwrap().push(pcm.len());
+    }
+}
+
+#[test]
+fn test_global_mute_blocks_all_output() {
+    let output = RecordingOutput::default();
+    let intent = FeedbackIntent::for_pattern(HapticPattern::SuccessPulse);
+
+    // Unmuted: both channels fire and reach the port.
+    let dispatcher =
+        FeedbackDispatcher::new(&output, AudioHapticsSettings::default()).with_sample_rate(1_000);
+    let emitted = dispatcher.dispatch(intent);
+    assert_eq!(
+        emitted,
+        EmittedFeedback {
+            haptic: true,
+            audio: true
+        }
+    );
+    assert_eq!(*output.vibrations.lock().unwrap(), vec![80]);
+    assert_eq!(output.tones.lock().unwrap().len(), 1);
+
+    // The global gate overrides still-enabled per-channel flags.
+    let mut settings = AudioHapticsSettings::default();
+    settings.set_muted(true);
+    assert!(settings.is_muted());
+    assert!(!settings.allows_haptics());
+    assert!(!settings.allows_sound());
+
+    let dispatcher = FeedbackDispatcher::new(&output, settings).with_sample_rate(1_000);
+    let emitted = dispatcher.dispatch(intent);
+    assert!(!emitted.haptic && !emitted.audio);
+    // Nothing new reached the port.
+    assert_eq!(output.vibrations.lock().unwrap().len(), 1);
+    assert_eq!(output.tones.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn test_combined_feedback_intent_mapping() {
+    let success = FeedbackIntent::for_pattern(HapticPattern::SuccessPulse);
+    assert_eq!(success.duration_ms(), 80);
+    assert!(success.tone.is_some());
+
+    let thud = FeedbackIntent::for_pattern(HapticPattern::HeavyThud);
+    assert!(thud.tone.is_none());
+
+    let explicit = FeedbackIntent::with_tone(HapticPattern::MediumClick, ProceduralTone::click());
+    assert_eq!(explicit.duration_ms(), 30);
+    assert!(explicit.tone.is_some());
+
+    let haptic_only = FeedbackIntent::haptic_only(HapticPattern::MediumClick);
+    assert!(haptic_only.tone.is_none());
+
+    // The legacy event maps onto the same combined intent.
+    let silent_event = FeedbackTriggerEvent {
+        pattern: HapticPattern::WarningDoublePulse,
+        play_sound: false,
+    };
+    let silent_intent = silent_event.to_intent();
+    assert_eq!(silent_intent.pattern, HapticPattern::WarningDoublePulse);
+    assert!(silent_intent.tone.is_none());
+
+    let audible_event = FeedbackTriggerEvent {
+        pattern: HapticPattern::WarningDoublePulse,
+        play_sound: true,
+    };
+    assert!(audible_event.to_intent().tone.is_some());
 }
 
 #[test]

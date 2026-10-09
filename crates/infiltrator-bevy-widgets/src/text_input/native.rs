@@ -8,6 +8,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::message::MessageReader;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::{Has, With};
+use bevy::ecs::resource::Resource;
 use bevy::ecs::schedule::IntoScheduleConfigs;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
@@ -132,6 +133,117 @@ fn keyboard(
             if let Some(input) = input {
                 field.0.apply(input);
             }
+        }
+    }
+}
+
+/// Which platform screen reader can drive the widget tree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ScreenReaderCapability {
+    #[default]
+    Unsupported,
+    TalkBack,
+    VoiceOver,
+}
+
+impl ScreenReaderCapability {
+    pub const fn is_supported(self) -> bool {
+        !matches!(self, Self::Unsupported)
+    }
+}
+
+/// Opaque semantic node handle a screen reader targets.
+///
+/// Deliberately not an ECS `Entity`: the bridge seam says *what* to do
+/// semantically and never exposes the widget tree's storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SemanticNodeId(u32);
+
+impl SemanticNodeId {
+    pub const fn new(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
+/// A semantic action a platform screen reader can dispatch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScreenReaderAction {
+    Focus(SemanticNodeId),
+    Activate(SemanticNodeId),
+    SetValue { node: SemanticNodeId, value: String },
+}
+
+/// Typed outcome of a screen reader dispatch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScreenReaderOutcome {
+    Dispatched,
+    Unsupported,
+}
+
+/// Host seam for TalkBack / VoiceOver.
+///
+/// A platform host implements this later; the widget layer only ever holds a
+/// `Box<dyn ScreenReaderBridge>` behind [`ScreenReaderGate`], so no ECS type
+/// crosses the boundary.
+pub trait ScreenReaderBridge: Send + Sync {
+    fn capability(&self) -> ScreenReaderCapability;
+    fn dispatch(&self, action: ScreenReaderAction) -> ScreenReaderOutcome;
+}
+
+/// No-op bridge used when no platform screen reader is present.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NoScreenReader;
+
+impl ScreenReaderBridge for NoScreenReader {
+    fn capability(&self) -> ScreenReaderCapability {
+        ScreenReaderCapability::Unsupported
+    }
+
+    fn dispatch(&self, _action: ScreenReaderAction) -> ScreenReaderOutcome {
+        ScreenReaderOutcome::Unsupported
+    }
+}
+
+/// Capability gate over an optional host bridge.
+///
+/// An absent bridge is a typed [`ScreenReaderOutcome::Unsupported`], never a
+/// silent success; the gate also exposes the advertised capability so callers
+/// can branch before dispatching.
+#[derive(Resource, Default)]
+pub struct ScreenReaderGate {
+    bridge: Option<Box<dyn ScreenReaderBridge>>,
+}
+
+impl ScreenReaderGate {
+    pub fn absent() -> Self {
+        Self { bridge: None }
+    }
+
+    pub fn install(bridge: impl ScreenReaderBridge + 'static) -> Self {
+        Self {
+            bridge: Some(Box::new(bridge)),
+        }
+    }
+
+    pub fn capability(&self) -> ScreenReaderCapability {
+        match self.bridge.as_ref() {
+            Some(bridge) => bridge.capability(),
+            None => ScreenReaderCapability::Unsupported,
+        }
+    }
+
+    pub fn is_supported(&self) -> bool {
+        self.capability().is_supported()
+    }
+
+    pub fn dispatch(&self, action: ScreenReaderAction) -> ScreenReaderOutcome {
+        match self.bridge.as_ref() {
+            Some(bridge) => bridge.dispatch(action),
+            None => ScreenReaderOutcome::Unsupported,
         }
     }
 }

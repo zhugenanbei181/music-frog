@@ -1,6 +1,7 @@
 use bevy::color::Color;
 use bevy::math::Vec2;
-use bevy::ui::prelude::{FlexDirection, UiRect, Val};
+use bevy::text::Justify;
+use bevy::ui::prelude::{AlignItems, FlexDirection, JustifyContent, UiRect, Val};
 use infiltrator_bevy_widgets::abi::{
     DesktopRunnerHost, UniversalRunnerHost, WIDGET_ABI_VERSION, is_abi_compatible,
 };
@@ -124,6 +125,111 @@ fn test_bidi_mirroring_and_font_variations() {
     assert_eq!(mid.weight, 550.0);
     assert_eq!(mid.slant, -2.5);
     assert_eq!(mid.width, 100.0);
+}
+
+#[test]
+fn test_font_variation_axis_clamp_and_interpolation() {
+    let over = FontVariationAxes {
+        weight: 2000.0,
+        slant: 40.0,
+        width: 500.0,
+    };
+    let clamped = over.clamped();
+    assert_eq!(clamped.weight, 900.0);
+    assert_eq!(clamped.slant, 0.0);
+    assert_eq!(clamped.width, 125.0);
+
+    let under = FontVariationAxes {
+        weight: 0.0,
+        slant: -100.0,
+        width: 0.0,
+    };
+    let clamped = under.clamped();
+    assert_eq!(clamped.weight, 100.0);
+    assert_eq!(clamped.slant, -10.0);
+    assert_eq!(clamped.width, 75.0);
+
+    // Weight interpolation clamps both `t` and the result domain.
+    assert_eq!(
+        FontVariationAxes::interpolate_weight(100.0, 900.0, 0.5),
+        500.0
+    );
+    assert_eq!(
+        FontVariationAxes::interpolate_weight(100.0, 900.0, 2.0),
+        900.0
+    );
+    assert_eq!(
+        FontVariationAxes::interpolate_weight(100.0, 900.0, -1.0),
+        100.0
+    );
+    assert_eq!(FontVariationAxes::weight_at_ratio(0.0), 100.0);
+    assert_eq!(FontVariationAxes::weight_at_ratio(1.0), 900.0);
+
+    // An out-of-domain target is clamped, not overshot.
+    let from = FontVariationAxes::default();
+    let to = FontVariationAxes {
+        weight: 5000.0,
+        slant: -50.0,
+        width: 100.0,
+    };
+    let end = from.lerp(&to, 1.0);
+    assert_eq!(end.weight, 900.0);
+    assert_eq!(end.slant, -10.0);
+}
+
+#[test]
+fn test_rtl_mirror_symmetry_and_alignment() {
+    let rtl = LayoutDirection::Rtl;
+    let ltr = LayoutDirection::Ltr;
+
+    // mirror_x keeps the opposite-edge gap and is an involution.
+    let x = 24.0;
+    let container = 320.0;
+    let item = 80.0;
+    let mirrored = rtl.mirror_x(x, container, item);
+    assert_eq!(mirrored, container - x - item);
+    assert_eq!(rtl.mirror_x(mirrored, container, item), x);
+    assert_eq!(ltr.mirror_x(x, container, item), x);
+
+    // mirror_rect is an involution and LTR is untouched.
+    let rect = UiRect::new(Val::Px(8.0), Val::Px(16.0), Val::Px(4.0), Val::Px(2.0));
+    assert_eq!(rtl.mirror_rect(rtl.mirror_rect(rect)), rect);
+    assert_eq!(ltr.mirror_rect(rect), rect);
+
+    // Alignment mirrors and stays symmetric; LTR is unaffected.
+    assert_eq!(
+        rtl.mirror_align_items(AlignItems::FlexStart),
+        AlignItems::FlexEnd
+    );
+    assert_eq!(
+        rtl.mirror_align_items(rtl.mirror_align_items(AlignItems::Start)),
+        AlignItems::Start
+    );
+    assert_eq!(
+        rtl.mirror_justify_content(JustifyContent::Start),
+        JustifyContent::End
+    );
+    assert_eq!(
+        ltr.mirror_align_items(AlignItems::FlexStart),
+        AlignItems::FlexStart
+    );
+    assert_eq!(
+        ltr.mirror_justify_content(JustifyContent::End),
+        JustifyContent::End
+    );
+
+    // Absolute text alignment mirrors; direction-relative variants do not.
+    assert_eq!(rtl.mirror_justify(Justify::Left), Justify::Right);
+    assert_eq!(rtl.mirror_justify(Justify::Start), Justify::Start);
+    assert_eq!(ltr.mirror_justify(Justify::Left), Justify::Left);
+    assert_eq!(
+        rtl.mirror_layout(FlexDirection::Row, Justify::Left),
+        (FlexDirection::RowReverse, Justify::Right)
+    );
+    assert_eq!(
+        ltr.mirror_layout(FlexDirection::Row, Justify::Left),
+        (FlexDirection::Row, Justify::Left)
+    );
 }
 
 #[test]

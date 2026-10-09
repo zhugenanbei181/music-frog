@@ -13,3 +13,14 @@ struct ModernSurfaceUniform {
     ambient_alpha: f32,
     key_alpha: f32,
 }
+
+// Per-instance ABI for the batched card draw. Field order, types and byte
+// offsets must match shader_fx::CardInstance and shader_fx::CARD_INSTANCE_LAYOUT
+// (translation@0, size@8, shape@16, fill@32, border@48, stride 64).
+struct CardInstance {
+    translation: vec2<f32>,
+    size: vec2<f32>,
+    shape: vec4<f32>,
+    fill: vec4<f32>,
+    border: vec4<f32>,
+}

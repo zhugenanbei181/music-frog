@@ -14,7 +14,16 @@ use infiltrator_bevy_widgets::gesture::{
 use infiltrator_bevy_widgets::i18n::{
     Locale, LocaleKey, TranslationRepo, format_bytes, format_duration_secs, format_rate,
 };
+use infiltrator_bevy_widgets::mobile_view::{
+    CameraPixelFormat, CameraScanReject, CameraScanResponse, CameraScanSession, CameraScanState,
+    CameraScanTexture, CameraScanTransitionError, PlatformViewLifecycleHost, PlatformViewState,
+    PlatformViewTransition, PlatformViewTransitionError,
+};
 use infiltrator_bevy_widgets::motion::{Easing, Spring, lerp_color, lerp_f32};
+use infiltrator_bevy_widgets::text_input::native::{
+    NoScreenReader, ScreenReaderAction, ScreenReaderBridge, ScreenReaderCapability,
+    ScreenReaderGate, ScreenReaderOutcome, SemanticNodeId,
+};
 use infiltrator_bevy_widgets::theme::Theme;
 
 #[test]
@@ -264,4 +273,175 @@ fn test_focus_ring_and_code_editor_scenes() {
     let mut gutters = world.query::<(&CodeEditorGutter, &Node)>();
     let (_, gutter_node) = gutters.iter(world).next().expect("gutter mounted");
     assert_eq!(gutter_node.width, Val::Px(48.0));
+}
+
+/// A host bridge stand-in: only activation is handled, everything else is the
+/// typed unsupported answer, so the gate's pass-through is observable.
+struct FakeTalkBack;
+
+impl ScreenReaderBridge for FakeTalkBack {
+    fn capability(&self) -> ScreenReaderCapability {
+        ScreenReaderCapability::TalkBack
+    }
+
+    fn dispatch(&self, action: ScreenReaderAction) -> ScreenReaderOutcome {
+        match action {
+            ScreenReaderAction::Activate(_) => ScreenReaderOutcome::Dispatched,
+            _ => ScreenReaderOutcome::Unsupported,
+        }
+    }
+}
+
+#[test]
+fn test_screen_reader_bridge_noop_and_capability_gate() {
+    let node = SemanticNodeId::new(7);
+    assert_eq!(node.raw(), 7);
+
+    // No host bridge: every semantic action is typed unsupported.
+    let absent = ScreenReaderGate::absent();
+    assert_eq!(absent.capability(), ScreenReaderCapability::Unsupported);
+    assert!(!absent.is_supported());
+    assert_eq!(
+        absent.dispatch(ScreenReaderAction::Focus(node)),
+        ScreenReaderOutcome::Unsupported
+    );
+    assert_eq!(
+        absent.dispatch(ScreenReaderAction::Activate(node)),
+        ScreenReaderOutcome::Unsupported
+    );
+    assert_eq!(
+        absent.dispatch(ScreenReaderAction::SetValue {
+            node,
+            value: "sub.lan".to_string(),
+        }),
+        ScreenReaderOutcome::Unsupported
+    );
+
+    // The explicit no-op bridge answers the same typed unsupported.
+    let noop = ScreenReaderGate::install(NoScreenReader);
+    assert_eq!(noop.capability(), ScreenReaderCapability::Unsupported);
+    assert!(!noop.is_supported());
+    assert_eq!(
+        noop.dispatch(ScreenReaderAction::Activate(node)),
+        ScreenReaderOutcome::Unsupported
+    );
+
+    // A supported host bridge advertises its backend and passes actions through.
+    let gate = ScreenReaderGate::install(FakeTalkBack);
+    assert_eq!(gate.capability(), ScreenReaderCapability::TalkBack);
+    assert!(gate.is_supported());
+    assert_eq!(
+        gate.dispatch(ScreenReaderAction::Activate(node)),
+        ScreenReaderOutcome::Dispatched
+    );
+    assert_eq!(
+        gate.dispatch(ScreenReaderAction::Focus(node)),
+        ScreenReaderOutcome::Unsupported
+    );
+}
+
+#[test]
+fn test_camera_scan_state_machine_grant_deny_cancel_invalid() {
+    // Zero-area frames are a typed invalid texture.
+    assert_eq!(
+        CameraScanTexture::new(1, 0, 720, CameraPixelFormat::Rgba8),
+        Err(CameraScanReject::InvalidTexture)
+    );
+    let texture =
+        CameraScanTexture::new(42, 1280, 720, CameraPixelFormat::Nv21).expect("valid texture");
+    assert_eq!(texture.texture_id(), 42);
+    assert_eq!(texture.width(), 1280);
+    assert_eq!(texture.height(), 720);
+    assert_eq!(texture.format(), CameraPixelFormat::Nv21);
+
+    // Grant path: Idle → AwaitingPermission → Scanning → Detected.
+    let mut session = CameraScanSession::new();
+    assert_eq!(session.state(), CameraScanState::Idle);
+    let request = session.request(9, texture).expect("idle request");
+    assert_eq!(request.request_id, 9);
+    assert_eq!(request.texture, texture);
+    assert_eq!(session.request_id(), Some(9));
+    assert_eq!(session.state(), CameraScanState::AwaitingPermission);
+    assert!(session.grant_permission().is_ok());
+    assert_eq!(session.state(), CameraScanState::Scanning);
+    assert!(
+        session
+            .detect("clash://install-config?url=https://sub.lan/c.yaml")
+            .is_ok()
+    );
+    assert_eq!(session.state(), CameraScanState::Detected);
+    assert_eq!(
+        session.response(),
+        Some(&CameraScanResponse::Granted(
+            "clash://install-config?url=https://sub.lan/c.yaml".to_string()
+        ))
+    );
+    // Illegal transitions stay typed, never silent.
+    assert_eq!(
+        session.grant_permission(),
+        Err(CameraScanTransitionError {
+            from: CameraScanState::Detected
+        })
+    );
+    assert!(session.reset().is_ok());
+    assert_eq!(session.state(), CameraScanState::Idle);
+    assert_eq!(session.response(), None);
+
+    // Deny path.
+    let mut denied = CameraScanSession::new();
+    denied.request(1, texture).expect("deny request");
+    assert!(denied.deny_permission().is_ok());
+    assert_eq!(denied.state(), CameraScanState::Denied);
+    assert_eq!(denied.response(), Some(&CameraScanResponse::Denied));
+
+    // Cancel path.
+    let mut cancelled = CameraScanSession::new();
+    cancelled.request(2, texture).expect("cancel request");
+    assert!(cancelled.cancel().is_ok());
+    assert_eq!(cancelled.state(), CameraScanState::Cancelled);
+    assert_eq!(cancelled.response(), Some(&CameraScanResponse::Cancelled));
+
+    // Invalid path.
+    let mut invalid = CameraScanSession::new();
+    invalid.request(3, texture).expect("invalid request");
+    invalid.grant_permission().expect("permission granted");
+    assert!(invalid.invalidate(CameraScanReject::DecodeFailed).is_ok());
+    assert_eq!(invalid.state(), CameraScanState::Invalid);
+    assert_eq!(
+        invalid.response(),
+        Some(&CameraScanResponse::Invalid(CameraScanReject::DecodeFailed))
+    );
+}
+
+#[test]
+fn test_platform_view_lifecycle_transitions_and_no_leak() {
+    let mut host = PlatformViewLifecycleHost::new("native-map");
+    assert_eq!(host.state(), PlatformViewState::Unmounted);
+    assert_eq!(host.unmount(), Err(PlatformViewTransitionError::NotMounted));
+
+    assert_eq!(host.mount(77), Ok(PlatformViewTransition::Mounted));
+    assert_eq!(host.state(), PlatformViewState::Mounted);
+    assert_eq!(host.native_handle_id, Some(77));
+    assert_eq!(
+        host.mount(78),
+        Err(PlatformViewTransitionError::AlreadyMounted)
+    );
+
+    assert_eq!(host.pause(), Ok(PlatformViewTransition::Paused));
+    assert_eq!(host.state(), PlatformViewState::Paused);
+    assert!(host.is_attached, "a paused view keeps its native handle");
+    assert_eq!(
+        host.pause(),
+        Err(PlatformViewTransitionError::AlreadyPaused)
+    );
+
+    assert_eq!(host.resume(), Ok(PlatformViewTransition::Resumed));
+    assert_eq!(host.state(), PlatformViewState::Mounted);
+    assert_eq!(host.resume(), Err(PlatformViewTransitionError::NotPaused));
+
+    assert_eq!(host.unmount(), Ok(PlatformViewTransition::Unmounted));
+    assert_eq!(host.state(), PlatformViewState::Unmounted);
+    assert_eq!(host.native_handle_id, None, "unmount releases the handle");
+    assert!(!host.is_attached);
+    assert_eq!(host.unmount(), Err(PlatformViewTransitionError::NotMounted));
 }

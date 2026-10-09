@@ -1,6 +1,6 @@
 import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 import package::shaders::surface_uniform::ModernSurfaceUniform;
-import package::shaders::squircle::squircle_sdf;
+import package::shaders::squircle::{squircle_sdf, sdf_edge_coverage};
 import package::shaders::shadow::surface_shadow;
 
 @group(1) @binding(0)
@@ -12,13 +12,12 @@ fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
     let p = (in.uv - vec2<f32>(0.5)) * surface.dimensions;
     let shadow_alpha = surface_shadow(p, half_size, surface);
     let d_surface = squircle_sdf(p, half_size, surface.radius, surface.smoothing);
-    let aa = max(fwidth(d_surface), 0.7);
-    let surface_mask = 1.0 - smoothstep(-aa * 0.5, aa * 0.5, d_surface);
+    let surface_mask = sdf_edge_coverage(d_surface, fwidth(d_surface));
 
     var border_mask = 0.0;
     if (surface.border_width > 0.0) {
         let d_inner = d_surface + surface.border_width;
-        let inner_mask = 1.0 - smoothstep(-aa * 0.5, aa * 0.5, d_inner);
+        let inner_mask = sdf_edge_coverage(d_inner, fwidth(d_inner));
         border_mask = surface_mask * (1.0 - inner_mask);
     }
     let card_rgb = mix(surface.color.rgb, surface.border_color.rgb, border_mask);

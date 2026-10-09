@@ -7,13 +7,19 @@ use bevy::app::{App, PreStartup, Startup};
 use bevy::asset::{AssetPlugin, Assets, Handle};
 use bevy::ecs::system::{Commands, Res};
 use bevy::scene::{CommandsSceneExt, ScenePlugin, bsn};
-use bevy::text::{Font, FontSize, FontSource, TextColor, TextFont, TextPlugin};
+use bevy::text::{
+    Font, FontSize, FontSource, Justify, TextColor, TextFont, TextLayout, TextPlugin,
+};
+use bevy::ui::prelude::{FlexDirection, Node};
 use infiltrator_bevy_widgets::WidgetsPlugin;
+use infiltrator_bevy_widgets::bidi::LayoutDirection;
 use infiltrator_bevy_widgets::button::pill_scene;
 use infiltrator_bevy_widgets::fonts::FontSources;
 use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_bevy_widgets::text::{Role, TextRole, role_typography};
+use infiltrator_bevy_widgets::text_runs::{TextRuns, TextRunsDirection};
 use infiltrator_bevy_widgets::theme::Theme;
+use infiltrator_contract::search_text::SearchTextRun;
 
 fn headless_app() -> App {
     let mut app = App::new();
@@ -166,4 +172,57 @@ fn spawned_label_stamps_the_embedded_face() {
         "body role stamps the Regular face"
     );
     assert_eq!(ink.0, UiPalette::new(&Theme::dark()).ink);
+}
+
+#[test]
+fn text_runs_direction_propagates_to_layout() {
+    let mut app = headless_app();
+    let rtl_entity = app
+        .world_mut()
+        .spawn((
+            TextRuns(vec![SearchTextRun {
+                text: "مرحبا".to_string(),
+                highlighted: false,
+            }]),
+            TextRunsDirection(LayoutDirection::Rtl),
+            Node {
+                flex_direction: FlexDirection::Row,
+                ..Default::default()
+            },
+            TextLayout {
+                justify: Justify::Left,
+                ..Default::default()
+            },
+        ))
+        .id();
+    let ltr_entity = app
+        .world_mut()
+        .spawn((
+            TextRuns(vec![SearchTextRun {
+                text: "hello".to_string(),
+                highlighted: false,
+            }]),
+            TextRunsDirection(LayoutDirection::Ltr),
+            Node {
+                flex_direction: FlexDirection::Row,
+                ..Default::default()
+            },
+            TextLayout {
+                justify: Justify::Left,
+                ..Default::default()
+            },
+        ))
+        .id();
+    app.update();
+
+    let world = app.world();
+    let rtl_node = world.get::<Node>(rtl_entity).expect("rtl node");
+    let rtl_layout = world.get::<TextLayout>(rtl_entity).expect("rtl layout");
+    assert_eq!(rtl_node.flex_direction, FlexDirection::RowReverse);
+    assert_eq!(rtl_layout.justify, Justify::Right);
+
+    let ltr_node = world.get::<Node>(ltr_entity).expect("ltr node");
+    let ltr_layout = world.get::<TextLayout>(ltr_entity).expect("ltr layout");
+    assert_eq!(ltr_node.flex_direction, FlexDirection::Row);
+    assert_eq!(ltr_layout.justify, Justify::Left);
 }
