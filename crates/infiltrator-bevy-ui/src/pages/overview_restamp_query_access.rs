@@ -6,7 +6,7 @@ use super::{
 };
 use crate::pages::overview::{
     OverviewCardState, OverviewChip, OverviewLine, OverviewReloadMask, OverviewReloadMaskText,
-    OverviewStatusCard,
+    OverviewStatusCard, OverviewTrafficChart,
 };
 use crate::pages::overview_public_ip::PublicIpText;
 use crate::pages::overview_topology::{TopologyStageButton, TopologyText};
@@ -79,7 +79,7 @@ pub struct OverviewProjectionTargets<'w, 's> {
         ApplyOverviewProjectionReloadMaskTextsFilter,
     >,
     pub(super) groups: Query<'w, 's, &'static Children>,
-    pub(super) charts: Query<'w, 's, &'static mut ChartPlate>,
+    pub(super) charts: Query<'w, 's, &'static mut ChartPlate, With<OverviewTrafficChart>>,
     pub(super) topology_charts: Query<'w, 's, &'static mut TopologyPlate>,
 }
 

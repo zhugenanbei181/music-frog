@@ -12,7 +12,7 @@ use crate::pages::doctor_actions::{BootstrapDoctorButton, DoctorFeedbackText, Re
 use crate::pages::doctor_rows::{DoctorRows, check_row_scene, refresh_rows};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Update};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
 use bevy::ecs::event::Event;
@@ -41,6 +41,9 @@ use infiltrator_contract::doctor::{DoctorCheckKind, DoctorStatus};
 use infiltrator_contract::snapshot::CoreWatchdogSnapshot;
 use infiltrator_shared::i18n_interpolator::localize;
 use infiltrator_shared::locales::{Lang, Localizer};
+
+#[path = "doctor_self_heal.rs"]
+pub mod self_heal;
 
 /// Root marker on the Doctor page scene.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
@@ -291,6 +294,8 @@ pub fn doctor_page(projection: &DoctorProjection, palette: &UiPalette) -> impl S
             Children [
                 @{ header_card_scene(summary, last_run_str, watchdog_str, palette) }
                 --
+                @{ self_heal::self_heal_card_scene(palette) }
+                --
                 @{ checks_container_scene(check_scenes, palette) }
             ]
     }
@@ -401,8 +406,11 @@ pub struct DoctorPagePlugin;
 
 impl Plugin for DoctorPagePlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<self_heal::DoctorSelfHealBoard>();
         app.add_observer(apply_doctor_projection);
         app.add_observer(refresh_rows);
+        app.add_observer(self_heal::on_apply_best_node);
+        app.add_systems(Update, self_heal::refresh_self_heal);
     }
 }
 

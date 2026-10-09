@@ -181,3 +181,6 @@ mod snapshot_restore_tests;
 
 #[path = "headless/editor_observation_tests.rs"]
 mod editor_observation_tests;
+
+#[path = "headless/globe_tests.rs"]
+mod globe_tests;

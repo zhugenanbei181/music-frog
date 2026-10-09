@@ -48,6 +48,7 @@ use crate::pages::dns_self_heal::sync_dns_observation_lines;
 use crate::pages::doctor::{DoctorProjectionUpdated, LastDoctorProjection, doctor_page};
 use crate::pages::doctor_actions::{DoctorActions, on_action, on_result, sync_controls};
 use crate::pages::doctor_rows::{reconcile_rows, replay_copy, replay_header, sort_rows};
+use crate::pages::globe::GlobePagePlugin;
 use crate::pages::logs::{LogsProjectionUpdated, logs_page};
 use crate::pages::logs_virtual::{LogsVirtualState, sync_logs_virtual_window};
 use crate::pages::overview::{
@@ -429,6 +430,7 @@ impl Plugin for PagesPlugin {
         app.add_plugins(PageBindingsPlugin);
         app.add_plugins(CoreControlPlugin);
         app.add_plugins(ProxyInspectionPlugin);
+        app.add_plugins(GlobePagePlugin);
         app.init_resource::<ActiveRoute>();
         app.init_resource::<RouteHistory>();
         app.init_resource::<BackLayerStack>();

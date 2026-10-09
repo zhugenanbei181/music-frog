@@ -7,26 +7,31 @@ pub mod query_access;
 use self::query_access::{OverviewDynamicTextItem, OverviewProjectionTargets};
 
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::history::{TrafficHistory, chart_inputs};
+use crate::history::{
+    ReplayState, TrafficHistory, TrafficReplay, chart_inputs, replay_chart_inputs, replay_state,
+};
 use crate::pages::overview::{
     AccentContainerFill, AccentFill, BorderFill, LastOverviewProjection, OnAccentText,
     OverviewCardState, OverviewChipKind, OverviewLineKind, OverviewModeChip,
-    OverviewProjectionUpdated, StatusDot, SurfaceElevatedFill, SurfaceFill, banner_note, card_fill,
-    chart_dims, chip_label, format_cpu, format_memory, format_scale, format_total_traffic,
-    state_ink, status_dot_color,
+    OverviewProjectionUpdated, OverviewScrubberStatus, OverviewTrafficChart, StatusDot,
+    SurfaceElevatedFill, SurfaceFill, banner_note, card_fill, chart_dims, chip_label, format_cpu,
+    format_memory, format_scale, format_total_traffic, state_ink, status_dot_color,
 };
 use crate::pages::overview_cards::quota_status_color;
 use crate::pages::overview_public_ip::{PublicIpTextKind, public_ip_text_value};
 use crate::pages::overview_topology::{topology_spec, topology_text_value};
+use crate::projection::OverviewProjection;
 use crate::surface::LatestSurfaceSnapshot;
 use bevy::color::Color;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::component::Component;
 use bevy::ecs::observer::On;
-use bevy::ecs::query::{Has, QueryData};
+use bevy::ecs::query::{Has, QueryData, With};
 use bevy::ecs::system::SystemParam;
 use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::text::TextColor;
 use bevy::ui::prelude::{BackgroundColor, Display, percent};
+use bevy::ui::widget::Text;
 use bevy::ui_widgets::Activate;
 use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy};
 use infiltrator_application::proxy_mode_projection::mode_status_copy;
@@ -34,6 +39,7 @@ use infiltrator_application::shell_readout_projection::{rate_copy, rate_status};
 use infiltrator_application::subscription_quota_projection::{QuotaPresentation, project_quota};
 use infiltrator_application::system_toggle_application::SystemToggleApplication;
 use infiltrator_application::system_toggle_projection::{action_label, status_label};
+use infiltrator_bevy_widgets::chart::ChartPlate;
 use infiltrator_bevy_widgets::chart::ChartSpec;
 use infiltrator_bevy_widgets::chart::bezier::ScaleMode;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
@@ -266,6 +272,7 @@ pub(crate) fn apply_overview_projection(
     update: On<OverviewProjectionUpdated>,
     appearance: OverviewAppearance,
     history: Res<TrafficHistory>,
+    replay: Res<TrafficReplay>,
     mut last: ResMut<LastOverviewProjection>,
     targets: OverviewProjectionTargets,
 ) {
@@ -457,11 +464,7 @@ pub(crate) fn apply_overview_projection(
         }
     }
 
-    let (up, down, smooth, scale) = chart_inputs(projection, &history);
-    let (width, height) = chart_dims();
-    let spec = ChartSpec::new(up, down, width, height)
-        .with_smooth(smooth)
-        .with_scale_mode(ScaleMode::Fixed(scale.max_bps as f32));
+    let spec = overview_chart_spec(projection, &history, &replay);
     for mut plate in &mut charts {
         if plate.0 != spec {
             plate.0 = spec.clone();
@@ -476,6 +479,70 @@ pub(crate) fn apply_overview_projection(
         }
     }
     last.0 = Some(projection.clone());
+}
+
+/// The one origin → chart-spec decision, replay-aware: while scrubbing the
+/// plate draws the frozen historical window (empty when nothing was
+/// retained), otherwise it draws the live series.
+fn overview_chart_spec(
+    projection: &OverviewProjection,
+    history: &TrafficHistory,
+    replay: &TrafficReplay,
+) -> ChartSpec {
+    let (width, height) = chart_dims();
+    if replay.is_scrubbing() {
+        let (up, down, smooth, scale) = replay_chart_inputs(replay)
+            .unwrap_or_else(|| (Vec::new(), Vec::new(), false, Default::default()));
+        return ChartSpec::new(up, down, width, height)
+            .with_smooth(smooth)
+            .with_scale_mode(ScaleMode::Fixed(scale.max_bps as f32));
+    }
+    let (up, down, smooth, scale) = chart_inputs(projection, history);
+    ChartSpec::new(up, down, width, height)
+        .with_smooth(smooth)
+        .with_scale_mode(ScaleMode::Fixed(scale.max_bps as f32))
+}
+
+/// Restamp the trend chart and the scrubber status whenever the replay state
+/// or the locale changes. The chart entity is the same plate (no remount),
+/// and while scrubbing the historical window wins over live projections.
+pub(crate) fn sync_overview_replay(
+    replay: Res<TrafficReplay>,
+    last: Res<LastOverviewProjection>,
+    history: Res<TrafficHistory>,
+    locale: Res<UiLocale>,
+    mut charts: Query<&mut ChartPlate, With<OverviewTrafficChart>>,
+    mut status: Query<&mut Text, With<OverviewScrubberStatus>>,
+) {
+    if !replay.is_changed() && !last.is_changed() && !locale.is_changed() {
+        return;
+    }
+    let Some(projection) = &last.0 else {
+        return;
+    };
+    let spec = overview_chart_spec(projection, &history, &replay);
+    for mut plate in &mut charts {
+        if plate.0 != spec {
+            plate.0 = spec.clone();
+        }
+    }
+    let label = scrubber_status_copy(replay_state(projection.origin, &replay), &locale);
+    for mut text in &mut status {
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
+    }
+}
+
+/// The scrubber status line: a localized live/unavailable/empty word, or the
+/// numeric historical position. Symbols and digits are locale-neutral data.
+fn scrubber_status_copy(state: ReplayState, locale: &UiLocale) -> String {
+    match state {
+        ReplayState::Live => locale.text("conn_state_live"),
+        ReplayState::Unsupported => locale.text("overview_toggle_unavailable"),
+        ReplayState::Empty => locale.text("speedtest_history_empty"),
+        ReplayState::Historical { index, len } => format!("⏪ {}/{}", index + 1, len),
+    }
 }
 
 /// The page's token reskin: every filled node re-derives its fill from

@@ -57,6 +57,7 @@ pub mod dns_stun;
 pub mod doctor;
 pub mod doctor_actions;
 pub mod doctor_rows;
+pub mod globe;
 pub mod logs;
 pub mod logs_export;
 pub mod logs_export_focus;

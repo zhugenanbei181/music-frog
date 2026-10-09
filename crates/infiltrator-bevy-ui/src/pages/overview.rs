@@ -33,13 +33,14 @@
 //! Remaining localized status folds are tracked by the shared-copy quality gate.
 
 use crate::command::{CommandSinkHandle, UiCommand};
-use crate::history::{TrafficHistory, chart_inputs};
+use crate::history::{ScrubberAction, TrafficHistory, TrafficReplay, chart_inputs};
+use crate::localized_widgets::localized_button_scene;
 use crate::pages::overview_lifecycle::core_control_scene;
 use crate::pages::overview_public_ip::on_overview_public_ip_refresh_activated;
 use crate::pages::overview_quota_copy;
 use crate::pages::overview_rates;
 use crate::pages::overview_restamp::{
-    apply_overview_projection, on_overview_master_switch_activated,
+    apply_overview_projection, on_overview_master_switch_activated, sync_overview_replay,
 };
 use crate::pages::overview_speedtest::{
     on_overview_speedtest_activated, on_overview_speedtest_concurrency_stepped,
@@ -58,7 +59,7 @@ use bevy::ecs::hierarchy::Children;
 use bevy::ecs::observer::On;
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res};
+use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
 use bevy::ui::PositionType;
@@ -72,6 +73,7 @@ use infiltrator_application::byte_format::format_bytes;
 use infiltrator_application::core_status_projection::{failure_copy, lifecycle_copy, source_copy};
 use infiltrator_application::proxy_mode_projection::mode_status_copy;
 use infiltrator_application::shell_readout_projection::{observed_rate, rate_copy, rate_status};
+use infiltrator_bevy_widgets::button::{ButtonSize, ButtonVariant, button_sized_scene};
 use infiltrator_bevy_widgets::chart::chart_scene_with_scale;
 use infiltrator_bevy_widgets::fluid_grid::{FluidCardGrid, compute_ideal_column_layout};
 use infiltrator_bevy_widgets::icon::{IconId, icon_scene};
@@ -118,6 +120,21 @@ pub struct OverviewPageRoot;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct OverviewTrafficCard;
+
+/// Marker on the Overview traffic card's trend chart plate. The page's
+/// projection restamp and the replay scrubber both key off it, so the
+/// proxy-inspection chart is never touched.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewTrafficChart;
+
+/// Marker on one time-travel scrubber button; carries its typed action.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewScrubberButton(pub ScrubberAction);
+
+/// Marker on the scrubber's status line (live / empty / unsupported /
+/// historical position).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewScrubberStatus;
 
 /// Which mutable line of the page a text node is. One enum marker keeps
 /// the refresh observer to a single (conflict-free) query.
@@ -564,17 +581,93 @@ fn traffic_card_scene(
             Box::new(scale_line_scene(&scale)),
             Box::new(bsn! { Text({rate_status(&projection.readout, "en-US")})
             OverviewLine(OverviewLineKind::TelemetryFailure) TextRole(Role::Caption) }),
-            Box::new(chart_scene_with_scale(
+            Box::new(overview_chart_scene(
                 up,
                 down,
-                CHART_WIDTH_PX,
-                CHART_HEIGHT_PX,
                 smooth,
                 Some(scale.max_bps as f32),
             )),
+            Box::new(scrubber_scene(palette)),
         ],
         palette,
     )
+}
+
+/// The trend chart plate, marked so the projection restamp and the replay
+/// scrubber address only the Overview chart.
+fn overview_chart_scene(
+    up: Vec<f32>,
+    down: Vec<f32>,
+    smooth: bool,
+    scale_max: Option<f32>,
+) -> impl Scene + use<> {
+    bsn! {
+        @{ chart_scene_with_scale(
+            up,
+            down,
+            CHART_WIDTH_PX,
+            CHART_HEIGHT_PX,
+            smooth,
+            scale_max,
+        ) }
+        OverviewTrafficChart
+    }
+}
+
+/// The time-travel scrubber row under the trend chart: coarse seeks, single
+/// steps, a return-to-live button and the typed status readout. Purely
+/// structural — the buttons' `Activate` observer and
+/// [`sync_overview_replay`](crate::pages::overview_restamp::sync_overview_replay)
+/// own the behavior.
+fn scrubber_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(space::S8),
+                row_gap: Val::Px(space::S4),
+                flex_wrap: FlexWrap::Wrap,
+            }
+            Children [
+                @{ scrubber_button_scene("⏮".to_owned(), ScrubberAction::SeekBackward, palette) }
+                --
+                @{ scrubber_button_scene("◀".to_owned(), ScrubberAction::StepBackward, palette) }
+                --
+                @{ scrubber_button_scene("▶".to_owned(), ScrubberAction::StepForward, palette) }
+                --
+                @{ scrubber_button_scene("⏭".to_owned(), ScrubberAction::SeekForward, palette) }
+                --
+                @{ scrubber_live_button_scene(palette) }
+                --
+                Text({ String::new() }) OverviewScrubberStatus TextRole(Role::Caption)
+            ]
+    }
+}
+
+/// One transport button: the shared button skin with a typed scrub action.
+fn scrubber_button_scene(
+    label: String,
+    action: ScrubberAction,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    bsn! {
+        @{ button_sized_scene(label, ButtonVariant::Ghost, ButtonSize::Sm, palette) }
+        OverviewScrubberButton(action)
+    }
+}
+
+/// The return-to-live button: a primary-labeled control carrying the live
+/// copy key, so it follows the active locale.
+fn scrubber_live_button_scene(palette: &UiPalette) -> impl Scene + use<> {
+    bsn! {
+        @{ localized_button_scene(
+            LocalizedText::plain("conn_state_live"),
+            ButtonVariant::Primary,
+            palette,
+        ) }
+        OverviewScrubberButton(ScrubberAction::ReturnToLive)
+    }
 }
 
 /// The up/down rates side by side on one row (the reference layout).
@@ -727,11 +820,17 @@ pub struct OverviewPagePlugin;
 
 impl Plugin for OverviewPagePlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<TrafficReplay>();
         app.add_systems(
             Update,
-            (overview_rates::refresh, overview_quota_copy::replay),
+            (
+                overview_rates::refresh,
+                overview_quota_copy::replay,
+                sync_overview_replay,
+            ),
         );
         app.add_observer(apply_overview_projection);
+        app.add_observer(on_overview_scrubber_activated);
         app.add_observer(on_topology_stage_activated);
         app.add_observer(on_overview_master_switch_activated);
         app.add_observer(on_overview_speedtest_activated);
@@ -741,6 +840,21 @@ impl Plugin for OverviewPagePlugin {
         app.add_observer(on_overview_card_move_up_activated);
         app.add_observer(on_overview_card_move_down_activated);
     }
+}
+
+/// The scrubber's one behavior seam: turn an `Activate` on a marked button
+/// into a typed replay action. The replay resource freezes the retained
+/// store on the first non-live action, so stepping is stable.
+pub(crate) fn on_overview_scrubber_activated(
+    activate: On<Activate>,
+    buttons: Query<&OverviewScrubberButton>,
+    history: Res<TrafficHistory>,
+    mut replay: ResMut<TrafficReplay>,
+) {
+    let Ok(button) = buttons.get(activate.entity) else {
+        return;
+    };
+    replay.apply(&history, button.0);
 }
 
 /// Convert an Overview card move up action into a UiCommand::MoveOverviewCardUp.

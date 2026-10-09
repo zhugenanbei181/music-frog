@@ -13,6 +13,7 @@ use self::query_access::{
     TunStackControlItem,
 };
 
+use crate::appearance::{refresh_tonal_ladder_preview, tonal_ladder_preview_scene};
 use crate::command::{CommandSinkHandle, UiCommand};
 use crate::localized_widgets::{localized_checkbox_scene, localized_segmented_scene};
 use crate::pages::settings::settings_network_roaming::{
@@ -427,6 +428,8 @@ pub fn general_card_scene(
                                             1,
                                             palette,
                                     ) }
+                                    --
+                                    @{ tonal_ladder_preview_scene(palette) }
                                 ]
 
                             ]
@@ -451,6 +454,7 @@ impl Plugin for SettingsPagePlugin {
                 .before(sync_button_disabled),
         );
         app.init_resource::<settings_lan::LanFieldObservations>();
+        app.add_systems(Update, refresh_tonal_ladder_preview);
         app.add_observer(apply_settings_projection);
         app.add_observer(on_settings_action_activated);
         app.add_observer(settings_core::on_mtu_probe_activated);

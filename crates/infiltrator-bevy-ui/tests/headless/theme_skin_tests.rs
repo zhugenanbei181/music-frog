@@ -7,13 +7,19 @@ use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::asset::AssetPlugin;
 use bevy::scene::ScenePlugin;
+use bevy::ui::prelude::BackgroundColor;
 use bevy::window::{Window, WindowTheme};
 use infiltrator_bevy_ui::app::ShellPlugin;
 use infiltrator_bevy_ui::appearance::{
-    SystemAppearance, ThemeMode, resolved_skin, skin_from_contract,
+    SystemAppearance, ThemeMode, TonalLadderStopSwatch, ladder_preview_for_skin, resolved_skin,
+    skin_from_contract,
 };
-use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use infiltrator_bevy_ui::route::{PagesPlugin, Route, RouteChanged};
+use infiltrator_bevy_widgets::palette::{UiPalette, theme_color};
+use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin, TokenColor};
+use infiltrator_bevy_widgets::theme_export::{
+    DEFAULT_LADDER_STEPS, LadderSource, theme_tonal_ladders,
+};
 use infiltrator_contract::theme;
 use infiltrator_contract::theme::ThemePreference;
 
@@ -160,4 +166,54 @@ fn amoled_pitch_black_contrast_and_translucent_backdrop_adaptation() {
     let wayland_palette = palette.with_translucent_window_clear(0.82);
     let wayland_srgba = wayland_palette.window_clear.to_srgba();
     assert!((wayland_srgba.alpha - 0.82).abs() < 1e-4);
+}
+
+/// BEVY-034: the preview derives from the active skin's real accent token and
+/// always carries the explicit sRGB fallback; token names/values stay put.
+#[test]
+fn tonal_ladder_preview_derives_from_real_tokens_and_the_srgb_fallback() {
+    for skin in ThemeSkin::ALL {
+        let theme = Theme::for_mode(skin);
+        let expected = theme_tonal_ladders(&theme).accent;
+        let preview = ladder_preview_for_skin(skin);
+        assert_eq!(preview.perceptual, expected);
+        assert_eq!(preview.perceptual.source, LadderSource::Oklch);
+        assert_eq!(preview.fallback.source, LadderSource::SrgbFallback);
+        assert_eq!(preview.perceptual.stops.len(), DEFAULT_LADDER_STEPS);
+        assert_eq!(preview.fallback.stops.len(), DEFAULT_LADDER_STEPS);
+        assert_ne!(
+            preview.perceptual, preview.fallback,
+            "the fallback is a distinct generator, never a silent alias"
+        );
+    }
+    // Existing token semantics are untouched: the hand-picked seed still holds.
+    assert_eq!(Theme::dark().accent, TokenColor::rgb(0.12, 0.56, 0.96));
+    assert_eq!(Theme::light().accent, TokenColor::rgb(0.04, 0.44, 0.88));
+}
+
+/// BEVY-034: the mounted Settings preview paints the active skin's ladder.
+#[test]
+fn mounted_settings_preview_paints_the_active_skin_ladder() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins((AssetPlugin::default(), ScenePlugin));
+    app.add_plugins(ShellPlugin::new(ThemePreference::Fixed(
+        theme::ThemeSkin::Forest,
+    )));
+    app.add_plugins(PagesPlugin::default());
+    app.update();
+    app.world_mut().trigger(RouteChanged(Route::Settings));
+    app.update();
+    app.update();
+
+    let ladder = theme_tonal_ladders(&Theme::for_mode(ThemeSkin::Forest)).accent;
+    let mut query = app
+        .world_mut()
+        .query::<(&TonalLadderStopSwatch, &BackgroundColor)>();
+    let mut painted = 0;
+    for (swatch, fill) in query.iter(app.world()) {
+        assert_eq!(fill.0, theme_color(ladder.stops[swatch.0]));
+        painted += 1;
+    }
+    assert_eq!(painted, DEFAULT_LADDER_STEPS);
 }
