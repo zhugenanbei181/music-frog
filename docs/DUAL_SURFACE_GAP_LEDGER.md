@@ -1,5 +1,7 @@
 # 双端平权剩余缺口总清单 (Dual-Surface Parity Gap Ledger)
 
+> 层级：L2
+
 > 本文是**派生的缺口视图**，不是新的权威来源：场景身份只来自 `FeatureId::ALL` 与 `scripts/parity/`；执行顺序、owner 与验收条件只登记在本地 `TODO.md`；平台状态只读取 [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)；差距索引见 [DEFECTS.md](../DEFECTS.md)。本文只做一件事：把每一处尚未“一碗水端平”的隐患映射到 owner 编号、文件级动作与所需证据，供多 agent 按 lane 并行认领。**本清单不构成任何完成声明。**
 
 - 生成基线：HEAD `536b40b` 之后、依赖 lockfile 更新提交 `d7f853d`。
