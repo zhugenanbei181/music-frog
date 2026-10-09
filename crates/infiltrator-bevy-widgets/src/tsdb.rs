@@ -234,9 +234,345 @@ impl DeltaCompressedSeries {
     }
 }
 
+/// Default retained-sample ceiling for a [`TelemetryStore`]: one hour at 1 Hz.
+pub const DEFAULT_STORE_CAPACITY: usize = 3_600;
+
+/// A bounded, append-only telemetry store that keeps samples delta-compressed
+/// and evicts the oldest sample when full.
+///
+/// The oldest retained sample is the `base`; every later sample is stored as a
+/// delta from its predecessor. Eviction is O(1): the first delta is folded into
+/// the base and dropped. Timestamps, byte counters and connection counts live
+/// in delta lanes; `latency_ms` is an exact parallel f32 lane because
+/// floating-point subtraction is not reversible, and a lossless store must
+/// reproduce it bit-for-bit.
+#[derive(Clone, Debug)]
+pub struct TelemetryStore {
+    base: Option<TelemetrySample>,
+    last: Option<TelemetrySample>,
+    timestamp_deltas: VecDeque<u16>,
+    upload_deltas: VecDeque<i64>,
+    download_deltas: VecDeque<i64>,
+    connection_deltas: VecDeque<i32>,
+    latency_ms: VecDeque<f32>,
+    capacity: usize,
+}
+
+impl TelemetryStore {
+    /// Create an empty store retaining at most `capacity` samples (at least 1).
+    pub fn new(capacity: usize) -> Self {
+        let capacity = capacity.max(1);
+        Self {
+            base: None,
+            last: None,
+            timestamp_deltas: VecDeque::with_capacity(capacity),
+            upload_deltas: VecDeque::with_capacity(capacity),
+            download_deltas: VecDeque::with_capacity(capacity),
+            connection_deltas: VecDeque::with_capacity(capacity),
+            latency_ms: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    /// Maximum number of retained samples.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Number of retained samples.
+    pub fn len(&self) -> usize {
+        if self.base.is_none() {
+            0
+        } else {
+            self.timestamp_deltas.len() + 1
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.base.is_none()
+    }
+
+    /// Append a sample, evicting the oldest once the capacity is reached.
+    pub fn push(&mut self, sample: TelemetrySample) {
+        let Some(prev) = self.last else {
+            self.base = Some(sample);
+            self.last = Some(sample);
+            return;
+        };
+
+        if self.len() >= self.capacity {
+            self.evict_oldest();
+        }
+        if self.base.is_none() {
+            self.base = Some(sample);
+            self.last = Some(sample);
+            return;
+        }
+
+        let dt = sample
+            .timestamp_sec
+            .saturating_sub(prev.timestamp_sec)
+            .min(u16::MAX as u64) as u16;
+        self.timestamp_deltas.push_back(dt);
+        self.upload_deltas
+            .push_back(sample.upload_bytes as i64 - prev.upload_bytes as i64);
+        self.download_deltas
+            .push_back(sample.download_bytes as i64 - prev.download_bytes as i64);
+        self.connection_deltas
+            .push_back(sample.active_connections as i32 - prev.active_connections as i32);
+        self.latency_ms.push_back(sample.latency_ms);
+        self.last = Some(sample);
+    }
+
+    /// Oldest retained sample.
+    pub fn oldest(&self) -> Option<TelemetrySample> {
+        self.base
+    }
+
+    /// Newest retained sample.
+    pub fn newest(&self) -> Option<TelemetrySample> {
+        self.last
+    }
+
+    /// Reconstruct the sample at `index` (0 = oldest) without materializing the
+    /// whole series.
+    pub fn sample_at(&self, index: usize) -> Option<TelemetrySample> {
+        if index >= self.len() {
+            return None;
+        }
+        let mut sample = self.base?;
+        let lanes = self
+            .timestamp_deltas
+            .iter()
+            .take(index)
+            .zip(self.upload_deltas.iter().take(index))
+            .zip(self.download_deltas.iter().take(index))
+            .zip(self.connection_deltas.iter().take(index))
+            .zip(self.latency_ms.iter().take(index));
+        for ((((dt, dup), ddown), dconn), latency_ms) in lanes {
+            sample = Self::advance(sample, *dt, *dup, *ddown, *dconn, *latency_ms);
+        }
+        Some(sample)
+    }
+
+    /// Decompress the retained series in oldest-to-newest order.
+    pub fn to_vec(&self) -> Vec<TelemetrySample> {
+        let Some(base) = self.base else {
+            return Vec::new();
+        };
+        let mut out = Vec::with_capacity(self.len());
+        let mut sample = base;
+        out.push(sample);
+        let lanes = self
+            .timestamp_deltas
+            .iter()
+            .zip(self.upload_deltas.iter())
+            .zip(self.download_deltas.iter())
+            .zip(self.connection_deltas.iter())
+            .zip(self.latency_ms.iter());
+        for ((((dt, dup), ddown), dconn), latency_ms) in lanes {
+            sample = Self::advance(sample, *dt, *dup, *ddown, *dconn, *latency_ms);
+            out.push(sample);
+        }
+        out
+    }
+
+    /// Bounded query: every retained sample in `[start_ts, end_ts]`, reduced to
+    /// at most `max_points` via [`downsample`] when the range is large.
+    pub fn query_window(
+        &self,
+        start_ts: u64,
+        end_ts: u64,
+        max_points: usize,
+    ) -> Vec<TelemetrySample> {
+        let in_range: Vec<TelemetrySample> = self
+            .to_vec()
+            .into_iter()
+            .filter(|s| s.timestamp_sec >= start_ts && s.timestamp_sec <= end_ts)
+            .collect();
+        downsample(&in_range, max_points)
+    }
+
+    /// Time-travel cursor over a frozen snapshot of the retained series.
+    pub fn replay_cursor(&self) -> ReplayCursor {
+        ReplayCursor::new(self.to_vec())
+    }
+
+    fn evict_oldest(&mut self) {
+        let Some(base) = self.base else {
+            return;
+        };
+        if self.timestamp_deltas.is_empty() {
+            self.base = None;
+            self.last = None;
+            return;
+        }
+        let dt = self
+            .timestamp_deltas
+            .pop_front()
+            .expect("timestamp delta lane");
+        let dup = self.upload_deltas.pop_front().expect("upload delta lane");
+        let ddown = self
+            .download_deltas
+            .pop_front()
+            .expect("download delta lane");
+        let dconn = self
+            .connection_deltas
+            .pop_front()
+            .expect("connection delta lane");
+        let latency_ms = self.latency_ms.pop_front().expect("latency lane");
+        self.base = Some(Self::advance(base, dt, dup, ddown, dconn, latency_ms));
+    }
+
+    fn advance(
+        sample: TelemetrySample,
+        dt: u16,
+        dup: i64,
+        ddown: i64,
+        dconn: i32,
+        latency_ms: f32,
+    ) -> TelemetrySample {
+        TelemetrySample {
+            timestamp_sec: sample.timestamp_sec + dt as u64,
+            upload_bytes: (sample.upload_bytes as i64 + dup).max(0) as u64,
+            download_bytes: (sample.download_bytes as i64 + ddown).max(0) as u64,
+            active_connections: (sample.active_connections as i64 + dconn as i64).max(0) as u32,
+            latency_ms,
+        }
+    }
+}
+
+/// Reduce a series to at most `max_points` by averaging contiguous buckets.
+///
+/// Each output keeps the last timestamp of its bucket so the result stays
+/// ordered and its final point is the newest input point. A series already
+/// within budget is returned unchanged, so small windows are lossless.
+pub fn downsample(samples: &[TelemetrySample], max_points: usize) -> Vec<TelemetrySample> {
+    if max_points == 0 {
+        return Vec::new();
+    }
+    if samples.len() <= max_points {
+        return samples.to_vec();
+    }
+    (0..max_points)
+        .map(|bucket| {
+            let start = bucket * samples.len() / max_points;
+            let end = (bucket + 1) * samples.len() / max_points;
+            let window = &samples[start..end];
+            let count = window.len() as u64;
+            let upload: u64 = window.iter().map(|s| s.upload_bytes).sum();
+            let download: u64 = window.iter().map(|s| s.download_bytes).sum();
+            let connections: u64 = window.iter().map(|s| s.active_connections as u64).sum();
+            let latency: f32 = window.iter().map(|s| s.latency_ms).sum();
+            TelemetrySample {
+                timestamp_sec: window.last().expect("bucket is non-empty").timestamp_sec,
+                upload_bytes: upload / count,
+                download_bytes: download / count,
+                active_connections: (connections / count) as u32,
+                latency_ms: latency / count as f32,
+            }
+        })
+        .collect()
+}
+
+/// Time-travel replay cursor over a frozen telemetry snapshot.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReplayCursor {
+    samples: Vec<TelemetrySample>,
+    index: usize,
+}
+
+impl ReplayCursor {
+    pub fn new(samples: Vec<TelemetrySample>) -> Self {
+        Self { samples, index: 0 }
+    }
+
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    /// Current cursor position (0 = oldest).
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    /// Sample under the cursor.
+    pub fn current(&self) -> Option<TelemetrySample> {
+        self.samples.get(self.index).copied()
+    }
+
+    /// Land on `index`, clamped to the last sample; returns the landed sample.
+    pub fn seek_to_index(&mut self, index: usize) -> Option<TelemetrySample> {
+        if self.samples.is_empty() {
+            self.index = 0;
+            return None;
+        }
+        self.index = index.min(self.samples.len() - 1);
+        self.samples.get(self.index).copied()
+    }
+
+    /// Land on the newest sample at or before `target_ts`.
+    pub fn seek_to_timestamp(&mut self, target_ts: u64) -> Option<TelemetrySample> {
+        match self
+            .samples
+            .iter()
+            .rposition(|s| s.timestamp_sec <= target_ts)
+        {
+            Some(index) => {
+                self.index = index;
+                self.samples.get(index).copied()
+            }
+            None => {
+                self.index = 0;
+                self.samples.first().copied()
+            }
+        }
+    }
+
+    /// Land on the sample at `fraction` of the snapshot (0.0 oldest, 1.0 newest).
+    pub fn seek_to_fraction(&mut self, fraction: f32) -> Option<TelemetrySample> {
+        if self.samples.is_empty() {
+            return None;
+        }
+        let fraction = fraction.clamp(0.0, 1.0);
+        let index = ((self.samples.len() - 1) as f32 * fraction).round() as usize;
+        self.seek_to_index(index)
+    }
+
+    /// Advance one sample (stops at the newest).
+    pub fn step_forward(&mut self) -> Option<TelemetrySample> {
+        if self.index + 1 < self.samples.len() {
+            self.index += 1;
+        }
+        self.samples.get(self.index).copied()
+    }
+
+    /// Rewind one sample (stops at the oldest).
+    pub fn step_backward(&mut self) -> Option<TelemetrySample> {
+        if self.index > 0 {
+            self.index -= 1;
+        }
+        self.samples.get(self.index).copied()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample(ts: u64, up: u64, down: u64, connections: u32, latency_ms: f32) -> TelemetrySample {
+        TelemetrySample {
+            timestamp_sec: ts,
+            upload_bytes: up,
+            download_bytes: down,
+            active_connections: connections,
+            latency_ms,
+        }
+    }
 
     #[test]
     fn test_delta_compressed_series_lossless_round_trip() {
@@ -274,5 +610,132 @@ mod tests {
         assert_eq!(decompressed[0].timestamp_sec, 1000);
         assert_eq!(decompressed[1].upload_bytes, 5200);
         assert_eq!(decompressed[2].download_bytes, 30000);
+    }
+
+    #[test]
+    fn test_telemetry_store_round_trips_losslessly() {
+        let mut store = TelemetryStore::new(16);
+        let originals: Vec<TelemetrySample> = (0..12)
+            .map(|i| {
+                sample(
+                    1_000 + i,
+                    500 + i * 37,
+                    9_000 + i * 111,
+                    (i % 7) as u32,
+                    10.0 + i as f32,
+                )
+            })
+            .collect();
+        for original in &originals {
+            store.push(*original);
+        }
+
+        assert_eq!(store.len(), 12);
+        assert!(!store.is_empty());
+        assert_eq!(store.to_vec(), originals);
+        assert_eq!(store.oldest(), Some(originals[0]));
+        assert_eq!(store.newest(), Some(originals[11]));
+        assert_eq!(store.sample_at(5), Some(originals[5]));
+        assert_eq!(store.sample_at(12), None);
+    }
+
+    #[test]
+    fn test_telemetry_store_stays_bounded_under_growth() {
+        let capacity = 64;
+        let mut store = TelemetryStore::new(capacity);
+        for i in 0..5_000u64 {
+            store.push(sample(i, i * 2, i * 3, 1, 20.0));
+        }
+
+        assert_eq!(store.len(), capacity);
+        assert_eq!(store.capacity(), capacity);
+        assert_eq!(store.timestamp_deltas.len(), capacity - 1);
+        assert_eq!(store.latency_ms.len(), capacity - 1);
+        assert_eq!(
+            store.oldest().unwrap().timestamp_sec,
+            5_000 - capacity as u64
+        );
+        assert_eq!(store.newest().unwrap().timestamp_sec, 4_999);
+
+        let series = store.to_vec();
+        assert_eq!(series.len(), capacity);
+        for (offset, point) in series.iter().enumerate() {
+            let expected_ts = 5_000 - capacity as u64 + offset as u64;
+            assert_eq!(point.timestamp_sec, expected_ts);
+            assert_eq!(point.upload_bytes, expected_ts * 2);
+            assert_eq!(point.download_bytes, expected_ts * 3);
+        }
+    }
+
+    #[test]
+    fn test_downsample_preserves_count_bounds_and_means() {
+        let series: Vec<TelemetrySample> =
+            (0..100u64).map(|i| sample(i, 100, 400, 8, 50.0)).collect();
+
+        let reduced = downsample(&series, 10);
+        assert_eq!(reduced.len(), 10);
+        for point in &reduced {
+            assert_eq!(point.upload_bytes, 100);
+            assert_eq!(point.download_bytes, 400);
+            assert_eq!(point.active_connections, 8);
+            assert!((point.latency_ms - 50.0).abs() < 1e-6);
+            assert!(point.timestamp_sec < 100);
+        }
+        assert!(
+            reduced
+                .windows(2)
+                .all(|w| w[0].timestamp_sec < w[1].timestamp_sec)
+        );
+        assert_eq!(reduced.last().unwrap().timestamp_sec, 99);
+
+        // Within budget the series is returned untouched (lossless window).
+        assert_eq!(downsample(&series, 100), series);
+
+        // The query API applies the same reduction to a bounded time range.
+        let mut store = TelemetryStore::new(200);
+        for point in &series {
+            store.push(*point);
+        }
+        let window = store.query_window(20, 79, 5);
+        assert_eq!(window.len(), 5);
+        assert!(window.iter().all(|p| (20..=79).contains(&p.timestamp_sec)));
+        assert!(store.query_window(500, 600, 5).is_empty());
+    }
+
+    #[test]
+    fn test_replay_cursor_seeks_and_steps() {
+        let series: Vec<TelemetrySample> = (0..20u64)
+            .map(|i| sample(1_000 + i * 10, i, i, 1, i as f32))
+            .collect();
+        let mut cursor = ReplayCursor::new(series.clone());
+        assert_eq!(cursor.len(), 20);
+        assert_eq!(cursor.current().unwrap().timestamp_sec, 1_000);
+
+        let landed = cursor.seek_to_timestamp(1_075).unwrap();
+        assert_eq!(landed.timestamp_sec, 1_070);
+        assert_eq!(cursor.index(), 7);
+        assert_eq!(cursor.step_forward().unwrap().timestamp_sec, 1_080);
+        assert_eq!(cursor.step_backward().unwrap().timestamp_sec, 1_070);
+        assert_eq!(cursor.step_backward().unwrap().timestamp_sec, 1_060);
+
+        // Seeks clamp at both ends.
+        assert_eq!(cursor.seek_to_timestamp(1).unwrap().timestamp_sec, 1_000);
+        assert_eq!(
+            cursor.seek_to_timestamp(9_999).unwrap().timestamp_sec,
+            1_190
+        );
+        assert_eq!(cursor.seek_to_fraction(0.5).unwrap().timestamp_sec, 1_100);
+
+        // Stepping past an end holds the boundary sample.
+        cursor.seek_to_index(19);
+        assert_eq!(cursor.step_forward().unwrap().timestamp_sec, 1_190);
+        cursor.seek_to_index(0);
+        assert_eq!(cursor.step_backward().unwrap().timestamp_sec, 1_000);
+
+        let mut store = TelemetryStore::new(32);
+        for point in &series {
+            store.push(*point);
+        }
+        assert_eq!(store.replay_cursor().len(), 20);
     }
 }

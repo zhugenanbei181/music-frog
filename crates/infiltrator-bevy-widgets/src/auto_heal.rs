@@ -507,6 +507,317 @@ impl HealingWatchdog {
     }
 }
 
+/// A single measured observation for a candidate node.
+///
+/// Every metric is optional: `None` is the typed "unobserved" state. The
+/// evaluator never substitutes a default, so an unobserved latency can never be
+/// silently scored as if it were `0` (which would read as "perfect").
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct NodeObservation {
+    pub latency_ms: Option<f32>,
+    pub loss_ratio: Option<f32>,
+}
+
+/// Real probe outcomes recorded for a candidate node.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeProbeHistory {
+    pub successes: u32,
+    pub failures: u32,
+}
+
+impl NodeProbeHistory {
+    pub fn record_success(&mut self) {
+        self.successes += 1;
+    }
+
+    pub fn record_failure(&mut self) {
+        self.failures += 1;
+    }
+
+    pub fn total(&self) -> u32 {
+        self.successes + self.failures
+    }
+
+    /// Observed success ratio, or `None` before any probe was recorded. A
+    /// missing history is never fabricated into a healthy `1.0`.
+    pub fn success_ratio(&self) -> Option<f32> {
+        let total = self.total();
+        (total > 0).then(|| self.successes as f32 / total as f32)
+    }
+}
+
+/// A named node with its latest observation and recorded probe history.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeCandidate {
+    pub name: String,
+    pub observation: NodeObservation,
+    pub history: NodeProbeHistory,
+}
+
+impl NodeCandidate {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            observation: NodeObservation::default(),
+            history: NodeProbeHistory::default(),
+        }
+    }
+}
+
+/// Why the evaluator refused to score a candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnscorableReason {
+    LatencyUnobserved,
+    LossUnobserved,
+    LatencyAndLossUnobserved,
+}
+
+/// Result of scoring one candidate. `Unscorable` is not a node failure; it is
+/// the honest statement that the required facts were not observed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NodeEvaluation {
+    Scored {
+        score: f32,
+        history_ratio: Option<f32>,
+    },
+    Unscorable {
+        reason: UnscorableReason,
+    },
+}
+
+/// Weighted heuristic ranking proxy nodes by latency, loss and probe history.
+///
+/// Lower score is better. Unobserved metrics are never fabricated: a candidate
+/// missing latency or loss is `Unscorable` rather than scored as zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeuristicNodeEvaluator {
+    pub latency_weight: f32,
+    pub loss_weight: f32,
+    pub history_weight: f32,
+}
+
+impl Default for HeuristicNodeEvaluator {
+    fn default() -> Self {
+        Self {
+            latency_weight: 1.0,
+            loss_weight: 200.0,
+            history_weight: 50.0,
+        }
+    }
+}
+
+impl HeuristicNodeEvaluator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Score one candidate. Both latency and loss must be observed; history is
+    /// optional context and contributes only when it actually exists.
+    pub fn evaluate(&self, candidate: &NodeCandidate) -> NodeEvaluation {
+        match (
+            candidate.observation.latency_ms,
+            candidate.observation.loss_ratio,
+        ) {
+            (Some(latency_ms), Some(loss_ratio)) => {
+                let history_ratio = candidate.history.success_ratio();
+                let history_penalty =
+                    history_ratio.map_or(0.0, |ratio| (1.0 - ratio) * self.history_weight);
+                let score = latency_ms * self.latency_weight
+                    + loss_ratio * self.loss_weight
+                    + history_penalty;
+                NodeEvaluation::Scored {
+                    score,
+                    history_ratio,
+                }
+            }
+            (None, None) => NodeEvaluation::Unscorable {
+                reason: UnscorableReason::LatencyAndLossUnobserved,
+            },
+            (None, Some(_)) => NodeEvaluation::Unscorable {
+                reason: UnscorableReason::LatencyUnobserved,
+            },
+            (Some(_), None) => NodeEvaluation::Unscorable {
+                reason: UnscorableReason::LossUnobserved,
+            },
+        }
+    }
+
+    /// Best scored candidate, or `None` when no candidate had the facts needed
+    /// to score. Unscorable candidates are never selected by fabrication.
+    pub fn best<'a>(&self, candidates: &'a [NodeCandidate]) -> Option<&'a NodeCandidate> {
+        candidates
+            .iter()
+            .filter_map(|candidate| match self.evaluate(candidate) {
+                NodeEvaluation::Scored { score, .. } => Some((candidate, score)),
+                NodeEvaluation::Unscorable { .. } => None,
+            })
+            .min_by(|left, right| left.1.total_cmp(&right.1))
+            .map(|(candidate, _)| candidate)
+    }
+}
+
+/// Severity of a self-heal anomaly surfaced to the UI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AnomalySeverity {
+    Info,
+    Warning,
+    Critical,
+}
+
+/// Typed self-heal anomaly the UI can render. Each variant carries only facts
+/// that were actually observed; an unobserved metric surfaces as
+/// [`SelfHealAnomaly::NodeUnobserved`] rather than an invented value.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SelfHealAnomaly {
+    NodeUnobserved {
+        node: String,
+        reason: UnscorableReason,
+    },
+    ExcessiveLatency {
+        node: String,
+        latency_ms: f32,
+    },
+    ExcessiveLoss {
+        node: String,
+        loss_ratio: f32,
+    },
+    UnhealthyHistory {
+        node: String,
+        success_ratio: f32,
+    },
+}
+
+impl SelfHealAnomaly {
+    pub fn severity(&self) -> AnomalySeverity {
+        match self {
+            Self::NodeUnobserved { .. } => AnomalySeverity::Warning,
+            Self::ExcessiveLatency { .. } => AnomalySeverity::Warning,
+            Self::ExcessiveLoss { .. } => AnomalySeverity::Critical,
+            Self::UnhealthyHistory { .. } => AnomalySeverity::Critical,
+        }
+    }
+
+    pub fn node_name(&self) -> &str {
+        match self {
+            Self::NodeUnobserved { node, .. }
+            | Self::ExcessiveLatency { node, .. }
+            | Self::ExcessiveLoss { node, .. }
+            | Self::UnhealthyHistory { node, .. } => node,
+        }
+    }
+}
+
+/// Context-aware self-heal detector. Thresholds are explicit configuration;
+/// the detector only reports facts that were actually observed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ContextAwareHealDetector {
+    pub evaluator: HeuristicNodeEvaluator,
+    pub latency_ceiling_ms: f32,
+    pub loss_ceiling: f32,
+    pub history_floor: f32,
+    pub history_min_samples: u32,
+}
+
+impl Default for ContextAwareHealDetector {
+    fn default() -> Self {
+        Self {
+            evaluator: HeuristicNodeEvaluator::default(),
+            latency_ceiling_ms: 800.0,
+            loss_ceiling: 0.05,
+            history_floor: 0.5,
+            history_min_samples: 3,
+        }
+    }
+}
+
+impl ContextAwareHealDetector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The best scored node under the current heuristic, if any candidate had
+    /// the observed facts required to be scored.
+    pub fn best<'a>(&self, candidates: &'a [NodeCandidate]) -> Option<&'a NodeCandidate> {
+        self.evaluator.best(candidates)
+    }
+
+    /// Collect typed anomalies for the UI. Order follows candidate order; no
+    /// synthetic anomaly is emitted for a node without observations.
+    pub fn detect(&self, candidates: &[NodeCandidate]) -> Vec<SelfHealAnomaly> {
+        let mut anomalies = Vec::new();
+        for candidate in candidates {
+            if let NodeEvaluation::Unscorable { reason } = self.evaluator.evaluate(candidate) {
+                anomalies.push(SelfHealAnomaly::NodeUnobserved {
+                    node: candidate.name.clone(),
+                    reason,
+                });
+                continue;
+            }
+            if let Some(latency_ms) = candidate.observation.latency_ms
+                && latency_ms > self.latency_ceiling_ms
+            {
+                anomalies.push(SelfHealAnomaly::ExcessiveLatency {
+                    node: candidate.name.clone(),
+                    latency_ms,
+                });
+            }
+            if let Some(loss_ratio) = candidate.observation.loss_ratio
+                && loss_ratio > self.loss_ceiling
+            {
+                anomalies.push(SelfHealAnomaly::ExcessiveLoss {
+                    node: candidate.name.clone(),
+                    loss_ratio,
+                });
+            }
+            if candidate.history.total() >= self.history_min_samples
+                && let Some(success_ratio) = candidate.history.success_ratio()
+                && success_ratio < self.history_floor
+            {
+                anomalies.push(SelfHealAnomaly::UnhealthyHistory {
+                    node: candidate.name.clone(),
+                    success_ratio,
+                });
+            }
+        }
+        anomalies
+    }
+}
+
+/// UI-facing board holding the latest self-heal signals and best node. The UI
+/// reads this immutable projection; it never re-derives node health itself.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub struct SelfHealSignalBoard {
+    pub anomalies: Vec<SelfHealAnomaly>,
+    pub best_node: Option<String>,
+}
+
+impl SelfHealSignalBoard {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Refresh from candidate facts through the detector.
+    pub fn refresh(&mut self, detector: &ContextAwareHealDetector, candidates: &[NodeCandidate]) {
+        self.anomalies = detector.detect(candidates);
+        self.best_node = detector
+            .best(candidates)
+            .map(|candidate| candidate.name.clone());
+    }
+
+    /// Highest anomaly severity currently surfaced, if any.
+    pub fn highest_severity(&self) -> Option<AnomalySeverity> {
+        self.anomalies.iter().map(SelfHealAnomaly::severity).max()
+    }
+
+    /// Count of anomalies at or above the given severity.
+    pub fn count_at_least(&self, severity: AnomalySeverity) -> usize {
+        self.anomalies
+            .iter()
+            .filter(|anomaly| anomaly.severity() >= severity)
+            .count()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

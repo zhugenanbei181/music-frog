@@ -1,7 +1,12 @@
+use bevy::MinimalPlugins;
+use bevy::app::App;
 use bevy::color::Color;
 use bevy::math::{Vec2, Vec3};
 use infiltrator_bevy_widgets::haptics::{HapticPattern, ProceduralTone};
 use infiltrator_bevy_widgets::particle::{GreatCircleArc, ParticleEmitter, TrafficParticle};
+use infiltrator_bevy_widgets::reactive::{
+    ReactiveDagResource, ReactiveEvaluationStats, ReactiveGraphPlugin, SignalInput, SignalOutput,
+};
 use infiltrator_bevy_widgets::shader_fx::{KawasePassMetrics, OklchColor, SdfRoundedBox};
 use infiltrator_bevy_widgets::signal_dag::{PluginWidgetAst, ReactiveDag};
 use infiltrator_bevy_widgets::tsdb::{
@@ -114,4 +119,110 @@ fn test_reactive_signal_dag_and_plugin_ast_sanitizer() {
     };
     assert!(safe_ast.validate_and_sanitize(10));
     assert!(!safe_ast.validate_and_sanitize(0)); // Exceeds max depth 0
+}
+
+fn reactive_bridge_app(dag: ReactiveDag) -> App {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.insert_resource(ReactiveDagResource::from(dag));
+    app.add_plugins(ReactiveGraphPlugin);
+    app
+}
+
+#[test]
+fn test_reactive_dag_ecs_change_recomputes_only_the_dependent_subtree() {
+    let mut dag = ReactiveDag::new();
+    let source_a = dag.create_signal(1);
+    let source_b = dag.create_signal(1);
+    let branch_a = dag
+        .create_computed(&[source_a], |values| values[0] + 10)
+        .unwrap();
+    let branch_b = dag
+        .create_computed(&[source_b], |values| values[0] + 20)
+        .unwrap();
+    let leaf = dag
+        .create_computed(&[branch_a], |values| values[0] * 2)
+        .unwrap();
+
+    let mut app = reactive_bridge_app(dag);
+    let input_a = app.world_mut().spawn(SignalInput::new(source_a, 1)).id();
+    app.world_mut().spawn(SignalInput::new(source_b, 1));
+    let output_leaf = app.world_mut().spawn(SignalOutput::new(leaf)).id();
+    let output_b = app.world_mut().spawn(SignalOutput::new(branch_b)).id();
+
+    app.update();
+    assert_eq!(
+        app.world().get::<SignalOutput>(output_leaf).unwrap().value,
+        22
+    );
+    assert_eq!(app.world().get::<SignalOutput>(output_b).unwrap().value, 21);
+
+    app.world_mut()
+        .get_mut::<SignalInput>(input_a)
+        .unwrap()
+        .value = 5;
+    app.update();
+
+    let stats = app.world().resource::<ReactiveEvaluationStats>();
+    assert_eq!(stats.last_recomputed, vec![branch_a, leaf]);
+    assert!(!stats.last_recomputed.contains(&branch_b));
+    assert_eq!(
+        app.world().get::<SignalOutput>(output_leaf).unwrap().value,
+        30
+    );
+    assert_eq!(app.world().get::<SignalOutput>(output_b).unwrap().value, 21);
+}
+
+#[test]
+fn test_reactive_dag_ecs_idle_frame_recomputes_nothing() {
+    let mut dag = ReactiveDag::new();
+    let source = dag.create_signal(1);
+    let derived = dag
+        .create_computed(&[source], |values| values[0] + 1)
+        .unwrap();
+
+    let mut app = reactive_bridge_app(dag);
+    app.world_mut().spawn(SignalInput::new(source, 1));
+    let output = app.world_mut().spawn(SignalOutput::new(derived)).id();
+
+    app.update();
+    let baseline = app
+        .world()
+        .resource::<ReactiveEvaluationStats>()
+        .total_recomputed;
+    assert!(baseline >= 1);
+
+    app.update();
+    let stats = app.world().resource::<ReactiveEvaluationStats>();
+    assert!(stats.last_recomputed.is_empty());
+    assert_eq!(stats.total_recomputed, baseline);
+    assert_eq!(app.world().get::<SignalOutput>(output).unwrap().value, 2);
+}
+
+#[test]
+fn test_reactive_dag_ecs_hundred_cycle_churn_stays_bounded() {
+    let mut dag = ReactiveDag::new();
+    let hot = dag.create_signal(0);
+    let mut upstream = hot;
+    for _ in 0..100 {
+        upstream = dag
+            .create_computed(&[upstream], |values| values[0] + 1)
+            .unwrap();
+    }
+    let head = upstream;
+
+    let mut app = reactive_bridge_app(dag);
+    let input = app.world_mut().spawn(SignalInput::new(hot, 0)).id();
+    let output = app.world_mut().spawn(SignalOutput::new(head)).id();
+
+    for tick in 1..=100i64 {
+        app.world_mut().get_mut::<SignalInput>(input).unwrap().value = tick;
+        app.update();
+        let stats = app.world().resource::<ReactiveEvaluationStats>();
+        assert_eq!(stats.last_recomputed.len(), 100);
+    }
+
+    let stats = app.world().resource::<ReactiveEvaluationStats>();
+    assert_eq!(stats.total_recomputed, 10_000);
+    assert_eq!(app.world().get::<SignalOutput>(output).unwrap().value, 200);
 }

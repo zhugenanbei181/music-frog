@@ -1,12 +1,18 @@
 //! Fine-grained reactive primitives and change-tracking state for Bevy UI.
 //!
-//! Charter law (docs/BEVY_UI_FRONTEND.md):
+//! Charter law (docs/bevy-ui/BEVY_UI_FRONTEND.md):
 //! Observers and systems restamp components in place and avoid full-tree
 //! rebuilding or continuous full-table polling. This module provides pure,
 //! zero-allocation change detection and memoization tools to support
 //! high-frequency data streams (e.g. traffic rates, connection meters).
 
+use crate::signal_dag::{ReactiveDag, SignalId};
+use bevy::app::{App, Plugin, Update};
 use bevy::ecs::component::Component;
+use bevy::ecs::query::Changed;
+use bevy::ecs::resource::Resource;
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Query, Res, ResMut};
 use std::marker::PhantomData;
 
 /// Marker component attached to entities that have pending visual changes.
@@ -184,6 +190,141 @@ impl<I: PartialEq + Clone, O: Clone> Memoized<I, O> {
     pub fn invalidate(&mut self) {
         self.last_input = None;
         self.cached_output = None;
+    }
+}
+
+/// Resource owning the reactive [`ReactiveDag`] evaluated by the ECS bridge.
+///
+/// Register signals once, then bind entities with [`SignalInput`] (sources)
+/// and [`SignalOutput`] (derived results). Add [`ReactiveGraphPlugin`] to run
+/// the bridge in `Update`.
+#[derive(Resource, Default)]
+pub struct ReactiveDagResource {
+    dag: ReactiveDag,
+}
+
+impl ReactiveDagResource {
+    /// Wrap an already-registered graph.
+    pub fn new(dag: ReactiveDag) -> Self {
+        Self { dag }
+    }
+
+    /// Read-only access to the graph.
+    pub fn dag(&self) -> &ReactiveDag {
+        &self.dag
+    }
+
+    /// Mutable access to register nodes and edges.
+    pub fn dag_mut(&mut self) -> &mut ReactiveDag {
+        &mut self.dag
+    }
+}
+
+impl From<ReactiveDag> for ReactiveDagResource {
+    fn from(dag: ReactiveDag) -> Self {
+        Self { dag }
+    }
+}
+
+/// Source component bound to a DAG signal. Mutating `value` marks the signal
+/// dirty through Bevy change detection; only its dependent subtree recomputes.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignalInput {
+    pub signal: SignalId,
+    pub value: i64,
+}
+
+impl SignalInput {
+    pub const fn new(signal: SignalId, value: i64) -> Self {
+        Self { signal, value }
+    }
+}
+
+/// Derived component mirroring a DAG signal's value back onto its entity.
+/// The bridge only writes when the value actually changed, so an idle frame
+/// produces no component churn.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignalOutput {
+    pub signal: SignalId,
+    pub value: i64,
+}
+
+impl SignalOutput {
+    pub const fn new(signal: SignalId) -> Self {
+        Self { signal, value: 0 }
+    }
+
+    pub const fn with_value(signal: SignalId, value: i64) -> Self {
+        Self { signal, value }
+    }
+}
+
+/// Counters describing the most recent evaluation pass, for headless
+/// assertions and diagnostics. `last_recomputed` is empty on an idle frame.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReactiveEvaluationStats {
+    pub last_recomputed: Vec<SignalId>,
+    pub total_recomputed: u64,
+}
+
+/// Mirror changed ECS inputs into the graph, marking dependents dirty.
+pub fn stage_signal_inputs(
+    mut graph: ResMut<ReactiveDagResource>,
+    inputs: Query<&SignalInput, Changed<SignalInput>>,
+) {
+    for input in &inputs {
+        let _ = graph.dag_mut().set_value(input.signal, input.value);
+    }
+}
+
+/// Evaluate dirty subtrees in topological order. A cyclic graph fails closed:
+/// nothing is recomputed and the stats report an empty pass.
+pub fn evaluate_reactive_graph(
+    mut graph: ResMut<ReactiveDagResource>,
+    mut stats: ResMut<ReactiveEvaluationStats>,
+) {
+    match graph.dag_mut().evaluate() {
+        Ok(report) => {
+            stats.total_recomputed = stats
+                .total_recomputed
+                .saturating_add(report.recomputed_count() as u64);
+            stats.last_recomputed = report.recomputed;
+        }
+        Err(_) => stats.last_recomputed.clear(),
+    }
+}
+
+/// Flush derived values back onto their bound output components.
+pub fn flush_signal_outputs(
+    graph: Res<ReactiveDagResource>,
+    mut outputs: Query<&mut SignalOutput>,
+) {
+    for mut output in &mut outputs {
+        if let Some(value) = graph.dag().get_value(output.signal)
+            && output.value != value
+        {
+            output.value = value;
+        }
+    }
+}
+
+/// Installs the DAG resource, the evaluation stats and the chained
+/// input → evaluate → output bridge.
+pub struct ReactiveGraphPlugin;
+
+impl Plugin for ReactiveGraphPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ReactiveDagResource>();
+        app.init_resource::<ReactiveEvaluationStats>();
+        app.add_systems(
+            Update,
+            (
+                stage_signal_inputs,
+                evaluate_reactive_graph,
+                flush_signal_outputs,
+            )
+                .chain(),
+        );
     }
 }
 

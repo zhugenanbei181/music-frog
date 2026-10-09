@@ -390,7 +390,8 @@ pub mod metrics {
 /// `infiltrator_contract::responsive_viewport` (`COMPACT_MAX_PX` /
 /// `MEDIUM_MAX_PX` / `EXPANDED_MAX_PX`). This crate is business-agnostic by
 /// charter and must not depend on contract, so the mirror is enforced by
-/// `scripts/quality/responsive-parity-guard.py` rather than by the compiler.
+/// `crates/infiltrator-bevy-ui/tests/headless/responsive_ui_tests.rs` rather
+/// than by the compiler.
 /// See `docs/RESPONSIVE_PARITY_LEDGER.md`.
 pub mod breakpoint {
     /// Compact breakpoint boundary: < 600px width (smartphones portrait, narrow splits).
