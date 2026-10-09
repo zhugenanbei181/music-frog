@@ -7,6 +7,23 @@
 - 生成基线：HEAD `536b40b` 之后、依赖 lockfile 更新提交 `d7f853d`。
 - 依赖锁已由 `cargo update` 更新到最新 semver 兼容版本；`cargo nextest run --workspace` = **4005/4005 通过**。
 
+## 0. 本轮推进（代码侧，证据待补）
+
+> 以下仅表示**代码已落地并通过 workspace/守卫/Android 编译门**；设备、像素、真机与长时证据仍未取得，不构成 DONE。
+
+| 提交 | 覆盖 | 代码侧状态 | 仍缺 |
+| --- | --- | --- | --- |
+| `421e87c` | BANDROID-009 | Proxies 大列表接入虚拟窗口/实体池/overscan；2000 节点挂载有界、尾项可达、槽位稳定 | 真机帧耗时/内存/池数基准 |
+| `723142b` | BANDROID-011 | `RenderCadence::Idling` 在 Bevy 可达：静置降到 idle 帧间隔，输入/动画唤醒 | Android 挂起停绘、真机帧/唤醒报告 |
+| `a141aa6` | BANDROID-012 | `SurfacePump` 宿主唤醒句柄（可合并、无界积压修复） | UI 侧消费（EventLoopProxy）与真机后台唤醒 |
+| `9806aa0` | BANDROID-013/017 | 拓扑静置帧不再重栅格化/重上传；真实卡片启用阴影高度 | GPU 真绘制、桌面像素、Android 设备 |
+| `01f2168` | BANDROID-013 | 可选遥测 Mesh2d GPU 路径 + CPU 回退 + handle 复用/退役 | Mesh2d view transform、`Material2d` 管线、宿主相机 |
+| `4e3c13a` | BANDROID-010 | Connections/Logs 大列表接入回收组件（Rules 保留 domain window） | 真机滚动/过滤/重排基准；Rules 对齐回收组件 |
+| `ea7f053` | 依赖 | `brotli 9`、`toml 1`、`jni 0.22`（JNI bridge 迁移），android-check 通过 | — |
+
+**硬阻断（本机不可验证，必须留 OPEN）**：BANDROID-001…008/015/022…024 需真机 + JDK/Gradle；平台安装包需各 OS 真机；parity L3 需虚拟 KWin/niri 采集；≥8h 后台与功耗需硬件。
+
+
 ## A. 横切阻断（先决，串行）
 
 | # | 隐患 | 证据/位置 | 影响 |
