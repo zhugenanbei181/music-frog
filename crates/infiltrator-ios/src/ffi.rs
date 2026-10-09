@@ -9,7 +9,7 @@ static TUNNEL_RUNNING: AtomicBool = AtomicBool::new(false);
 /// Returns the C-string version of the Infiltrator iOS core.
 #[unsafe(no_mangle)]
 pub extern "C" fn infiltrator_ios_version() -> *const c_char {
-    c"0.40.3".as_ptr()
+    c"0.40.4".as_ptr()
 }
 
 /// Returns the strict 15MB physical memory ceiling enforced by iOS NetworkExtension.

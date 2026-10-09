@@ -26,6 +26,8 @@ use bevy::ecs::system::{Query, Res, ResMut};
 use bevy::picking::events::{PointerClick, PointerPress};
 use bevy::scene::{Scene, bsn};
 use bevy::text::TextColor;
+#[cfg(target_os = "android")]
+use bevy::ui::prelude::Display;
 use bevy::ui::prelude::{
     AlignItems, BackgroundColor, FlexDirection, Node, UiRect, Val, percent, px,
 };
@@ -202,10 +204,19 @@ fn on_close_activated(
 /// The chrome bar mounted above the shell: a draggable title strip plus the
 /// three window controls.
 pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
-    let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
-    let maximize_node = semantic_node(ShellA11yNode::ChromeMaximize);
-    let close_node = semantic_node(ShellA11yNode::ChromeClose);
-    bsn! {
+    #[cfg(target_os = "android")]
+    {
+        let _ = palette;
+        bsn! {
+            Node { display: Display::None }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let minimize_node = semantic_node(ShellA11yNode::ChromeMinimize);
+        let maximize_node = semantic_node(ShellA11yNode::ChromeMaximize);
+        let close_node = semantic_node(ShellA11yNode::ChromeClose);
+        bsn! {
             Node {
                 width: percent(100),
                 height: px(CHROME_DRAG_STRIP_HEIGHT_PX as f32),
@@ -236,5 +247,6 @@ pub fn chrome_bar_scene(palette: &UiPalette) -> impl Scene + use<> {
                 ChromeCloseButton
                 close_node
             ]
+        }
     }
 }

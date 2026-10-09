@@ -18,6 +18,8 @@ use crate::text::Role;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::resource::Resource;
 use bevy::text::Font;
+#[cfg(target_os = "android")]
+use std::fs::read;
 
 /// Inter SemiBold — headings.
 const HEADING_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");
@@ -37,10 +39,37 @@ pub struct FontSources {
     pub mono: Handle<Font>,
 }
 
+#[cfg(target_os = "android")]
+fn load_android_system_cjk_font() -> Option<Vec<u8>> {
+    const SYSTEM_FONTS: &[&str] = &[
+        "/system/fonts/NotoSansCJK-Regular.ttc",
+        "/system/fonts/NotoSansSC-Regular.otf",
+        "/system/fonts/NotoSansCJK.ttc",
+        "/system/fonts/DroidSansFallback.ttf",
+    ];
+    for &path in SYSTEM_FONTS {
+        if let Ok(bytes) = read(path) {
+            return Some(bytes);
+        }
+    }
+    None
+}
+
 impl FontSources {
     /// Register every embedded face and return the handle table. All four
     /// faces are OFL-licensed and logged in `THIRD-PARTY-NOTICES.md`.
     pub fn embedded(fonts: &mut Assets<Font>) -> Self {
+        #[cfg(target_os = "android")]
+        if let Some(cjk_bytes) = load_android_system_cjk_font() {
+            let cjk_handle = fonts.add(Font::from_bytes(cjk_bytes));
+            return Self {
+                heading: cjk_handle.clone(),
+                body: cjk_handle.clone(),
+                caption: cjk_handle.clone(),
+                mono: fonts.add(Font::from_bytes(MONO_TTF.to_vec())),
+            };
+        }
+
         Self {
             heading: fonts.add(Font::from_bytes(HEADING_TTF.to_vec())),
             body: fonts.add(Font::from_bytes(BODY_TTF.to_vec())),

@@ -218,6 +218,7 @@ target_sdk_version = 36
 [package.metadata.android.application]
 label = "MusicFrog Infiltrator Bevy"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+icon = "@drawable/ic_app_icon"
 
 [workspace]
 EOF
@@ -237,6 +238,10 @@ fn android_main(app: android_activity::AndroidApp) {
 }
 EOF
 fi
+
+# Synchronize app resources (icon drawables) into driver crate
+mkdir -p "$DRIVER/res"
+cp -r "$REPO_ROOT/android/app/src/main/res/"* "$DRIVER/res/"
 
 # --- 7. Build ----------------------------------------------------------------
 # No --target here: cargo-apk then honors build_targets (both ABIs) and packs
