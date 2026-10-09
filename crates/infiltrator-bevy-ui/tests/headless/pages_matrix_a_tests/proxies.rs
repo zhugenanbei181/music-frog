@@ -11,15 +11,18 @@ use infiltrator_bevy_ui::pages::proxies::{
     ResetProxyGroupOrderButton, ToggleViewModeButton,
 };
 use infiltrator_bevy_ui::pages::proxies_filter::{format_protocol_chip, matches_proxy_filter};
+use infiltrator_bevy_ui::pages::proxies_virtual::ProxiesVirtualNodes;
 use infiltrator_bevy_ui::pages::proxy_group_order::{GroupOrderAction, GroupOrderState};
 use infiltrator_bevy_ui::pages::proxy_inspection::ProxyInspectionState;
 use infiltrator_bevy_ui::pages::proxy_probe_settings::{
     OpenProbeSettings, ProbeTimeoutField, ProbeUrlField,
 };
+use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::fluid_grid::FluidCardGrid;
 use infiltrator_bevy_widgets::localization::{LocalizedText, UiLocale};
 use infiltrator_bevy_widgets::responsive::ResponsiveContext;
 use infiltrator_contract::latency_display::LatencyBand;
+use infiltrator_contract::surface_snapshot::{ProxyGroupSnapshot, ProxyNodeSnapshot};
 use infiltrator_shared::locales::{Lang, Localizer};
 
 #[test]
@@ -648,5 +651,109 @@ fn test_proxies_node_detail_drawer_and_group_reorder() {
             .next()
             .is_some(),
         "latency skeleton pulse component must be mounted"
+    );
+}
+
+/// BANDROID-009: a 2000-node projection mounts through the recycler window,
+/// not the whole collection, and the tail is reachable once the window slides.
+#[test]
+fn test_proxies_large_list_mounts_a_bounded_recycled_window() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+
+    // Publish a 2000-node projection before the page mounts, so the large-list
+    // path is selected from the very first scene build.
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    let page = snapshot.pages.proxies.data.as_mut().unwrap();
+    page.groups = vec![ProxyGroupSnapshot {
+        name: "BIG".to_owned(),
+        group_type: "Selector".to_owned(),
+        classification: None,
+        current: "node-0".to_owned(),
+        expanded: true,
+        proxies: (0..2000)
+            .map(|index| ProxyNodeSnapshot {
+                name: format!("node-{index}"),
+                node_type: "Shadowsocks".to_owned(),
+                delay_ms: Some(40),
+                alive: Some(true),
+                selected: index == 0,
+                favorite: false,
+                features: vec![],
+            })
+            .collect(),
+    }];
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+    navigate_to(&mut app, Route::Proxies);
+    app.update();
+    app.update();
+
+    let mounted = app
+        .world_mut()
+        .query::<&ProxyNodeButton>()
+        .iter(app.world())
+        .count();
+    assert!(mounted > 0, "the recycler must mount the visible window");
+    assert!(
+        mounted < 2000,
+        "the full 2000-node collection must not be mounted, got {mounted}"
+    );
+    assert!(
+        mounted <= 200,
+        "mounted rows must be viewport-bounded, got {mounted}"
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, With<ProxiesVirtualNodes>>()
+            .iter(app.world())
+            .next()
+            .is_some(),
+        "the virtual node container must own the large list"
+    );
+
+    // Scrolling to the bottom slides the window to the tail row.
+    let scroll = app
+        .world_mut()
+        .query_filtered::<Entity, With<ProxiesScrollArea>>()
+        .single(app.world())
+        .expect("proxies scroll area");
+    app.world_mut()
+        .get_mut::<ScrollPosition>(scroll)
+        .expect("scroll position")
+        .0
+        .y = 1.0e6;
+    app.update();
+    assert!(
+        app.world_mut()
+            .query::<&ProxyNodeButton>()
+            .iter(app.world())
+            .any(|button| button.node_name == "node-1999"),
+        "the tail node must become reachable"
+    );
+
+    // A live shrink below the threshold keeps rendering through the mounted
+    // recycler (the scene is not rebuilt) and never duplicates the collection.
+    let mut small = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    small.revision += 1;
+    let page = small.pages.proxies.data.as_mut().unwrap();
+    page.groups[0].proxies.truncate(10);
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(small));
+    app.update();
+    app.update();
+    let mounted_small = app
+        .world_mut()
+        .query::<&ProxyNodeButton>()
+        .iter(app.world())
+        .count();
+    assert_eq!(
+        mounted_small, 10,
+        "a shrunk list keeps rendering through the recycler without duplication"
     );
 }

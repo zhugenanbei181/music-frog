@@ -7,6 +7,7 @@ use crate::pages::proxies::{
 use crate::pages::proxies_card;
 use crate::pages::proxies_custom::custom_node_scene;
 use crate::pages::proxies_identity::ProxyCardsContainer;
+use crate::pages::proxies_virtual::{PROXIES_VIRTUAL_THRESHOLD, ProxiesVirtualNodes};
 use crate::pages::proxy_inspection::inspection_scene;
 use crate::pages::{proxy_group_order, proxy_probe_settings};
 use crate::route::{PageRoot, Route};
@@ -35,27 +36,58 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
         LocalizedText::plain("proxies_test_ready")
     };
 
-    let group_scenes: Vec<Box<dyn Scene>> = projection
-        .groups
-        .iter()
-        .enumerate()
-        .map(|(g_idx, group)| Box::new(group_card_scene(g_idx, group, palette)) as Box<dyn Scene>)
-        .collect();
+    // BANDROID-009: large projections mount through the recycler (bounded
+    // window + spacers). Small projections keep the full-mount vocabulary and
+    // its stable-identity reconcile contract.
+    let virtualized = projection.total_nodes() > PROXIES_VIRTUAL_THRESHOLD;
 
-    bsn! {
-            Node {
-                width: percent(100),
-                min_width: px(0.0),
-                max_width: percent(100),
-                height: percent(100),
-                min_height: px(0.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(space::S16),
-                overflow: Overflow::clip(),
-            }
-            PageRoot(Route::Proxies)
-            ProxiesPageRoot
-            Children [
+    let mut root_children: Vec<Box<dyn Scene>> = Vec::new();
+    if virtualized {
+        root_children.push(pull_to_refresh_scene(
+            &PullToRefreshState::default(),
+            palette,
+        ));
+        root_children.push(Box::new(header_card_scene(
+            summary,
+            active_exit,
+            test_status,
+            palette,
+        )));
+        root_children.push(Box::new(proxies_card::search_bar_card_scene(
+            &projection.search_query,
+            palette,
+        )));
+        root_children.push(Box::new(launcher_scene(PanelKind::CustomNode, palette)));
+        root_children.push(Box::new(bsn! {
+                Node {
+                    width: percent(100),
+                    min_height: px(0.0),
+                    flex_grow: 1.0,
+                    flex_shrink: 1.0,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(space::S16),
+                    overflow: Overflow::scroll_y(),
+                }
+                ScrollArea ProxiesScrollArea
+                Children [
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        flex_shrink: 0.0,
+                    }
+                    ProxiesVirtualNodes
+                ]
+        }) as Box<dyn Scene>);
+    } else {
+        let group_scenes: Vec<Box<dyn Scene>> = projection
+            .groups
+            .iter()
+            .enumerate()
+            .map(|(g_idx, group)| {
+                Box::new(group_card_scene(g_idx, group, palette)) as Box<dyn Scene>
+            })
+            .collect();
+        root_children.push(Box::new(bsn! {
                 Node {
                     width: percent(100), height: percent(100),
                     min_height: px(0.0), flex_shrink: 1.0,
@@ -76,18 +108,31 @@ pub fn proxies_page(projection: &ProxiesProjection, palette: &UiPalette) -> impl
                 ProxyCardsContainer
                 Children [ { group_scenes } ]
                 ]
-                --
-                @{ panel_scene(
-                    PanelKind::CustomNode,
-                    Box::new(custom_node_scene(&projection.custom_node, palette)), palette,
-                ) }
-                --
-                @{ inspection_scene(palette) }
-                --
-                @{ proxy_probe_settings::modal(palette) }
-                --
-                @{ proxy_group_order::modal(palette) }
-            ]
+        }) as Box<dyn Scene>);
+    }
+    root_children.push(Box::new(panel_scene(
+        PanelKind::CustomNode,
+        Box::new(custom_node_scene(&projection.custom_node, palette)),
+        palette,
+    )) as Box<dyn Scene>);
+    root_children.push(Box::new(inspection_scene(palette)) as Box<dyn Scene>);
+    root_children.push(Box::new(proxy_probe_settings::modal(palette)) as Box<dyn Scene>);
+    root_children.push(Box::new(proxy_group_order::modal(palette)) as Box<dyn Scene>);
+
+    bsn! {
+            Node {
+                width: percent(100),
+                min_width: px(0.0),
+                max_width: percent(100),
+                height: percent(100),
+                min_height: px(0.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S16),
+                overflow: Overflow::clip(),
+            }
+            PageRoot(Route::Proxies)
+            ProxiesPageRoot
+            Children [ { root_children } ]
     }
 }
 

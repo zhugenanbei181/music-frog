@@ -321,6 +321,20 @@ pub fn proxy_node_scene(
     node: &ProxyNode,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    proxy_node_scene_sized(g_idx, n_idx, group_name, node, percent(31), palette)
+}
+
+/// Renders a single proxy node card at an explicit column width. The
+/// virtual-list node rows pass the shared wrapped-item percent so a recycled
+/// row reuses the exact same card vocabulary as the full-mount path.
+pub fn proxy_node_scene_sized(
+    g_idx: usize,
+    n_idx: usize,
+    group_name: &str,
+    node: &ProxyNode,
+    width: Val,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
     let name = node.name.clone();
     let flag = node_flag_emoji(&node.name);
     let latency = project_proxy_latency(node.delay_ms);
@@ -389,7 +403,7 @@ pub fn proxy_node_scene(
 
     bsn! {
             Node {
-                width: percent(31),
+                width: { width },
                 min_height: px(58.0),
                 border: UiRect::all(border_width),
                 border_radius: BorderRadius::all(Val::Px(palette.control_radius_px)),
@@ -574,6 +588,26 @@ pub fn group_card_scene(
     group: &ProxyGroup,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    group_card_scene_impl(g_idx, group, palette, true)
+}
+
+/// Renders a strategy group card header only: the same identity, controls and
+/// fold affordances, but no node children. The virtual node list owns node
+/// mounting, so its group rows reuse this header vocabulary.
+pub fn group_header_scene(
+    g_idx: usize,
+    group: &ProxyGroup,
+    palette: &UiPalette,
+) -> impl Scene + use<> {
+    group_card_scene_impl(g_idx, group, palette, false)
+}
+
+fn group_card_scene_impl(
+    g_idx: usize,
+    group: &ProxyGroup,
+    palette: &UiPalette,
+    with_nodes: bool,
+) -> impl Scene + use<> {
     let title = group.name.clone();
     let type_badge = format!("[{}]", group.group_type);
     let current_label = LocalizedText::new(
@@ -587,7 +621,7 @@ pub fn group_card_scene(
     };
     let group_name = group.name.clone();
 
-    let node_scenes: Vec<Box<dyn Scene>> = if group.expanded {
+    let node_scenes: Vec<Box<dyn Scene>> = if with_nodes && group.expanded {
         let sorted_proxies: Vec<(usize, &ProxyNode)> = group.proxies.iter().enumerate().collect();
         sorted_proxies
             .into_iter()

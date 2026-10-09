@@ -410,6 +410,7 @@ impl Plugin for ProxiesPagePlugin {
         // save submits the shared draft it carries), so the resource must exist
         // the moment the page is mounted instead of being read as `None` forever.
         app.init_resource::<LastProxiesProjection>();
+        app.init_resource::<crate::pages::proxies_virtual::ProxiesVirtualState>();
         app.add_observer(apply_proxies_projection);
         app.add_observer(on_proxies_action_activated);
         app.add_observer(on_custom_node_action_activated);

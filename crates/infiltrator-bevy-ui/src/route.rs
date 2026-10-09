@@ -1,6 +1,6 @@
 //! The routing seam: bounded subtree replacement under the shell's
 //! [`ContentSlot`] (charter law — page remount = replace a bounded
-//! subtree, docs/BEVY_UI_FRONTEND.md).
+//! subtree, docs/bevy-ui/BEVY_UI_FRONTEND.md).
 //!
 //! Architecture:
 //! - [`Route`] / [`RouteChanged`]: typed navigation vocabulary across all 11 pages.
@@ -78,6 +78,7 @@ use crate::pages::proxies_search::{
     ProxySearchState, finish_search, on_clear_search, on_retry_search, sync_search_input,
     sync_search_status,
 };
+use crate::pages::proxies_virtual::sync_proxies_virtual_window;
 use crate::pages::proxy_group_order::{
     GroupOrderState, activate_order, finish_order, reconcile_order_rows, sort_order_rows,
     sync_order_editor, sync_order_surface,
@@ -674,6 +675,7 @@ impl Plugin for PagesPlugin {
                     reconcile_proxy_cards,
                     reconcile_proxy_nodes,
                     sort_proxy_children,
+                    sync_proxies_virtual_window,
                     sync_name_highlights,
                 )
                     .chain(),

@@ -107,6 +107,7 @@ pub mod proxies_preferences;
 pub mod proxies_reconcile;
 pub mod proxies_refresh;
 pub mod proxies_search;
+pub mod proxies_virtual;
 pub mod proxy_group_order;
 pub mod proxy_inspection;
 pub mod proxy_probe;

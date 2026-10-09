@@ -130,6 +130,7 @@ pub fn reconcile_proxy_nodes(
     palette: Res<UiPalette>,
     containers: Query<(Entity, Option<&Children>, &ProxyGroupIdentity), With<GroupNodesContainer>>,
     identities: Query<&ProxyNodeButton>,
+    virtual_containers: Query<(), With<crate::pages::proxies_virtual::ProxiesVirtualNodes>>,
 ) {
     let Some(last) = last else {
         return;
@@ -140,6 +141,12 @@ pub fn reconcile_proxy_nodes(
     let Some(projection) = &last.0 else {
         return;
     };
+    if !virtual_containers.is_empty() {
+        // BANDROID-009: the recycler owns node mounting whenever its container
+        // is mounted, so the full-mount reconcile must not spawn the whole
+        // collection (or refill group-header rows).
+        return;
+    }
     for (container, current, identity) in &containers {
         let Some((group_index, group)) = projection
             .groups
