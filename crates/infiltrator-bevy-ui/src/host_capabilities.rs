@@ -21,7 +21,8 @@ use bevy::ecs::resource::Resource;
 use bevy::ecs::system::{Res, ResMut};
 use infiltrator_bevy_widgets::abi::{HostCapabilities, WidgetCapability};
 use infiltrator_bevy_widgets::haptics::{
-    AudioHapticsSettings, FeedbackTriggerEvent, HapticPattern,
+    AudioHapticOutput, AudioHapticsSettings, DEFAULT_SAMPLE_RATE_HZ, EmittedFeedback,
+    FeedbackIntent, FeedbackTriggerEvent, HapticPattern,
 };
 use std::fmt;
 use std::sync::{Arc, OnceLock};
@@ -42,10 +43,17 @@ impl HapticsPort for NoopHaptics {
     fn vibrate(&self, _pattern: HapticPattern) {}
 }
 
+/// Default no-op audio sink used by headless and desktop hosts.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoopAudioHaptics;
+
+impl AudioHapticOutput for NoopAudioHaptics {}
+
 /// The host's haptic sink plus whether it advertises a working vibrator.
 #[derive(Resource, Clone)]
 pub struct HapticsHost {
     port: Arc<dyn HapticsPort>,
+    audio: Arc<dyn AudioHapticOutput>,
     supported: bool,
 }
 
@@ -53,6 +61,7 @@ impl Default for HapticsHost {
     fn default() -> Self {
         Self {
             port: Arc::new(NoopHaptics),
+            audio: Arc::new(NoopAudioHaptics),
             supported: false,
         }
     }
@@ -70,12 +79,23 @@ impl HapticsHost {
     /// Install a host sink. `supported` is the host's capability answer; an
     /// unsupported host stays a no-op even when a port is supplied.
     pub fn new(port: Arc<dyn HapticsPort>, supported: bool) -> Self {
-        Self { port, supported }
+        Self {
+            port,
+            audio: Arc::new(NoopAudioHaptics),
+            supported,
+        }
     }
 
     /// Install a host sink gated by the host's advertised capabilities.
     pub fn from_capabilities(port: Arc<dyn HapticsPort>, capabilities: HostCapabilities) -> Self {
         Self::new(port, capabilities.has(WidgetCapability::HapticFeedback))
+    }
+
+    /// Attach the audio playback channel (procedural UI tones). Without one
+    /// the sound channel stays a silent no-op.
+    pub fn with_audio(mut self, audio: Arc<dyn AudioHapticOutput>) -> Self {
+        self.audio = audio;
+        self
     }
 
     /// Whether the host advertises a working vibrator.
@@ -86,11 +106,39 @@ impl HapticsHost {
     /// Emit one pattern when the host supports it and the user keeps haptics
     /// enabled. Returns whether a vibration was actually sent.
     pub fn emit(&self, settings: &AudioHapticsSettings, pattern: HapticPattern) -> bool {
-        if !self.supported || !settings.haptics_enabled {
+        if !self.supported || !settings.allows_haptics() {
             return false;
         }
         self.port.vibrate(pattern);
         true
+    }
+
+    /// Dispatch a full multimodal [`FeedbackIntent`] through the host gate.
+    ///
+    /// An unsupported host no-ops both channels. Otherwise the per-channel
+    /// settings (including the master mute) decide what fires: the semantic
+    /// pattern drives haptics, the optional tone drives procedural audio.
+    pub fn emit_intent(
+        &self,
+        settings: &AudioHapticsSettings,
+        intent: FeedbackIntent,
+    ) -> EmittedFeedback {
+        let mut emitted = EmittedFeedback::default();
+        if !self.supported {
+            return emitted;
+        }
+        if settings.allows_haptics() {
+            self.port.vibrate(intent.pattern);
+            emitted.haptic = true;
+        }
+        if settings.allows_sound()
+            && let Some(tone) = intent.tone
+        {
+            self.audio
+                .play_tone(&tone.render_pcm(DEFAULT_SAMPLE_RATE_HZ));
+            emitted.audio = true;
+        }
+        emitted
     }
 }
 
@@ -141,7 +189,7 @@ fn on_feedback_trigger(
     host: Res<HapticsHost>,
     settings: Res<AudioHapticsSettings>,
 ) {
-    host.emit(&settings, trigger.pattern);
+    host.emit_intent(&settings, trigger.to_intent());
 }
 
 static ATTACHED_HAPTICS: OnceLock<HapticsHost> = OnceLock::new();
@@ -198,6 +246,7 @@ impl Plugin for HostCapabilitiesPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use infiltrator_bevy_widgets::haptics::PcmBuffer;
     use std::sync::Mutex;
 
     #[derive(Default)]
@@ -209,6 +258,18 @@ mod tests {
                 .lock()
                 .expect("haptics recorder poisoned")
                 .push(pattern);
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingAudio(Arc<Mutex<Vec<PcmBuffer>>>);
+
+    impl AudioHapticOutput for RecordingAudio {
+        fn play_tone(&self, pcm: &PcmBuffer) {
+            self.0
+                .lock()
+                .expect("audio recorder poisoned")
+                .push(pcm.clone());
         }
     }
 
@@ -245,6 +306,48 @@ mod tests {
         assert!(!headless.is_supported());
         let mobile = HapticsHost::from_capabilities(port, HostCapabilities::mobile_default());
         assert!(mobile.is_supported());
+    }
+
+    #[test]
+    fn feedback_intent_gate_honors_mute_and_unsupported() {
+        use infiltrator_bevy_widgets::haptics::FeedbackIntent;
+
+        let haptics = Arc::new(RecordingHaptics::default());
+        let audio = Arc::new(RecordingAudio::default());
+        let port: Arc<dyn HapticsPort> = haptics.clone();
+        let tone_port: Arc<dyn AudioHapticOutput> = audio.clone();
+        let host = HapticsHost::new(port, true).with_audio(tone_port);
+        let intent = FeedbackIntent::for_pattern(HapticPattern::SuccessPulse);
+
+        let emitted = host.emit_intent(&AudioHapticsSettings::default(), intent);
+        assert_eq!(
+            emitted,
+            EmittedFeedback {
+                haptic: true,
+                audio: true
+            }
+        );
+        assert_eq!(
+            *haptics.0.lock().expect("recorder"),
+            vec![HapticPattern::SuccessPulse]
+        );
+        assert_eq!(audio.0.lock().expect("audio").len(), 1);
+        assert!(!audio.0.lock().expect("audio")[0].is_empty());
+
+        let muted = host.emit_intent(&AudioHapticsSettings::muted(), intent);
+        assert_eq!(muted, EmittedFeedback::default());
+        assert_eq!(haptics.0.lock().expect("recorder").len(), 1);
+        assert_eq!(audio.0.lock().expect("audio").len(), 1);
+
+        let unsupported = HapticsHost::new(
+            Arc::new(RecordingHaptics::default()) as Arc<dyn HapticsPort>,
+            false,
+        )
+        .with_audio(Arc::new(RecordingAudio::default()) as Arc<dyn AudioHapticOutput>);
+        assert_eq!(
+            unsupported.emit_intent(&AudioHapticsSettings::default(), intent),
+            EmittedFeedback::default()
+        );
     }
 
     #[test]

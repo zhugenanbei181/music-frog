@@ -102,14 +102,20 @@ fn subtree_has_text(world: &World, root: Entity, needle: &str) -> bool {
 
 #[path = "shell_tests/activating.rs"]
 mod activating;
+#[path = "shell_tests/bidi_direction_tests.rs"]
+mod bidi_direction_tests;
 #[path = "shell_tests/bottom.rs"]
 mod bottom;
 #[path = "shell_tests/content.rs"]
 mod content;
+#[path = "shell_tests/gamepad_focus_tests.rs"]
+mod gamepad_focus_tests;
 #[path = "shell_tests/nav.rs"]
 mod nav;
 #[path = "shell_tests/responsive.rs"]
 mod responsive;
+#[path = "shell_tests/screen_reader_bridge_tests.rs"]
+mod screen_reader_bridge_tests;
 #[path = "shell_tests/shell.rs"]
 mod shell;
 #[path = "shell_tests/sidebar.rs"]

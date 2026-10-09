@@ -73,6 +73,8 @@ pub mod settings_preferences;
 pub mod settings_privileged_network;
 #[path = "settings_projection_defaults.rs"]
 mod settings_projection_defaults;
+#[path = "settings_render_strategy.rs"]
+pub mod settings_render_strategy;
 #[path = "settings_runtime.rs"]
 pub mod settings_runtime;
 #[path = "settings_system.rs"]
@@ -430,6 +432,8 @@ pub fn general_card_scene(
                                     ) }
                                     --
                                     @{ tonal_ladder_preview_scene(palette) }
+                                    --
+                                    @{ settings_render_strategy::render_strategy_row_scene(palette) }
                                 ]
 
                             ]
@@ -455,6 +459,7 @@ impl Plugin for SettingsPagePlugin {
         );
         app.init_resource::<settings_lan::LanFieldObservations>();
         app.add_systems(Update, refresh_tonal_ladder_preview);
+        settings_render_strategy::register(app);
         app.add_observer(apply_settings_projection);
         app.add_observer(on_settings_action_activated);
         app.add_observer(settings_core::on_mtu_probe_activated);

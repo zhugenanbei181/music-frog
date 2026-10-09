@@ -93,6 +93,22 @@ pub struct MiniHudDownWaveform;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MiniHudUpWaveform;
 
+/// Marker on the PiP always-on-top control (BEVY-029).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudPipPinButton;
+
+/// Marker on the PiP pointer click-through control.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudPipClickThroughButton;
+
+/// Marker on the PiP corner-snap control.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudPipSnapButton;
+
+/// Marker on the PiP placement readout line restamped from the live session.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MiniHudPipReadout;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub enum MiniHudTextKind {
     #[default]
@@ -325,6 +341,32 @@ pub fn mini_hud_scene(model: &MiniHudReadModel, palette: &UiPalette) -> impl Sce
                             Children [ Text(up_rate) TextRole(Role::BodyStrong) ]
                             --
                             @{ up_waveform_slot_scene() }
+                        ]
+                    ]
+                    --
+                    // BEVY-029: PiP placement controls bound to the shared
+                    // overlay session (always-on-top, click-through, snap).
+                    Node {
+                        width: percent(100),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::SpaceBetween,
+                        column_gap: Val::Px(space::S6),
+                    }
+                    Children [
+                        Node MiniHudPipReadout Children [
+                            Text(String::new()) TextRole(Role::Caption)
+                        ]
+                        --
+                        Node {
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(space::S4),
+                        }
+                        Children [
+                            @{ (pill_caption_scene("PiP Pin".to_owned(), false, palette), bsn! { MiniHudPipPinButton }) }
+                            --
+                            @{ (pill_caption_scene("Click".to_owned(), false, palette), bsn! { MiniHudPipClickThroughButton }) }
+                            --
+                            @{ (pill_caption_scene("Snap".to_owned(), false, palette), bsn! { MiniHudPipSnapButton }) }
                         ]
                     ]
                     --

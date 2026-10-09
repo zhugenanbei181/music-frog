@@ -12,6 +12,15 @@ use crate::pages::settings::SettingsPagePlugin;
 use crate::pages::sync::SyncPagePlugin;
 use bevy::app::{App, Plugin};
 
+#[path = "feedback.rs"]
+pub mod feedback;
+
+#[path = "chaos_console.rs"]
+pub mod chaos_console;
+
+#[path = "widget_sandbox.rs"]
+pub mod widget_sandbox;
+
 #[derive(Default)]
 pub struct PageBindingsPlugin;
 
@@ -29,6 +38,9 @@ impl Plugin for PageBindingsPlugin {
             AppRoutingPagePlugin,
             SyncPagePlugin,
             SettingsPagePlugin,
+            feedback::FeedbackPlugin,
+            chaos_console::ChaosConsolePlugin,
+            widget_sandbox::WidgetSandboxPlugin,
         ));
     }
 }

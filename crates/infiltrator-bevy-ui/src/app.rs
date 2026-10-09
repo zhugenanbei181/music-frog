@@ -10,6 +10,12 @@ use self::query_access::{
     SyncSafeAreaInsetsShellRootsFilter,
 };
 
+#[path = "shell_bidi.rs"]
+pub mod shell_bidi;
+#[path = "shell_focus.rs"]
+pub mod shell_focus;
+
+use crate::a11y::ShellA11yPlugin;
 use crate::appearance::{
     SystemAppearance, ThemeMode, on_theme_pill_activated, resolved_skin, sync_system_appearance,
 };
@@ -474,6 +480,12 @@ impl Plugin for ShellPlugin {
             self.preference,
             None,
         ))));
+        // BEVY-031/035/038: the screen-reader gate seam, the shell-level layout
+        // direction, and the D-pad/analog focus controller are part of the
+        // shell, so a headless composition exercises the same wiring.
+        app.add_plugins(ShellA11yPlugin);
+        app.add_plugins(shell_bidi::ShellBidiPlugin);
+        app.add_plugins(shell_focus::ShellFocusPlugin);
         app.add_plugins(ShortcutsPlugin);
         app.add_plugins(ShellToastPlugin);
         app.add_plugins(CommandPalettePlugin);

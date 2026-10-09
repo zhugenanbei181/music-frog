@@ -36,6 +36,9 @@ use infiltrator_bevy_widgets::palette::UiPalette;
 use infiltrator_contract::mini_hud::{MiniHudReadModel, MiniHudWaveformStrip};
 use infiltrator_contract::system_toggle::SystemToggle;
 
+#[path = "mini_hud_pip.rs"]
+pub mod pip;
+
 /// Mount signature: the overlay is rebuilt only when visibility or a rendered
 /// value actually changed.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
@@ -331,6 +334,7 @@ impl Plugin for MiniHudPlugin {
         app.add_observer(on_set_mini_hud_pinned);
         app.add_observer(on_mini_hud_system_proxy_activated);
         app.add_observer(on_mini_hud_tun_activated);
+        app.add_plugins(pip::PipHudPlugin);
         app.add_systems(
             Update,
             (

@@ -6,6 +6,8 @@
 use crate::a11y::{
     button_semantic_node, nav_semantic_node, semantic_node, switch_node, toggle_semantic_node,
 };
+use crate::app::shell_bidi::{ShellDirectionRoot, ShellDirectionRow};
+use crate::app::shell_focus::ShellFocusable;
 use crate::app::{
     BOTTOM_NAV_HEIGHT_PX, BottomNavActive, BottomNavBar, BottomNavItem, ContentColumn, ContentSlot,
     ContentTitleLabel, DensityToggle, GlobalModeCapsule, GlobalStatusDot, HistoryBackButton,
@@ -92,6 +94,7 @@ pub fn shell_scene_with_toggles(
                     flex_direction: FlexDirection::Row,
                     overflow: Overflow::clip(),
                 }
+                ShellDirectionRoot
                 Children [
                     @{ sidebar_scene_with_toggles(toggles, palette) }
                     --
@@ -207,6 +210,7 @@ fn bottom_nav_item_scene(
             Button
             BottomNavItem(route)
             BottomNavActive(active)
+            ShellFocusable
             Children [
                 @{ icon_scene(icon, 20.0, ink) }
                 --
@@ -225,18 +229,22 @@ pub fn content_title_row(_title: &str, palette: &UiPalette) -> impl Scene + use<
                 min_width: px(0.0),
                 max_width: percent(100),
                 align_items: AlignItems::Center,
+                justify_content: JustifyContent::FlexStart,
                 column_gap: Val::Px(space::S8),
                 flex_wrap: FlexWrap::Wrap,
                 row_gap: Val::Px(space::S4),
             }
             ShellHeader
             header_node
+            ShellDirectionRow
             Children [
                 @{ pill_caption_scene("‹".to_owned(), false, palette) }
                 HistoryBackButton
+                ShellFocusable
                 --
                 @{ pill_caption_scene("›".to_owned(), false, palette) }
                 HistoryForwardButton
+                ShellFocusable
                 --
                 LocalizedText::plain("nav_overview") TextRole(Role::Heading) ContentTitleLabel
                 --
@@ -318,10 +326,12 @@ pub fn sidebar_scene_with_toggles(
                     Children [
                         @{ pill_caption_scene("Theme".to_owned(), false, palette) }
                         ThemeToggle
+                        ShellFocusable
                         pill_node
                         --
                         @{ pill_caption_scene("Density".to_owned(), false, palette) }
                         DensityToggle
+                        ShellFocusable
                         density_node
                     ]
                 ]
@@ -435,6 +445,7 @@ pub fn sidebar_system_toggles_scene(
                         --
                         @{ pill_caption_scene(proxy_label, proxy_selected, palette) }
                         SidebarSystemProxyToggle
+                        ShellFocusable
                         proxy_node
                     ]
                     --
@@ -467,6 +478,7 @@ pub fn sidebar_system_toggles_scene(
                         --
                         @{ pill_caption_scene(tun_label, tun_selected, palette) }
                         SidebarTunToggle
+                        ShellFocusable
                         tun_node
                     ]
                     --
@@ -495,6 +507,7 @@ pub fn sidebar_profile_card_scene(palette: &UiPalette) -> impl Scene + use<> {
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             SidebarActiveProfileCard
             Button SidebarShortcutTile(Route::Profiles)
+            ShellFocusable
             semantic LocalizedLabel::plain("nav_profiles")
             SidebarExpandedOnly
             Children [
@@ -609,6 +622,7 @@ fn shortcut_tile_scene(
             BorderColor { top: edge, right: edge, bottom: edge, left: edge }
             Button
             SidebarShortcutTile(route)
+            ShellFocusable
             semantic LocalizedLabel::plain(label)
             Children [
                 Node {
@@ -722,6 +736,7 @@ pub fn sidebar_nav_item_scene(route: Route, active: bool, palette: &UiPalette) -
             SidebarNavItem(route)
             NavItem
             NavActive(active)
+            ShellFocusable
             semantic LocalizedLabel::plain(route.label_key())
             Children [
                 @{ icon_scene(route.icon(), 18.0, ink) }

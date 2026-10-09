@@ -7,6 +7,12 @@
 //! into two vocabularies. Switches additionally carry their live on/off state.
 
 use bevy::a11y::AccessibilityNode;
+use bevy::app::{App, Plugin, Update};
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use bevy::ecs::system::Res;
+use infiltrator_bevy_widgets::text_input::native::{
+    ScreenReaderAction, ScreenReaderGate, ScreenReaderOutcome,
+};
 use infiltrator_contract::a11y::{A11yRole, ShellA11yNode};
 
 /// Map a shared grammar role onto the AccessKit role Bevy publishes.
@@ -84,4 +90,40 @@ pub fn region_semantic_node(label: &str) -> AccessibilityNode {
     let mut a11y = accesskit::Node::new(accesskit::Role::Region);
     a11y.set_label(label);
     AccessibilityNode(a11y)
+}
+
+/// A semantic action the shell routes through the installed screen-reader gate.
+///
+/// The widget layer owns the bridge trait; the shell only carries the request
+/// across the seam, so no ECS type ever crosses into a platform host.
+#[derive(Message, Clone, Debug, PartialEq, Eq)]
+pub struct SemanticActionRequest(pub ScreenReaderAction);
+
+/// The typed outcome for each routed request, in arrival order.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SemanticActionOutcome(pub ScreenReaderOutcome);
+
+/// Route every requested semantic action through the host gate. With no bridge
+/// installed this is a no-op that reports the typed `Unsupported` outcome —
+/// never a silent success.
+pub fn route_semantic_actions(
+    mut requests: MessageReader<SemanticActionRequest>,
+    gate: Res<ScreenReaderGate>,
+    mut outcomes: MessageWriter<SemanticActionOutcome>,
+) {
+    for request in requests.read() {
+        outcomes.write(SemanticActionOutcome(gate.dispatch(request.0.clone())));
+    }
+}
+
+/// Install the screen-reader gate seam and its routing system.
+pub struct ShellA11yPlugin;
+
+impl Plugin for ShellA11yPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ScreenReaderGate>();
+        app.add_message::<SemanticActionRequest>();
+        app.add_message::<SemanticActionOutcome>();
+        app.add_systems(Update, route_semantic_actions);
+    }
 }

@@ -484,3 +484,131 @@ fn fixture_readout(upload: f64, download: f64) -> ShellReadoutSnapshot {
 
 #[path = "overview_tests/copy.rs"]
 mod copy;
+
+#[test]
+fn mounted_mode_toggle_emits_mapped_feedback_and_mute_blocks_it() {
+    use bevy::ui_widgets::Activate;
+    use infiltrator_bevy_ui::host_capabilities::{HapticsHost, HapticsPort};
+    use infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill;
+    use infiltrator_bevy_widgets::haptics::{
+        AudioHapticOutput, AudioHapticsSettings, HapticPattern, PcmBuffer,
+    };
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Recorder {
+        haptics: Mutex<Vec<HapticPattern>>,
+        tones: Mutex<usize>,
+    }
+    impl HapticsPort for Recorder {
+        fn vibrate(&self, pattern: HapticPattern) {
+            self.haptics.lock().expect("haptics").push(pattern);
+        }
+    }
+    impl AudioHapticOutput for Recorder {
+        fn play_tone(&self, _pcm: &PcmBuffer) {
+            *self.tones.lock().expect("tones") += 1;
+        }
+    }
+
+    let recorder = Arc::new(Recorder::default());
+    let mut app = mounted_default();
+    app.insert_resource(HapticsHost::new(recorder.clone(), true).with_audio(recorder.clone()));
+    let pill = app
+        .world_mut()
+        .query::<(Entity, &OverviewModeSegmentPill)>()
+        .iter(app.world())
+        .find(|(_, pill)| pill.0 == ProxyMode::Global)
+        .map(|(entity, _)| entity)
+        .expect("the Global mode pill is mounted");
+
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: pill });
+    app.update();
+    assert_eq!(
+        recorder.haptics.lock().expect("haptics").as_slice(),
+        &[HapticPattern::LightTick]
+    );
+    assert_eq!(*recorder.tones.lock().expect("tones"), 1);
+
+    app.world_mut()
+        .resource_mut::<AudioHapticsSettings>()
+        .set_muted(true);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: pill });
+    app.update();
+    assert_eq!(recorder.haptics.lock().expect("haptics").len(), 1);
+    assert_eq!(*recorder.tones.lock().expect("tones"), 1);
+}
+
+#[test]
+fn unsupported_host_turns_interaction_feedback_into_a_noop() {
+    use bevy::ui_widgets::Activate;
+    use infiltrator_bevy_ui::host_capabilities::{HapticsHost, HapticsPort};
+    use infiltrator_bevy_ui::pages::overview_cards::OverviewModeSegmentPill;
+    use infiltrator_bevy_widgets::haptics::{AudioHapticOutput, HapticPattern, PcmBuffer};
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Recorder {
+        haptics: Mutex<Vec<HapticPattern>>,
+    }
+    impl HapticsPort for Recorder {
+        fn vibrate(&self, pattern: HapticPattern) {
+            self.haptics.lock().expect("haptics").push(pattern);
+        }
+    }
+    impl AudioHapticOutput for Recorder {
+        fn play_tone(&self, _pcm: &PcmBuffer) {}
+    }
+
+    let recorder = Arc::new(Recorder::default());
+    let mut app = mounted_default();
+    app.insert_resource(HapticsHost::new(recorder.clone(), false).with_audio(recorder.clone()));
+    let pill = app
+        .world_mut()
+        .query::<(Entity, &OverviewModeSegmentPill)>()
+        .iter(app.world())
+        .find(|(_, pill)| pill.0 == ProxyMode::Global)
+        .map(|(entity, _)| entity)
+        .expect("the Global mode pill is mounted");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: pill });
+    app.update();
+    assert!(recorder.haptics.lock().expect("haptics").is_empty());
+}
+
+#[test]
+fn reactive_overview_summary_recomputes_only_on_metric_change() {
+    use infiltrator_bevy_ui::pages::overview::overview_reactive::SIGNAL_LOAD_SCORE;
+    use infiltrator_bevy_widgets::reactive::ReactiveEvaluationStats;
+
+    let mut app = mounted_default();
+    app.update();
+    app.update();
+    let before = app
+        .world()
+        .resource::<ReactiveEvaluationStats>()
+        .total_recomputed;
+
+    let mut projection = DemoOverviewSource::running().current();
+    projection.active_connections += 1;
+    app.world_mut()
+        .trigger(OverviewProjectionUpdated(projection.clone()));
+    app.update();
+
+    let stats = app.world().resource::<ReactiveEvaluationStats>();
+    assert_eq!(stats.last_recomputed, vec![SIGNAL_LOAD_SCORE]);
+    let after_change = stats.total_recomputed;
+    assert!(after_change > before);
+
+    app.world_mut()
+        .trigger(OverviewProjectionUpdated(projection));
+    app.update();
+    let stats = app.world().resource::<ReactiveEvaluationStats>();
+    assert_eq!(stats.total_recomputed, after_change);
+    assert!(stats.last_recomputed.is_empty());
+}

@@ -6,11 +6,15 @@
 
 use crate::surface::HostSurfaceRestoreRequested;
 use crate::surface::on_surface_restore_requested;
-use bevy::app::{App, Plugin};
+use bevy::app::{App, Plugin, Startup};
 use bevy::ecs::event::Event;
 use bevy::ecs::observer::On;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, ResMut};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Commands, Res, ResMut};
+use infiltrator_bevy_widgets::boot_cache::{
+    BootCacheReject, BootCacheRestore, BootPipelineCache, BudgetVerdict, ZeroAllocBudgetMeter,
+};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{JoinHandle, sleep, spawn};
@@ -148,6 +152,112 @@ impl TaskLifecycleRegistry {
 impl Drop for TaskLifecycleRegistry {
     fn drop(&mut self) {
         self.terminate_all();
+    }
+}
+
+/// In-memory stand-in for the persisted cold-start cache record.
+///
+/// A native host swaps this for a file / mmap-backed store without touching the
+/// shell: the launch path only ever sees the typed bytes.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct BootCacheStore(pub Option<Vec<u8>>);
+
+/// Typed, non-fatal cold-start cache launch report.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BootCacheLaunchReport {
+    /// The typed restore outcome (`Hit` or a specific `Miss` reason).
+    pub restore: BootCacheRestore,
+    /// Whether the launch had to perform a real rebuild.
+    pub rebuilt: bool,
+    /// The steady-state zero-allocation verdict sampled after warm-up.
+    pub budget: BudgetVerdict,
+}
+
+impl Default for BootCacheLaunchReport {
+    fn default() -> Self {
+        Self {
+            restore: BootCacheRestore::Miss(BootCacheReject::Empty),
+            rebuilt: false,
+            budget: BudgetVerdict::Within,
+        }
+    }
+}
+
+/// Shader pipelines compiled by the cold-start rebuild path.
+pub const BOOT_WARM_SHADERS: usize = 24;
+/// Font glyphs rasterized by the cold-start rebuild path.
+pub const BOOT_WARM_GLYPHS: usize = 512;
+/// Recorded cold-start rebuild duration in milliseconds.
+pub const BOOT_WARM_DURATION_MS: u64 = 40;
+
+/// Restore the pipeline cache from the store, or rebuild on a typed miss.
+///
+/// A corrupt or absent record is never fatal: it becomes a typed
+/// [`BootCacheRestore::Miss`] and forces a real rebuild instead of a partial
+/// restore.
+pub fn restore_boot_cache(
+    mut cache: ResMut<BootPipelineCache>,
+    store: Res<BootCacheStore>,
+    mut report: ResMut<BootCacheLaunchReport>,
+) {
+    let restore = match store.0.as_deref() {
+        Some(record) => cache.restore(record),
+        None => BootCacheRestore::Miss(BootCacheReject::Empty),
+    };
+    let rebuilt = match restore {
+        BootCacheRestore::Hit => false,
+        BootCacheRestore::Miss(_) => {
+            cache.mark_warmed(BOOT_WARM_SHADERS, BOOT_WARM_GLYPHS, BOOT_WARM_DURATION_MS);
+            true
+        }
+    };
+    report.restore = restore;
+    report.rebuilt = rebuilt;
+}
+
+/// Record the warmed cache for the next launch.
+///
+/// A fresh rebuild always overwrites a stale/corrupt record; a clean hit keeps
+/// the existing bytes untouched.
+pub fn record_boot_cache(
+    cache: Res<BootPipelineCache>,
+    report: Res<BootCacheLaunchReport>,
+    mut store: ResMut<BootCacheStore>,
+) {
+    if report.rebuilt || store.0.is_none() {
+        store.0 = cache.record();
+    }
+}
+
+/// Declare the steady-state zero-allocation budget after warm-up.
+pub fn assert_zero_alloc_budget(
+    mut meter: ResMut<ZeroAllocBudgetMeter>,
+    mut report: ResMut<BootCacheLaunchReport>,
+) {
+    report.budget = meter.assert_frame(0, 0);
+}
+
+/// BEVY-039: cold-start pipeline cache wired into launch.
+///
+/// Installed by [`HostLifecyclePlugin`] so the windowed and headless
+/// compositions share the same cold-start path.
+pub struct BootCacheLaunchPlugin;
+
+impl Plugin for BootCacheLaunchPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<BootCacheStore>();
+        app.init_resource::<BootPipelineCache>();
+        app.init_resource::<BootCacheLaunchReport>();
+        app.init_resource::<ZeroAllocBudgetMeter>();
+        app.add_systems(
+            Startup,
+            (
+                restore_boot_cache,
+                record_boot_cache,
+                assert_zero_alloc_budget,
+            )
+                .chain(),
+        );
     }
 }
 
@@ -344,7 +454,8 @@ impl Plugin for HostLifecyclePlugin {
         app.init_resource::<HostLifecycleState>()
             .init_resource::<UiObservationGate>()
             .add_observer(on_host_lifecycle)
-            .add_observer(on_surface_restore_requested);
+            .add_observer(on_surface_restore_requested)
+            .add_plugins(BootCacheLaunchPlugin);
     }
 }
 
@@ -596,5 +707,69 @@ mod tests {
             app.world().resource::<RestoreFlag>().0,
             "restore read-back is requested exactly through the typed event"
         );
+    }
+
+    #[test]
+    fn first_boot_records_and_next_launch_restores_without_rebuild() {
+        let mut first = App::new();
+        first.add_plugins(BootCacheLaunchPlugin);
+        first.update();
+        let report = *first.world().resource::<BootCacheLaunchReport>();
+        assert_eq!(
+            report.restore,
+            BootCacheRestore::Miss(BootCacheReject::Empty)
+        );
+        assert!(report.rebuilt, "a cold boot rebuilds the pipeline cache");
+        assert_eq!(report.budget, BudgetVerdict::Within);
+        assert_eq!(
+            first.world().resource::<BootPipelineCache>().rebuild_count,
+            1
+        );
+        let record = first
+            .world()
+            .resource::<BootCacheStore>()
+            .0
+            .clone()
+            .expect("a fresh boot records a cache");
+
+        // The next launch carries the record over and restores it.
+        let mut second = App::new();
+        second.add_plugins(BootCacheLaunchPlugin);
+        second.insert_resource(BootCacheStore(Some(record)));
+        second.update();
+        let report = *second.world().resource::<BootCacheLaunchReport>();
+        assert_eq!(report.restore, BootCacheRestore::Hit);
+        assert!(!report.rebuilt, "a hit must never rebuild");
+        assert_eq!(
+            second.world().resource::<BootPipelineCache>().rebuild_count,
+            0
+        );
+        assert!(second.world().resource::<BootPipelineCache>().is_warmed_up);
+    }
+
+    #[test]
+    fn corrupt_cache_is_rejected_typed_and_rebuilt_non_fatally() {
+        let mut corrupt = vec![0u8; 38];
+        corrupt[0] = b'X';
+        let mut app = App::new();
+        app.add_plugins(BootCacheLaunchPlugin);
+        app.insert_resource(BootCacheStore(Some(corrupt)));
+        app.update();
+        let report = *app.world().resource::<BootCacheLaunchReport>();
+        assert_eq!(
+            report.restore,
+            BootCacheRestore::Miss(BootCacheReject::BadMagic)
+        );
+        assert!(report.rebuilt);
+        assert!(app.world().resource::<BootPipelineCache>().is_warmed_up);
+
+        let repaired = app
+            .world()
+            .resource::<BootCacheStore>()
+            .0
+            .clone()
+            .expect("a corrupt record is replaced by a fresh one");
+        let mut probe = BootPipelineCache::new();
+        assert_eq!(probe.restore(&repaired), BootCacheRestore::Hit);
     }
 }

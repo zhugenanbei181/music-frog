@@ -9,6 +9,7 @@ use bevy::ecs::component::Component;
 use bevy::ecs::entity;
 use bevy::ecs::query::With;
 use bevy::image::Image;
+use bevy::math::Vec2;
 use bevy::scene::ScenePlugin;
 use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui_widgets::Activate;
@@ -16,11 +17,14 @@ use infiltrator_application::system_toggle_projection::compact_status_line;
 use infiltrator_bevy_ui::app::{ShellPlugin, SidebarToggleProjection};
 use infiltrator_bevy_ui::command::{CommandSinkHandle, DemoCommandSink, UiCommand};
 use infiltrator_bevy_ui::mini_hud::{
-    MiniHudDownWaveform, MiniHudMode, MiniHudModel, MiniHudRoot, MiniHudSystemProxyToggle,
+    MiniHudDownWaveform, MiniHudMode, MiniHudModel, MiniHudPipClickThroughButton,
+    MiniHudPipPinButton, MiniHudPipSnapButton, MiniHudRoot, MiniHudSystemProxyToggle,
     MiniHudTunToggle, MiniHudUpWaveform, SetMiniHudPinned, ToggleMiniHud,
 };
+use infiltrator_bevy_ui::mini_hud_shell::pip::{PipScreenSize, PipSnapCursor};
 use infiltrator_bevy_ui::pages::overview::{LastOverviewProjection, OverviewProjectionUpdated};
 use infiltrator_bevy_ui::route::PagesPlugin;
+use infiltrator_bevy_widgets::windowing::{PipCorner, PipOverlaySession, WindowRegistry};
 use infiltrator_contract::mini_hud::MiniHudWaveformStrip;
 use infiltrator_contract::system_toggle::{SystemToggle, SystemToggleSnapshot};
 use infiltrator_contract::theme::{ThemePreference, ThemeSkin};
@@ -335,4 +339,84 @@ fn a_pending_hud_quick_switch_dispatches_nothing() {
         "a toggle already in flight cannot be pressed again: {:?}",
         sink.submitted()
     );
+}
+
+#[test]
+fn the_pip_controls_bind_to_the_shared_overlay_session() {
+    let (mut app, _) = mounted_app();
+    app.world_mut().commands().trigger(ToggleMiniHud);
+    app.update();
+    app.update();
+
+    let session = app.world().resource::<PipOverlaySession>();
+    let id = session.window.expect("the HUD opens the PiP window");
+    assert!(session.state.is_active);
+    assert!(
+        app.world()
+            .resource::<WindowRegistry>()
+            .get(id)
+            .expect("descriptor")
+            .always_on_top
+    );
+
+    // The PiP pin control mirrors always-on-top onto the descriptor.
+    let pin = first_entity::<MiniHudPipPinButton>(&mut app);
+    app.world_mut().commands().trigger(Activate { entity: pin });
+    app.update();
+    assert!(
+        !app.world()
+            .resource::<PipOverlaySession>()
+            .state
+            .is_pinned_top
+    );
+    assert!(
+        !app.world()
+            .resource::<WindowRegistry>()
+            .get(id)
+            .expect("descriptor")
+            .always_on_top
+    );
+
+    // The click-through control mirrors onto the descriptor.
+    let click = first_entity::<MiniHudPipClickThroughButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: click });
+    app.update();
+    assert!(
+        app.world()
+            .resource::<WindowRegistry>()
+            .get(id)
+            .expect("descriptor")
+            .click_through
+    );
+
+    // The snap control advances the corner and moves the descriptor.
+    app.insert_resource(PipScreenSize(Vec2::new(1280.0, 720.0)));
+    let snap = first_entity::<MiniHudPipSnapButton>(&mut app);
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: snap });
+    app.update();
+    let session = app.world().resource::<PipOverlaySession>();
+    assert_eq!(session.state.position, Vec2::new(1080.0, 636.0));
+    assert_eq!(
+        app.world()
+            .resource::<WindowRegistry>()
+            .get(id)
+            .expect("descriptor")
+            .position,
+        session.state.position
+    );
+    assert_eq!(
+        app.world().resource::<PipSnapCursor>().0,
+        PipCorner::BottomRight
+    );
+
+    // Hiding the HUD retires the PiP descriptor without leaving an orphan.
+    app.world_mut().commands().trigger(ToggleMiniHud);
+    app.update();
+    app.update();
+    assert!(app.world().resource::<PipOverlaySession>().window.is_none());
+    assert!(!app.world().resource::<WindowRegistry>().contains(id));
 }

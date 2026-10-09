@@ -92,6 +92,11 @@ use infiltrator_contract::surface_snapshot::SurfaceOrigin;
 use infiltrator_contract::traffic_scale::TrafficScaleSnapshot;
 use infiltrator_shared::locales::{Lang, Localizer};
 
+#[path = "overview_reactive.rs"]
+pub mod overview_reactive;
+
+use self::overview_reactive::{OverviewMetricKind, OverviewMetricSource};
+
 /// The trend chart's raster box (ui-side tokens — the widget's pixel box
 /// is fixed at mount; a resize is a remount, chart.rs). Height ~140px per
 /// the reference card. Width is the capture card's interior: 1180 window
@@ -216,6 +221,10 @@ pub struct OverviewCardMoveDownButton(pub OverviewCardKind);
 /// Marker for the Overview metrics chip band container.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OverviewMetricsBand;
+
+/// Marker on the derived reactive load-score text (BEVY-028).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OverviewReactiveSummary;
 
 /// Marker on nodes filled with the `surface_elevated` token.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -453,6 +462,8 @@ pub fn overview_page(
                 @{ traffic_card_scene(projection, history, palette) } OverviewTrafficCard
                 --
                 @{ chips_row_scene(projection, palette) }
+                --
+                @{ overview_reactive::reactive_summary_scene(palette) }
                 --
                 @{ overview_cards::master_switches_scene_with_snapshot(&projection.system_toggles, palette) }
                 --
@@ -778,14 +789,17 @@ fn chips_row_scene(projection: &OverviewProjection, palette: &UiPalette) -> impl
             Children [
                 @{ stat_chip_scene(IconId::Activity, chip_label(OverviewChipKind::Connections, "en-US").to_owned(), connections, palette) }
                 OverviewChip(OverviewChipKind::Connections)
+                OverviewMetricSource(OverviewMetricKind::Connections)
                 connections_node
                 --
                 @{ stat_chip_scene(IconId::Zap, chip_label(OverviewChipKind::Memory, "en-US").to_owned(), memory, palette) }
                 OverviewChip(OverviewChipKind::Memory)
+                OverviewMetricSource(OverviewMetricKind::Memory)
                 memory_node
                 --
                 @{ stat_chip_scene(IconId::Settings, chip_label(OverviewChipKind::Cpu, "en-US").to_owned(), cpu, palette) }
                 OverviewChip(OverviewChipKind::Cpu)
+                OverviewMetricSource(OverviewMetricKind::Cpu)
                 cpu_node
                 --
                 @{ stat_chip_scene(IconId::ArrowUp, chip_label(OverviewChipKind::Upload, "en-US").to_owned(), upload, palette) }
@@ -821,6 +835,7 @@ pub struct OverviewPagePlugin;
 impl Plugin for OverviewPagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TrafficReplay>();
+        overview_reactive::register(app);
         app.add_systems(
             Update,
             (

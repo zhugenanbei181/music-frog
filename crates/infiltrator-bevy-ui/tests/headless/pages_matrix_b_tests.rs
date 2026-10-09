@@ -228,3 +228,6 @@ mod settings_vpn;
 mod sidebar;
 #[path = "pages_matrix_b_tests/sync.rs"]
 mod sync;
+
+#[path = "bevy_adv_tests.rs"]
+mod bevy_adv_tests;

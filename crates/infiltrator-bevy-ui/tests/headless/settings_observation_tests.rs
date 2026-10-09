@@ -144,3 +144,64 @@ fn native_settings_unknown_false_failed_and_recovered_controls_keep_entities_and
         vec![UiCommand::ToggleTun { enabled: true }]
     );
 }
+
+#[test]
+fn render_strategy_setting_selects_persists_and_falls_back_typed() {
+    use bevy::ui_widgets::Activate;
+    use infiltrator_bevy_ui::pages::settings::settings_render_strategy::{
+        RENDER_STRATEGY_SETTING_KEY, RenderStrategyButton, parse_render_strategy,
+    };
+    use infiltrator_bevy_widgets::shader_fx::CardRenderStrategy;
+
+    assert_eq!(
+        parse_render_strategy("gpu_instanced"),
+        CardRenderStrategy::GpuInstanced
+    );
+    assert_eq!(
+        parse_render_strategy("cpu_fallback"),
+        CardRenderStrategy::CpuFallback
+    );
+    assert_eq!(parse_render_strategy("flat"), CardRenderStrategy::Flat);
+    assert_eq!(
+        parse_render_strategy("unsupported-token"),
+        CardRenderStrategy::default()
+    );
+
+    let mut app = App::new();
+    headless_plugins(&mut app);
+    app.add_plugins((
+        ButtonPlugin,
+        CheckboxPlugin,
+        ShellPlugin::default(),
+        PagesPlugin::default(),
+    ));
+    let sink = Arc::new(DemoCommandSink::accepting());
+    app.add_plugins(CommandPumpPlugin::new(
+        sink.clone() as Arc<dyn UiCommandSink>
+    ));
+    app.init_resource::<CardRenderStrategy>();
+    app.update();
+    app.world_mut().trigger(RouteChanged(Route::Settings));
+    app.update();
+
+    let target = app
+        .world_mut()
+        .query::<(Entity, &RenderStrategyButton)>()
+        .iter(app.world())
+        .find(|(_, button)| button.0 == CardRenderStrategy::CpuFallback)
+        .map(|(entity, _)| entity)
+        .expect("the CPU strategy pill is mounted");
+    app.world_mut()
+        .commands()
+        .trigger(Activate { entity: target });
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<CardRenderStrategy>(),
+        CardRenderStrategy::CpuFallback
+    );
+    assert!(sink.submitted().contains(&UiCommand::UpdateSetting {
+        key: RENDER_STRATEGY_SETTING_KEY.to_owned(),
+        value: "cpu_fallback".to_owned(),
+    }));
+}
