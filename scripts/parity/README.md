@@ -52,8 +52,8 @@ coverage and selected-release coverage are different reports. Schema 3 evidence
 keeps its historical scope; a missing original executable cannot be reconstructed
 by assigning the latest build's identity.
 
-`retired_source_guards.tsv` records 79 historical feature/text guards removed
-from execution. They remain in `scripts/quality/` only for historical inspection.
+`retired_source_guards.tsv` records the 79 historical feature/text guards that
+were deleted from `scripts/quality/` (replaced by this dynamic evidence system).
 `check-test-policy.sh` rejects their re-registration. Shared structural checks
 are registered once in `scripts/quality/check-structure.sh`; test workflows use
 the two canonical runner scripts. Python negative tests cover dangling IDs,

@@ -196,7 +196,7 @@ build_targets = ["aarch64-linux-android", "x86_64-linux-android"]
 # BANDROID-019: the mobile product host needs these permissions. cargo-apk can
 # only express uses_permission; the VPN <service>/foregroundServiceType and the
 # BootReceiver live in the Gradle product manifest
-# (android/app/src/main/AndroidManifest.xml) — see docs/BEVY_ANDROID_PRODUCT.md.
+# (android/app/src/main/AndroidManifest.xml) — see docs/android/BEVY_ANDROID_PRODUCT.md.
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
 

@@ -4,7 +4,7 @@
 The two Bevy crates (`infiltrator-bevy-widgets`, `infiltrator-bevy-ui`) have
 exactly one sanctioned route for declaring a UI tree: a scene built by the
 ``bsn!`` macro and mounted through ``Commands::spawn_scene`` (crate law,
-docs/BEVY_UI_FRONTEND.md). The dividing line the guard enforces is
+docs/bevy-ui/BEVY_UI_FRONTEND.md). The dividing line the guard enforces is
 **structure vs state**: structure (the tree, its layout and text primitives)
 may only be declared inside a ``bsn!`` scene; state (colors, images, markers,
 selection bits) may be restamped in place by observers and systems. It

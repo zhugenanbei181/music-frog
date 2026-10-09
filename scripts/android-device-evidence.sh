@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # BANDROID-023 — explicit Android real-device / long-running evidence stage.
 #
-# This is the L3/L4 evidence layer of docs/BEVY_ANDROID_PRODUCT.md §8/§9: VPN
+# This is the L3/L4 evidence layer of docs/android/BEVY_ANDROID_PRODUCT.md §8/§9: VPN
 # traffic, no-loopback, a >=8h background soak, network switch and power. It is
 # an EXPLICIT stage and MUST NOT be wired into the ordinary PR CI — it needs a
 # physical ARM64 device attached over adb, which no hosted runner provides.
@@ -289,7 +289,7 @@ fi
     echo
     echo "STATUS: $status"
     echo
-    echo "> Explicit physical-device stage of docs/BEVY_ANDROID_PRODUCT.md §8/§9."
+    echo "> Explicit physical-device stage of docs/android/BEVY_ANDROID_PRODUCT.md §8/§9."
     echo "> Not a PR gate. STATUS stays incomplete whenever a required step was skipped."
     echo
     echo "## Device / OS"

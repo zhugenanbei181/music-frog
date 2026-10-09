@@ -1,62 +1,68 @@
 #!/usr/bin/env bash
+# Test-policy guard.
+#
+# Structural and pattern-based: it parses configuration and matches command
+# *shapes*, never literal document snapshots. The single authoritative list of
+# quality guards is scripts/test.sh / scripts/test-bevy.sh themselves; this
+# checker only verifies they keep the required shape.
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 failed=0
+note() { echo "test-policy: $*" >&2; failed=1; }
+require() { grep -Eq -- "$2" "$1" || note "$1 missing required pattern: $2"; }
 
-# Keep the repository's commands and documentation on the single supported
-# test runner. This checker is excluded because it contains the forbidden
-# pattern as the thing it checks for.
-forbidden_pattern='(^|[^[:alnum:]_-])cargo[[:space:]]+(\+[^[:space:]]+[[:space:]]+)?test([[:space:]]|$)'
-if forbidden_matches="$(git grep -n -I -i -E "$forbidden_pattern" -- \
+# A. No raw `cargo test` anywhere (the only supported runner is nextest).
+if git grep -n -I -i -E \
+  '(^|[^[:alnum:]_-])cargo[[:space:]]+(\+[^[:space:]]+[[:space:]]+)?test([[:space:]]|$)' -- \
   . \
   ':(exclude)scripts/check-test-policy.sh' \
   ':(exclude)**/scripts/check-test-policy.sh' \
-  ':(exclude).claude/**')"; then
-  echo "forbidden raw cargo test command found:" >&2
-  echo "$forbidden_matches" >&2
-  failed=1
+  ':(exclude).claude/**'; then
+  note "forbidden raw cargo test command found"
 fi
 
-require_text() {
-  local path="$1"
-  local text="$2"
-  if ! grep -Fq -- "$text" "$path"; then
-    echo "missing required test policy text '$text' in $path" >&2
-    failed=1
-  fi
-}
+# B. nextest must pin the thread count. Parse the TOML instead of text-matching.
+if ! python3 - <<'PY'
+import sys, tomllib
+cfg = tomllib.load(open(".config/nextest.toml", "rb"))
+threads = cfg.get("profile", {}).get("default", {}).get("test-threads")
+if threads != 4:
+    print(f"nextest.toml must pin [profile.default] test-threads = 4 (found {threads!r})", file=sys.stderr)
+    sys.exit(1)
+PY
+then
+  note "nextest.toml thread pin missing"
+fi
 
-require_text ".config/nextest.toml" "test-threads = 4"
-require_text "scripts/test.sh" "cargo nextest run"
-require_text "scripts/test.sh" "--workspace"
-require_text "scripts/test.sh" "--build-jobs 4"
-require_text "scripts/test.sh" "--test-threads 4"
+# C/D. Both runners use nextest, the shared structural gate and the dynamic
+# evidence resolver, and support the cheap `--guards-only` fast path.
+for runner in scripts/test.sh scripts/test-bevy.sh; do
+  require "$runner" 'cargo[[:space:]]+nextest[[:space:]]+run'
+  require "$runner" 'check-structure\.sh'
+  require "$runner" 'resolve_surface_evidence\.py'
+  require "$runner" '--guards-only'
+done
+require scripts/test.sh '--workspace'
+require scripts/test.sh '--build-jobs[[:space:]]+4'
+require scripts/test.sh '--test-threads[[:space:]]+4'
+require scripts/test-bevy.sh '--build-jobs[[:space:]]+4'
+require scripts/test-bevy.sh '--test-threads[[:space:]]+4'
 
-# Both entry points use the same structural checks and dynamic evidence resolver.
-require_text "scripts/test.sh" "check-structure.sh"
-require_text "scripts/test-bevy.sh" "check-structure.sh"
-require_text "scripts/test.sh" "resolve_surface_evidence.py"
-require_text "scripts/test-bevy.sh" "resolve_surface_evidence.py"
-require_text "scripts/test.sh" "--guards-only"
-require_text "scripts/test-bevy.sh" "--guards-only"
-require_text ".github/workflows/test.yml" "bash scripts/check-test-policy.sh"
-require_text ".github/workflows/test.yml" "bash scripts/test.sh --guards-only"
-require_text ".github/workflows/test.yml" "bash scripts/test.sh --no-run"
-require_text ".github/workflows/test.yml" "bash scripts/test.sh"
-require_text ".github/workflows/bevy.yml" "bash scripts/test-bevy.sh --guards-only"
-require_text ".github/workflows/bevy.yml" "bash scripts/test-bevy.sh"
-require_text "scripts/test-bevy.sh" "cargo nextest run"
-require_text "TESTING.md" "line-guard.py"
-# Prevent re-registering retired text guards under either runner or the shared gate.
+# E/F. CI workflows invoke the entry points (shape, not an inlined guard list).
+require .github/workflows/test.yml 'check-test-policy\.sh'
+require .github/workflows/test.yml 'test\.sh[[:space:]]+--guards-only'
+require .github/workflows/test.yml 'test\.sh[[:space:]]+--no-run'
+require .github/workflows/bevy.yml 'test-bevy\.sh[[:space:]]+--guards-only'
+
+# G. Retired source-evidence guards must not be re-registered under any runner.
 while IFS=$'\t' read -r script replacement; do
   [[ "$script" == script ]] && continue
   for runner in scripts/test.sh scripts/test-bevy.sh scripts/quality/check-structure.sh; do
     if grep -Fq -- "$script" "$runner"; then
-      echo "retired source-evidence guard registered in $runner: $script" >&2
-      failed=1
+      note "retired source-evidence guard registered in $runner: $script"
     fi
   done
 done < scripts/parity/retired_source_guards.tsv
@@ -65,4 +71,4 @@ if [[ "$failed" -ne 0 ]]; then
   exit 1
 fi
 
-echo "test policy OK: cargo nextest, workspace-wide, 4 build jobs, 4 test threads"
+echo "test policy OK: nextest, workspace-wide, pinned concurrency, single structural gate"
