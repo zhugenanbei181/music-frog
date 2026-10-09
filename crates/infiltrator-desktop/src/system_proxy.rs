@@ -22,6 +22,10 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::id;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+#[cfg(windows)]
+use std::thread::sleep;
+#[cfg(windows)]
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use tokio::task::spawn_blocking;
@@ -208,14 +212,26 @@ fn atomic_replace(temporary: &Path, destination: &Path) -> io::Result<()> {
         .chain(once(0))
         .collect();
     let flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
-    // SAFETY: both paths are NUL-terminated UTF-16 buffers owned for the
-    // duration of this call, and the Windows API does not retain them.
-    let replaced = unsafe { MoveFileExW(temporary.as_ptr(), destination.as_ptr(), flags) };
-    if replaced == 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
+
+    for attempt in 0..4 {
+        // SAFETY: both paths are NUL-terminated UTF-16 buffers owned for the
+        // duration of this call, and the Windows API does not retain them.
+        let replaced = unsafe { MoveFileExW(temporary.as_ptr(), destination.as_ptr(), flags) };
+        if replaced != 0 {
+            return Ok(());
+        }
+        let err = io::Error::last_os_error();
+        if let Some(code) = err.raw_os_error() {
+            // Error 32: ERROR_SHARING_VIOLATION (mmap file lock / open reader retry)
+            // Error 5: ERROR_ACCESS_DENIED (transient lock)
+            if (code == 32 || code == 5) && attempt < 3 {
+                sleep(Duration::from_millis(50 * (attempt + 1) as u64));
+                continue;
+            }
+        }
+        return Err(err);
     }
+    Err(io::Error::last_os_error())
 }
 
 fn recovery_journal_lock() -> MutexGuard<'static, ()> {
