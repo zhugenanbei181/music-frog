@@ -19,8 +19,8 @@ Bevy Android 的平台缺口按 [平台矩阵](docs/PLATFORM_MATRIX.md) 记录�
 - Iced 遗留配置/管理/运行态操作需核对组合宿主、命令和 reader 的所有权；Bevy Android 产品宿主仍待组合。
 - 控制器观测已独立于偏好页，可缺失字段保留存在性，设置表单消费同一可选观测。模式动作已关联请求身份、代次与读写边界，两端保留错误操作面与适用重试；实际读回和原生点击有行为回归。专用运行控制/模式场景的完整原生布局与像素尚需闭合，不能据局部测试宣布控制流程完成。
 - 最终平台包、远端完整验收工作流与公开发布尚未完成，模板夹具打包不算正式版本。
-- MRS 观测仍含伪事实：`MrsAccelerationApplication` 按规则数估算文件/内存字节，并固定格式版本、校验通过和 mmap 开启；原生格式缺失时也有 Domain/HTTP 兜底。必须改为真实读取或明确未观测，不能将已有 mock 测试视为真实加速证明。
-- 版本验证回执仍由 `MihomoVersionPort::LAST_VERIFICATION` 在进程内共享，命令与 reader 又各自创建版本服务；需改为产品实例持有、组合根共享，独立产品和来源切换不得借用另一份验证结果。下载取消的类型化整改不证明该所有权问题已解决。
+- （已闭环）MRS 观测改为真实读取：`infiltrator-application::mrs_acceleration_application::inspect_mrs_bytes` 读取真实 `header.version` / 校验 / mmap 标志，原生格式缺失时返回 typed 未观测，不再按规则数估算文件/内存字节。
+- （已闭环）版本验证回执改为产品实例持有：`infiltrator-core::version_port` 提供 `with_shared_verification` / `verification_handle`，`MihomoVersionPort::LAST_VERIFICATION` 进程内静态共享已移除。
 - i18n 已扩大到 Iced update/state，但遗留管理通知、MRS 辅助文案、桌面订阅 OS 通知与其它后端业务字符串仍需迁移；已渲染的异步通知和错误面还需核对语言切换，不能以结构门零违规宣布全量运行态本地化完成。
 - 两端壳层计数、活动配置、配额、速率和波形已回放共享真实观测；未知、零值与失效分开，移除了固定示例数字。模式与系统切换的未知、等待、失败和重试分支仍需核对，不能把局部业务场景回执外推为整个页面事实一致。规则稳定行身份与未提交表单的源绑定已有双端行为回归；紧凑构建器类型按钮已换行，但向导字段完整可达性及源变化表面的专用像素证据仍需闭合。
 

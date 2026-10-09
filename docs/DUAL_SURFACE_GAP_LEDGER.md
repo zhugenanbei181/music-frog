@@ -30,7 +30,7 @@
 
 **未落地（明确登记，不静默）**：BANDROID-015 的默认特性 release APK 整合仅到“代码就绪”（`android/bevy-host` 模块 + driver 模板，未接入 `settings.gradle.kts`，未构建）；BANDROID-018..024 的首次 CI 运行、模拟器插桩 stage、真机长时 stage 均待 CI/设备；BEVY 高级能力的产品页接线已逐项落地（`e40530b` 地球页/时间回放/Doctor 自愈/OKLCH；`9f17631` 手柄/BiDi/读屏/反馈/渲染策略/反应式投影/沙盒/ABI/混沌/冷启动/PiP），仅其真机/GPU/设备证据待补。
 
-**发布**：本轮将 workspace 版本由 `0.40.5` 提升至 `0.41.0` 并打 `v0.41.0` tag；真机/设备/像素证据未取得的部分不得据此宣称完成。
+**发布**：本轮将 workspace 版本由 `0.40.5` 提升至 `0.41.0` 并打 `v0.41.0` tag；发布流水线修复 3 处 CI 缺陷（`doc-governance-guard` 误报 gitignored 的 `TODO.md`；cargo-apk 0.10 资源键 `res`→`resources`；Bevy APK 驱动不再拷贝 AppCompat 依赖的 `values/themes.xml`）并放宽桌面构建超时。真机/设备/像素证据未取得的部分不得据此宣称完成。
 
 
 ## A. 横切阻断（先决，串行）
