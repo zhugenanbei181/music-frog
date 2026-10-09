@@ -5253,7 +5253,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-application"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "async-trait",
  "boa_engine",
@@ -5274,7 +5274,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-ui"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "accesskit",
  "async-trait",
@@ -5298,7 +5298,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-bevy-widgets"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "accesskit",
  "bevy",
@@ -5334,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-composition"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "async-trait",
  "infiltrator-application",
@@ -5349,7 +5349,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-contract"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -5428,7 +5428,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-domain"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5463,7 +5463,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-iced"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5508,7 +5508,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-ios"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "async-trait",
  "infiltrator-application",
@@ -5519,7 +5519,7 @@ dependencies = [
 
 [[package]]
 name = "infiltrator-ports"
-version = "0.40.5"
+version = "0.41.0"
 dependencies = [
  "async-trait",
  "futures-util",

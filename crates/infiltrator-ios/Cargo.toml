@@ -1,6 +1,6 @@
 [package]
 name = "infiltrator-ios"
-version = "0.40.5"
+version = "0.41.0"
 edition = "2024"
 publish = false
 description = "iOS host adapter seams for NetworkExtension and Swift/Objective-C lifecycle bridges."
