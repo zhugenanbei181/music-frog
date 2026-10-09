@@ -1,6 +1,6 @@
 //! Business-agnostic Bevy UI widget layer for MusicFrog.
 //!
-//! Charter (docs/BEVY_UI_FRONTEND.md): static structure composes
+//! Charter (docs/bevy-ui/BEVY_UI_FRONTEND.md): static structure composes
 //! declaratively with `bsn!` scene functions; runtime changes restamp
 //! components via observers, never rebuild trees; every color and metric
 //! originates in [`theme`] tokens and becomes a bevy value only inside
@@ -80,6 +80,7 @@ pub mod surface;
 pub mod surface_shader;
 pub mod switch;
 pub mod tabs;
+pub mod telemetry_gpu;
 pub mod text;
 pub mod text_input;
 pub mod text_runs;
@@ -94,6 +95,7 @@ use crate::button::ButtonDisabled;
 use crate::localization::WidgetLocalizationPlugin;
 use crate::palette::UiPalette;
 use crate::responsive::{Density, ResponsiveContext};
+use crate::telemetry_gpu::TelemetryGpuPlugin;
 use crate::text_input::native::NativeTextFieldPlugin;
 use crate::text_input::render::{
     sync_field_borders, sync_field_carets, sync_ime_cursor_areas, sync_text_fields,
@@ -128,6 +130,7 @@ impl Plugin for WidgetsPlugin {
             app.add_plugins(WidgetLocalizationPlugin);
         }
         app.add_plugins((NativeTextFieldPlugin, TextRunsPlugin));
+        app.add_plugins(TelemetryGpuPlugin);
         app.init_resource::<MouseScrollPixelsPerLine>();
         if !app.is_plugin_added::<ScrollAreaPlugin>() {
             app.add_plugins(ScrollAreaPlugin);

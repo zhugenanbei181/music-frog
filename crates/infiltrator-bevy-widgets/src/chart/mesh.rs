@@ -274,5 +274,6 @@ pub fn build_bar_mesh(
     mesh
 }
 
-/// Modular shader prototype; its source is not an installed GPU pipeline.
+/// The telemetry fragment source, registered and retained by
+/// [`crate::telemetry_gpu`]. The draw pipeline itself remains host-installed.
 pub const TELEMETRY_SHADER_WESL: &str = include_str!("../shaders/telemetry.wesl");

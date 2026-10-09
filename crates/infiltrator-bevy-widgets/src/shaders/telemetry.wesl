@@ -1,4 +1,5 @@
-// Prototype only: BANDROID-013 still needs Mesh2d view transforms and a pipeline.
+// Registered and retained by telemetry_gpu; a real draw still needs a host
+// camera, a Mesh2d view transform and a Material2d pipeline.
 import package::shaders::telemetry_vertex::{VertexOutput, vertex};
 
 @fragment
