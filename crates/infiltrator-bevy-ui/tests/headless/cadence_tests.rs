@@ -6,10 +6,13 @@ use bevy::MinimalPlugins;
 use bevy::app::App;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::query::With;
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy::window::{Window, WindowFocused, WindowOccluded};
 use bevy::winit::{UpdateMode, WinitSettings};
 use infiltrator_bevy_ui::cadence::{
-    CadencePlugin, SUSPENDED_WAIT, WindowCadenceState, winit_settings_for,
+    CADENCE_IDLE_FRAMES, CadenceActivity, CadencePlugin, SUSPENDED_WAIT, WindowCadenceState,
+    winit_settings_for,
 };
 use infiltrator_bevy_widgets::cadence::FramePacingMode;
 use infiltrator_contract::cadence::RenderCadence;
@@ -148,5 +151,96 @@ fn an_unchanged_cadence_does_not_rewrite_the_winit_settings() {
     assert_eq!(
         app.world().resource::<WindowCadenceState>().cadence(),
         RenderCadence::Active
+    );
+}
+
+/// BANDROID-011: a running animation keeps the shell at the active cadence;
+/// when it ends the quiet frames decay the shell out of the active state.
+#[test]
+fn animation_end_leaves_the_active_cadence() {
+    let mut app = cadence_app();
+
+    // A running animation re-arms the engagement every frame.
+    for _ in 0..3 {
+        app.world_mut().resource_mut::<CadenceActivity>().wake();
+        app.update();
+        assert_eq!(
+            app.world().resource::<WinitSettings>().focused_mode,
+            UpdateMode::Continuous,
+            "a running animation keeps the full-rate active cadence"
+        );
+    }
+
+    // The animation ended: no more wakes, so quiet frames decay to idling.
+    for _ in 0..CADENCE_IDLE_FRAMES {
+        app.update();
+    }
+    let settings = app.world().resource::<WinitSettings>();
+    assert_ne!(
+        settings.focused_mode,
+        UpdateMode::Continuous,
+        "an ended animation must leave the active state"
+    );
+    assert_eq!(
+        reactive_wait(settings.focused_mode),
+        time::Duration::from_millis(RenderCadence::IDLING_FRAME_TIME_MS)
+    );
+}
+
+/// BANDROID-011: with no input and no animation the visible, focused window
+/// settles onto the contract's idling frame interval, not the active one.
+#[test]
+fn a_steady_quiet_window_idles_at_the_contract_rate() {
+    let mut app = cadence_app();
+    for _ in 0..=CADENCE_IDLE_FRAMES {
+        app.update();
+    }
+
+    let settings = app.world().resource::<WinitSettings>();
+    assert_ne!(settings.focused_mode, UpdateMode::Continuous);
+    assert_eq!(
+        reactive_wait(settings.focused_mode),
+        time::Duration::from_millis(RenderCadence::IDLING_FRAME_TIME_MS),
+        "steady no-change selects the idling frame interval"
+    );
+    assert_ne!(
+        reactive_wait(settings.focused_mode),
+        time::Duration::from_millis(RenderCadence::ACTIVE_FRAME_TIME_MS),
+        "the idling interval is not the active one"
+    );
+    assert_eq!(
+        app.world()
+            .resource::<WindowCadenceState>()
+            .cadence_with(false),
+        RenderCadence::Idling
+    );
+}
+
+/// BANDROID-011: a new input event wakes the idling shell back to active.
+#[test]
+fn new_input_wakes_the_idling_window_back_to_active() {
+    let mut app = cadence_app();
+    for _ in 0..=CADENCE_IDLE_FRAMES {
+        app.update();
+    }
+    assert_ne!(
+        app.world().resource::<WinitSettings>().focused_mode,
+        UpdateMode::Continuous
+    );
+
+    let window = primary_window(&mut app);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyM,
+        logical_key: Key::Character("m".into()),
+        state: ButtonState::Pressed,
+        text: Some("m".into()),
+        repeat: false,
+        window,
+    });
+    app.update();
+    assert_eq!(
+        app.world().resource::<WinitSettings>().focused_mode,
+        UpdateMode::Continuous,
+        "input wakes the idling shell back to the active cadence"
     );
 }

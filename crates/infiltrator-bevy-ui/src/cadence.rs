@@ -5,20 +5,30 @@
 //! it and keeps it in sync with the live window facts (`WindowFocused`,
 //! `WindowOccluded`, `Window::visible`):
 //!
-//! - focused + visible → `Continuous` (the ~60 FPS active cadence),
+//! - focused + visible + engaged → `Continuous` (the ~60 FPS active cadence),
+//! - focused + visible but idle (no input, no animation) → 10 FPS reactive
+//!   low power (the contract's `Idling` cadence, BEVY-040-04),
 //! - backgrounded → 2 FPS reactive low power,
 //! - occluded/invisible → the longest low-power wait (an event-driven loop: no
 //!   scheduled frames, but OS/user events still wake the app).
+//!
+//! Engagement is tracked by [`CadenceActivity`]: user input and running
+//! animations keep the window hot, and a short frame debounce decays it to the
+//! idling rate once the surface settles.
 //!
 //! The Iced shell consumes the same policy for its animation frame tick, so
 //! both surfaces detune to the same rates.
 
 use bevy::app::{App, Plugin, Update};
-use bevy::ecs::message::MessageReader;
+use bevy::ecs::message::{Message, MessageReader};
 use bevy::ecs::query::With;
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Query, ResMut};
-use bevy::window::{PrimaryWindow, Window, WindowFocused, WindowOccluded};
+use bevy::ecs::schedule::IntoScheduleConfigs;
+use bevy::ecs::system::{Query, Res, ResMut};
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseWheel};
+use bevy::input::touch::TouchInput;
+use bevy::window::{CursorMoved, PrimaryWindow, Window, WindowFocused, WindowOccluded};
 use bevy::winit::{UpdateMode, WinitSettings};
 use infiltrator_contract::cadence::RenderCadence;
 use std::time::Duration;
@@ -49,6 +59,71 @@ impl WindowCadenceState {
     /// The shared cadence these facts select.
     pub fn cadence(self) -> RenderCadence {
         RenderCadence::from_visible_focused(self.visible, self.focused)
+    }
+
+    /// The cadence including activity: a visible, focused window that is not
+    /// engaged (no recent input and no running animation) detunes from
+    /// [`RenderCadence::Active`] to the low-power [`RenderCadence::Idling`].
+    /// Background and suspended states are unaffected by activity.
+    pub fn cadence_with(self, engaged: bool) -> RenderCadence {
+        match self.cadence() {
+            RenderCadence::Active if !engaged => RenderCadence::Idling,
+            cadence => cadence,
+        }
+    }
+}
+
+/// How many quiet frames after the last input or animation frame before a
+/// visible, focused window detunes from `Active` to `Idling`.
+pub const CADENCE_IDLE_FRAMES: u32 = 30;
+
+/// Tracks the recent interaction and running animations that must keep the
+/// render loop at the `Active` cadence. The engagement is a short frame
+/// debounce: it decays every frame, and any input event or animation frame
+/// re-arms it.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CadenceActivity {
+    engaged_frames: u32,
+}
+
+impl Default for CadenceActivity {
+    fn default() -> Self {
+        // A cold start paints at full rate; idle decay begins once the shell
+        // has settled.
+        Self {
+            engaged_frames: CADENCE_IDLE_FRAMES,
+        }
+    }
+}
+
+impl CadenceActivity {
+    /// Mark the shell engaged for the next [`CADENCE_IDLE_FRAMES`] frames.
+    /// Input tracking calls this per event; an animation system calls it on
+    /// every frame it advances a visible animation.
+    pub fn wake(&mut self) {
+        self.engaged_frames = CADENCE_IDLE_FRAMES;
+    }
+
+    /// Whether input or an animation was seen recently enough to stay hot.
+    pub const fn is_engaged(&self) -> bool {
+        self.engaged_frames > 0
+    }
+
+    /// Advance one frame, decaying the engagement toward idle.
+    pub fn decay(&mut self) {
+        self.engaged_frames = self.engaged_frames.saturating_sub(1);
+    }
+}
+
+/// The last cadence written to [`WinitSettings`], so [`sync_window_cadence`]
+/// can tell an activity-driven change from a no-op without fighting another
+/// writer that installed its own settings.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AppliedCadence(pub RenderCadence);
+
+impl Default for AppliedCadence {
+    fn default() -> Self {
+        Self(RenderCadence::Active)
     }
 }
 
@@ -84,12 +159,14 @@ pub fn winit_settings_for(cadence: RenderCadence) -> WinitSettings {
 }
 
 /// Keep the shared cadence and the winit update modes aligned with the live
-/// window facts. Only a real state change rewrites the resource, so the
-/// resource never fights another writer.
+/// window facts and the current activity. Only a real change rewrites the
+/// resource, so the resource never fights another writer.
 pub fn sync_window_cadence(
     mut focused_events: MessageReader<WindowFocused>,
     mut occluded_events: MessageReader<WindowOccluded>,
     windows: Query<&Window, With<PrimaryWindow>>,
+    activity: Res<CadenceActivity>,
+    mut applied: ResMut<AppliedCadence>,
     mut state: ResMut<WindowCadenceState>,
     mut settings: ResMut<WinitSettings>,
 ) {
@@ -103,12 +180,45 @@ pub fn sync_window_cadence(
     if let Ok(window) = windows.single() {
         next.visible = next.visible && window.visible;
     }
-    let cadence = next.cadence();
-    if next == *state && cadence == state.cadence() {
+    let cadence = next.cadence_with(activity.is_engaged());
+    if next == *state && cadence == applied.0 {
         return;
     }
     *state = next;
+    applied.0 = cadence;
     *settings = winit_settings_for(cadence);
+}
+
+/// Decay the engagement by one frame and re-arm it on any user input. Runs
+/// before [`sync_window_cadence`] so input in the same frame selects the
+/// active cadence.
+pub fn advance_cadence_activity(
+    mut activity: ResMut<CadenceActivity>,
+    mut keyboard: MessageReader<KeyboardInput>,
+    mut mouse_button: MessageReader<MouseButtonInput>,
+    mut mouse_motion: MessageReader<MouseMotion>,
+    mut mouse_wheel: MessageReader<MouseWheel>,
+    mut cursor: MessageReader<CursorMoved>,
+    mut touch: MessageReader<TouchInput>,
+) {
+    activity.decay();
+    let mut interacted = false;
+    interacted |= drain_message(&mut keyboard);
+    interacted |= drain_message(&mut mouse_button);
+    interacted |= drain_message(&mut mouse_motion);
+    interacted |= drain_message(&mut mouse_wheel);
+    interacted |= drain_message(&mut cursor);
+    interacted |= drain_message(&mut touch);
+    if interacted {
+        activity.wake();
+    }
+}
+
+/// Consume a reader and report whether it held any unread message.
+fn drain_message<M: Message>(reader: &mut MessageReader<M>) -> bool {
+    let seen = !reader.is_empty();
+    reader.clear();
+    seen
 }
 
 /// Installs the shared-cadence window policy.
@@ -116,13 +226,24 @@ pub struct CadencePlugin;
 
 impl Plugin for CadencePlugin {
     fn build(&self, app: &mut App) {
-        // The window power messages may already be registered by
-        // `WindowPlugin`; registration is idempotent, and a headless test app
-        // needs them so the system parameter is valid.
+        // The window power and input messages may already be registered by
+        // `WindowPlugin`/`InputPlugin`; registration is idempotent, and a
+        // headless test app needs them so the system parameters are valid.
         app.add_message::<WindowFocused>()
             .add_message::<WindowOccluded>()
+            .add_message::<KeyboardInput>()
+            .add_message::<MouseButtonInput>()
+            .add_message::<MouseMotion>()
+            .add_message::<MouseWheel>()
+            .add_message::<CursorMoved>()
+            .add_message::<TouchInput>()
             .init_resource::<WindowCadenceState>()
+            .init_resource::<CadenceActivity>()
+            .init_resource::<AppliedCadence>()
             .init_resource::<WinitSettings>()
-            .add_systems(Update, sync_window_cadence);
+            .add_systems(
+                Update,
+                (advance_cadence_activity, sync_window_cadence).chain(),
+            );
     }
 }

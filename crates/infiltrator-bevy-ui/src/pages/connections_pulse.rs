@@ -7,6 +7,7 @@
 //! system. A row that never crossed the shared 5 MB/s threshold is rendered
 //! with `Display::None`, so no slow connection glows.
 
+use crate::cadence::CadenceActivity;
 use crate::pages::connections::LastConnectionsProjection;
 use bevy::color::Alpha;
 use bevy::ecs::component::Component;
@@ -70,6 +71,7 @@ pub(crate) fn animate_connection_pulses(
     palette: Res<UiPalette>,
     last: Option<Res<LastConnectionsProjection>>,
     mut state: Option<ResMut<ConnectionsPulseState>>,
+    mut activity: Option<ResMut<CadenceActivity>>,
     mut pulses: Query<(&mut BackgroundColor, &mut Node, &ConnHighThroughputPulse)>,
 ) {
     let projection = last.as_ref().and_then(|last| last.0.as_ref());
@@ -86,6 +88,10 @@ pub(crate) fn animate_connection_pulses(
     if active {
         state.phase =
             (state.phase + time.delta_secs() * connection_rate::PULSE_BREATH_HZ).rem_euclid(1.0);
+        // A running visible animation keeps the shell on the active cadence.
+        if let Some(activity) = activity.as_deref_mut() {
+            activity.wake();
+        }
     } else {
         state.phase = 0.0;
     }
