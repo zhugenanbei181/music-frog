@@ -78,8 +78,8 @@ jobs:
           done
 
           # Bevy must be pinned to exact version in workspace deps
-          if ! grep -Fq 'bevy = { version = "=0.20.0-rc.2"' Cargo.toml; then
-            echo "::error::Bevy must be pinned to =0.20.0-rc.2 in workspace dependencies"
+          if ! grep -Fq 'bevy = { version = "=0.20.0"' Cargo.toml; then
+            echo "::error::Bevy must be pinned to =0.20.0 in workspace dependencies"
             exit 1
           fi
 
