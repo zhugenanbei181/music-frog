@@ -215,6 +215,7 @@ pub fn run(env: DemoEnv) -> iced::Result {
         .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice())
         .default_font(iced::Font::with_name("Inter"))
         .window(window_settings(window_size, MIN_WINDOW_SIZE))
         .run()

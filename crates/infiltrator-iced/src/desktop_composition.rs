@@ -128,6 +128,7 @@ fn run_production(surface_bridge: Option<SurfaceBridge>) -> iced::Result {
         .font(include_bytes!("../assets/fonts/Inter-Medium.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/Inter-SemiBold.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/CJK-Regular.ttf").as_slice())
         .default_font(iced::Font::with_name("Inter"))
         .window(window_settings(
             (1180.0, 780.0),

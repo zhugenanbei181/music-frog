@@ -18,8 +18,6 @@ use crate::text::Role;
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::resource::Resource;
 use bevy::text::Font;
-#[cfg(target_os = "android")]
-use std::fs::read;
 
 /// Inter SemiBold — headings.
 const HEADING_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-SemiBold.ttf");
@@ -29,6 +27,8 @@ const BODY_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-Regular.ttf");
 const CAPTION_TTF: &[u8] = include_bytes!("../assets/fonts/Inter-Medium.ttf");
 /// JetBrains Mono Regular — aligned telemetry values.
 const MONO_TTF: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf");
+/// Unified embedded CJK font — full Chinese character support across all platforms.
+const CJK_TTF: &[u8] = include_bytes!("../assets/fonts/CJK-Regular.ttf");
 
 /// The role → face table, injected as a resource by [`crate::WidgetsPlugin`].
 #[derive(Resource, Clone, Debug)]
@@ -37,57 +37,33 @@ pub struct FontSources {
     pub body: Handle<Font>,
     pub caption: Handle<Font>,
     pub mono: Handle<Font>,
-}
-
-#[cfg(target_os = "android")]
-fn load_android_system_cjk_font() -> Option<Vec<u8>> {
-    const SYSTEM_FONTS: &[&str] = &[
-        "/system/fonts/NotoSansCJK-Regular.ttc",
-        "/system/fonts/NotoSansSC-Regular.otf",
-        "/system/fonts/NotoSansCJK.ttc",
-        "/system/fonts/DroidSansFallback.ttf",
-    ];
-    for &path in SYSTEM_FONTS {
-        if let Ok(bytes) = read(path) {
-            return Some(bytes);
-        }
-    }
-    None
+    pub cjk: Handle<Font>,
 }
 
 impl FontSources {
-    /// Register every embedded face and return the handle table. All four
-    /// faces are OFL-licensed and logged in `THIRD-PARTY-NOTICES.md`.
+    /// Register every embedded face and return the handle table. All
+    /// faces are OFL/Apache-licensed and logged in `THIRD-PARTY-NOTICES.md`.
     pub fn embedded(fonts: &mut Assets<Font>) -> Self {
-        #[cfg(target_os = "android")]
-        if let Some(cjk_bytes) = load_android_system_cjk_font() {
-            let cjk_handle = fonts.add(Font::from_bytes(cjk_bytes));
-            return Self {
-                heading: cjk_handle.clone(),
-                body: cjk_handle.clone(),
-                caption: cjk_handle.clone(),
-                mono: fonts.add(Font::from_bytes(MONO_TTF.to_vec())),
-            };
-        }
-
+        let heading = fonts.add(Font::from_bytes(HEADING_TTF.to_vec()));
+        let body = fonts.add(Font::from_bytes(BODY_TTF.to_vec()));
+        let caption = fonts.add(Font::from_bytes(CAPTION_TTF.to_vec()));
+        let mono = fonts.add(Font::from_bytes(MONO_TTF.to_vec()));
+        let cjk = fonts.add(Font::from_bytes(CJK_TTF.to_vec()));
         Self {
-            heading: fonts.add(Font::from_bytes(HEADING_TTF.to_vec())),
-            body: fonts.add(Font::from_bytes(BODY_TTF.to_vec())),
-            caption: fonts.add(Font::from_bytes(CAPTION_TTF.to_vec())),
-            mono: fonts.add(Font::from_bytes(MONO_TTF.to_vec())),
+            heading,
+            body,
+            caption,
+            mono,
+            cjk,
         }
     }
 
-    /// The face one typographic role draws with. Heading, display and body
-    /// strong take weight contrast (SemiBold at display/heading size /
-    /// Regular at body size); `BodyStrong` borrows the heading face at body
-    /// size; captions drop to Medium so de-emphasis is typographic, not
-    /// just alpha.
+    /// The face one typographic role draws with.
     pub fn face(&self, role: Role) -> Handle<Font> {
         match role {
-            Role::Heading | Role::Display | Role::BodyStrong => self.heading.clone(),
-            Role::Body => self.body.clone(),
-            Role::Caption => self.caption.clone(),
+            Role::Heading | Role::Display | Role::BodyStrong => self.cjk.clone(),
+            Role::Body => self.cjk.clone(),
+            Role::Caption => self.cjk.clone(),
             Role::Mono => self.mono.clone(),
         }
     }
@@ -102,6 +78,7 @@ impl Default for FontSources {
             body: Handle::default(),
             caption: Handle::default(),
             mono: Handle::default(),
+            cjk: Handle::default(),
         }
     }
 }
