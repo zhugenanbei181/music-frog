@@ -64,30 +64,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Verify Bevy version pin
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Bevy crates must be workspace members
-          for crate in infiltrator-bevy-widgets infiltrator-bevy-ui; do
-            if ! grep -Fq "\"crates/$crate\"" Cargo.toml; then
-              echo "::error::$crate must be a workspace member"
-              exit 1
-            fi
-          done
-
-          # Bevy must be pinned to exact version in workspace deps
-          if ! grep -Fq 'bevy = { version = "=0.20.0"' Cargo.toml; then
-            echo "::error::Bevy must be pinned to =0.20.0 in workspace dependencies"
-            exit 1
-          fi
-
-          # naga 27 coexistence workaround must be present in infiltrator-iced
-          if ! grep -Fq 'naga27' crates/infiltrator-iced/Cargo.toml; then
-            echo "::error::naga27 coexistence workaround missing from infiltrator-iced"
-            exit 1
-          fi
+      # Bevy workspace membership, the exact `bevy` version pin and the naga
+      # coexistence workaround are structural invariants enforced by
+      # scripts/quality/workspace-pin-guard.py (via `test-bevy.sh
+      # --guards-only` below). This workflow keeps no inline literal copies.
 
       # 守卫脚本需要 Python 3.11+ 的 tomllib；显式钉版本，不赌 runner 镜像默认值。
       - name: Setup Python for quality guards

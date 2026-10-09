@@ -5229,6 +5229,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "infiltrator-application",
+ "infiltrator-bevy-ui",
  "infiltrator-composition",
  "infiltrator-contract",
  "infiltrator-core",

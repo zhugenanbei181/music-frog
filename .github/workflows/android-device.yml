@@ -1,7 +1,7 @@
 name: android-device
 
 # BANDROID-023 — explicit, hash-bound Android real-device / long-running
-# evidence stage (docs/BEVY_ANDROID_PRODUCT.md §8/§9).
+# evidence stage (docs/android/BEVY_ANDROID_PRODUCT.md §8/§9).
 #
 # This job REQUIRES a SELF-HOSTED runner labelled `android-arm64` with a real
 # ARM64 device attached over adb. It does NOT run on GitHub-hosted runners and
