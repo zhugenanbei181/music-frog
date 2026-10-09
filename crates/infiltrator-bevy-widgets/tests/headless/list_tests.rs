@@ -233,6 +233,21 @@ fn virtual_list_ecs_message_advancement() {
 }
 
 #[test]
+fn virtual_list_inertial_fling_advances_physics_with_friction_decay() {
+    let mut state = VirtualListState::new(100, 30.0, 300.0);
+    assert_eq!(state.scroll_offset_px(), 0.0);
+
+    state.fling(500.0);
+    let changed = state.advance_physics(0.1);
+    assert!(changed);
+    assert!(state.scroll_offset_px() > 0.0);
+
+    let offset_after_100ms = state.scroll_offset_px();
+    state.advance_physics(0.1);
+    assert!(state.scroll_offset_px() > offset_after_100ms);
+}
+
+#[test]
 fn responsive_breakpoint_classification() {
     assert_eq!(Breakpoint::COMPACT_MAX_PX, 600.0);
     assert_eq!(Breakpoint::MEDIUM_MAX_PX, 840.0);

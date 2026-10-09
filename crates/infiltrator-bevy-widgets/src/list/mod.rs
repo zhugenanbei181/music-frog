@@ -389,6 +389,23 @@ impl VirtualListState {
         self.set_scroll_offset(self.scroll_offset_px + delta_px)
     }
 
+    /// Advances inertial scrolling physics by `dt` seconds.
+    /// Returns true if scroll offset changed.
+    pub fn advance_physics(&mut self, dt: f32) -> bool {
+        let max_offset = self.max_scroll_offset();
+        let (new_offset, changed) = self.scroller.tick(dt, self.scroll_offset_px, max_offset);
+        if changed {
+            self.scroll_offset_px = new_offset;
+            self.clamp_scroll();
+        }
+        changed
+    }
+
+    /// Triggers an inertial fling with given initial vertical velocity in px/s.
+    pub fn fling(&mut self, velocity_px_s: f32) {
+        self.scroller.fling(velocity_px_s);
+    }
+
     /// Scroll to make the given item visible in the viewport.
     pub fn scroll_to_index(&mut self, index: usize) -> bool {
         if index >= self.item_count {
