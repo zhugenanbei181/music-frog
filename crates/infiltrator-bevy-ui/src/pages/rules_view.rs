@@ -11,6 +11,11 @@
 //! The window is derived from the list viewport's scroll offset and measured
 //! height, so a 50,000-rule projection mounts the same bounded row set as a
 //! five-rule one; scrolling shifts the window instead of moving every row.
+//!
+//! **BANDROID-010**: this page already bounds its mounted rows through the
+//! domain-level `rule_window` + spacer nodes, so it keeps that proven window
+//! (and its paging/scroll-reset semantics) instead of adopting the widget
+//! entity-pool recycler the Connections and Logs pages now consume.
 
 #[path = "rules_view_query_access.rs"]
 pub mod query_access;

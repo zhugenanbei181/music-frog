@@ -12,6 +12,7 @@ use crate::pages::connections::{
     ConnAggregationPill, ConnectionsProjection, LastConnectionsProjection,
 };
 use crate::pages::connections_search::ConnectionSearchNode;
+use crate::pages::connections_virtual::ConnectionsVirtualNodes;
 use bevy::ecs::component::Component;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::Children;
@@ -147,6 +148,7 @@ pub(crate) struct ConnectionSortControls<'w, 's> {
     containers: Query<'w, 's, &'static mut Children, With<ConnRowsContainer>>,
     rows: Query<'w, 's, &'static ConnectionRow>,
     row_subtrees: Query<'w, 's, &'static Children, Without<ConnRowsContainer>>,
+    virtual_containers: Query<'w, 's, (), With<ConnectionsVirtualNodes>>,
     palette: Res<'w, UiPalette>,
     view_state: Option<ResMut<'w, ConnectionsViewState>>,
     last: Option<Res<'w, LastConnectionsProjection>>,
@@ -160,6 +162,7 @@ pub(crate) fn on_connections_sort_activated(
         mut containers,
         rows,
         row_subtrees,
+        virtual_containers,
         palette,
         mut view_state,
         last,
@@ -172,7 +175,11 @@ pub(crate) fn on_connections_sort_activated(
         state.sort = key;
     }
     restamp_sort_pills(&palette, &mut pills, key);
-    if let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref()) {
+    // BANDROID-010: the recycler re-derives the sorted window from the shared
+    // sort key, so the full-mount child reorder must not touch its slots.
+    if virtual_containers.is_empty()
+        && let Some(projection) = last.as_ref().and_then(|last| last.0.as_ref())
+    {
         apply_connection_row_order(projection, key, &mut containers, &rows, &row_subtrees);
     }
 }

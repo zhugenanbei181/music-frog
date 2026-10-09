@@ -30,6 +30,7 @@ use crate::pages::connections_view::{
     ConnectionsViewState, on_connections_sort_activated, restamp_aggregation_pills,
     restamp_sort_pills, search_field_text, sort_pills_scene,
 };
+use crate::pages::connections_virtual::{CONNECTIONS_VIRTUAL_THRESHOLD, ConnectionsVirtualNodes};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin};
@@ -185,12 +186,20 @@ pub fn connections_page(
         ],
     );
 
-    let connection_scenes: Vec<Box<dyn Scene>> = projection
-        .connections
-        .iter()
-        .enumerate()
-        .map(|(idx, item)| Box::new(connection_row_scene(idx, item, palette)) as Box<dyn Scene>)
-        .collect();
+    // BANDROID-010: large projections mount through the recycler (bounded
+    // window + spacers). Small projections keep the full-mount vocabulary and
+    // its stable-identity reconcile contract.
+    let virtualized = projection.connections.len() > CONNECTIONS_VIRTUAL_THRESHOLD;
+    let connection_scenes: Vec<Box<dyn Scene>> = if virtualized {
+        Vec::new()
+    } else {
+        projection
+            .connections
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| Box::new(connection_row_scene(idx, item, palette)) as Box<dyn Scene>)
+            .collect()
+    };
 
     bsn! {
             Node {
@@ -216,7 +225,7 @@ pub fn connections_page(
                 Children [
                 @{ header_card_scene(summary, traffic, palette) }
                 --
-                @{ connections_table_scene(connection_scenes, palette) }
+                @{ connections_table_scene(connection_scenes, virtualized, palette) }
                 ]
                 --
                 @{ connection_drawer_scene(palette) }
@@ -351,8 +360,35 @@ fn conn_aggregation_pill(
 
 fn connections_table_scene(
     connection_scenes: Vec<Box<dyn Scene>>,
+    virtualized: bool,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let rows_scene: Box<dyn Scene> = if virtualized {
+        // The recycler owns the row children; the container keeps its
+        // `ConnRowsContainer` marker so the shared search/grouping display
+        // reductions still address it.
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                flex_shrink: 0.0,
+            }
+            ConnRowsContainer
+            ConnectionsVirtualNodes
+        })
+    } else {
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S8),
+            }
+            ConnRowsContainer
+            Children [
+                { connection_scenes }
+            ]
+        })
+    };
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -432,17 +468,7 @@ fn connections_table_scene(
                                 Node {width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(space::S8)} ConnectionGroupsRoot
                             ]
             }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S8),
-                            }
-                            ConnRowsContainer
-                            Children [
-                                { connection_scenes }
-                            ]
-            }),
+            rows_scene,
         ],
         palette,
     )

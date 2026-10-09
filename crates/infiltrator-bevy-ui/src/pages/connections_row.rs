@@ -58,6 +58,7 @@ pub fn connection_row_scene(
                 min_width: px(0.0),
                 max_width: percent(100),
                 flex_direction: FlexDirection::Column,
+                flex_shrink: 0.0,
                 row_gap: Val::Px(space::S8),
                 padding: UiRect::all(Val::Px(space::S16)),
                 border_radius: BorderRadius::all(Val::Px(palette.card_radius_px)),

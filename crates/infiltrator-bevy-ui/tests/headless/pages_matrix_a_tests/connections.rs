@@ -4,6 +4,10 @@
 use super::*;
 use bevy::ecs::query::With;
 use infiltrator_bevy_ui::pages::connections_pulse::ConnectionsPulseState;
+use infiltrator_bevy_ui::pages::connections_virtual::{
+    ConnectionsVirtualNodes, ConnectionsVirtualSlot,
+};
+use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_bevy_widgets::localization::UiLocale;
 use infiltrator_contract::connection::ConnectionStreamPhase;
 use infiltrator_shared::i18n_interpolator::interpolate;
@@ -772,4 +776,109 @@ fn test_connections_drawer_renders_kernel_asn_and_geo_without_guessing() {
         root,
         &format!("{geo_header}: {not_evaluated}")
     ));
+}
+
+/// BANDROID-010: a 10,000-connection projection mounts through the recycler
+/// window, not the whole collection; the window slides to the tail and the
+/// recycled slot entities stay stable across the scroll.
+#[test]
+fn test_connections_large_list_mounts_a_bounded_recycled_window() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+
+    // Publish a 10k-connection projection before the page mounts, so the
+    // large-list path is selected from the very first scene build.
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    let page = snapshot.pages.connections.data.as_mut().unwrap();
+    let template = page.connections[0].clone();
+    page.connections = (0..10_000)
+        .map(|index| {
+            let mut row = template.clone();
+            row.id = format!("c-{index}");
+            row.destination_host = format!("host-{index}.example");
+            row.host = format!("host-{index}.example:443");
+            row.process = format!("proc-{index}");
+            // Default (cumulative-download-desc) sort keeps the identity order,
+            // so the tail row is the last index.
+            row.download_total = (10_000 - index) as u64;
+            row
+        })
+        .collect();
+    page.total_connections = 10_000;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+    navigate_to(&mut app, Route::Connections);
+    app.update();
+    app.update();
+
+    let mounted = app
+        .world_mut()
+        .query::<&ConnectionRow>()
+        .iter(app.world())
+        .count();
+    assert!(mounted > 0, "the recycler must mount the visible window");
+    assert!(
+        mounted < 10_000,
+        "the full 10k collection must not be mounted, got {mounted}"
+    );
+    assert!(
+        mounted <= 40,
+        "mounted rows must be viewport-bounded, got {mounted}"
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, With<ConnectionsVirtualNodes>>()
+            .iter(app.world())
+            .next()
+            .is_some(),
+        "the virtual container must own the large list"
+    );
+
+    // Stable slot identity: the pre-spawned slot entities are reused, never
+    // respawned, as the window slides.
+    let slots_before: Vec<Entity> = {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<ConnectionsVirtualSlot>>();
+        let mut slots: Vec<Entity> = query.iter(app.world()).collect();
+        slots.sort();
+        slots
+    };
+    assert!(!slots_before.is_empty(), "the pool must own slot entities");
+
+    // Scrolling to the bottom slides the window to the tail row.
+    let scroll = app
+        .world_mut()
+        .query_filtered::<Entity, With<ConnectionsScrollArea>>()
+        .single(app.world())
+        .expect("connections scroll area");
+    app.world_mut()
+        .get_mut::<ScrollPosition>(scroll)
+        .expect("scroll position")
+        .0
+        .y = 1.0e9;
+    app.update();
+    assert!(
+        app.world_mut()
+            .query::<&ConnectionRow>()
+            .iter(app.world())
+            .any(|row| row.0 == 9_999),
+        "the tail connection must become reachable"
+    );
+    let slots_after: Vec<Entity> = {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<ConnectionsVirtualSlot>>();
+        let mut slots: Vec<Entity> = query.iter(app.world()).collect();
+        slots.sort();
+        slots
+    };
+    assert_eq!(
+        slots_before, slots_after,
+        "scrolling must reuse the same slot entities"
+    );
 }

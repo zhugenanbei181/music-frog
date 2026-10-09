@@ -32,6 +32,7 @@ use crate::pages::connections_drawer::{
 use crate::pages::connections_idle::ConnectionsIdleState;
 use crate::pages::connections_pulse::{ConnectionsPulseState, animate_connection_pulses};
 use crate::pages::connections_view::{ConnectionsCloseAllState, ConnectionsViewState};
+use crate::pages::connections_virtual::{ConnectionsVirtualState, sync_connections_virtual_window};
 use crate::pages::dns::{DnsProjectionUpdated, LastDnsProjection, dns_page};
 use crate::pages::dns_cache::{self, CacheConfirmation};
 use crate::pages::dns_cache_scene::spawn;
@@ -48,6 +49,7 @@ use crate::pages::doctor::{DoctorProjectionUpdated, LastDoctorProjection, doctor
 use crate::pages::doctor_actions::{DoctorActions, on_action, on_result, sync_controls};
 use crate::pages::doctor_rows::{reconcile_rows, replay_copy, replay_header, sort_rows};
 use crate::pages::logs::{LogsProjectionUpdated, logs_page};
+use crate::pages::logs_virtual::{LogsVirtualState, sync_logs_virtual_window};
 use crate::pages::overview::{
     LastOverviewProjection, OverviewProjectionUpdated, banner_note, overview_page,
     replay_projection_after_theme, sync_overview_metrics_columns,
@@ -559,6 +561,8 @@ impl Plugin for PagesPlugin {
         app.init_resource::<LastConnectionsProjection>();
         app.init_resource::<ConnectionsViewState>();
         app.init_resource::<ConnectionsCloseAllState>();
+        app.init_resource::<ConnectionsVirtualState>();
+        app.init_resource::<LogsVirtualState>();
         app.init_resource::<BusinessPanelState>();
         app.init_resource::<CustomNodeForm>();
         app.add_observer(activate_panel);
@@ -690,6 +694,8 @@ impl Plugin for PagesPlugin {
                 restamp_rules_json,
                 rules_json_keyboard_input,
                 sync_connections_drawer,
+                sync_connections_virtual_window,
+                sync_logs_virtual_window,
                 reconcile_connection_inspection,
                 animate_connection_pulses,
                 sync_dns_edit_dirty

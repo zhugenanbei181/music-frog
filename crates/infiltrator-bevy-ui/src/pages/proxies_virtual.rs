@@ -19,7 +19,7 @@ use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
 use bevy::ecs::query::{With, Without};
 use bevy::ecs::resource::Resource;
-use bevy::ecs::system::{Commands, Query, Res, ResMut};
+use bevy::ecs::system::{Commands, Query, Res, ResMut, SystemParam};
 use bevy::scene::{CommandsSceneExt, Scene, bsn};
 use bevy::ui::prelude::{
     ComputedNode, FlexDirection, FlexWrap, Node, Overflow, ScrollPosition, Val, percent, px,
@@ -116,8 +116,9 @@ pub fn flatten_proxy_rows(
 /// names, collapse, column count) trigger a window rebuild. Selection, favorite
 /// and latency changes do not rebuild; the page restamps those in place.
 fn row_signature(projection: &ProxiesProjection, columns: usize) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut hasher = DefaultHasher::new();
     columns.hash(&mut hasher);
     for group in &projection.groups {
         group.name.hash(&mut hasher);
@@ -296,20 +297,49 @@ fn spawn_slots(
     state.pool = VirtualEntityPool::new(state.slots.clone());
 }
 
+/// Cohesive recycler surface for [`sync_proxies_virtual_window`]: the
+/// projection inputs plus the mounted-tree queries, bundled so the system keeps
+/// a small, typed parameter list (BEVY-ECS-009).
+#[derive(SystemParam)]
+pub(crate) struct ProxiesVirtualSurface<'w, 's> {
+    state: ResMut<'w, ProxiesVirtualState>,
+    last: Option<Res<'w, LastProxiesProjection>>,
+    palette: Res<'w, UiPalette>,
+    responsive: Option<Res<'w, ResponsiveContext>>,
+    scrolls: Query<
+        'w,
+        's,
+        (&'static ScrollPosition, Option<&'static ComputedNode>),
+        With<ProxiesScrollArea>,
+    >,
+    containers: Query<'w, 's, Entity, With<ProxiesVirtualNodes>>,
+    slot_nodes: Query<
+        'w,
+        's,
+        (&'static ProxiesVirtualSlot, &'static mut Node),
+        Without<ProxiesVirtualSpacer>,
+    >,
+    spacers: Query<
+        'w,
+        's,
+        (&'static ProxiesVirtualSpacer, &'static mut Node),
+        Without<ProxiesVirtualSlot>,
+    >,
+}
+
 /// Mount exactly the shared recycler window of the flattened node list into the
 /// virtual container. Inert unless the large-list container is mounted.
-#[allow(clippy::too_many_arguments)]
-pub fn sync_proxies_virtual_window(
-    mut commands: Commands,
-    mut state: ResMut<ProxiesVirtualState>,
-    last: Option<Res<LastProxiesProjection>>,
-    palette: Res<UiPalette>,
-    responsive: Option<Res<ResponsiveContext>>,
-    scrolls: Query<(&ScrollPosition, Option<&ComputedNode>), With<ProxiesScrollArea>>,
-    containers: Query<Entity, With<ProxiesVirtualNodes>>,
-    mut slot_nodes: Query<(&ProxiesVirtualSlot, &mut Node), Without<ProxiesVirtualSpacer>>,
-    mut spacers: Query<(&ProxiesVirtualSpacer, &mut Node), Without<ProxiesVirtualSlot>>,
-) {
+pub(crate) fn sync_proxies_virtual_window(mut commands: Commands, surface: ProxiesVirtualSurface) {
+    let ProxiesVirtualSurface {
+        mut state,
+        last,
+        palette,
+        responsive,
+        scrolls,
+        containers,
+        mut slot_nodes,
+        mut spacers,
+    } = surface;
     let Ok(container) = containers.single() else {
         // The full-mount path owns the page; the recycler is not mounted.
         return;
@@ -413,6 +443,7 @@ pub fn sync_proxies_virtual_window(
 mod tests {
     use super::*;
     use crate::pages::proxies::{ProxyGroup, ProxyNode};
+    use bevy::ecs::world::World;
     use infiltrator_contract::proxies::ProxyGroupClassification;
 
     fn projection_with(count: usize) -> ProxiesProjection {
@@ -505,8 +536,10 @@ mod tests {
         // The engine's pool recycles pre-spawned slots; a rebind never replaces
         // the slot entity itself, only its children. Stale queued clicks on the
         // removed child cannot fire because the child is despawned.
-        let mut world = bevy::ecs::world::World::new();
-        let slots: Vec<Entity> = (0..16).map(|_| world.spawn_empty().id()).collect();
+        let world = World::new();
+        // Allocate bare entity ids without spawning a UI tree: the recycler
+        // only needs stable identities, never queryable entities.
+        let slots: Vec<Entity> = (0..16).map(|_| world.entity_allocator().alloc()).collect();
         let mut pool = VirtualEntityPool::new(slots.clone());
 
         let first = pool.sync_window(0, 10, |_| 0.0);

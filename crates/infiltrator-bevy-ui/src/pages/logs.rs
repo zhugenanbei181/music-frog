@@ -12,6 +12,7 @@ use crate::pages::logs_export::{LogsExportPlugin, LogsExportState};
 use crate::pages::logs_follow::{LogFollowLabel, LogsFollowPlugin};
 use crate::pages::logs_rows::{LogRowIdentity, LogRowsContainer, LogsRowsPlugin};
 use crate::pages::logs_search::{LogsSearchPlugin, logs_search_scene};
+use crate::pages::logs_virtual::{LOGS_VIRTUAL_THRESHOLD, LogsVirtualNodes};
 use crate::route::{PageRoot, Route};
 use bevy::a11y::AccessibilityNode;
 use bevy::app::{App, Plugin};
@@ -192,12 +193,19 @@ pub struct LastLogsProjection(pub Option<LogsProjection>);
 // ---- Scene constructors ---------------------------------------------------
 
 pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene + use<> {
-    let log_scenes: Vec<Box<dyn Scene>> = projection
-        .entries
-        .iter()
-        .enumerate()
-        .map(|(idx, entry)| Box::new(log_row_scene(idx, entry, palette)) as Box<dyn Scene>)
-        .collect();
+    // BANDROID-010: large ring buffers mount through the recycler (bounded
+    // window + spacers). Small buffers keep the full-mount vocabulary.
+    let virtualized = projection.entries.len() > LOGS_VIRTUAL_THRESHOLD;
+    let log_scenes: Vec<Box<dyn Scene>> = if virtualized {
+        Vec::new()
+    } else {
+        projection
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(idx, entry)| Box::new(log_row_scene(idx, entry, palette)) as Box<dyn Scene>)
+            .collect()
+    };
 
     bsn! {
             Node {
@@ -218,7 +226,7 @@ pub fn logs_page(projection: &LogsProjection, palette: &UiPalette) -> impl Scene
                 --
                 @{ logs_search_scene(palette) }
                 --
-                @{ logs_container_scene(log_scenes, projection.active_level, palette) }
+                @{ logs_container_scene(log_scenes, virtualized, projection.active_level, palette) }
             ]
     }
 }
@@ -340,9 +348,36 @@ fn level_filter_pill(
 
 fn logs_container_scene(
     log_scenes: Vec<Box<dyn Scene>>,
+    virtualized: bool,
     active_level: Option<LogLevel>,
     palette: &UiPalette,
 ) -> impl Scene + use<> {
+    let rows_scene: Box<dyn Scene> = if virtualized {
+        // The recycler owns the row children; the container keeps its
+        // `LogRowsContainer` marker so the shared search display reduction
+        // still addresses it.
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                flex_shrink: 0.0,
+            }
+            LogRowsContainer
+            LogsVirtualNodes
+        })
+    } else {
+        Box::new(bsn! {
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(space::S4),
+            }
+            LogRowsContainer
+            Children [
+                { log_scenes }
+            ]
+        })
+    };
     surface_scene(
         vec![
             Box::new(bsn! {
@@ -378,17 +413,7 @@ fn logs_container_scene(
                                 ]
                             ]
             }),
-            Box::new(bsn! {
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(space::S4),
-                            }
-                            LogRowsContainer
-                            Children [
-                                { log_scenes }
-                            ]
-            }),
+            rows_scene,
         ],
         palette,
     )
@@ -410,6 +435,7 @@ pub(super) fn log_row_scene(
             Node {
                 width: percent(100),
                 min_height: px(palette.control_height_px * 0.8),
+                flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 column_gap: Val::Px(space::S8),
                 padding: UiRect::horizontal(Val::Px(space::S8)),

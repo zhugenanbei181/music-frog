@@ -3,6 +3,9 @@
 
 use super::*;
 use bevy::ecs::query::With;
+use infiltrator_bevy_ui::pages::logs_rows::LogRowIdentity;
+use infiltrator_bevy_ui::pages::logs_virtual::{LogsVirtualNodes, LogsVirtualSlot};
+use infiltrator_bevy_ui::surface::{LatestSurfaceSnapshot, SurfaceSnapshotUpdated};
 use infiltrator_contract::logs::LogLevel;
 use infiltrator_contract::surface_snapshot::PageStatus;
 
@@ -201,5 +204,105 @@ fn log_rows_grow_from_empty_shrink_and_preserve_entities_for_stable_records() {
             .query::<&Text>()
             .iter(app.world())
             .any(|text| text.0 == "streamed row 11")
+    );
+}
+
+/// BANDROID-010: a 50,000-entry stream mounts through the recycler window, not
+/// the whole ring buffer; the window slides to the tail and the recycled slot
+/// entities stay stable across the scroll.
+#[test]
+fn test_logs_large_stream_mounts_a_bounded_recycled_window() {
+    let sink = Arc::new(DemoCommandSink::accepting());
+    let mut app = setup_matrix_a_app(sink);
+
+    // Publish a 50k-entry stream before the page mounts, so the large-list path
+    // is selected from the very first scene build.
+    let mut snapshot = app.world().resource::<LatestSurfaceSnapshot>().0.clone();
+    snapshot.revision += 1;
+    let page = snapshot.pages.logs.data.as_mut().unwrap();
+    let template = page.entries[0].clone();
+    page.entries = (0..50_000)
+        .map(|index| {
+            let mut entry = template.clone();
+            entry.id = index as u64;
+            entry.message = format!("streamed row {index}");
+            entry
+        })
+        .collect();
+    page.total_entries = 50_000;
+    app.world_mut()
+        .commands()
+        .trigger(SurfaceSnapshotUpdated(snapshot));
+    app.update();
+    app.update();
+    navigate_to(&mut app, Route::Logs);
+    app.update();
+    app.update();
+
+    let mounted = app
+        .world_mut()
+        .query::<&LogRowIdentity>()
+        .iter(app.world())
+        .count();
+    assert!(mounted > 0, "the recycler must mount the visible window");
+    assert!(
+        mounted < 50_000,
+        "the full 50k ring buffer must not be mounted, got {mounted}"
+    );
+    assert!(
+        mounted <= 60,
+        "mounted rows must be viewport-bounded, got {mounted}"
+    );
+    assert!(
+        app.world_mut()
+            .query_filtered::<Entity, With<LogsVirtualNodes>>()
+            .iter(app.world())
+            .next()
+            .is_some(),
+        "the virtual container must own the large list"
+    );
+
+    // Stable slot identity: the pre-spawned slot entities are reused, never
+    // respawned, as the window slides.
+    let slots_before: Vec<Entity> = {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<LogsVirtualSlot>>();
+        let mut slots: Vec<Entity> = query.iter(app.world()).collect();
+        slots.sort();
+        slots
+    };
+    assert!(!slots_before.is_empty(), "the pool must own slot entities");
+
+    // Scrolling to the bottom slides the window to the tail row.
+    let root = app
+        .world_mut()
+        .query_filtered::<Entity, With<LogsPageRoot>>()
+        .single(app.world())
+        .expect("logs page root");
+    app.world_mut()
+        .get_mut::<ScrollPosition>(root)
+        .expect("scroll position")
+        .0
+        .y = 1.0e9;
+    app.update();
+    assert!(
+        app.world_mut()
+            .query::<&LogRowIdentity>()
+            .iter(app.world())
+            .any(|identity| identity.0 == 49_999),
+        "the tail log entry must become reachable"
+    );
+    let slots_after: Vec<Entity> = {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<LogsVirtualSlot>>();
+        let mut slots: Vec<Entity> = query.iter(app.world()).collect();
+        slots.sort();
+        slots
+    };
+    assert_eq!(
+        slots_before, slots_after,
+        "scrolling must reuse the same slot entities"
     );
 }

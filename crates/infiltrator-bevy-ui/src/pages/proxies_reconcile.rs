@@ -2,6 +2,7 @@
 use crate::pages::proxies::{GroupNodesContainer, LastProxiesProjection, ProxyNodeButton};
 use crate::pages::proxies_card::{group_card_scene, proxy_node_scene};
 use crate::pages::proxies_identity::{ProxyCardsContainer, ProxyGroupIdentity};
+use crate::pages::proxies_virtual::ProxiesVirtualNodes;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::ecs::entity::Entity;
 use bevy::ecs::hierarchy::{ChildOf, Children};
@@ -130,7 +131,7 @@ pub fn reconcile_proxy_nodes(
     palette: Res<UiPalette>,
     containers: Query<(Entity, Option<&Children>, &ProxyGroupIdentity), With<GroupNodesContainer>>,
     identities: Query<&ProxyNodeButton>,
-    virtual_containers: Query<(), With<crate::pages::proxies_virtual::ProxiesVirtualNodes>>,
+    virtual_containers: Query<(), With<ProxiesVirtualNodes>>,
 ) {
     let Some(last) = last else {
         return;

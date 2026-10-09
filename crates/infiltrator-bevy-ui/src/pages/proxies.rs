@@ -18,6 +18,7 @@ use crate::command::{CommandSinkHandle, UiCommand};
 use crate::pages::proxies_custom::{on_custom_node_action_activated, sync_custom_node_studio};
 use crate::pages::proxies_filter;
 use crate::pages::proxies_refresh::apply_proxies_projection;
+use crate::pages::proxies_virtual::ProxiesVirtualState;
 use bevy::app::{App, Plugin};
 use bevy::color::Color;
 use bevy::ecs::component::Component;
@@ -410,7 +411,7 @@ impl Plugin for ProxiesPagePlugin {
         // save submits the shared draft it carries), so the resource must exist
         // the moment the page is mounted instead of being read as `None` forever.
         app.init_resource::<LastProxiesProjection>();
-        app.init_resource::<crate::pages::proxies_virtual::ProxiesVirtualState>();
+        app.init_resource::<ProxiesVirtualState>();
         app.add_observer(apply_proxies_projection);
         app.add_observer(on_proxies_action_activated);
         app.add_observer(on_custom_node_action_activated);
