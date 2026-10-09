@@ -10,8 +10,9 @@ use super::texture::ChartTextureView;
 use crate::chart::to_rgba8;
 use crate::palette::UiPalette;
 use bevy::asset::{Assets, RenderAssetUsages};
-use bevy::ecs::change_detection::{DetectChanges, Ref};
 use bevy::ecs::component::Component;
+use bevy::ecs::entity::Entity;
+use bevy::ecs::query::QueryData;
 use bevy::ecs::system::{Commands, Query, Res, ResMut};
 use bevy::image::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -145,11 +146,48 @@ impl TopologySpec {
         self.hovered_stage = hovered_stage;
         self
     }
+
+    /// Content equality that ignores the animation phase. Two specs differing
+    /// only in `flow_phase` rasterize to identical pixels, so the phase clock
+    /// ticking must not invalidate a cached topology texture. Mirrors
+    /// [`crate::chart::ChartPaint::matches`].
+    pub(crate) fn same_content(&self, other: &Self) -> bool {
+        self.width == other.width
+            && self.height == other.height
+            && self.nodes == other.nodes
+            && self.links == other.links
+            && self.flow_speed == other.flow_speed
+            && self.hovered_stage == other.hovered_stage
+    }
 }
 
 /// Component holding the topology specification.
 #[derive(Component, Clone, Debug, Default)]
 pub struct TopologyPlate(pub TopologySpec);
+
+/// The last rasterized topology content (animation phase excluded), mirroring
+/// [`crate::chart::ChartPaint`]. Its presence lets a static frame skip both the
+/// CPU rasterization and the GPU upload while [`advance_topology_flow`] keeps
+/// ticking the phase.
+#[derive(Component, Clone)]
+pub(crate) struct TopologyPaint {
+    spec: TopologySpec,
+    palette: UiPalette,
+}
+
+impl TopologyPaint {
+    fn matches(&self, spec: &TopologySpec, palette: &UiPalette) -> bool {
+        self.palette == *palette && self.spec.same_content(spec)
+    }
+}
+
+#[derive(QueryData)]
+pub struct TopologyRenderView {
+    entity: Entity,
+    plate: &'static TopologyPlate,
+    paint: Option<&'static TopologyPaint>,
+    texture: ChartTextureView,
+}
 
 /// Resolve category to token RGBA.
 pub fn category_to_rgba(category: NodeCategory, palette: &UiPalette) -> [u8; 4] {
@@ -438,22 +476,31 @@ pub fn topology_scene(spec: TopologySpec) -> impl Scene + use<> {
 pub fn sync_topology_charts(
     palette: Res<UiPalette>,
     images: Option<ResMut<Assets<Image>>>,
-    charts: Query<(Ref<TopologyPlate>, ChartTextureView)>,
+    charts: Query<TopologyRenderView>,
     mut commands: Commands,
 ) {
-    let retheme = palette.is_changed();
     let Some(mut images) = images else {
         return;
     };
 
-    for (plate, texture) in &charts {
+    for view in &charts {
+        let (entity, plate, paint) = (view.entity, view.plate, view.paint);
         let spec = &plate.0;
-        texture.sync::<TopologyPlate>(
+        // `advance_topology_flow` mutates `flow_phase` every frame while a link
+        // is active; `same_content` ignores it, so a static frame neither
+        // re-rasterizes nor re-uploads. Any real content or palette change does.
+        let repaint = !paint.is_some_and(|paint| paint.matches(spec, &palette));
+        if view.texture.sync::<TopologyPlate>(
             &mut images,
-            retheme || plate.is_changed(),
+            repaint,
             || topology_image(spec, &palette),
             &mut commands,
-        );
+        ) {
+            commands.entity(entity).insert(TopologyPaint {
+                spec: spec.clone(),
+                palette: *palette,
+            });
+        }
     }
 }
 

@@ -2,7 +2,7 @@
 
 use super::donut::DonutChartPlate;
 use super::histogram::HistogramPlate;
-use super::topology::TopologyPlate;
+use super::topology::{TopologyPaint, TopologyPlate};
 use super::{ChartPaint, ChartPlate};
 use bevy::asset::{Assets, Handle};
 use bevy::ecs::component::Component;
@@ -91,7 +91,7 @@ pub(crate) fn release_retired(
             continue;
         };
         let mut entity = commands.entity(view.entity);
-        entity.remove::<(ChartTexture, ChartPaint)>();
+        entity.remove::<(ChartTexture, ChartPaint, TopologyPaint)>();
         if view.node.is_some_and(|node| node.image == texture.image) {
             entity.remove::<ImageNode>();
         }

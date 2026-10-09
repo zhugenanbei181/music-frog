@@ -14,13 +14,20 @@ use bevy::ui::widget::{ImageNode, Text};
 use bevy::ui::{BackgroundColor, ComputedNode, ResolvedBorderRadius};
 use bevy::ui_render::ui_material::MaterialNode;
 use infiltrator_bevy_widgets::WidgetsPlugin;
+use infiltrator_bevy_widgets::chart::topology::{
+    NodeCategory, TopologyLink, TopologyNode, TopologyPlate, TopologySpec, topology_scene,
+};
 use infiltrator_bevy_widgets::chart::{ChartPlate, chart_scene};
 use infiltrator_bevy_widgets::palette::UiPalette;
-use infiltrator_bevy_widgets::shader_fx::{ModernSurfaceMaterial, ModernSurfacePlugin};
+use infiltrator_bevy_widgets::shader_fx::{
+    ModernSurfaceElevation, ModernSurfaceMaterial, ModernSurfacePlugin,
+};
 use infiltrator_bevy_widgets::surface::{SurfacePanel, surface_scene};
 use infiltrator_bevy_widgets::surface_shader::SurfaceShaderMode;
 use infiltrator_bevy_widgets::switch::ThemeSwitch;
 use infiltrator_bevy_widgets::theme::{Theme, ThemeSkin};
+use std::thread::sleep;
+use std::time;
 
 pub(super) fn app() -> App {
     let mut app = App::new();
@@ -187,6 +194,15 @@ fn surface_uniforms_follow_layout_and_theme_then_flat_mode_restores_the_card() {
         LinearRgba::from(app.world().resource::<UiPalette>().surface)
     );
     assert_eq!(
+        uniform.shadow_blur,
+        ModernSurfaceElevation::Low.params().1,
+        "a real card must wire the card elevation so shadow.wesl runs"
+    );
+    assert!(
+        uniform.shadow_blur > 0.0 && uniform.key_alpha > 0.0,
+        "card shadow must carry a non-zero elevation, not None"
+    );
+    assert_eq!(
         app.world().get::<BackgroundColor>(entity).unwrap().0,
         Color::NONE
     );
@@ -281,4 +297,76 @@ fn surface_uniforms_follow_layout_and_theme_then_flat_mode_restores_the_card() {
         app.world().resource::<UiPalette>().surface
     );
     assert_eq!(app.world().get::<Children>(entity).unwrap()[0], child);
+}
+
+#[test]
+fn topology_static_frames_skip_repaint_while_flow_phase_advances() {
+    let mut app = app();
+    let mut link = TopologyLink::new("inbound", "outbound", 5_000_000.0);
+    link.highlighted = true;
+    let spec = TopologySpec::new(
+        vec![
+            TopologyNode::new("inbound", "Inbound", NodeCategory::Inbound, 0.1, 0.5),
+            TopologyNode::new("outbound", "Outbound", NodeCategory::Outbound, 0.9, 0.5),
+        ],
+        vec![link],
+        200,
+        100,
+    )
+    .with_flow(0.0, 4.0);
+    app.add_systems(Startup, move |mut commands: Commands| {
+        commands.spawn_scene(topology_scene(spec.clone()));
+    });
+    app.update();
+    let entity = app
+        .world_mut()
+        .query::<(Entity, &TopologyPlate)>()
+        .single(app.world())
+        .unwrap()
+        .0;
+    let handle = image_handle(&app, entity);
+    let mut cursor = MessageCursor::default();
+    modifications(&app, &mut cursor, handle.id());
+
+    let before = app
+        .world()
+        .get::<TopologyPlate>(entity)
+        .unwrap()
+        .0
+        .flow_phase;
+    for _ in 0..8 {
+        sleep(time::Duration::from_millis(20));
+        app.update();
+        assert_eq!(
+            modifications(&app, &mut cursor, handle.id()),
+            0,
+            "a phase-only advance must not re-rasterize or re-upload"
+        );
+    }
+    let after = app
+        .world()
+        .get::<TopologyPlate>(entity)
+        .unwrap()
+        .0
+        .flow_phase;
+    assert_ne!(before, after, "the flow animation must still advance");
+
+    // A real data change refreshes the same texture identity exactly once.
+    app.world_mut()
+        .get_mut::<TopologyPlate>(entity)
+        .unwrap()
+        .0
+        .links[0]
+        .bandwidth_bps = 50_000_000.0;
+    app.update();
+    assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
+    assert_eq!(image_handle(&app, entity).id(), handle.id());
+
+    // A theme switch refreshes too.
+    app.world_mut()
+        .commands()
+        .trigger(ThemeSwitch(ThemeSkin::Light));
+    app.update();
+    app.update();
+    assert_eq!(modifications(&app, &mut cursor, handle.id()), 1);
 }

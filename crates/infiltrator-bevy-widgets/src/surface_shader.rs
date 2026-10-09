@@ -98,6 +98,9 @@ pub fn sync(
         }
         let radius = corner.x * card.computed.inverse_scale_factor();
         let curvature = CornerCurvature::squircle(radius);
+        // The `SurfacePanel` card marker is the existing card role: a real card
+        // carries the low card-depth elevation so `shadow.wesl` runs in
+        // production instead of a permanently dead `None`.
         let desired = ModernSurfaceMaterial::card(
             dimensions,
             curvature.radius_px,
@@ -105,7 +108,7 @@ pub fn sync(
             palette.surface,
             palette.border,
             palette.hairline_px,
-            ModernSurfaceElevation::None,
+            ModernSurfaceElevation::Low,
         );
         if let Some(owned) = card.owned.filter(|owned| materials.contains(&owned.0)) {
             if materials.get(&owned.0) != Some(&desired)
