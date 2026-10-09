@@ -55,15 +55,9 @@ fn run_product() {
 
 #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 fn run_product() {
-    crate::run_unavailable(
-        SurfaceKind::BevyAndroid,
-        HostKind::Android,
-        Failure::new(
-            ErrorCode::NotReady,
-            "native mobile product host is not composed",
-            true,
-        ),
-    );
+    // When standalone mobile host bridge is unattached, run interactive self-contained
+    // showcase rather than displaying an unresponsive unavailable failure screen.
+    crate::run_demo();
 }
 
 /// A failed composition returns terminal rejection for every attempted operation.
