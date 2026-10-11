@@ -36,6 +36,7 @@ pub struct MihomoProfileConfigurationTransactionAdapter<S: SecureStore> {
     scope: ProfileConfigurationTransactionScope,
     session: Arc<dyn CoreLifecyclePort>,
     config: Arc<ConfigManager<S>>,
+    profile_store: Arc<dyn ProfileStore>,
     reloader: Arc<dyn ConfigReloader>,
     apply_guard: Arc<Mutex<()>>,
 }
@@ -49,10 +50,59 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
         reloader: Arc<dyn ConfigReloader>,
         apply_guard: Arc<Mutex<()>>,
     ) -> Result<Self, PortError> {
+        let profile_store: Arc<dyn ProfileStore> = config.clone();
+        Self::build(
+            codec,
+            stopped_validator,
+            session,
+            config,
+            profile_store,
+            reloader,
+            apply_guard,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_profile_store_for_test(
+        codec: Arc<dyn ProfileDocumentCodecPort>,
+        stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
+        session: Arc<dyn CoreLifecyclePort>,
+        config: Arc<ConfigManager<S>>,
+        profile_store: Arc<dyn ProfileStore>,
+        reloader: Arc<dyn ConfigReloader>,
+        apply_guard: Arc<Mutex<()>>,
+    ) -> Result<Self, PortError> {
+        Self::build(
+            codec,
+            stopped_validator,
+            session,
+            config,
+            profile_store,
+            reloader,
+            apply_guard,
+        )
+    }
+
+    fn build(
+        codec: Arc<dyn ProfileDocumentCodecPort>,
+        stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort>,
+        session: Arc<dyn CoreLifecyclePort>,
+        config: Arc<ConfigManager<S>>,
+        profile_store: Arc<dyn ProfileStore>,
+        reloader: Arc<dyn ConfigReloader>,
+        apply_guard: Arc<Mutex<()>>,
+    ) -> Result<Self, PortError> {
         let codec_scope = codec.scope();
         if codec_scope.engine_id != config.engine_id() {
             return Err(PortError::Failed(
                 "Mihomo transaction codec and profile store have different engines".to_owned(),
+            ));
+        }
+        if profile_store.engine_id() != config.engine_id()
+            || profile_store.config_dir().as_path() != config.config_dir()
+        {
+            return Err(PortError::Failed(
+                "Mihomo transaction workspace store does not match its config manager".to_owned(),
             ));
         }
         let scope = ProfileConfigurationTransactionScope::new(codec_scope);
@@ -68,6 +118,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
             scope,
             session,
             config,
+            profile_store,
             reloader,
             apply_guard,
         })
@@ -119,7 +170,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
 
         let _guard = self.apply_guard.lock().await;
         let previous = self
-            .config
+            .profile_store
             .load_active_workspace()
             .await
             .map_err(PortError::from)?;
@@ -247,14 +298,14 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
         effect: ProfileConfigurationCommitEffect,
     ) -> Result<ProfileConfigurationTransactionOutcome, PortError> {
         let committed = match self
-            .config
+            .profile_store
             .compare_and_save_active_workspace(&request.expected, &request.update)
             .await
         {
             Ok(committed) => committed,
             Err(cause) => {
                 let publication_recovery_failed = cause.error_code() == ErrorCode::InvalidState;
-                return match self.config.load_active_workspace().await {
+                return match self.profile_store.load_active_workspace().await {
                     Ok(current) if current == *previous => Err(cause),
                     Ok(current)
                         if publication_recovery_failed
@@ -288,7 +339,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
             }
         };
 
-        let observed = match self.config.load_active_workspace().await {
+        let observed = match self.profile_store.load_active_workspace().await {
             Ok(observed) => observed,
             Err(readback) => {
                 return Ok(self
@@ -333,7 +384,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
         let cause = cause.into();
         let rollback_context = rollback_context.into();
         if let Err(rollback) = self
-            .config
+            .profile_store
             .restore_workspace(&expected_current, previous)
             .await
         {
@@ -342,7 +393,7 @@ impl<S: SecureStore + 'static> MihomoProfileConfigurationTransactionAdapter<S> {
                 format!("{rollback_context}; restore failed: {rollback}"),
             );
         }
-        match self.config.load_active_workspace().await {
+        match self.profile_store.load_active_workspace().await {
             Ok(restored) if restored == *previous => {
                 ProfileConfigurationTransactionOutcome::RolledBack {
                     restored,

@@ -4,9 +4,13 @@ use super::{MockController, MockReloader, MockStore, OLD, TestLifecycle};
 use crate::apply::ConfigReloader;
 use crate::profile_configuration_transaction::MihomoProfileConfigurationTransactionAdapter;
 use async_trait::async_trait;
+use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_domain::profile_options::options_path;
+use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::{
@@ -23,6 +27,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
+use tokio::fs::{create_dir_all, read, write};
 
 #[derive(Clone, Copy)]
 enum NativeValidationResult {
@@ -87,6 +92,7 @@ impl ProfileConfigurationCandidateValidatorPort for FakeStoppedValidator {
 struct TransactionFixture {
     _directory: TempDir,
     config: Arc<ConfigManager<MockStore>>,
+    profile_store: Arc<FaultInjectingProfileStore>,
     controller: Arc<MockController>,
     lifecycle: Arc<TestLifecycle>,
     validator: Arc<FakeStoppedValidator>,
@@ -95,6 +101,13 @@ struct TransactionFixture {
 }
 
 async fn transaction_fixture(validation: NativeValidationResult) -> TransactionFixture {
+    transaction_fixture_with_store_behavior(validation, StoreBehavior::Exact).await
+}
+
+async fn transaction_fixture_with_store_behavior(
+    validation: NativeValidationResult,
+    store_behavior: StoreBehavior,
+) -> TransactionFixture {
     let directory = tempfile::tempdir().expect("temporary Core config directory");
     let config = Arc::new(
         ConfigManager::with_home_and_store(
@@ -127,24 +140,199 @@ async fn transaction_fixture(validation: NativeValidationResult) -> TransactionF
     let validator_port: Arc<dyn ProfileConfigurationCandidateValidatorPort> = validator.clone();
     let session: Arc<dyn CoreLifecyclePort> = lifecycle.clone();
     let reloader_port: Arc<dyn ConfigReloader> = reloader.clone();
-    let transaction = MihomoProfileConfigurationTransactionAdapter::new(
-        codec,
-        validator_port,
-        session,
+    let profile_store = Arc::new(FaultInjectingProfileStore::new(
         Arc::clone(&config),
-        reloader_port,
-        Arc::new(tokio::sync::Mutex::new(())),
-    )
-    .expect("compose matching Mihomo codec and validator scopes");
+        store_behavior,
+    ));
+    let profile_store_port: Arc<dyn ProfileStore> = profile_store.clone();
+    let transaction =
+        MihomoProfileConfigurationTransactionAdapter::new_with_profile_store_for_test(
+            codec,
+            validator_port,
+            session,
+            Arc::clone(&config),
+            profile_store_port,
+            reloader_port,
+            Arc::new(tokio::sync::Mutex::new(())),
+        )
+        .expect("compose matching Mihomo codec and validator scopes");
 
     TransactionFixture {
         _directory: directory,
         config,
+        profile_store,
         controller,
         lifecycle,
         validator,
         reloader,
         transaction,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ReadbackState {
+    Exact,
+    CorruptNext,
+}
+
+#[derive(Clone, Copy)]
+enum StoreBehavior {
+    Exact,
+    CorruptReadbackAndRestore,
+    CorruptReadbackAndFailRestore,
+}
+
+struct FaultInjectingProfileStore {
+    inner: Arc<ConfigManager<MockStore>>,
+    readback: Mutex<ReadbackState>,
+    behavior: StoreBehavior,
+    writes: AtomicUsize,
+    restores: AtomicUsize,
+}
+
+impl FaultInjectingProfileStore {
+    fn new(inner: Arc<ConfigManager<MockStore>>, behavior: StoreBehavior) -> Self {
+        Self {
+            inner,
+            readback: Mutex::new(ReadbackState::Exact),
+            behavior,
+            writes: AtomicUsize::new(0),
+            restores: AtomicUsize::new(0),
+        }
+    }
+
+    fn writes(&self) -> usize {
+        self.writes.load(Ordering::SeqCst)
+    }
+
+    fn restores(&self) -> usize {
+        self.restores.load(Ordering::SeqCst)
+    }
+
+    fn unused_operation() -> PortError {
+        PortError::Failed("transaction fixture does not expose this profile-store operation".into())
+    }
+}
+
+#[async_trait]
+impl ProfileStore for FaultInjectingProfileStore {
+    fn engine_id(&self) -> EngineId {
+        ProfileStore::engine_id(self.inner.as_ref())
+    }
+
+    fn config_dir(&self) -> std::path::PathBuf {
+        ProfileStore::config_dir(self.inner.as_ref())
+    }
+
+    async fn list_profiles(&self) -> Result<Vec<ProfileInfo>, PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn get_current(&self) -> Result<String, PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn set_current(&self, _profile: &str) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn load(&self, _profile: &str) -> Result<String, PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn save(&self, _profile: &str, _content: &str) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn delete_profile(&self, _profile: &str) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn get_profile_metadata(&self, _profile: &str) -> Result<ProfileMetadata, PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn update_profile_metadata(
+        &self,
+        _profile: &str,
+        _metadata: &ProfileMetadata,
+    ) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn delete_subscription_credential(&self, _profile: &str) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn load_workspace(
+        &self,
+        _profile: &infiltrator_contract::profile_document_identity::ProfileId,
+    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn load_active_workspace(
+        &self,
+    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+        let mut workspace = self.inner.load_active_workspace().await?;
+        let corrupt = {
+            let mut state = self.readback.lock().expect("readback state");
+            match *state {
+                ReadbackState::Exact => false,
+                ReadbackState::CorruptNext => {
+                    *state = ReadbackState::Exact;
+                    true
+                }
+            }
+        };
+        if corrupt {
+            workspace.document.raw_bytes = b"fake readback corruption".to_vec();
+        }
+        Ok(workspace)
+    }
+
+    async fn compare_and_save_active_workspace(
+        &self,
+        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        update: &ProfileWorkspaceUpdate,
+    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+        let committed = self
+            .inner
+            .compare_and_save_active_workspace(expected, update)
+            .await?;
+        self.writes.fetch_add(1, Ordering::SeqCst);
+        match self.behavior {
+            StoreBehavior::Exact => {}
+            StoreBehavior::CorruptReadbackAndRestore
+            | StoreBehavior::CorruptReadbackAndFailRestore => {
+                *self.readback.lock().expect("readback state") = ReadbackState::CorruptNext;
+            }
+        }
+        Ok(committed)
+    }
+
+    async fn restore_workspace(
+        &self,
+        expected: &infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity,
+        previous: &infiltrator_ports::profile_workspace::ProfileWorkspace,
+    ) -> Result<infiltrator_ports::profile_workspace::ProfileWorkspace, PortError> {
+        self.restores.fetch_add(1, Ordering::SeqCst);
+        match self.behavior {
+            StoreBehavior::Exact | StoreBehavior::CorruptReadbackAndRestore => {
+                self.inner.restore_workspace(expected, previous).await
+            }
+            StoreBehavior::CorruptReadbackAndFailRestore => {
+                Err(PortError::Failed("injected exact restore failure".into()))
+            }
+        }
+    }
+
+    async fn clear_backup(&self, _profile: &str) -> Result<(), PortError> {
+        Err(Self::unused_operation())
+    }
+
+    async fn restore_backup(&self, _profile: &str) -> Result<bool, PortError> {
+        Err(Self::unused_operation())
     }
 }
 
@@ -185,6 +373,7 @@ async fn stopped_native_invalid_candidate_is_rejected_before_profile_store_write
         }))
     ));
     assert_eq!(fixture.validator.calls(), 1);
+    assert_eq!(fixture.profile_store.writes(), 0);
     assert_eq!(
         fixture
             .config
@@ -215,6 +404,7 @@ async fn stopped_without_native_validator_is_unsupported_before_profile_store_wr
 
     assert!(matches!(result, Err(PortError::Unsupported { .. })));
     assert_eq!(fixture.validator.calls(), 1);
+    assert_eq!(fixture.profile_store.writes(), 0);
     assert_eq!(
         fixture
             .config
@@ -226,6 +416,117 @@ async fn stopped_without_native_validator_is_unsupported_before_profile_store_wr
     assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
     assert!(!fixture.controller.running.load(Ordering::SeqCst));
     assert_eq!(fixture.lifecycle.lifecycle(), CoreLifecycle::Stopped);
+    assert_eq!(fixture.lifecycle.start_calls(), 0);
+    assert_eq!(fixture.lifecycle.stop_calls(), 0);
+}
+
+#[tokio::test]
+async fn foreign_scope_and_invalid_codec_candidate_have_zero_write_effects() {
+    let fixture = transaction_fixture(NativeValidationResult::Accept).await;
+    let before = fixture
+        .config
+        .load_active_workspace()
+        .await
+        .expect("initial workspace");
+
+    let mut foreign_engine = before.identity();
+    foreign_engine.document.engine_id = EngineId::new("sing-box").unwrap();
+    assert!(matches!(
+        fixture
+            .transaction
+            .transact(request(foreign_engine, b"port: 7891\n"))
+            .await,
+        Err(PortError::Unsupported { .. })
+    ));
+
+    let mut foreign_format = before.identity();
+    foreign_format.document.format_id = ProfileFormatId::new("sing-box-json").unwrap();
+    assert!(matches!(
+        fixture
+            .transaction
+            .transact(request(foreign_format, b"port: 7891\n"))
+            .await,
+        Err(PortError::Unsupported { .. })
+    ));
+
+    let mut foreign_schema = before.identity();
+    foreign_schema.document.schema_version = ProfileSchemaVersion::new(2).unwrap();
+    assert!(matches!(
+        fixture
+            .transaction
+            .transact(request(foreign_schema, b"port: 7891\n"))
+            .await,
+        Err(PortError::Unsupported { .. })
+    ));
+
+    assert!(matches!(
+        fixture
+            .transaction
+            .transact(request(before.identity(), b"port: [unterminated\n"))
+            .await,
+        Err(PortError::Rejected(Failure {
+            code: ErrorCode::Configuration,
+            ..
+        }))
+    ));
+
+    assert_eq!(
+        fixture
+            .config
+            .load_active_workspace()
+            .await
+            .expect("workspace is unchanged after foreign and invalid proposals"),
+        before
+    );
+    assert_eq!(fixture.validator.calls(), 0);
+    assert_eq!(fixture.profile_store.writes(), 0);
+    assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(fixture.lifecycle.start_calls(), 0);
+    assert_eq!(fixture.lifecycle.stop_calls(), 0);
+}
+
+#[tokio::test]
+async fn stale_workspace_revision_is_rejected_without_replacing_the_newer_bytes() {
+    let fixture = transaction_fixture(NativeValidationResult::Accept).await;
+    let stale = fixture
+        .config
+        .load_active_workspace()
+        .await
+        .expect("initial workspace");
+    fixture
+        .config
+        .save("main", "# newer external edit\nport: 7900\n")
+        .await
+        .expect("simulate an external workspace edit");
+    let newer = fixture
+        .config
+        .load_active_workspace()
+        .await
+        .expect("newer workspace");
+
+    let result = fixture
+        .transaction
+        .transact(request(stale.identity(), b"port: 7891\n"))
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(PortError::Rejected(Failure {
+            code: ErrorCode::NotReady,
+            ..
+        }))
+    ));
+    assert_eq!(
+        fixture
+            .config
+            .load_active_workspace()
+            .await
+            .expect("newer workspace remains authoritative"),
+        newer
+    );
+    assert_eq!(fixture.validator.calls(), 0);
+    assert_eq!(fixture.profile_store.writes(), 0);
+    assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
     assert_eq!(fixture.lifecycle.start_calls(), 0);
     assert_eq!(fixture.lifecycle.stop_calls(), 0);
 }
@@ -249,6 +550,7 @@ async fn stopped_native_valid_candidate_can_commit_with_typed_terminal_state() {
     };
     assert_eq!(effect, ProfileConfigurationCommitEffect::StoredWhileStopped);
     assert_eq!(fixture.validator.calls(), 1);
+    assert_eq!(fixture.profile_store.writes(), 1);
     assert_eq!(workspace.document.raw_bytes, b"port: 7891\n");
     assert_ne!(workspace.identity(), before.identity());
     assert_eq!(
@@ -264,6 +566,99 @@ async fn stopped_native_valid_candidate_can_commit_with_typed_terminal_state() {
     assert_eq!(fixture.lifecycle.stop_calls(), 0);
     assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
     assert!(!fixture.controller.running.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn running_transaction_applies_through_the_live_reload_seam() {
+    let fixture = transaction_fixture(NativeValidationResult::Accept).await;
+    let generation = fixture.lifecycle.start().await.expect("start fixture core");
+    fixture
+        .lifecycle
+        .wait_for_ready(generation, std::time::Duration::from_secs(1))
+        .await
+        .expect("fixture core becomes ready");
+    fixture.lifecycle.set_status(CoreLifecycle::Running);
+    let starts_before = fixture.lifecycle.start_calls();
+    let before = fixture
+        .config
+        .load_active_workspace()
+        .await
+        .expect("initial workspace");
+
+    let result = fixture
+        .transaction
+        .transact(request(before.identity(), b"port: 7891\n"))
+        .await
+        .expect("running Mihomo accepts a validated live reload");
+    let ProfileConfigurationTransactionOutcome::Committed { workspace, effect } = result else {
+        panic!("successful running transaction must commit");
+    };
+
+    assert_eq!(
+        effect,
+        ProfileConfigurationCommitEffect::AppliedToRunningCore
+    );
+    assert_eq!(workspace.document.raw_bytes, b"port: 7891\n");
+    assert_eq!(
+        fixture
+            .config
+            .load_active_workspace()
+            .await
+            .expect("exact live transaction readback"),
+        workspace
+    );
+    assert_eq!(fixture.lifecycle.lifecycle(), CoreLifecycle::Ready);
+    assert_eq!(fixture.lifecycle.start_calls(), starts_before);
+    assert_eq!(fixture.lifecycle.stop_calls(), 0);
+    assert_eq!(fixture.validator.calls(), 0);
+    assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn stopped_transaction_reads_back_the_exact_document_and_sidecar_bytes() {
+    let fixture = transaction_fixture(NativeValidationResult::Accept).await;
+    let before = fixture
+        .config
+        .load_active_workspace()
+        .await
+        .expect("initial workspace");
+    let document = b"# authored byte-for-byte\r\nport: 7891 # retain spacing\r\n";
+    let sidecar = b"# opaque sidecar\r\n\xff\x00";
+    let mut update = request(before.identity(), document).clone();
+    update.update.sidecar_bytes = Some(sidecar.to_vec());
+
+    let result = fixture
+        .transaction
+        .transact(update.clone())
+        .await
+        .expect("valid native candidate commits");
+    let ProfileConfigurationTransactionOutcome::Committed { workspace, effect } = result else {
+        panic!("valid stopped transaction must commit");
+    };
+
+    assert_eq!(effect, ProfileConfigurationCommitEffect::StoredWhileStopped);
+    assert_eq!(workspace.document.raw_bytes, document);
+    assert_eq!(workspace.sidecar_bytes.as_deref(), Some(sidecar.as_slice()));
+    assert_ne!(workspace.identity(), before.identity());
+    assert_eq!(
+        fixture
+            .config
+            .load_active_workspace()
+            .await
+            .expect("exact committed readback"),
+        workspace
+    );
+    assert_eq!(
+        read(fixture.config.config_dir().join("main.yaml"))
+            .await
+            .expect("raw profile bytes"),
+        document
+    );
+    assert_eq!(fixture.lifecycle.lifecycle(), CoreLifecycle::Stopped);
+    assert_eq!(fixture.profile_store.writes(), 1);
+    assert_eq!(fixture.lifecycle.start_calls(), 0);
+    assert_eq!(fixture.lifecycle.stop_calls(), 0);
+    assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
@@ -296,8 +691,88 @@ async fn valid_failed_candidate_is_stored_without_start_stop_or_runtime_calls() 
     );
     assert_ne!(workspace.identity(), before.identity());
     assert_eq!(fixture.lifecycle.lifecycle(), CoreLifecycle::Failed);
+    assert_eq!(fixture.profile_store.writes(), 1);
     assert_eq!(fixture.lifecycle.start_calls(), 0);
     assert_eq!(fixture.lifecycle.stop_calls(), 0);
     assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
     assert!(!fixture.controller.running.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn inactive_readback_failure_returns_rolled_back_or_rollback_failed_truthfully() {
+    for store_behavior in [
+        StoreBehavior::CorruptReadbackAndRestore,
+        StoreBehavior::CorruptReadbackAndFailRestore,
+    ] {
+        let fixture =
+            transaction_fixture_with_store_behavior(NativeValidationResult::Accept, store_behavior)
+                .await;
+        let sidecar_path = options_path(fixture.config.config_dir(), "main");
+        create_dir_all(sidecar_path.parent().expect("sidecar parent"))
+            .await
+            .expect("create sidecar directory");
+        let previous_sidecar = b"# prior opaque bytes\r\n\xff\x00";
+        write(&sidecar_path, previous_sidecar)
+            .await
+            .expect("seed exact prior sidecar bytes");
+        let before = fixture
+            .config
+            .load_active_workspace()
+            .await
+            .expect("workspace with exact prior sidecar");
+        let candidate = b"# candidate\r\nport: 7893\r\n";
+        let mut proposal = request(before.identity(), candidate).clone();
+        let candidate_sidecar = b"# candidate sidecar\r\n\xfe\x01";
+        proposal.update.sidecar_bytes = Some(candidate_sidecar.to_vec());
+
+        let result = fixture
+            .transaction
+            .transact(proposal)
+            .await
+            .expect("post-publication failure is a typed terminal outcome");
+
+        match store_behavior {
+            StoreBehavior::CorruptReadbackAndRestore => {
+                let ProfileConfigurationTransactionOutcome::RolledBack { restored, .. } = result
+                else {
+                    panic!("successful exact recovery must report RolledBack");
+                };
+                assert_eq!(restored, before);
+                assert_eq!(
+                    fixture
+                        .config
+                        .load_active_workspace()
+                        .await
+                        .expect("exact previous workspace after recovery"),
+                    before
+                );
+            }
+            StoreBehavior::CorruptReadbackAndFailRestore => {
+                let ProfileConfigurationTransactionOutcome::RollbackFailed { cause, rollback } =
+                    result
+                else {
+                    panic!("failed exact recovery must report RollbackFailed");
+                };
+                assert_eq!(cause.code, ErrorCode::InvalidState);
+                assert_eq!(rollback.code, ErrorCode::Storage);
+                let uncertain = fixture
+                    .config
+                    .load_active_workspace()
+                    .await
+                    .expect("workspace state after injected restore failure");
+                assert_eq!(uncertain.document.raw_bytes, candidate);
+                assert_eq!(
+                    uncertain.sidecar_bytes.as_deref(),
+                    Some(candidate_sidecar.as_slice())
+                );
+                assert_ne!(uncertain, before);
+            }
+            StoreBehavior::Exact => unreachable!("fault test requires an injected readback error"),
+        }
+        assert_eq!(fixture.profile_store.writes(), 1);
+        assert_eq!(fixture.profile_store.restores(), 1);
+        assert_eq!(fixture.lifecycle.start_calls(), 0);
+        assert_eq!(fixture.lifecycle.stop_calls(), 0);
+        assert_eq!(fixture.reloader.calls.load(Ordering::SeqCst), 0);
+    }
 }
