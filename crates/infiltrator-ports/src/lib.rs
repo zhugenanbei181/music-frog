@@ -3,6 +3,7 @@
 //! Traits here describe capabilities, not implementations. They deliberately
 //! contain no Tokio channels, task handles, HTTP response types, or UI types.
 
+pub mod active_profile_reference_store;
 pub mod app_routing_store;
 pub mod application_runtime;
 pub mod capability_provider;

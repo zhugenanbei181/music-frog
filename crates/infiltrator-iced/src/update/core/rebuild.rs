@@ -10,10 +10,9 @@ use crate::types::app::ToastStatus;
 use crate::types::message::Message;
 use crate::types::runtime::{RebuildFlowState, RuntimeStatus};
 use iced::Task;
-use infiltrator_contract::error::{InfiltratorError, from_backend};
+use infiltrator_contract::error::from_backend;
 use infiltrator_desktop::boot::DesktopBinaryPreference;
 use infiltrator_ports::runtime_gateway::ManagedRuntime;
-use infiltrator_shared::i18n_interpolator::localize;
 use tokio::time;
 use tokio::time::sleep;
 
@@ -70,9 +69,8 @@ impl AppState {
     }
 
     pub(crate) fn trigger_runtime_rebuild(&mut self) -> Task<Message> {
-        let copy_locale = self.shell.lang.clone();
         let label = self.active_rebuild_label();
-        let Some(runtime) = self.take_app_runtime() else {
+        let Some(runtime) = self.runtime.runtime.clone() else {
             return self.finish_without_rebuild(label);
         };
 
@@ -83,37 +81,23 @@ impl AppState {
 
         Task::perform(
             async move {
-                let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
+                // The legacy Host bootstrap is currently typed Unsupported.
+                // Probe it before tearing down the live owner so a rejected
+                // rebuild leaves the running Core session intact.
+                let (replacement, _rotated) = bootstrap_host_runtime_from_current_home(
+                    DesktopBinaryPreference::PreferBundled,
+                    &[],
+                )
+                .await?;
                 let manager = config_manager().await?;
                 let profile = manager.get_current().await.map_err(from_backend)?;
-                let candidates = vec![];
-                match bootstrap_host_runtime_from_current_home(
-                    DesktopBinaryPreference::PreferBundled,
-                    &candidates,
-                )
-                .await
-                {
-                    Ok((runtime, _rotated)) => {
-                        manager.clear_backup(&profile).await.map_err(from_backend)?;
-                        Ok(runtime)
-                    }
-                    Err(cause) => {
-                        let restored = manager
-                            .restore_backup(&profile)
-                            .await
-                            .map_err(from_backend)?;
-                        let _ = manager.clear_backup(&profile).await;
-                        if restored {
-                            Err(InfiltratorError::Backend(localize(
-                                &copy_locale,
-                                "core_rebuild_restored",
-                                &[("reason", cause.to_string())],
-                            )))
-                        } else {
-                            Err(InfiltratorError::Backend(cause.to_string()))
-                        }
-                    }
-                }
+                // This path cannot succeed until it is replaced with an
+                // owner-aware session rebuild transaction. Keeping the old
+                // runtime until the typed preflight succeeds avoids stopping
+                // the sole Core owner on Unsupported.
+                let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
+                manager.clear_backup(&profile).await.map_err(from_backend)?;
+                Ok(replacement)
             },
             Message::RuntimeRebuildFinished,
         )

@@ -186,12 +186,15 @@ impl AdminApiContext for IcedAdminContext {
     }
 
     async fn rebuild_runtime(&self) -> anyhow::Result<()> {
-        if let Some(runtime) = self.shared.take_runtime() {
-            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
-        }
+        // The legacy bootstrap is currently typed Unsupported. Probe it
+        // before taking down the live owner, so a rejected rebuild leaves the
+        // active Core session available.
         let (rebuilt, _rotated) =
             bootstrap_host_runtime_from_current_home(DesktopBinaryPreference::PreferBundled, &[])
                 .await?;
+        if let Some(runtime) = self.shared.take_runtime() {
+            let _ = ManagedRuntime::shutdown(runtime.as_ref()).await;
+        }
         self.shared.set_runtime(Some(rebuilt.clone()));
         self.shared
             .send(AdminHostCommand::RuntimeResynced(Ok(rebuilt)));

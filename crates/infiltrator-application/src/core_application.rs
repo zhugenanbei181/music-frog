@@ -23,8 +23,9 @@ use infiltrator_contract::snapshot::{
 use infiltrator_contract::speedtest::{SpeedtestRunId, SpeedtestSnapshot};
 use infiltrator_domain::core_state;
 use infiltrator_domain::core_state::{CoreState, CoreStateMachine};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease;
 use infiltrator_ports::application_runtime::ApplicationRuntime;
-use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_lifecycle::{CoreLifecyclePort, CoreOwnerTerminationPort};
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
@@ -77,6 +78,12 @@ struct StateMirror {
     revision: u64,
 }
 
+enum ActiveProfileOwnerBindingState {
+    Unbound,
+    Bound(Box<dyn ActiveProfileOwnerLease>),
+    Released,
+}
+
 struct Inner {
     logs: LogApplication,
     log_pump: Mutex<Option<LogPump>>,
@@ -101,6 +108,7 @@ struct Inner {
     next_request_id: AtomicU64,
     session_namespace: u64,
     core_identity: RwLock<Option<CoreIdentity>>,
+    active_profile_owner_binding: Mutex<ActiveProfileOwnerBindingState>,
     next_session_sequence: AtomicU64,
     events: Mutex<VecDeque<CoreEvent>>,
 }
@@ -153,6 +161,38 @@ impl OutboundScopeSource for CoreApplication {
 }
 
 impl CoreApplication {
+    /// Tie the selected engine reference to this single Core owner. The guard
+    /// is released only after `close` successfully reaches terminal state.
+    pub fn install_active_profile_owner_binding(
+        &self,
+        binding: Box<dyn ActiveProfileOwnerLease>,
+    ) -> Result<(), Failure> {
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Err(closed_failure());
+        }
+        let mut state = self
+            .inner
+            .active_profile_owner_binding
+            .lock()
+            .expect("active profile owner binding lock");
+        match &*state {
+            ActiveProfileOwnerBindingState::Unbound => {
+                *state = ActiveProfileOwnerBindingState::Bound(binding);
+                Ok(())
+            }
+            ActiveProfileOwnerBindingState::Bound(_) => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "Core owner already has an active profile reference binding",
+                false,
+            )),
+            ActiveProfileOwnerBindingState::Released => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "a closed Core owner cannot acquire a profile reference binding",
+                false,
+            )),
+        }
+    }
+
     pub fn new(
         process: Arc<dyn CoreProcess>,
         readiness: Arc<dyn CoreReadiness>,
@@ -253,6 +293,7 @@ impl CoreApplication {
             next_request_id: AtomicU64::new(1),
             session_namespace,
             core_identity: RwLock::new(core_identity),
+            active_profile_owner_binding: Mutex::new(ActiveProfileOwnerBindingState::Unbound),
             next_session_sequence: AtomicU64::new(1),
             events: Mutex::new(VecDeque::with_capacity(EVENT_CAPACITY)),
         });
@@ -1023,6 +1064,14 @@ impl CoreLifecyclePort for CoreApplication {
         self.wait_for_readiness(session_token, timeout)
             .await
             .map(|_| ())
+    }
+}
+
+#[async_trait::async_trait]
+impl CoreOwnerTerminationPort for CoreApplication {
+    async fn terminate_owner(&self) -> Result<CoreLifecycleSnapshot, PortError> {
+        self.close().await.map_err(PortError::Rejected)?;
+        Ok(self.snapshot().lifecycle_snapshot())
     }
 }
 

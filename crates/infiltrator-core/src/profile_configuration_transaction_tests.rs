@@ -121,10 +121,6 @@ async fn transaction_fixture_with_store_behavior(
         )
         .expect("Mihomo config manager"),
     );
-    config
-        .ensure_default_config()
-        .await
-        .expect("write initial profile fixture");
     config.save("main", OLD).await.expect("seed profile");
     config.set_current("main").await.expect("select profile");
 

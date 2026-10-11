@@ -130,6 +130,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
         manager.save("default", "mode: rule\n").await.unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
         manager.validate_current_profile().await.unwrap();
 
         fs::write(manager.config_dir.join("default.yaml"), "invalid: yaml: [")
@@ -261,6 +262,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
         let current = manager.get_current().await.unwrap();
         assert_eq!(current, "default");
     }
@@ -278,13 +280,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ensure_default_config_creates() {
+    async fn test_legacy_migration_creates_and_selects_default_config() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
-        let result = manager.ensure_default_config().await;
-        assert!(result.is_ok());
-
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
         let current = manager.get_current().await.unwrap();
         assert!(
             manager
@@ -295,14 +295,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ensure_default_config_exists() {
+    async fn test_legacy_migration_preserves_existing_default_document() {
         let temp_dir = TempDir::new().unwrap();
         let manager = setup_test_manager(&temp_dir).await;
 
         manager.save("default", "port: 7890").await.unwrap();
 
-        let result = manager.ensure_default_config().await;
-        assert!(result.is_ok());
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
+        assert_eq!(manager.load("default").await.unwrap(), "port: 7890");
     }
 
     #[tokio::test]
@@ -315,6 +315,7 @@ port: 7890
 external-controller: 127.0.0.1:9090
 "#;
         manager.save("default", config).await.unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
         assert!(result.is_ok());
@@ -330,6 +331,7 @@ external-controller: 127.0.0.1:9090
 port: 7890
 "#;
         manager.save("default", config).await.unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
         assert!(result.is_ok());
@@ -346,6 +348,7 @@ port: 7890
 external-controller: ":9090"
 "#;
         manager.save("default", config).await.unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
         assert!(result.is_ok());
@@ -362,6 +365,7 @@ port: 7890
 external-controller: http://127.0.0.1:9090
 "#;
         manager.save("default", config).await.unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         let result = manager.get_external_controller().await;
         assert!(result.is_ok());
@@ -379,6 +383,7 @@ external-controller: http://127.0.0.1:9090
             )
             .await
             .unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
 
         manager.ensure_external_controller().await.unwrap();
         let first = fs::read_to_string(manager.config_dir.join("default.yaml"))
@@ -412,6 +417,7 @@ external-controller: http://127.0.0.1:9090
             )
             .await
             .unwrap();
+        manager.migrate_legacy_mihomo_selection().await.unwrap();
         manager.ensure_external_controller().await.unwrap();
 
         let source = ProfileEndpointSource::new(Arc::new(manager));

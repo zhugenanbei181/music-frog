@@ -2,13 +2,15 @@
 
 use crate::manager::ConfigManager;
 use crate::profile::Profile;
-use crate::profile_workspace_store::{WorkspaceTarget, config_error};
+use crate::profile_workspace_store::WorkspaceTarget;
 use crate::sidecar_store::{read_optional, remove_optional, write_document};
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::aggregator::AggregationTemplate;
 use infiltrator_contract::apply_transaction::ApplyTransactionSnapshot;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::profile_document_identity::{ProfileId, ProfileWorkspaceIdentity};
 use infiltrator_domain::profiles::{ProfileInfo, ProfileMetadata};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
@@ -46,13 +48,30 @@ where
     }
 
     async fn get_current(&self) -> Result<String, PortError> {
-        ConfigManager::get_current(self).await.map_err(config_error)
+        let lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        match lease.state() {
+            ActiveProfileReferenceState::Unselected { .. } => Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "no product-wide active profile is selected",
+            )),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == ConfigManager::engine_id(self) =>
+            {
+                Ok(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Selected(reference) => Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                format!(
+                    "the active profile belongs to engine {} instead of {}",
+                    reference.engine_id.as_str(),
+                    ConfigManager::engine_id(self).as_str()
+                ),
+            )),
+        }
     }
 
     async fn set_current(&self, profile: &str) -> Result<(), PortError> {
-        ConfigManager::set_current(self, profile)
-            .await
-            .map_err(storage_error)
+        self.set_current_with_active_reference(profile).await
     }
 
     async fn load(&self, profile: &str) -> Result<String, PortError> {

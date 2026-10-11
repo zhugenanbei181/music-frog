@@ -84,3 +84,11 @@ pub trait CoreLifecyclePort: Send + Sync {
         self.wait_for_ready(generation, timeout).await
     }
 }
+
+/// Closes admission for one Core owner and returns its post-close lifecycle
+/// observation. A switch coordinator must verify the exact owner identity,
+/// generation, and `Stopped` terminal before composing another provider.
+#[async_trait]
+pub trait CoreOwnerTerminationPort: CoreLifecyclePort {
+    async fn terminate_owner(&self) -> Result<CoreLifecycleSnapshot, PortError>;
+}

@@ -502,6 +502,40 @@ impl CoreApplication {
             ));
         }
         stop_result?;
+        let terminal = self.snapshot().lifecycle_snapshot();
+        if terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+            || terminal.session_token.is_some()
+        {
+            return Err(Failure::new(
+                ErrorCode::NotReady,
+                "Core owner close did not read back Stopped without a session token",
+                true,
+            ));
+        }
+        let mut owner_binding = self
+            .inner
+            .active_profile_owner_binding
+            .lock()
+            .expect("active profile owner binding lock");
+        if let super::ActiveProfileOwnerBindingState::Bound(binding) = &*owner_binding {
+            if terminal.identity.as_ref() != Some(binding.identity())
+                || terminal.generation < binding.generation().value()
+            {
+                return Err(Failure::new(
+                    ErrorCode::NotReady,
+                    "Core owner terminal readback did not match its bound identity and generation",
+                    true,
+                ));
+            }
+            binding
+                .release_after_terminal(&terminal)
+                .map_err(|error| Failure::new(ErrorCode::NotReady, error.to_string(), true))?;
+        }
+        let previous_binding = std::mem::replace(
+            &mut *owner_binding,
+            super::ActiveProfileOwnerBindingState::Released,
+        );
+        drop(previous_binding);
         Ok(())
     }
 }

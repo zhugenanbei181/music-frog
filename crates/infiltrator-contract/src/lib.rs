@@ -6,6 +6,7 @@
 
 pub mod a11y;
 pub mod active_exit;
+pub mod active_profile_reference;
 pub mod adapter_operation_declaration;
 pub mod aggregator;
 pub mod android_control;

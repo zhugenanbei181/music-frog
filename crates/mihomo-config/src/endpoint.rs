@@ -2,8 +2,10 @@
 
 use crate::manager::ConfigManager;
 use async_trait::async_trait;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_ports::endpoint::{ControllerEndpoint, EndpointSource};
 use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use std::sync::Arc;
 use yaml_rust2::YamlLoader;
@@ -21,15 +23,10 @@ impl<S: SecureStore> ProfileEndpointSource<S> {
         Self { config }
     }
 
-    async fn current_profile_secret(&self) -> Result<Option<String>, PortError> {
-        let profile = self
-            .config
-            .get_current()
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
+    async fn profile_secret(&self, profile: &ProfileId) -> Result<Option<String>, PortError> {
         let content = self
             .config
-            .load(&profile)
+            .load(profile.as_str())
             .await
             .map_err(|error| PortError::Io(error.to_string()))?;
         let documents = YamlLoader::load_from_str(&content)
@@ -39,17 +36,32 @@ impl<S: SecureStore> ProfileEndpointSource<S> {
             .and_then(|document| document["secret"].as_str())
             .map(str::to_owned))
     }
+
+    pub async fn resolve_profile(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<ControllerEndpoint, PortError> {
+        let url = self
+            .config
+            .get_external_controller_for_profile(profile)
+            .await
+            .map_err(|error| PortError::Io(error.to_string()))?;
+        let secret = self.profile_secret(profile).await?;
+        Ok(ControllerEndpoint { url, secret })
+    }
 }
 
 #[async_trait]
 impl<S: SecureStore> EndpointSource for ProfileEndpointSource<S> {
     async fn resolve(&self) -> Result<ControllerEndpoint, PortError> {
-        let url = self
-            .config
-            .get_external_controller()
-            .await
-            .map_err(|error| PortError::Io(error.to_string()))?;
-        let secret = self.current_profile_secret().await?;
-        Ok(ControllerEndpoint { url, secret })
+        let profile = ProfileStore::get_current(self.config.as_ref()).await?;
+        let profile = ProfileId::new(profile).map_err(|error| {
+            PortError::Rejected(infiltrator_contract::error::Failure::new(
+                infiltrator_contract::error::ErrorCode::InvalidInput,
+                error.to_string(),
+                false,
+            ))
+        })?;
+        self.resolve_profile(&profile).await
     }
 }

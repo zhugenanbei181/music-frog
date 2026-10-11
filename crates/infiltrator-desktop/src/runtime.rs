@@ -1,4 +1,4 @@
-use crate::composition::{core_application, desktop_backend};
+use crate::composition::{core_application, desktop_product_backend};
 use crate::network_roaming::DesktopNetworkRoamingPort;
 use crate::pac_service::DesktopPacServicePort;
 use crate::rule_override::DesktopRuleOverridePort;
@@ -30,6 +30,7 @@ use infiltrator_application::speedtest_application::SpeedtestApplication;
 use infiltrator_application::stun_probe_application::StunProbeApplication;
 use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
+use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_contract::stun_probe::DEFAULT_STUN_SERVER;
 use infiltrator_contract::surface::SurfaceKind;
@@ -39,10 +40,8 @@ use infiltrator_core::apply::{
 };
 use infiltrator_core::dns_latency_io::HttpDnsLatencyProber;
 use infiltrator_core::dns_leak_io::HttpDnsLeakEchoProbe;
-use infiltrator_core::settings_io::{load_settings, settings_path};
 use infiltrator_core::snapshot_io::FileSnapshotStore;
 use infiltrator_core::stun_io::UdpStunProbe;
-use infiltrator_core::version_port::MihomoVersionPort;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::proxy::ProxyGroup;
 use infiltrator_ports::core_binary_selection::CoreBinarySelection;
@@ -51,6 +50,7 @@ use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::EngineBackendPorts;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionPort;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::runtime_gateway::RuntimeGateway;
 use infiltrator_ports::speedtest_history::SpeedtestHistoryStore;
 use mihomo_api::client::MihomoClient;
@@ -60,7 +60,6 @@ use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::defaults::DefaultCredentialStore;
-use mihomo_platform::paths::get_home_dir;
 use mihomo_version::engine::engine_id;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -84,6 +83,8 @@ pub(crate) struct MihomoRuntime {
     pub binary_path: PathBuf,
     pub controller_url: String,
     client: MihomoClient,
+    core_capability_provider:
+        Arc<dyn infiltrator_ports::core_capability_provider::CoreCapabilityProvider>,
     runtime_gateway: Arc<dyn RuntimeGateway>,
     backend_ports: EngineBackendPorts,
     service_manager: ServiceManager,
@@ -124,41 +125,16 @@ pub struct MihomoSummary {
     pub groups: Vec<ProxyGroup>,
 }
 
-#[derive(Clone, Copy)]
-enum RuntimeStartupPolicy {
-    AttachOnly,
-    StartIfStopped,
-}
-
 impl MihomoRuntime {
-    /// settings `configs_dir` 覆盖；env（`INFILTRATOR_CONFIGS_DIR`）的更高
-    /// 优先级在 `ConfigManager::with_configs_dir` 内部保持不变。settings
-    /// 读不到（无 home / 文件缺失或损坏）按未设置处理，行为与
-    /// 显式注入 home 和默认 secure store，行为与默认安装目录一致。
-    async fn settings_configs_dir() -> Option<String> {
-        let home = get_home_dir().ok()?;
-        let path = settings_path(&home).ok()?;
-        let settings = load_settings(&path).await.ok()?;
-        settings.configs_dir
-    }
-
-    /// Production boot path used by the retrying host.  It never downloads
-    /// GeoIP or probes a remote release/auth service before the local core is
-    /// attached; remote enrichment may happen after the surface is live.
-    pub(crate) async fn bootstrap_offline(selection: CoreBinarySelection) -> anyhow::Result<Self> {
-        Self::bootstrap_with_policy(selection, RuntimeStartupPolicy::StartIfStopped).await
-    }
-
     /// Initialize the real desktop ports without starting a stopped kernel.
-    pub(crate) async fn prepare_offline(selection: CoreBinarySelection) -> anyhow::Result<Self> {
-        Self::bootstrap_with_policy(selection, RuntimeStartupPolicy::AttachOnly).await
-    }
-
-    async fn bootstrap_with_policy(
+    pub(crate) async fn prepare_offline(
         selection: CoreBinarySelection,
-        startup_policy: RuntimeStartupPolicy,
+        config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+        mut preflight: infiltrator_composition::active_profile_backend::ActiveProfileSelectionPreflight,
     ) -> anyhow::Result<Self> {
-        if selection.engine_id != engine_id() {
+        if selection.engine_id != preflight.reference.engine_id
+            || selection.engine_id != engine_id()
+        {
             anyhow::bail!(
                 "Mihomo runtime cannot own selected engine {}",
                 selection.engine_id.as_str()
@@ -176,18 +152,30 @@ impl MihomoRuntime {
                 recovery_snapshot.status
             );
         }
-        let configs_dir = Self::settings_configs_dir().await;
-        let home = get_home_dir()?;
-        let cm = Arc::new(ConfigManager::with_home_configs_dir_and_store(
-            home,
-            configs_dir.as_deref(),
-            DefaultCredentialStore::default(),
-        )?);
-        cm.ensure_default_config().await?;
-        cm.validate_current_profile().await?;
-        cm.ensure_proxy_ports().await?;
-        let controller_url = cm.ensure_external_controller().await?;
-        let config_path = cm.get_current_path().await?;
+        let cm = config_manager;
+        let active_profile = preflight.reference.profile_id.clone();
+        let workspace = ProfileStore::load_workspace(cm.as_ref(), &active_profile).await?;
+        if workspace.document.identity != preflight.document.identity
+            || workspace.document.identity.engine_id != preflight.reference.engine_id
+            || workspace.document.identity.profile_id != preflight.reference.profile_id
+        {
+            return Err(anyhow::Error::new(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "profile document changed after desktop product preflight",
+                true,
+            ))));
+        }
+        let content = cm.load(active_profile.as_str()).await?;
+        mihomo_config::yaml::validate(&content)?;
+        let config_path = cm
+            .existing_profile_yaml_path(active_profile.as_str())
+            .await?;
+        cm.ensure_proxy_ports_for_profile(&active_profile).await?;
+        let controller_url = cm
+            .ensure_external_controller_for_profile(&active_profile)
+            .await?;
+        let workspace = ProfileStore::load_workspace(cm.as_ref(), &active_profile).await?;
+        preflight.refresh_document(workspace.document)?;
         let geoip_candidates =
             collect_geoip_candidates(&binary, &selection.related_asset_candidates);
         ensure_geoip_database_offline(&config_path, &geoip_candidates).await?;
@@ -195,20 +183,20 @@ impl MihomoRuntime {
         let service_mode = Arc::new(DesktopServiceMode::new(binary.clone()));
 
         let endpoints = Arc::new(ProfileEndpointSource::new(cm.clone()));
-        let endpoint = endpoints
-            .resolve()
-            .await
-            .map_err(|e| anyhow!(e.to_string()))?;
-        let backend = desktop_backend(
+        let endpoint = endpoints.resolve_profile(&active_profile).await?;
+        let backend = desktop_product_backend(
             &service_manager,
             &endpoint.url,
             endpoint.secret.clone(),
-            &MihomoVersionPort::engine_identifier(),
+            cm.clone(),
+            preflight,
         )
+        .await
         .map_err(|error| anyhow!(error.to_string()))?;
         let backend_ports = backend.ports.clone();
         let configuration_transaction = backend_ports.configuration_transaction();
         let client = backend.client.clone();
+        let core_capability_provider = Arc::clone(&backend.capability_provider);
         let runtime_gateway: Arc<dyn RuntimeGateway> = Arc::new(backend.client.clone());
         // One speedtest owner is installed into Core composition. The bounded
         // history is versioned and persisted.
@@ -308,21 +296,12 @@ impl MihomoRuntime {
         client.set_configuration_scope_resolver(scope_resolver);
         // Attach to an already-running instance by proving it answers, or
         // start a fresh one and let the application own readiness retries.
-        match (service_manager.is_running().await, startup_policy) {
-            (true, _) => {
-                log::info!("Attaching to running mihomo service");
-                application
-                    .adopt_if_running()
-                    .await
-                    .map_err(|error| anyhow!(error.message))?;
-            }
-            (false, RuntimeStartupPolicy::AttachOnly) => {}
-            (false, RuntimeStartupPolicy::StartIfStopped) => {
-                log::info!("Starting mihomo service");
-                CoreLifecyclePort::start(application.as_ref())
-                    .await
-                    .map_err(|error| anyhow!(error.to_string()))?;
-            }
+        if service_manager.is_running().await {
+            log::info!("Attaching to running mihomo service");
+            application
+                .adopt_if_running()
+                .await
+                .map_err(|error| anyhow!(error.message))?;
         }
         let watchdog = infiltrator_composition::spawn_core_watchdog(application.clone());
         let pac_service = Arc::new(DesktopPacServicePort::shared());
@@ -350,6 +329,7 @@ impl MihomoRuntime {
             binary_path: binary,
             controller_url,
             client,
+            core_capability_provider,
             runtime_gateway,
             backend_ports,
             service_manager,
@@ -394,7 +374,7 @@ impl MihomoRuntime {
         strategy: ApplyStrategy,
     ) -> anyhow::Result<ApplyOutcome> {
         let _guard = self.apply_guard.lock().await;
-        let profile = self.config_manager.get_current().await?;
+        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
         let content = self.config_manager.load(&profile).await?;
         let reloader =
             EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
@@ -430,7 +410,7 @@ impl MihomoRuntime {
         strategy: ApplyStrategy,
     ) -> anyhow::Result<ApplyOutcome> {
         let _guard = self.apply_guard.lock().await;
-        let profile = self.config_manager.get_current().await?;
+        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
         let reloader =
             EndpointConfigReloader::new(self.endpoints.clone() as Arc<dyn EndpointSource>);
         let params = ApplyParams {
@@ -492,7 +472,7 @@ impl MihomoRuntime {
     }
 
     pub async fn summary(&self) -> anyhow::Result<MihomoSummary> {
-        let profile = self.config_manager.get_current().await?;
+        let profile = ProfileStore::get_current(self.config_manager.as_ref()).await?;
         let running = matches!(
             self.service_manager.status().await?,
             ServiceStatus::Running(_)

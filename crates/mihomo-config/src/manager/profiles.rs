@@ -11,7 +11,10 @@ use super::subscription_store::{delete_subscription_url, store_subscription_url}
 use crate::profile::Profile;
 use crate::sidecar_store::remove_optional;
 use crate::yaml;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::profile_document_identity::ProfileId;
 use infiltrator_domain::profile_options::options_path;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::io::ErrorKind;
@@ -99,7 +102,22 @@ impl<S: SecureStore> ConfigManager<S> {
             return Ok(vec![]);
         }
 
-        let current = self.get_current().await.ok();
+        // Profile activity is product-wide and comes only from the typed
+        // engine+profile reference. Keep its read lease while projecting the
+        // list so a concurrent selection cannot make this view point at a
+        // different document halfway through enumeration.
+        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let active_profile = match selection_lease.state() {
+            ActiveProfileReferenceState::Unselected { .. } => None,
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id() =>
+            {
+                Some(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Selected(_) => None,
+        };
         let settings = self.read_settings_value().await.ok();
         let metadata_table = settings
             .as_ref()
@@ -117,7 +135,7 @@ impl<S: SecureStore> ConfigManager<S> {
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
                     .to_string();
-                let active = current.as_ref() == Some(&name);
+                let active = active_profile.as_ref() == Some(&name);
                 let mut profile = Profile::new(name.clone(), path, active);
                 if let Some(table) = metadata_table.and_then(|table| table.get(&name))
                     && let Some(profile_table) = table.as_table()
@@ -143,14 +161,27 @@ impl<S: SecureStore> ConfigManager<S> {
 
     pub async fn delete_profile(&self, profile: &str) -> Result<()> {
         self.initialize_profile_namespace().await?;
-        let _guard = self.lock_profile_writes().await;
-        let path = self.existing_profile_yaml_path(profile).await?;
-        let current = self.get_current_unlocked().await.ok();
-        if current.as_ref() == Some(&profile.to_string()) {
+        // Acquire the product selection fence before the engine write lock.
+        // This prevents a profile becoming selected between the active check
+        // and deletion, and preserves the root→engine lock order used by
+        // active workspace writes.
+        let selection_lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id = ProfileId::new(profile.to_owned())
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        if matches!(
+            selection_lease.state(),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id()
+                    && reference.profile_id == profile_id
+        ) {
             return Err(MihomoError::Config(
                 "Cannot delete the active profile".to_string(),
             ));
         }
+        let _guard = self.lock_profile_writes().await;
+        let path = self.existing_profile_yaml_path(profile).await?;
 
         let previous_document = fs::read(&path).await?;
         fs::remove_file(&path).await?;

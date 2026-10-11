@@ -5,13 +5,24 @@
 use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available, parse_port_from_addr};
 use crate::yaml;
+use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use ring::rand::{SecureRandom, SystemRandom};
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn get_external_controller(&self) -> Result<String> {
-        let profile = self.get_current().await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile =
+            ProfileId::new(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.get_external_controller_for_profile(&profile).await
+    }
+
+    pub async fn get_external_controller_for_profile(&self, profile: &ProfileId) -> Result<String> {
+        let profile = profile.as_str();
         log::debug!("Reading external-controller from profile: {}", profile);
 
         let content = self.load(&profile).await?;
@@ -35,8 +46,21 @@ impl<S: SecureStore> ConfigManager<S> {
     /// Ensure external-controller is configured in the current profile
     /// If not present or port is occupied, add/update it with an available port
     pub async fn ensure_external_controller(&self) -> Result<String> {
-        let profile = self.get_current().await?;
-        let content = self.load(&profile).await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id =
+            ProfileId::new(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.ensure_external_controller_for_profile(&profile_id)
+            .await
+    }
+
+    pub async fn ensure_external_controller_for_profile(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<String> {
+        let profile = profile.as_str();
+        let content = self.load(profile).await?;
         let mut config = yaml::load_yaml(&content)?;
 
         let needs_update = match yaml::get_str(&config, "external-controller") {
@@ -90,14 +114,28 @@ impl<S: SecureStore> ConfigManager<S> {
             let updated_content = yaml::to_string(&config)?;
             self.save(&profile, &updated_content).await?;
         }
-        self.get_external_controller().await
+        let profile = ProfileId::new(profile.to_owned())
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.get_external_controller_for_profile(&profile).await
     }
 
     /// Forcefully rotate the external-controller port to a new available one.
     /// Used when the service fails to start despite the port appearing available initially.
     pub async fn rotate_external_controller(&self) -> Result<String> {
-        let profile = self.get_current().await?;
-        let content = self.load(&profile).await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile =
+            ProfileId::new(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.rotate_external_controller_for_profile(&profile).await
+    }
+
+    pub async fn rotate_external_controller_for_profile(
+        &self,
+        profile: &ProfileId,
+    ) -> Result<String> {
+        let profile = profile.as_str();
+        let content = self.load(profile).await?;
         let mut config = yaml::load_yaml(&content)?;
 
         let current_port = yaml::get_str(&config, "external-controller")

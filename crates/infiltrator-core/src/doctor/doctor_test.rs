@@ -57,6 +57,7 @@ fn status_of(report: &DoctorReport, id: &str) -> DoctorStatus {
 async fn save_profile(env: &DoctorEnv, content: &str) {
     let manager = env.config_manager().await.unwrap();
     manager.save("default", content).await.unwrap();
+    manager.migrate_legacy_mihomo_selection().await.unwrap();
 }
 
 fn write_pid_file(env: &DoctorEnv, pid: u32) {
@@ -328,7 +329,7 @@ async fn profile_checks_fail_then_config_fix_heals() {
     );
     assert_eq!(
         status_of(&report, "config.current_yaml"),
-        DoctorStatus::Fail
+        DoctorStatus::Skip
     );
 
     let fixed = fix_with(&env, Some("config")).await.unwrap();
@@ -600,7 +601,7 @@ async fn full_report_keeps_check_order_and_exit_contract() {
     );
     assert_eq!(
         status_of(&report, "config.current_yaml"),
-        DoctorStatus::Fail
+        DoctorStatus::Skip
     );
     assert_eq!(
         status_of(&report, "version.binary_available"),

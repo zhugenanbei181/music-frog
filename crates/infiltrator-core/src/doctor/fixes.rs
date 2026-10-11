@@ -4,6 +4,7 @@
 
 use super::pidfile::remove_stale_pid_file;
 use super::{DoctorEnv, DoctorFixAction};
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use std::io::ErrorKind;
 use tokio::fs;
 
@@ -31,23 +32,28 @@ pub(super) async fn fix_configs_dir(env: &DoctorEnv) -> anyhow::Result<Option<Do
 
 pub(super) async fn fix_current_yaml(env: &DoctorEnv) -> anyhow::Result<Option<DoctorFixAction>> {
     let manager = env.config_manager().await?;
+    let previous_selection = ActiveProfileReferenceStore::read(&manager).await?;
+    let selection = manager.migrate_legacy_mihomo_selection().await?;
     let path = manager.get_current_path().await?;
     if path.exists() {
         // An existing file is never rewritten, even when it fails to parse:
         // the content belongs to the user.
-        return Ok(None);
+        return Ok((previous_selection != selection).then(|| DoctorFixAction {
+            id: "config.current_yaml".to_string(),
+            summary: format!("Initialized active profile config '{}'", path.display()),
+        }));
     }
-    manager.ensure_default_config().await?;
-    Ok(Some(DoctorFixAction {
-        id: "config.current_yaml".to_string(),
-        summary: format!("Created default config '{}'", path.display()),
-    }))
+    anyhow::bail!(
+        "active profile document '{}' is missing; refusing to create a different namespace-default profile",
+        path.display()
+    )
 }
 
 pub(super) async fn fix_external_controller(
     env: &DoctorEnv,
 ) -> anyhow::Result<Option<DoctorFixAction>> {
     let manager = env.config_manager().await?;
+    manager.migrate_legacy_mihomo_selection().await?;
     let profile_path = manager.get_current_path().await?;
     // A write happened iff the profile content changed; the resolved URL can
     // stay identical even when the key is newly written out.

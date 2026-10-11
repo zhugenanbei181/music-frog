@@ -157,6 +157,29 @@ impl AndroidControllerAdapters {
     }
 }
 
+/// Build the same controller-derived capability source used by the owner
+/// composition so launch preflight can reject an unsupported target before
+/// the backend factory is dispatched.
+pub(crate) fn android_core_capability_provider(
+    controller_url: &str,
+    secret: Option<String>,
+) -> Arc<dyn CoreCapabilityProvider> {
+    AndroidControllerAdapters::new(controller_url, secret).capability_provider()
+}
+
+/// Target-scoped lifecycle evidence can be checked before the one-time profile
+/// migration creates a new-install document or publishes a selection.
+pub(crate) fn android_core_lifecycle_capability_provider() -> Arc<dyn CoreCapabilityProvider> {
+    Arc::new(MihomoCoreCapabilityProvider::new(
+        HostKind::Android,
+        [
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+            CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+        ],
+    ))
+}
+
 struct AndroidMihomoBackendProvider<S: SecureStore + 'static> {
     bridge: Arc<dyn AndroidBridge>,
     profile_store: Arc<ConfigManager<S>>,

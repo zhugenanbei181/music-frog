@@ -315,13 +315,7 @@ mod tests {
     }
 
     async fn mihomo_namespace(manager: &ConfigManager<DefaultCredentialStore>) -> PathBuf {
-        manager
-            .get_current_path()
-            .await
-            .expect("current profile path resolves")
-            .parent()
-            .expect("profile path has a parent")
-            .to_path_buf()
+        manager.config_dir().to_path_buf()
     }
 
     #[tokio::test]

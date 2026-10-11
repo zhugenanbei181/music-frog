@@ -7,6 +7,7 @@
 //! had to change anything or was already satisfied.
 
 use crate::settings_io::app_config_manager_in;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::manager::ConfigManager;
 use mihomo_platform::paths::get_home_dir;
@@ -62,7 +63,7 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
     let manager = app_config_manager_in(home).await?;
     let mut steps = Vec::new();
 
-    // Step 1: the configs directory must exist before any profile file can.
+    // Step 1: the shared configs root must exist before profile migration.
     let configs_dir = configs_dir_of(&manager).await?;
     let had_dir = configs_dir.is_dir();
     create_dir_all(&configs_dir).await?;
@@ -72,15 +73,16 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
         detail: format!("configs directory '{}'", configs_dir.display()),
     });
 
-    // Step 2: the current profile needs a config file; mihomo-config writes a
-    // known-good default (including external-controller) when one is missing.
+    // Step 2: the explicit V0 migration selects the historical Mihomo profile
+    // and creates the default document only for a new install. A cleared or
+    // invalid global reference never falls back to the namespace pointer.
+    let previous_selection = ActiveProfileReferenceStore::read(&manager).await?;
+    let selection = manager.migrate_legacy_mihomo_selection().await?;
     let profile_path = manager.get_current_path().await?;
-    let had_config = profile_path.exists();
-    manager.ensure_default_config().await?;
     steps.push(BootstrapStep {
         id: "default_config",
-        executed: !had_config,
-        detail: format!("current profile config '{}'", profile_path.display()),
+        executed: previous_selection != selection,
+        detail: format!("active Mihomo profile config '{}'", profile_path.display()),
     });
 
     // Step 3: derive/repair external-controller. `ensure_external_controller`
@@ -102,9 +104,5 @@ pub async fn ensure_bootstrap_at(home: &Path) -> anyhow::Result<BootstrapReport>
 }
 
 async fn configs_dir_of<S: SecureStore>(manager: &ConfigManager<S>) -> anyhow::Result<PathBuf> {
-    let profile_path = manager.get_current_path().await?;
-    profile_path
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| anyhow::anyhow!("profile path has no parent: {}", profile_path.display()))
+    Ok(manager.config_root().to_path_buf())
 }

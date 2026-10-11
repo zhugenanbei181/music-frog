@@ -35,6 +35,10 @@ use infiltrator_application::surface_application::SurfacePump;
 use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
+use infiltrator_composition::active_profile_backend::{
+    ActiveProfileSelectionPreflight, PreviousCoreOwner, SelectedActiveProfileBackend,
+    authorize_lifecycle_start, preflight_active_profile_reference,
+};
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
 use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::capability::Capability;
@@ -50,15 +54,17 @@ use infiltrator_core::apply::EndpointConfigReloader;
 use infiltrator_core::profile_configuration_transaction::{
     MihomoBinaryConfigurationCandidateValidator, MihomoProfileConfigurationTransactionAdapter,
 };
+use infiltrator_core::settings_io::app_config_manager;
 use infiltrator_core::version_port::MihomoVersionPort;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use infiltrator_ports::core_binary_selection::{
     BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionRequest,
 };
+use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
-    EngineBackendProvider,
+    EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
@@ -89,21 +95,33 @@ pub(crate) struct DesktopProductBackend {
 pub(crate) async fn open_default_product_backend(
     surface: SurfaceKind,
 ) -> anyhow::Result<DesktopProductBackend> {
-    open_product_backend(MihomoVersionPort::engine_identifier(), surface).await
-}
-
-/// Open the registered desktop Core provider from a typed engine identity.
-/// Unknown engines fail in the registered runtime provider lookup before
-/// version selection, configuration, process, or controller setup begins.
-pub(crate) async fn open_product_backend(
-    engine_id: EngineId,
-    surface: SurfaceKind,
-) -> anyhow::Result<DesktopProductBackend> {
+    let config_manager = Arc::new(app_config_manager().await?);
+    let capability_provider =
+        desktop_core_capability_provider(DesktopLogStreamAdapter::ManagedRuntimeScopeBound);
+    let mihomo_engine_id = MihomoVersionPort::engine_identifier();
+    desktop_runtime_factory()?.provider(&mihomo_engine_id)?;
+    authorize_lifecycle_start(&capability_provider, &mihomo_engine_id)?;
+    // Do not create a new-install profile or publish a migrated reference
+    // until this host/target is evidenced to own Core lifecycle.
+    config_manager.migrate_legacy_mihomo_selection().await?;
+    let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
+    let profiles: Arc<dyn ProfileStore> = config_manager.clone();
+    let preflight = preflight_active_profile_reference(
+        references,
+        [profiles],
+        Arc::clone(&capability_provider),
+    )
+    .await?;
+    let engine_id = preflight.reference.engine_id.clone();
+    // Provider existence is checked before binary selection can copy or stage
+    // any candidate. Desktop SingBox remains Unsupported until a host provider
+    // and target-specific Start capability exist.
     desktop_runtime_factory()?.provider(&engine_id)?;
     let version_factory = version_factory()?;
     let home = home_dir()?;
     open_product_backend_with_source(
-        engine_id,
+        preflight,
+        config_manager,
         surface,
         &version_factory,
         BundledBinarySource {
@@ -115,11 +133,13 @@ pub(crate) async fn open_product_backend(
 }
 
 async fn open_product_backend_with_source(
-    engine_id: EngineId,
+    preflight: ActiveProfileSelectionPreflight,
+    config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
     surface: SurfaceKind,
     version_factory: &dyn EngineVersionBackendFactory,
     bundled_source: BundledBinarySource,
 ) -> anyhow::Result<DesktopProductBackend> {
+    let engine_id = preflight.reference.engine_id.clone();
     let provider = desktop_runtime_factory()?.provider(&engine_id)?;
     let selection = select_product_binary(
         version_factory,
@@ -128,28 +148,17 @@ async fn open_product_backend_with_source(
     )
     .await?;
     match provider
-        .create(selection, DesktopRuntimeRequest::OpenProduct { surface })
+        .create(
+            selection,
+            DesktopRuntimeRequest::OpenProduct {
+                surface,
+                config_manager,
+                preflight,
+            },
+        )
         .await?
     {
         DesktopRuntimeOutcome::Product(backend) => Ok(backend),
-        DesktopRuntimeOutcome::BootHost(_) => Err(anyhow::anyhow!(
-            "desktop Mihomo provider returned a boot host for a product request"
-        )),
-    }
-}
-
-pub(crate) async fn materialize_boot_host(
-    selection: CoreBinarySelection,
-) -> anyhow::Result<Arc<dyn HostRuntime>> {
-    let provider = desktop_runtime_factory()?.provider(&selection.engine_id)?;
-    match provider
-        .create(selection, DesktopRuntimeRequest::MaterializeBootHost)
-        .await?
-    {
-        DesktopRuntimeOutcome::BootHost(host_runtime) => Ok(host_runtime),
-        DesktopRuntimeOutcome::Product(_) => Err(anyhow::anyhow!(
-            "desktop Mihomo provider returned a product session for a boot-host request"
-        )),
     }
 }
 
@@ -167,15 +176,16 @@ trait DesktopEngineRuntimeProvider: Send + Sync {
     ) -> anyhow::Result<DesktopRuntimeOutcome>;
 }
 
-#[derive(Clone, Copy)]
 enum DesktopRuntimeRequest {
-    OpenProduct { surface: SurfaceKind },
-    MaterializeBootHost,
+    OpenProduct {
+        surface: SurfaceKind,
+        config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+        preflight: ActiveProfileSelectionPreflight,
+    },
 }
 
 enum DesktopRuntimeOutcome {
     Product(DesktopProductBackend),
-    BootHost(Arc<dyn HostRuntime>),
 }
 
 struct DesktopEngineRuntimeFactory {
@@ -246,8 +256,14 @@ impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
         }
 
         match request {
-            DesktopRuntimeRequest::OpenProduct { surface } => {
-                let runtime = Arc::new(MihomoRuntime::prepare_offline(selection).await?);
+            DesktopRuntimeRequest::OpenProduct {
+                surface,
+                config_manager,
+                preflight,
+            } => {
+                let runtime = Arc::new(
+                    MihomoRuntime::prepare_offline(selection, config_manager, preflight).await?,
+                );
                 let product_setup = async {
                     runtime.install_product_commands().await?;
                     runtime
@@ -269,11 +285,6 @@ impl DesktopEngineRuntimeProvider for DesktopMihomoRuntimeProvider {
                     host_runtime,
                     surface_pump,
                 }))
-            }
-            DesktopRuntimeRequest::MaterializeBootHost => {
-                let runtime = Arc::new(MihomoRuntime::bootstrap_offline(selection).await?);
-                let host_runtime: Arc<dyn HostRuntime> = runtime;
-                Ok(DesktopRuntimeOutcome::BootHost(host_runtime))
             }
         }
     }
@@ -325,26 +336,29 @@ pub(crate) fn core_application(
     endpoints: Arc<dyn EndpointSource>,
     apply_guard: Arc<Mutex<()>>,
 ) -> anyhow::Result<CoreApplication> {
+    let DesktopMihomoBackend {
+        ports,
+        client,
+        capability_provider,
+        selection,
+    } = backend;
     let exports = Arc::new(DesktopLogExportPort::new(profile_store.config_dir()));
     let export_secrets = secret.iter().cloned().collect();
-    let client = backend.client.clone();
+    let client = client.clone();
     let runtime = infiltrator_composition::tokio_application_runtime()
         .map_err(|error| anyhow::anyhow!(error))?;
     let application = CoreApplication::new_with_overview(
-        backend.ports.process(),
-        backend.ports.readiness(),
+        ports.process(),
+        ports.readiness(),
         Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
-    match backend
-        .ports
-        .bind_owner_scope_source(Arc::new(application.clone()))?
-    {
+    match ports.bind_owner_scope_source(Arc::new(application.clone()))? {
         EngineBackendOwnerScopeBindingResult::NotRequired => {}
         EngineBackendOwnerScopeBindingResult::Bound => {}
     }
-    let transaction_binding = backend.ports.configuration_transaction_binding();
-    let document_codec = backend.ports.configuration();
+    let transaction_binding = ports.configuration_transaction_binding();
+    let document_codec = ports.configuration();
     let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
     let stopped_validator = Arc::new(MihomoBinaryConfigurationCandidateValidator::new(
         transaction_scope,
@@ -361,9 +375,9 @@ pub(crate) fn core_application(
     )?);
     transaction_binding.bind(transaction)?;
     application
-        .install_log_gateway(Arc::new(backend.client.clone()))
+        .install_log_gateway(Arc::new(client.clone()))
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    let outbound_port = backend.ports.operations().outbound()?;
+    let outbound_port = ports.operations().outbound()?;
     application
         .install_outbound_port(outbound_port.clone())
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
@@ -377,8 +391,8 @@ pub(crate) fn core_application(
     let commands = desktop_command_application(DesktopCommandServices {
         binary_path: service.binary_path().to_path_buf(),
         client: client.clone(),
-        backend_ports: backend.ports,
-        log_stream: DesktopLogStreamAdapter::Unavailable,
+        backend_ports: ports,
+        core_capability_provider: Arc::clone(&capability_provider),
         engines,
         profile_store,
         subscription_source,
@@ -397,6 +411,11 @@ pub(crate) fn core_application(
                 export_secrets,
             )),
     ));
+    let DesktopBackendSelection::ActiveProfile(selection) = selection;
+    let owner_binding = selection.into_owner_binding()?;
+    application
+        .install_active_profile_owner_binding(owner_binding)
+        .map_err(|failure| anyhow::anyhow!(failure.message))?;
     Ok(application)
 }
 
@@ -405,9 +424,7 @@ pub struct DesktopCommandServices {
     pub binary_path: PathBuf,
     pub client: MihomoClient,
     pub backend_ports: EngineBackendPorts,
-    /// Whether this product composition has installed a host adapter that
-    /// proves the active Core scope before opening a log stream.
-    pub log_stream: DesktopLogStreamAdapter,
+    pub core_capability_provider: Arc<dyn CoreCapabilityProvider>,
     pub engines: SurfaceEngines,
     pub profile_store: Arc<dyn ProfileStore>,
     pub subscription_source: Arc<dyn SubscriptionSource>,
@@ -429,7 +446,7 @@ pub fn desktop_command_application(
         binary_path,
         client,
         backend_ports,
-        log_stream,
+        core_capability_provider,
         engines,
         profile_store,
         subscription_source,
@@ -472,43 +489,7 @@ pub fn desktop_command_application(
     // DUAL-11-06/07: the kernel's provider cache lives next to the profiles
     // (`-d <config dir>`), so the command handler purges exactly that folder.
     let rule_provider_cache = Arc::new(DesktopRuleProviderCache::new(profile_store.config_dir()));
-    let mut adapter_operations = vec![
-        CoreOperation::Profile(ProfileOperation::ApplyFeature),
-        CoreOperation::Dns(DnsOperation::ApplyConfiguration),
-        CoreOperation::Dns(DnsOperation::Query),
-        CoreOperation::Rules(RulesOperation::Trace),
-        CoreOperation::Rules(RulesOperation::Apply),
-        CoreOperation::Subscription(SubscriptionOperation::Refresh),
-        CoreOperation::Subscription(SubscriptionOperation::Import),
-        CoreOperation::Subscription(SubscriptionOperation::Update),
-        CoreOperation::Provider(ProviderOperation::ListRule),
-        CoreOperation::Provider(ProviderOperation::UpdateRule),
-        CoreOperation::Outbound(OutboundOperation::Select),
-        CoreOperation::Outbound(OutboundOperation::Probe),
-        CoreOperation::Outbound(OutboundOperation::List),
-        CoreOperation::Connection(ConnectionOperation::Close),
-        CoreOperation::Logs(LogsOperation::SetLevel),
-        CoreOperation::Geo(GeoOperation::UpdateDatabases),
-        CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
-        CoreOperation::Tun(TunOperation::Configure),
-        CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
-        CoreOperation::Version(VersionOperation::Inspect),
-        CoreOperation::Version(VersionOperation::Rollback),
-        CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
-        CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
-        CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
-        CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
-        CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
-    ];
-    match log_stream {
-        DesktopLogStreamAdapter::Unavailable => {}
-        DesktopLogStreamAdapter::ManagedRuntimeScopeBound => {
-            adapter_operations.push(CoreOperation::Logs(LogsOperation::Stream));
-        }
-    }
-    let core_capabilities = CoreCapabilityApplication::new(Arc::new(
-        MihomoCoreCapabilityProvider::new(HostKind::Desktop, adapter_operations),
-    ));
+    let core_capabilities = CoreCapabilityApplication::new(core_capability_provider);
     let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
@@ -548,18 +529,68 @@ pub fn desktop_command_application(
         .with_rule_provider_cache(rule_provider_cache))
 }
 
+pub(crate) fn desktop_core_capability_provider(
+    log_stream: DesktopLogStreamAdapter,
+) -> Arc<dyn CoreCapabilityProvider> {
+    let mut adapter_operations = vec![
+        CoreOperation::Profile(ProfileOperation::ApplyFeature),
+        CoreOperation::Dns(DnsOperation::ApplyConfiguration),
+        CoreOperation::Dns(DnsOperation::Query),
+        CoreOperation::Rules(RulesOperation::Trace),
+        CoreOperation::Rules(RulesOperation::Apply),
+        CoreOperation::Subscription(SubscriptionOperation::Refresh),
+        CoreOperation::Subscription(SubscriptionOperation::Import),
+        CoreOperation::Subscription(SubscriptionOperation::Update),
+        CoreOperation::Provider(ProviderOperation::ListRule),
+        CoreOperation::Provider(ProviderOperation::UpdateRule),
+        CoreOperation::Outbound(OutboundOperation::Select),
+        CoreOperation::Outbound(OutboundOperation::Probe),
+        CoreOperation::Outbound(OutboundOperation::List),
+        CoreOperation::Connection(ConnectionOperation::Close),
+        CoreOperation::Logs(LogsOperation::SetLevel),
+        CoreOperation::Geo(GeoOperation::UpdateDatabases),
+        CoreOperation::FakeIpCache(FakeIpCacheOperation::Flush),
+        CoreOperation::Tun(TunOperation::Configure),
+        CoreOperation::CoreGarbageCollection(CoreGarbageCollectionOperation::Trigger),
+        CoreOperation::Version(VersionOperation::Inspect),
+        CoreOperation::Version(VersionOperation::Rollback),
+        CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+        CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
+        CoreOperation::Lifecycle(CoreLifecycleOperation::Restart),
+        CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
+        CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
+    ];
+    match log_stream {
+        DesktopLogStreamAdapter::Unavailable => {}
+        DesktopLogStreamAdapter::ManagedRuntimeScopeBound => {
+            adapter_operations.push(CoreOperation::Logs(LogsOperation::Stream));
+        }
+    }
+    Arc::new(MihomoCoreCapabilityProvider::new(
+        HostKind::Desktop,
+        adapter_operations,
+    ))
+}
+
 pub(crate) struct DesktopMihomoBackend {
     pub ports: EngineBackendPorts,
     pub client: MihomoClient,
+    pub capability_provider: Arc<dyn CoreCapabilityProvider>,
+    pub selection: DesktopBackendSelection,
 }
 
-pub(crate) fn desktop_backend(
+pub(crate) enum DesktopBackendSelection {
+    ActiveProfile(SelectedActiveProfileBackend),
+}
+
+pub(crate) async fn desktop_product_backend(
     service: &ServiceManager,
     controller_url: &str,
     secret: Option<String>,
-    engine_id: &EngineId,
+    config_manager: Arc<ConfigManager<DefaultCredentialStore>>,
+    preflight: ActiveProfileSelectionPreflight,
 ) -> Result<DesktopMihomoBackend, PortError> {
-    desktop_runtime_factory()?.provider(engine_id)?;
+    let capability_provider = preflight.capability_provider();
     let client = MihomoClient::new(controller_url, secret.clone())
         .map_err(|error| PortError::Network(error.to_string()))?;
     let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> = Arc::new(
@@ -570,18 +601,37 @@ pub(crate) fn desktop_backend(
         readiness,
         client.clone(),
     )?);
-    desktop_backend_from_provider(provider, client, engine_id)
-}
-
-fn desktop_backend_from_provider(
-    provider: Arc<MihomoEngineBackendProvider>,
-    client: MihomoClient,
-    engine_id: &EngineId,
-) -> Result<DesktopMihomoBackend, PortError> {
-    let factory_provider: Arc<dyn EngineBackendProvider> = provider.clone();
-    let registry = EngineBackendFactoryRegistry::new([factory_provider])?;
-    let ports = registry.backend_ports(engine_id)?;
-    Ok(DesktopMihomoBackend { ports, client })
+    let factory_provider: Arc<dyn EngineBackendProvider> = provider;
+    let factory = Arc::new(EngineBackendFactoryRegistry::new([factory_provider])?);
+    let references: Arc<dyn ActiveProfileReferenceStore> = config_manager.clone();
+    let profiles: Arc<dyn ProfileStore> = config_manager;
+    let selector =
+        infiltrator_composition::active_profile_backend::ActiveProfileBackendSelector::new(
+            references,
+            [profiles],
+            factory,
+            Arc::clone(&capability_provider),
+        );
+    let selected = selector
+        .select_backend_from_preflight(preflight, &PreviousCoreOwner::Unowned)
+        .await?;
+    if selected.reference.engine_id != MihomoVersionPort::engine_identifier() {
+        return Err(PortError::unsupported(
+            Capability::CoreLifecycle,
+            format!(
+                "desktop Mihomo host cannot bind selected engine {}",
+                selected.reference.engine_id.as_str()
+            ),
+        ));
+    }
+    let ports = selected.backend.clone();
+    let capability_provider = selected.capability_provider();
+    Ok(DesktopMihomoBackend {
+        ports,
+        client,
+        capability_provider,
+        selection: DesktopBackendSelection::ActiveProfile(selected),
+    })
 }
 
 #[cfg(test)]

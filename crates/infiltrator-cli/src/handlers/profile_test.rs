@@ -76,10 +76,11 @@ async fn profile_listing_follows_the_configs_dir_override() {
     let result = async {
         apply_configs_dir_override(temp.path(), Some("cloud".to_string())).await?;
         let runtime = Runtime::with_home(temp.path().to_path_buf()).await?;
-        runtime.config_manager()?.ensure_default_config().await?;
-        assert!(temp.path().join("cloud").join("default.yaml").exists());
+        let manager = runtime.config_manager()?;
+        manager.migrate_legacy_mihomo_selection().await?;
+        assert!(manager.config_dir().join("default.yaml").exists());
 
-        let profiles = runtime.config_manager()?.list_profiles().await?;
+        let profiles = manager.list_profiles().await?;
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].name, "default");
         assert!(profiles[0].active);

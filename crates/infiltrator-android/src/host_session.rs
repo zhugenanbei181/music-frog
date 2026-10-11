@@ -4,13 +4,24 @@
 
 use infiltrator_application::android_control_application::AndroidControlApplication;
 use infiltrator_application::core_application::CoreApplication;
+use infiltrator_application::core_capability_application::CoreCapabilityApplication;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_contract::adapter_operation_declaration::AdapterOperationOwner;
 use infiltrator_contract::android_control::AndroidHostProcessRole;
+use infiltrator_contract::core_capabilities::{
+    CapabilityAccess, CoreCapabilityKey, CoreCapabilityStatus, CoreLifecycleOperation,
+    CoreOperation, EngineCapabilityDecision,
+};
+use infiltrator_contract::core_identity::CoreGeneration;
 use infiltrator_contract::error::InfiltratorError;
 use infiltrator_core::apply::{
     ApplyError, ApplyParams, EndpointConfigReloader, apply_current_profile,
 };
 use infiltrator_domain::apply::ApplyStrategy;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_config::endpoint::ProfileEndpointSource;
 use mihomo_config::manager::ConfigManager;
@@ -19,7 +30,10 @@ use mihomo_platform::defaults::DefaultCredentialStore;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::OnceCell;
 
-use crate::composition::{AndroidCoreComposition, core_application_with_readiness};
+use crate::composition::{
+    AndroidCoreComposition, android_core_capability_provider,
+    android_core_lifecycle_capability_provider, core_application_with_readiness_and_provider,
+};
 use crate::core_launch_spec::AndroidProfileReadiness;
 use crate::ffi::{FfiErrorCode, FfiStatus};
 use crate::host_support::{build_config_manager, map_mihomo_error};
@@ -58,34 +72,147 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
             let bridge = Arc::clone(&bridge);
             async move {
                 let config = Arc::new(build_config_manager().await?);
+                let mihomo_engine_id = config.engine_id();
+                authorize_android_core_start(
+                    android_core_lifecycle_capability_provider(),
+                    &mihomo_engine_id,
+                )?;
                 config
-                    .ensure_default_config()
+                    .migrate_legacy_mihomo_selection()
                     .await
-                    .map_err(map_mihomo_error)?;
-                config
-                    .ensure_external_controller()
-                    .await
-                    .map_err(map_mihomo_error)?;
+                    .map_err(|error| {
+                        FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            format!("Android legacy Mihomo selection migration failed: {error}"),
+                        )
+                    })?;
                 let endpoints = Arc::new(ProfileEndpointSource::new(Arc::clone(&config)));
-                let endpoint_source: Arc<dyn EndpointSource> = endpoints.clone();
-                let endpoint = endpoint_source.resolve().await.map_err(|error| {
-                    FfiStatus::err(
-                        FfiErrorCode::Config,
-                        format!("Android active Core endpoint is unavailable: {error}"),
-                    )
-                })?;
+                let selection_lease =
+                    ActiveProfileReferenceStore::acquire_provider_selection_lease(config.as_ref())
+                        .await
+                        .map_err(|error| {
+                            FfiStatus::err(
+                                FfiErrorCode::NotReady,
+                                format!("Android active Core selection is unavailable: {error}"),
+                            )
+                        })?;
+                let reference = match selection_lease.state() {
+                    ActiveProfileReferenceState::Unselected { .. } => {
+                        return Err(FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            "Android has no product-wide active profile reference",
+                        ));
+                    }
+                    ActiveProfileReferenceState::Selected(reference) => reference.clone(),
+                };
+                if reference.engine_id != config.engine_id() {
+                    return Err(FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        format!(
+                            "Android Mihomo owner cannot bind active engine {}",
+                            reference.engine_id.as_str()
+                        ),
+                    ));
+                }
+                let workspace =
+                    ProfileStore::load_workspace(config.as_ref(), &reference.profile_id)
+                        .await
+                        .map_err(|error| {
+                            FfiStatus::err(
+                                FfiErrorCode::Config,
+                                format!("Android active profile document is unavailable: {error}"),
+                            )
+                        })?;
+                if workspace.document.identity.engine_id != reference.engine_id
+                    || workspace.document.identity.profile_id != reference.profile_id
+                {
+                    return Err(FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        "Android active profile reference does not match its persisted document",
+                    ));
+                }
+                let initial_endpoint = endpoints
+                    .resolve_profile(&reference.profile_id)
+                    .await
+                    .map_err(|error| {
+                        FfiStatus::err(
+                            FfiErrorCode::Config,
+                            format!("Android active Core endpoint is unavailable: {error}"),
+                        )
+                    })?;
+                let initial_capability_provider = android_core_capability_provider(
+                    &initial_endpoint.url,
+                    initial_endpoint.secret.clone(),
+                );
+                authorize_android_core_start(
+                    Arc::clone(&initial_capability_provider),
+                    &reference.engine_id,
+                )?;
+
+                // All provider, profile, and target capability checks pass
+                // before this profile-specific configuration write.
+                config
+                    .ensure_external_controller_for_profile(&reference.profile_id)
+                    .await
+                    .map_err(map_mihomo_error)?;
+                let endpoint = endpoints
+                    .resolve_profile(&reference.profile_id)
+                    .await
+                    .map_err(|error| {
+                        FfiStatus::err(
+                            FfiErrorCode::Config,
+                            format!("Android active Core endpoint is unavailable: {error}"),
+                        )
+                    })?;
+                let capability_provider =
+                    android_core_capability_provider(&endpoint.url, endpoint.secret.clone());
+                authorize_android_core_start(
+                    Arc::clone(&capability_provider),
+                    &reference.engine_id,
+                )?;
                 let controller_url = endpoint.url;
                 let controller_secret = endpoint.secret;
                 // Compose/FFI and Bevy both reach this product composition. It
                 // installs the Rust command handler, including VPN lifecycle.
-                let application = core_application_with_readiness(
+                let application = core_application_with_readiness_and_provider(
                     bridge,
                     controller_url,
                     controller_secret,
                     AndroidCoreComposition::new(Arc::clone(&config)),
                     Arc::new(AndroidProfileReadiness::new(Arc::clone(&endpoints))),
+                    capability_provider,
                 )
                 .map_err(|error| FfiStatus::err(FfiErrorCode::Unknown, error))?;
+                let owner_identity = application.snapshot().identity.ok_or_else(|| {
+                    FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        "Android Core backend has no typed owner identity",
+                    )
+                })?;
+                if owner_identity.engine != reference.engine_id {
+                    return Err(FfiStatus::err(
+                        FfiErrorCode::NotReady,
+                        "Android Core backend identity does not match the active profile engine",
+                    ));
+                }
+                let owner_binding = selection_lease
+                    .into_owner_binding(
+                        owner_identity,
+                        CoreGeneration::new(application.snapshot().generation),
+                    )
+                    .map_err(|error| {
+                        FfiStatus::err(
+                            FfiErrorCode::NotReady,
+                            format!(
+                                "Android Core owner could not bind the active profile: {error}"
+                            ),
+                        )
+                    })?;
+                application
+                    .install_active_profile_owner_binding(owner_binding)
+                    .map_err(|failure| {
+                        FfiStatus::from(InfiltratorError::Backend(failure.message))
+                    })?;
                 let control = AndroidControlApplication::new(application.clone());
                 let watchdog =
                     infiltrator_composition::spawn_core_watchdog(Arc::new(application.clone()));
@@ -100,6 +227,42 @@ pub(crate) async fn shared_core() -> Result<Arc<SharedCore>, FfiStatus> {
         })
         .await?;
     Ok(Arc::clone(core))
+}
+
+fn authorize_android_core_start(
+    provider: Arc<dyn CoreCapabilityProvider>,
+    engine_id: &infiltrator_contract::core_identity::EngineId,
+) -> Result<(), FfiStatus> {
+    let matrix = CoreCapabilityApplication::new(provider)
+        .matrix_for(engine_id, None)
+        .map_err(|failure| {
+            FfiStatus::err(
+                FfiErrorCode::NotReady,
+                format!(
+                    "Android Core capability matrix is unavailable: {}",
+                    failure.message
+                ),
+            )
+        })?;
+    let resolution = matrix.resolve(CoreCapabilityKey::new(
+        matrix.scope.clone(),
+        CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
+    ));
+    match (resolution.status, resolution.engine) {
+        (
+            CoreCapabilityStatus::Available {
+                access: CapabilityAccess::Supported,
+                ..
+            },
+            Some(EngineCapabilityDecision::OwnerManaged {
+                owner: AdapterOperationOwner::CoreLifecycle,
+            }),
+        ) => Ok(()),
+        (status, _) => Err(FfiStatus::err(
+            FfiErrorCode::NotReady,
+            format!("Android Core start is not evidenced on this target: {status:?}"),
+        )),
+    }
 }
 
 /// Undo a `set_current` after a failed apply so the active-profile metadata

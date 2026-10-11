@@ -5,22 +5,22 @@ use super::ConfigManager;
 use crate::port::{find_available_port, is_port_available, split_listen_addr};
 use crate::yaml;
 use crate::yaml_ast::update_nested_field;
+use infiltrator_contract::profile_document_identity::ProfileId;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 
 impl<S: SecureStore> ConfigManager<S> {
-    /// Ensure a default config file exists, create one if it doesn't
-    pub async fn ensure_default_config(&self) -> Result<()> {
-        let profile = self.get_current().await?;
+    /// Create a missing Mihomo profile document for the one-time legacy
+    /// selection migration. The caller has already fenced this operation to
+    /// the Pending V0 migration state and exact default profile identity.
+    pub(crate) async fn ensure_profile_document(&self, profile: &str) -> Result<()> {
         let path = self.config_dir.join(format!("{}.yaml", profile));
-
         if !path.exists() {
-            log::info!("Default config '{}' not found, creating...", profile);
-
+            log::info!("Mihomo profile '{}' not found, creating...", profile);
             let port = find_available_port(9090).ok_or_else(|| {
                 MihomoError::Config("No available ports found in range 9090-9190".to_string())
             })?;
-
             let default_config = format!(
                 r#"# mihomo configuration
 port: 7890
@@ -36,12 +36,20 @@ external-controller: 127.0.0.1:{}
             self.save(&profile, &default_config).await?;
             log::info!("Created default config at: {}", path.display());
         }
-
         Ok(())
     }
 
     pub async fn ensure_proxy_ports(&self) -> Result<()> {
-        let profile = self.get_current().await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id =
+            ProfileId::new(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.ensure_proxy_ports_for_profile(&profile_id).await
+    }
+
+    pub async fn ensure_proxy_ports_for_profile(&self, profile: &ProfileId) -> Result<()> {
+        let profile = profile.as_str();
         let content = self.load(&profile).await?;
         let mut doc = yaml::load_yaml(&content)?;
         let mut changed = false;
@@ -81,7 +89,16 @@ external-controller: 127.0.0.1:{}
     /// of implied. A profile without `dns.listen` is left untouched, and the
     /// host part of the address is preserved.
     pub async fn ensure_dns_listen_port(&self) -> Result<()> {
-        let profile = self.get_current().await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
+        let profile_id =
+            ProfileId::new(profile).map_err(|error| MihomoError::Config(error.to_string()))?;
+        self.ensure_dns_listen_port_for_profile(&profile_id).await
+    }
+
+    pub async fn ensure_dns_listen_port_for_profile(&self, profile: &ProfileId) -> Result<()> {
+        let profile = profile.as_str();
         let content = self.load(&profile).await?;
         let doc = yaml::load_yaml(&content)?;
         let Some(raw) = doc["dns"]["listen"].as_str() else {

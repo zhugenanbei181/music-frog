@@ -14,6 +14,7 @@
 
 use std::path;
 mod active;
+mod active_profile_reference;
 mod controller;
 mod defaults;
 #[cfg(test)]

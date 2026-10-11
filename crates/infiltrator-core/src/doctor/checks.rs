@@ -4,6 +4,8 @@
 use super::pidfile::{PidFileState, ProcessState, read_pid_state, service_running};
 use super::{DoctorCheckResult, DoctorEnv, DoctorStatus};
 use crate::settings_io::parse_settings_toml;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::error::MihomoError;
 #[cfg(unix)]
@@ -398,6 +400,25 @@ pub(super) async fn check_external_controller(env: &DoctorEnv) -> DoctorCheckRes
         Ok(manager) => manager,
         Err(err) => return manager_fail("controller.external_controller", "controller", err),
     };
+    match ActiveProfileReferenceStore::read(&manager).await {
+        Ok(ActiveProfileReferenceState::Unselected { .. }) => {
+            return skip(
+                "controller.external_controller",
+                "controller",
+                "Skipped because no product-wide active profile is selected",
+            );
+        }
+        Ok(ActiveProfileReferenceState::Selected(_)) => {}
+        Err(err) => {
+            return fail(
+                "controller.external_controller",
+                "controller",
+                format!("Cannot read active profile reference: {err}"),
+                None,
+                None,
+            );
+        }
+    }
     match manager.get_external_controller().await {
         Ok(url) => pass(
             "controller.external_controller",

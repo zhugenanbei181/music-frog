@@ -39,7 +39,7 @@ impl<S: SecureStore> CoreLaunchSpecSource for AndroidProfileLaunchSpecProvider<S
         let working_directory_argument = path_argument(working_directory.as_path())?;
 
         self.config
-            .ensure_default_config()
+            .migrate_legacy_mihomo_selection()
             .await
             .map_err(config_failure)?;
         self.config
@@ -222,10 +222,7 @@ mod tests {
             PathBuf::from("relative-owner-directory"),
         );
 
-        let default_path = config
-            .get_current_path()
-            .await
-            .expect("default profile path is resolved");
+        let default_path = config.config_dir().join("default.yaml");
         assert!(!default_path.exists());
         assert!(provider.resolve().await.is_err());
         assert!(!default_path.exists());

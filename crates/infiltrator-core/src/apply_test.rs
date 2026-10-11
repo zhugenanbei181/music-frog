@@ -271,10 +271,6 @@ async fn fixture(probe_failures: u64, reload_fails: bool) -> Fixture {
         },
     )
     .expect("config manager");
-    config
-        .ensure_default_config()
-        .await
-        .expect("default config");
     config.save("main", OLD).await.expect("seed profile");
     config.set_current("main").await.expect("set current");
 

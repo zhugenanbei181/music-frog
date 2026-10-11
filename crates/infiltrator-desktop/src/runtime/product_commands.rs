@@ -1,8 +1,6 @@
 //! The complete desktop product command facade, using the same host engines as its reader.
 use super::MihomoRuntime;
-use crate::composition::{
-    DesktopCommandServices, DesktopLogStreamAdapter, desktop_command_application,
-};
+use crate::composition::{DesktopCommandServices, desktop_command_application};
 use crate::log_export::DesktopLogExportPort;
 use crate::storage::{app_routing_store, settings_store, subscription_source, sync};
 use infiltrator_application::log_export_application::LogExportApplication;
@@ -39,7 +37,7 @@ impl MihomoRuntime {
             binary_path: self.binary_path.clone(),
             client: self.client.clone(),
             backend_ports: self.backend_ports.clone(),
-            log_stream: DesktopLogStreamAdapter::ManagedRuntimeScopeBound,
+            core_capability_provider: Arc::clone(&self.core_capability_provider),
             engines: self.surface_engines(),
             profile_store: self.config_manager.clone(),
             subscription_source: Arc::new(subscription_source()),

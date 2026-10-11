@@ -120,6 +120,103 @@ async fn scoped_command_fails_closed_when_owner_identity_is_unavailable() {
     assert_eq!(handler_calls.load(Ordering::SeqCst), 0);
 }
 
+struct TestActiveOwnerLease {
+    identity: CoreIdentity,
+    generation: infiltrator_contract::core_identity::CoreGeneration,
+    drops: Arc<AtomicUsize>,
+}
+
+impl infiltrator_ports::active_profile_reference_store::ActiveProfileOwnerLease
+    for TestActiveOwnerLease
+{
+    fn identity(&self) -> &CoreIdentity {
+        &self.identity
+    }
+
+    fn generation(&self) -> infiltrator_contract::core_identity::CoreGeneration {
+        self.generation
+    }
+
+    fn release_after_terminal(
+        &self,
+        terminal: &infiltrator_contract::snapshot::CoreLifecycleSnapshot,
+    ) -> Result<(), infiltrator_ports::error::PortError> {
+        if terminal.identity.as_ref() != Some(&self.identity)
+            || terminal.generation < self.generation.value()
+            || terminal.lifecycle != infiltrator_contract::snapshot::CoreLifecycle::Stopped
+            || terminal.session_token.is_some()
+        {
+            return Err(infiltrator_ports::error::PortError::Failed(
+                "owner lease was not released by a matching terminal snapshot".into(),
+            ));
+        }
+        self.drops.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn active_profile_owner_binding_releases_only_after_stopped_readback() {
+    let released = Arc::new(AtomicUsize::new(0));
+    let app = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: false,
+        },
+        Ok("http://127.0.0.1:9090".to_string()),
+    );
+    let identity = app.snapshot().identity.unwrap();
+    app.install_active_profile_owner_binding(Box::new(TestActiveOwnerLease {
+        identity,
+        generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
+        drops: Arc::clone(&released),
+    }))
+    .unwrap();
+
+    app.close().await.unwrap();
+    assert_eq!(released.load(Ordering::SeqCst), 1);
+    assert!(matches!(
+        *app.inner.active_profile_owner_binding.lock().unwrap(),
+        super::ActiveProfileOwnerBindingState::Released
+    ));
+
+    let retained = Arc::new(AtomicUsize::new(0));
+    let failed_close = application(
+        FakeProcess {
+            running: AtomicBool::new(false),
+            fail_start: false,
+            fail_stop: true,
+        },
+        Ok("http://127.0.0.1:9090".to_string()),
+    );
+    let identity = failed_close.snapshot().identity.unwrap();
+    assert!(matches!(
+        test_execute_result_at_current_scope(&failed_close, CommandIntent::StartCore).await,
+        CommandResult::Completed { .. }
+    ));
+    failed_close
+        .install_active_profile_owner_binding(Box::new(TestActiveOwnerLease {
+            identity,
+            generation: infiltrator_contract::core_identity::CoreGeneration::new(0),
+            drops: Arc::clone(&retained),
+        }))
+        .unwrap();
+
+    assert!(failed_close.close().await.is_err());
+    assert_eq!(retained.load(Ordering::SeqCst), 0);
+    assert!(matches!(
+        *failed_close
+            .inner
+            .active_profile_owner_binding
+            .lock()
+            .unwrap(),
+        super::ActiveProfileOwnerBindingState::Bound(_)
+    ));
+    drop(failed_close);
+    assert_eq!(retained.load(Ordering::SeqCst), 0);
+}
+
 #[tokio::test]
 async fn stale_core_generation_is_rejected_before_the_handler_runs() {
     let app = application(

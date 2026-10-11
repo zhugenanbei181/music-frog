@@ -5,6 +5,7 @@ use crate::manager::profiles::backup_path;
 use crate::profile_document_codec::{PROFILE_FORMAT, PROFILE_SCHEMA_VERSION};
 use crate::sidecar_store::{read_optional_bytes, remove_optional, write_document_bytes};
 use crate::yaml::validate;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -15,6 +16,9 @@ use infiltrator_contract::profile_document_identity::{
 };
 use infiltrator_contract::profile_protection::{ProfileWriteAuthorization, ProfileWriteProtection};
 use infiltrator_domain::profile_options::options_path;
+use infiltrator_ports::active_profile_reference_store::{
+    ActiveProfileReferenceLease, ActiveProfileReferenceStore,
+};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::profile_workspace::{
     ProfileWorkspace, ProfileWorkspacePurpose, ProfileWorkspaceUpdate,
@@ -36,15 +40,51 @@ pub(crate) enum WorkspaceTarget {
     Inactive,
 }
 
+enum SelectionFence {
+    NotRequired,
+    Held(Box<dyn ActiveProfileReferenceLease>),
+}
+
 impl<S: SecureStore> ConfigManager<S> {
     pub(crate) async fn read_active_workspace(&self) -> Result<ProfileWorkspace, PortError> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;
-        let _guard = self.lock_profile_writes().await;
-        let current = self.get_current_unlocked().await.map_err(config_error)?;
-        let profile = profile_id(&current)?;
-        self.read_workspace_locked(&profile).await
+        let lease = ActiveProfileReferenceStore::acquire_selection_lease(self).await?;
+        let reference = match lease.state() {
+            ActiveProfileReferenceState::Unselected { .. } => {
+                return Err(PortError::unsupported(
+                    Capability::Profiles,
+                    "no product-wide active profile is selected",
+                ));
+            }
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id() =>
+            {
+                reference
+            }
+            ActiveProfileReferenceState::Selected(reference) => {
+                return Err(PortError::unsupported(
+                    Capability::Profiles,
+                    format!(
+                        "the active profile belongs to engine {} instead of {}",
+                        reference.engine_id.as_str(),
+                        self.engine_id().as_str()
+                    ),
+                ));
+            }
+        };
+        let workspace = self.read_workspace(&reference.profile_id).await?;
+        if workspace.document.identity.engine_id != reference.engine_id
+            || workspace.document.identity.profile_id != reference.profile_id
+        {
+            return Err(PortError::Rejected(Failure::new(
+                ErrorCode::NotReady,
+                "active profile reference does not match the persisted profile document",
+                true,
+            )));
+        }
+        Ok(workspace)
     }
 
     pub(crate) async fn read_workspace(
@@ -141,16 +181,22 @@ impl<S: SecureStore> ConfigManager<S> {
         self.initialize_profile_namespace()
             .await
             .map_err(config_error)?;
+        let selection_fence = match target {
+            WorkspaceTarget::Any => SelectionFence::NotRequired,
+            WorkspaceTarget::Active | WorkspaceTarget::Inactive => SelectionFence::Held(
+                ActiveProfileReferenceStore::acquire_selection_lease(self).await?,
+            ),
+        };
         let _guard = self.lock_profile_writes().await;
         let profile = &expected.document.profile_id;
         let workspace = self.read_workspace_locked(profile).await?;
         let target_matches = match target {
             WorkspaceTarget::Any => true,
             WorkspaceTarget::Active => {
-                self.get_current_unlocked().await.map_err(config_error)? == profile.as_str()
+                selection_matches_profile(&selection_fence, &self.engine_id(), profile.as_str())
             }
             WorkspaceTarget::Inactive => {
-                self.get_current_unlocked().await.map_err(config_error)? != profile.as_str()
+                !selection_matches_profile(&selection_fence, &self.engine_id(), profile.as_str())
             }
         };
         if workspace.identity() != *expected || !target_matches {
@@ -226,6 +272,22 @@ impl<S: SecureStore> ConfigManager<S> {
         let source_id = ProfileSourceId::new(format!("source-{}", sha256_hex(source_material)))
             .map_err(identity_error)?;
         Ok(ProfileDocumentSourceIdentity::new(source_kind, source_id))
+    }
+}
+
+fn selection_matches_profile(
+    fence: &SelectionFence,
+    engine_id: &EngineId,
+    profile_id: &str,
+) -> bool {
+    match fence {
+        SelectionFence::NotRequired => false,
+        SelectionFence::Held(lease) => match lease.state() {
+            ActiveProfileReferenceState::Unselected { .. } => false,
+            ActiveProfileReferenceState::Selected(reference) => {
+                reference.engine_id == *engine_id && reference.profile_id.as_str() == profile_id
+            }
+        },
     }
 }
 
@@ -317,10 +379,6 @@ fn ensure_mihomo_engine(engine_id: &EngineId) -> Result<(), PortError> {
             engine_id.as_str()
         ),
     ))
-}
-
-fn profile_id(value: &str) -> Result<ProfileId, PortError> {
-    ProfileId::new(value).map_err(identity_error)
 }
 
 fn identity_error(error: impl Display) -> PortError {

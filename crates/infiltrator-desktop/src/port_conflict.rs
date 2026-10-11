@@ -297,9 +297,9 @@ mod tests {
             .await
             .expect("config manager");
         manager
-            .ensure_default_config()
+            .migrate_legacy_mihomo_selection()
             .await
-            .expect("default config");
+            .expect("explicit profile-selection migration");
         let profile = manager.get_current().await.expect("profile");
 
         let listener = TcpListener::bind("127.0.0.1:0").expect("reserve port");

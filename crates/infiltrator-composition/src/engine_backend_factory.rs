@@ -6,7 +6,7 @@ use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::engine_backend_factory::{
     ENGINE_BACKEND_CAPABILITY, EngineBackendFactory, EngineBackendOwnerScopeBinding,
     EngineBackendOwnerScopeBindingResult, EngineBackendPorts, EngineBackendProvider,
-    EngineOperationPorts,
+    EngineBackendProviderAvailability, EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundScopeSource;
@@ -57,6 +57,18 @@ impl EngineBackendFactoryRegistry {
 }
 
 impl EngineBackendFactory for EngineBackendFactoryRegistry {
+    fn provider_availability(&self, engine_id: &EngineId) -> EngineBackendProviderAvailability {
+        match self.providers.contains_key(engine_id) {
+            true => EngineBackendProviderAvailability::Registered,
+            false => EngineBackendProviderAvailability::Unsupported {
+                reason: format!(
+                    "no process/config/runtime backend is registered for {}",
+                    engine_id.as_str()
+                ),
+            },
+        }
+    }
+
     fn backend_ports(&self, engine_id: &EngineId) -> Result<EngineBackendPorts, PortError> {
         let provider = self.providers.get(engine_id).ok_or_else(|| {
             PortError::unsupported(

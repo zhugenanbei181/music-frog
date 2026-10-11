@@ -378,7 +378,18 @@ impl EngineBackendPorts {
 /// Implementations must return `Unsupported` before adapter side effects when
 /// the requested engine is not implemented by that product composition.
 pub trait EngineBackendFactory: Send + Sync {
+    /// Inspect registration without invoking a provider. Switch coordinators
+    /// use this to reject missing engines before terminating the current Core.
+    fn provider_availability(&self, engine_id: &EngineId) -> EngineBackendProviderAvailability;
     fn backend_ports(&self, engine_id: &EngineId) -> Result<EngineBackendPorts, PortError>;
+}
+
+/// Typed result of inspecting whether a product composition can create an
+/// engine backend. It is intentionally not a boolean readiness flag.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EngineBackendProviderAvailability {
+    Registered,
+    Unsupported { reason: String },
 }
 
 /// An engine-specific factory registered in a product composition.

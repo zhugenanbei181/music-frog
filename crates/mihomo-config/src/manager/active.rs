@@ -1,9 +1,12 @@
-//! Active-profile selection (`default.profile` in the settings file) and the
-//! settings-file read/remove plumbing shared by the other manager seams.
+//! Product-wide active-profile reads and settings-file read/remove plumbing.
 
 use super::ConfigManager;
 use super::paths::sanitized_profile_key;
 use crate::yaml::validate;
+use infiltrator_contract::active_profile_reference::ActiveProfileReferenceState;
+use infiltrator_ports::active_profile_reference_store::ActiveProfileReferenceStore;
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::error::{MihomoError, Result};
 use std::path::PathBuf;
@@ -12,39 +15,9 @@ use toml::map::Map;
 
 impl<S: SecureStore> ConfigManager<S> {
     pub async fn set_current(&self, profile: &str) -> Result<()> {
-        self.initialize_profile_namespace().await?;
-        let _guard = self.lock_profile_writes().await;
-        self.existing_profile_yaml_path(profile).await?;
-
-        if let Some(parent) = self.settings_file.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-
-        let mut config = if self.settings_file.exists() {
-            let content = fs::read_to_string(&self.settings_file).await?;
-            toml::from_str(&content).unwrap_or_else(|_| toml::Value::Table(Map::new()))
-        } else {
-            toml::Value::Table(Map::new())
-        };
-
-        if let toml::Value::Table(ref mut table) = config {
-            let default_table = table
-                .entry("default".to_string())
-                .or_insert_with(|| toml::Value::Table(Map::new()));
-
-            if let toml::Value::Table(default) = default_table {
-                default.insert(
-                    "profile".to_string(),
-                    toml::Value::String(profile.to_string()),
-                );
-            }
-        }
-
-        let content = toml::to_string(&config)
-            .map_err(|e| MihomoError::Config(format!("Failed to serialize config: {}", e)))?;
-        fs::write(&self.settings_file, content).await?;
-
-        Ok(())
+        self.set_current_with_active_reference(profile)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))
     }
 
     pub(super) async fn read_settings_value(&self) -> Result<toml::Value> {
@@ -74,12 +47,28 @@ impl<S: SecureStore> ConfigManager<S> {
 
     pub async fn get_current(&self) -> Result<String> {
         self.initialize_profile_namespace().await?;
-        self.get_current_unlocked().await
+        let lease = ActiveProfileReferenceStore::acquire_selection_lease(self)
+            .await
+            .map_err(active_reference_error)?;
+        match lease.state() {
+            ActiveProfileReferenceState::Unselected { .. } => Err(MihomoError::Config(
+                "no product-wide active profile is selected".to_owned(),
+            )),
+            ActiveProfileReferenceState::Selected(reference)
+                if reference.engine_id == self.engine_id() =>
+            {
+                Ok(reference.profile_id.as_str().to_owned())
+            }
+            ActiveProfileReferenceState::Selected(reference) => Err(MihomoError::Config(format!(
+                "active profile belongs to engine {} instead of {}",
+                reference.engine_id.as_str(),
+                self.engine_id().as_str()
+            ))),
+        }
     }
 
-    /// Read the active pointer after the caller has initialized the namespace.
-    /// Lock-owning operations use this helper to avoid reacquiring the
-    /// namespace migration/write mutex.
+    /// Read the legacy per-engine pointer only inside explicit migration and
+    /// historical-file browsing code. It does not select a Core provider.
     pub(crate) async fn get_current_unlocked(&self) -> Result<String> {
         if !self.settings_file.exists() {
             return Ok("default".to_string());
@@ -98,15 +87,27 @@ impl<S: SecureStore> ConfigManager<S> {
     }
 
     pub async fn get_current_path(&self) -> Result<PathBuf> {
-        let profile = self.get_current().await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
         Ok(self.config_dir.join(format!("{}.yaml", profile)))
     }
 
-    /// Validate the active profile before any core process is started.  This
-    /// is intentionally local-only and is the first gate of offline boot.
+    /// Validate the product-wide active profile before any Core process is
+    /// started. This follows the cross-engine reference through ProfileStore.
     pub async fn validate_current_profile(&self) -> Result<()> {
-        let profile = self.get_current().await?;
+        let profile = ProfileStore::get_current(self)
+            .await
+            .map_err(|error| MihomoError::Config(error.to_string()))?;
         let content = self.load(&profile).await?;
         validate(&content)
+    }
+}
+
+fn active_reference_error(error: PortError) -> MihomoError {
+    match error {
+        PortError::Rejected(failure) => MihomoError::Config(failure.message),
+        PortError::Unsupported { reason, .. } => MihomoError::Config(reason),
+        error => MihomoError::Config(error.to_string()),
     }
 }
