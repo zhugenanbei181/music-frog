@@ -18,6 +18,19 @@ pub enum TunStack {
     Lwip,
 }
 
+/// Explicit update intent for an optional persisted TUN stack.
+///
+/// `Keep` leaves the existing stack untouched, `Clear` removes the YAML
+/// field, and `Set` stores one typed stack. This avoids using `Option<TunStack>`
+/// to hide two different operations.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TunStackUpdate {
+    #[default]
+    Keep,
+    Clear,
+    Set(TunStack),
+}
+
 impl TunStack {
     pub const ALL: [Self; 4] = [Self::Gvisor, Self::System, Self::Mixed, Self::Lwip];
 
@@ -113,5 +126,15 @@ mod tests {
             TunStack::Lwip.availability(),
             TunStackAvailability::ReferenceOnly { .. }
         ));
+    }
+
+    #[test]
+    fn stack_update_is_a_typed_three_way_intent() {
+        assert_eq!(TunStackUpdate::default(), TunStackUpdate::Keep);
+        assert_eq!(
+            serde_json::from_str::<TunStackUpdate>(r#"{"Set":"system"}"#).unwrap(),
+            TunStackUpdate::Set(TunStack::System),
+        );
+        assert!(serde_json::from_str::<TunStackUpdate>(r#"{"Set":"unknown"}"#).is_err());
     }
 }

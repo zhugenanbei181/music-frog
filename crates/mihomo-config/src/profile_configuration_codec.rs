@@ -6,7 +6,7 @@
 //! committing it.
 
 use infiltrator_contract::dns::DnsSettingsPatch;
-use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
+use infiltrator_contract::dns_hosts::validate_hosts;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::profile_document_identity::ProfileWorkspaceIdentity;
@@ -70,6 +70,12 @@ pub(crate) fn read(
             legacy_entries: dns_hosts::entries_from_document(&document, true)
                 .map_err(configuration_error)?,
         },
+        ProfileConfigurationQuery::ProtocolNodes => ProfileConfigurationReadout::ProtocolNodes(
+            crate::profile_protocol_codec::read_protocol_nodes(raw_bytes)?,
+        ),
+        ProfileConfigurationQuery::TrustAnchors => ProfileConfigurationReadout::TrustAnchors(
+            crate::profile_protocol_codec::read_trust_anchors(raw_bytes)?,
+        ),
     };
     Ok(readout)
 }
@@ -229,6 +235,12 @@ pub(crate) fn apply(
             sniffer::apply_typed_sniffer_to_yaml(content, &config).map_err(configuration_error)?,
             ProfileConfigurationQuery::Sniffer,
         ),
+        ProfileConfigurationUpdate::UpsertProtocolNode(draft) => {
+            return crate::profile_protocol_codec::upsert_protocol_node(raw_bytes, draft);
+        }
+        ProfileConfigurationUpdate::TrustAnchors(params) => {
+            return crate::profile_protocol_codec::apply_trust_anchors(raw_bytes, params);
+        }
     };
     let document_bytes = document.into_bytes();
     let readback = read(identity, &document_bytes, query)?;

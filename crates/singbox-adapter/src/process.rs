@@ -12,6 +12,24 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::OwnedMutexGuard;
+
+/// Serializes process activation with profile-file transactions that commit
+/// while the Core is inactive.
+#[derive(Default)]
+pub struct SingBoxCoreOperationGate {
+    lock: Arc<Mutex<()>>,
+}
+
+impl SingBoxCoreOperationGate {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn acquire(&self) -> OwnedMutexGuard<()> {
+        Arc::clone(&self.lock).lock_owned().await
+    }
+}
 
 enum ProcessState {
     Stopped,
@@ -25,6 +43,7 @@ pub struct SingBoxProcess {
     identity: CoreIdentity,
     controller_endpoint: String,
     command: Arc<dyn SingBoxCommandPort>,
+    operation_gate: Arc<SingBoxCoreOperationGate>,
     state: Mutex<ProcessState>,
 }
 
@@ -51,6 +70,24 @@ impl SingBoxProcess {
         controller_address: SocketAddr,
         command: Arc<dyn SingBoxCommandPort>,
     ) -> Result<Self, PortError> {
+        Self::new_with_operation_gate(
+            binary_path,
+            config_path,
+            instance_id,
+            controller_address,
+            command,
+            Arc::new(SingBoxCoreOperationGate::new()),
+        )
+    }
+
+    pub fn new_with_operation_gate(
+        binary_path: PathBuf,
+        config_path: PathBuf,
+        instance_id: CoreInstanceId,
+        controller_address: SocketAddr,
+        command: Arc<dyn SingBoxCommandPort>,
+        operation_gate: Arc<SingBoxCoreOperationGate>,
+    ) -> Result<Self, PortError> {
         if !controller_address.ip().is_loopback() {
             return Err(PortError::Failed(
                 "sing-box controller must bind to a loopback address".to_owned(),
@@ -63,6 +100,7 @@ impl SingBoxProcess {
             identity: CoreIdentity::new(crate::engine_id(), instance_id, None),
             controller_endpoint: format!("http://{controller_address}"),
             command,
+            operation_gate,
             state: Mutex::new(ProcessState::Stopped),
         })
     }
@@ -73,6 +111,10 @@ impl SingBoxProcess {
 
     pub fn config_path(&self) -> &PathBuf {
         &self.config_path
+    }
+
+    pub fn operation_gate(&self) -> Arc<SingBoxCoreOperationGate> {
+        Arc::clone(&self.operation_gate)
     }
 
     async fn prepare_start(&self, state: &mut ProcessState) -> Result<(), PortError> {
@@ -105,6 +147,7 @@ impl CoreProcess for SingBoxProcess {
     }
 
     async fn start(&self) -> Result<(), PortError> {
+        let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
         self.prepare_start(&mut state).await?;
 
@@ -134,6 +177,7 @@ impl CoreProcess for SingBoxProcess {
     }
 
     async fn stop(&self) -> Result<(), PortError> {
+        let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
         match std::mem::replace(&mut *state, ProcessState::Stopped) {
             ProcessState::Stopped | ProcessState::Exited => Ok(()),
@@ -148,6 +192,7 @@ impl CoreProcess for SingBoxProcess {
     }
 
     async fn status(&self) -> Result<CoreLifecycle, PortError> {
+        let _gate = self.operation_gate.acquire().await;
         let mut state = self.state.lock().await;
         match std::mem::replace(&mut *state, ProcessState::Stopped) {
             ProcessState::Stopped => Ok(CoreLifecycle::Stopped),

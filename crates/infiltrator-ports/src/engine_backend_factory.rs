@@ -1,27 +1,263 @@
-//! Engine-scoped process, configuration, and runtime adapter composition.
+//! Engine-scoped process, configuration, and typed operation composition.
 
 use crate::core_process::CoreProcess;
 use crate::core_process::CoreReadiness;
 use crate::error::PortError;
+use crate::outbound::{OutboundPort, OutboundScopeSource};
 #[cfg(test)]
 use crate::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use crate::profile_configuration_transaction::{
     ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionPort,
 };
 use crate::profile_document_codec::ProfileDocumentCodecPort;
-use crate::runtime_gateway::RuntimeGateway;
+use crate::routing_intent::RoutingIntentPort;
 use infiltrator_contract::capability::Capability;
-use infiltrator_contract::core_identity::EngineId;
+use infiltrator_contract::core_identity::{CoreIdentity, CoreScope, EngineId};
+use std::fmt::{self, Debug, Formatter};
 use std::sync::Arc;
+use std::sync::Mutex;
 
-/// The engine-owned small ports used to compose Core configuration behavior.
+/// Scope source installed by the single Core owner after its lifecycle actor
+/// has been constructed. Backend operation adapters receive this binding at
+/// provider creation time and fail closed until the owner is attached.
+pub struct EngineBackendOwnerScopeBinding {
+    engine_id: EngineId,
+    state: Mutex<OwnerScopeSourceState>,
+}
+
+enum OwnerScopeSourceState {
+    Unbound,
+    AwaitingSource {
+        process_identity: CoreIdentity,
+    },
+    Bound {
+        process_identity: CoreIdentity,
+        source: Arc<dyn OutboundScopeSource>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OwnerScopeIdentityState {
+    MatchingInstance,
+    DifferentInstance,
+}
+
+impl EngineBackendOwnerScopeBinding {
+    pub fn new(engine_id: EngineId) -> Self {
+        Self {
+            engine_id,
+            state: Mutex::new(OwnerScopeSourceState::Unbound),
+        }
+    }
+
+    pub fn engine_id(&self) -> &EngineId {
+        &self.engine_id
+    }
+
+    pub fn bind(&self, source: Arc<dyn OutboundScopeSource>) -> Result<(), PortError> {
+        let process_identity = {
+            let state = self.state.lock().map_err(|_| {
+                PortError::Failed("engine backend owner scope lock is poisoned".to_owned())
+            })?;
+            match &*state {
+                OwnerScopeSourceState::AwaitingSource { process_identity } => {
+                    process_identity.clone()
+                }
+                OwnerScopeSourceState::Unbound => {
+                    return Err(PortError::Failed(
+                        "engine backend owner scope has no process identity binding".to_owned(),
+                    ));
+                }
+                OwnerScopeSourceState::Bound { .. } => {
+                    return Err(PortError::Failed(
+                        "engine backend owner scope source is already bound".to_owned(),
+                    ));
+                }
+            }
+        };
+        match source.current_scope() {
+            Some(scope) => match owner_scope_identity(&process_identity, &scope) {
+                OwnerScopeIdentityState::MatchingInstance => {}
+                OwnerScopeIdentityState::DifferentInstance => {
+                    return Err(PortError::Failed(format!(
+                        "{} backend operation scope was bound to instance {} instead of {}",
+                        self.engine_id.as_str(),
+                        scope.identity.instance.as_str(),
+                        process_identity.instance.as_str()
+                    )));
+                }
+            },
+            None => {}
+        }
+        let mut state = self.state.lock().map_err(|_| {
+            PortError::Failed("engine backend owner scope lock is poisoned".to_owned())
+        })?;
+        match &*state {
+            OwnerScopeSourceState::AwaitingSource {
+                process_identity: current_identity,
+            } if current_identity == &process_identity => {
+                *state = OwnerScopeSourceState::Bound {
+                    process_identity,
+                    source,
+                };
+                Ok(())
+            }
+            OwnerScopeSourceState::Unbound | OwnerScopeSourceState::AwaitingSource { .. } => {
+                Err(PortError::Failed(
+                    "engine backend owner scope process identity changed during binding".to_owned(),
+                ))
+            }
+            OwnerScopeSourceState::Bound { .. } => Err(PortError::Failed(
+                "engine backend owner scope source is already bound".to_owned(),
+            )),
+        }
+    }
+
+    fn bind_process_identity(&self, process_identity: CoreIdentity) -> Result<(), PortError> {
+        if process_identity.engine != self.engine_id {
+            return Err(PortError::Failed(format!(
+                "{} backend owner scope received process identity for {}",
+                self.engine_id.as_str(),
+                process_identity.engine.as_str()
+            )));
+        }
+        let mut state = self.state.lock().map_err(|_| {
+            PortError::Failed("engine backend owner scope lock is poisoned".to_owned())
+        })?;
+        match &*state {
+            OwnerScopeSourceState::Unbound => {
+                *state = OwnerScopeSourceState::AwaitingSource { process_identity };
+                Ok(())
+            }
+            OwnerScopeSourceState::AwaitingSource { .. } | OwnerScopeSourceState::Bound { .. } => {
+                Err(PortError::Failed(
+                    "engine backend owner scope process identity is already bound".to_owned(),
+                ))
+            }
+        }
+    }
+}
+
+impl OutboundScopeSource for EngineBackendOwnerScopeBinding {
+    fn current_scope(&self) -> Option<CoreScope> {
+        let state = self.state.lock().ok()?;
+        match &*state {
+            OwnerScopeSourceState::Unbound | OwnerScopeSourceState::AwaitingSource { .. } => None,
+            OwnerScopeSourceState::Bound {
+                process_identity,
+                source,
+            } => match source.current_scope() {
+                Some(scope) => match owner_scope_identity(process_identity, &scope) {
+                    OwnerScopeIdentityState::MatchingInstance => Some(scope),
+                    OwnerScopeIdentityState::DifferentInstance => None,
+                },
+                None => None,
+            },
+        }
+    }
+}
+
+fn owner_scope_identity(
+    process_identity: &CoreIdentity,
+    scope: &CoreScope,
+) -> OwnerScopeIdentityState {
+    if scope.identity.engine == process_identity.engine
+        && scope.identity.instance == process_identity.instance
+    {
+        OwnerScopeIdentityState::MatchingInstance
+    } else {
+        OwnerScopeIdentityState::DifferentInstance
+    }
+}
+
+/// Outcome of attaching the single Core owner to this bundle's runtime
+/// operations. Bundles without dispatchable operations need no owner scope;
+/// process, lifecycle, and local configuration ports remain usable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EngineBackendOwnerScopeBindingResult {
+    NotRequired,
+    Bound,
+}
+
+/// Typed runtime operations that are actually composed for one engine.
+/// `Unsupported` has no adapter to dispatch; `Available` carries the only
+/// scoped outbound and routing owners for this backend bundle.
+#[derive(Clone)]
+pub enum EngineOperationPorts {
+    Unsupported {
+        reason: String,
+    },
+    Available {
+        outbound: Arc<dyn OutboundPort>,
+        routing_intent: Arc<dyn RoutingIntentPort>,
+        owner_scope: Arc<EngineBackendOwnerScopeBinding>,
+    },
+}
+
+impl EngineOperationPorts {
+    pub fn unsupported(reason: impl Into<String>) -> Self {
+        Self::Unsupported {
+            reason: reason.into(),
+        }
+    }
+
+    pub fn available(
+        outbound: Arc<dyn OutboundPort>,
+        routing_intent: Arc<dyn RoutingIntentPort>,
+        owner_scope: Arc<EngineBackendOwnerScopeBinding>,
+    ) -> Self {
+        Self::Available {
+            outbound,
+            routing_intent,
+            owner_scope,
+        }
+    }
+
+    pub fn outbound(&self) -> Result<Arc<dyn OutboundPort>, PortError> {
+        match self {
+            Self::Unsupported { reason } => Err(PortError::unsupported(
+                ENGINE_BACKEND_CAPABILITY,
+                reason.clone(),
+            )),
+            Self::Available { outbound, .. } => Ok(Arc::clone(outbound)),
+        }
+    }
+
+    pub fn routing_intent(&self) -> Result<Arc<dyn RoutingIntentPort>, PortError> {
+        match self {
+            Self::Unsupported { reason } => Err(PortError::unsupported(
+                Capability::RoutingIntent,
+                reason.clone(),
+            )),
+            Self::Available { routing_intent, .. } => Ok(Arc::clone(routing_intent)),
+        }
+    }
+}
+
+impl Debug for EngineOperationPorts {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsupported { reason } => formatter
+                .debug_struct("Unsupported")
+                .field("reason", reason)
+                .finish(),
+            Self::Available { owner_scope, .. } => formatter
+                .debug_struct("Available")
+                .field("engine_id", owner_scope.engine_id())
+                .finish_non_exhaustive(),
+        }
+    }
+}
+
+/// The engine-owned ports used to compose Core lifecycle and configuration.
 ///
 /// `configuration` is the pure engine document codec. `configuration_transaction`
 /// owns the separate native validate/apply/readback/rollback workflow and is
 /// scoped to the exact same engine/format/schema identity.
-/// `CoreReadiness` and `RuntimeGateway` also lack engine-ID accessors; their
-/// binding to this bundle's engine is therefore guaranteed by the selected
-/// engine-specific provider, not independently inspected here.
+/// `CoreReadiness` has no engine-ID accessor; its binding to this bundle's
+/// engine is guaranteed by the selected engine-specific provider. Typed
+/// outbound and routing operations are carried here. Broad controller
+/// operations remain separately composed at the host boundary.
 #[derive(Clone)]
 pub struct EngineBackendPorts {
     engine_id: EngineId,
@@ -29,7 +265,7 @@ pub struct EngineBackendPorts {
     readiness: Arc<dyn CoreReadiness>,
     configuration: Arc<dyn ProfileDocumentCodecPort>,
     configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
-    runtime: Arc<dyn RuntimeGateway>,
+    operations: EngineOperationPorts,
 }
 
 impl EngineBackendPorts {
@@ -39,7 +275,7 @@ impl EngineBackendPorts {
         readiness: Arc<dyn CoreReadiness>,
         configuration: Arc<dyn ProfileDocumentCodecPort>,
         configuration_transaction: Arc<ProfileConfigurationTransactionBinding>,
-        runtime: Arc<dyn RuntimeGateway>,
+        operations: EngineOperationPorts,
     ) -> Result<Self, PortError> {
         let process_identity = process.core_identity().ok_or_else(|| {
             PortError::Failed(format!(
@@ -70,6 +306,18 @@ impl EngineBackendPorts {
                 engine_id.as_str()
             )));
         }
+        if let EngineOperationPorts::Available { owner_scope, .. } = &operations
+            && owner_scope.engine_id() != &engine_id
+        {
+            return Err(PortError::Failed(format!(
+                "{} backend received operation ports scoped to {}",
+                engine_id.as_str(),
+                owner_scope.engine_id().as_str()
+            )));
+        }
+        if let EngineOperationPorts::Available { owner_scope, .. } = &operations {
+            owner_scope.bind_process_identity(process_identity)?;
+        }
 
         Ok(Self {
             engine_id,
@@ -77,7 +325,7 @@ impl EngineBackendPorts {
             readiness,
             configuration,
             configuration_transaction,
-            runtime,
+            operations,
         })
     }
 
@@ -105,8 +353,23 @@ impl EngineBackendPorts {
         Arc::clone(&self.configuration_transaction)
     }
 
-    pub fn runtime(&self) -> Arc<dyn RuntimeGateway> {
-        Arc::clone(&self.runtime)
+    pub fn operations(&self) -> EngineOperationPorts {
+        self.operations.clone()
+    }
+
+    pub fn bind_owner_scope_source(
+        &self,
+        source: Arc<dyn OutboundScopeSource>,
+    ) -> Result<EngineBackendOwnerScopeBindingResult, PortError> {
+        match &self.operations {
+            EngineOperationPorts::Unsupported { .. } => {
+                Ok(EngineBackendOwnerScopeBindingResult::NotRequired)
+            }
+            EngineOperationPorts::Available { owner_scope, .. } => {
+                owner_scope.bind(source)?;
+                Ok(EngineBackendOwnerScopeBindingResult::Bound)
+            }
+        }
     }
 }
 
@@ -134,15 +397,11 @@ mod tests {
     use super::*;
     use crate::core_process::CoreReadiness;
     use crate::profile_document_codec::ProfileDocumentCodecScope;
-    use crate::runtime_gateway::{RuntimeStream, ScopedRuntimeStream};
     use async_trait::async_trait;
-    use infiltrator_contract::core_identity::{CoreIdentity, CoreInstanceId};
+    use infiltrator_contract::core_identity::{CoreGeneration, CoreIdentity, CoreInstanceId};
     use infiltrator_contract::profile_document::DocumentValidation;
     use infiltrator_contract::profile_document_identity::{ProfileFormatId, ProfileSchemaVersion};
     use infiltrator_contract::snapshot::CoreLifecycle;
-    use infiltrator_domain::runtime::{
-        ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
-    };
 
     struct FakeProcess {
         identity: CoreIdentity,
@@ -194,85 +453,65 @@ mod tests {
         }
     }
 
-    struct FakeRuntime;
-
-    #[async_trait]
-    impl RuntimeGateway for FakeRuntime {
-        async fn switch_proxy(&self, _group: &str, _proxy: &str) -> Result<(), PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn test_delay(
-            &self,
-            _proxy: &str,
-            _url: &str,
-            _timeout_ms: u32,
-        ) -> Result<u32, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn get_proxy_providers(&self) -> Result<Vec<ProxyProvider>, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn get_rule_providers(&self) -> Result<Vec<RuleProvider>, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn update_proxy_provider(&self, _name: &str) -> Result<(), PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn update_rule_provider(&self, _name: &str) -> Result<(), PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn get_connections(&self) -> Result<ConnectionSnapshot, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn get_memory(&self) -> Result<MemoryData, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn close_connection(&self, _id: &str) -> Result<(), PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn close_all_connections(&self) -> Result<(), PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn stream_logs(
-            &self,
-            _level: Option<String>,
-        ) -> Result<RuntimeStream<String>, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn stream_traffic(&self) -> Result<RuntimeStream<TrafficData>, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn stream_connections(&self) -> Result<RuntimeStream<ConnectionSnapshot>, PortError> {
-            Err(unsupported_runtime())
-        }
-
-        async fn stream_logs_scoped(
-            &self,
-            _scope: infiltrator_contract::core_identity::CoreScope,
-            _level: Option<String>,
-        ) -> Result<ScopedRuntimeStream<String>, PortError> {
-            Err(unsupported_runtime())
-        }
-    }
-
-    fn unsupported_runtime() -> PortError {
-        PortError::unsupported(Capability::CoreLifecycle, "fake runtime")
-    }
-
     fn engine_id(value: &str) -> EngineId {
         EngineId::new(value).expect("test engine ID is valid")
+    }
+
+    struct MutableScopeSource(Mutex<CoreScope>);
+
+    impl MutableScopeSource {
+        fn set(&self, scope: CoreScope) {
+            *self.0.lock().expect("test scope lock is not poisoned") = scope;
+        }
+    }
+
+    impl OutboundScopeSource for MutableScopeSource {
+        fn current_scope(&self) -> Option<CoreScope> {
+            self.0.lock().ok().map(|scope| scope.clone())
+        }
+    }
+
+    fn scope(engine: EngineId, instance: &str) -> CoreScope {
+        CoreScope {
+            identity: CoreIdentity::new(
+                engine,
+                CoreInstanceId::new(instance).expect("test instance is valid"),
+                None,
+            ),
+            generation: CoreGeneration::new(1),
+            session_token: None,
+        }
+    }
+
+    #[test]
+    fn owner_scope_binding_rejects_a_foreign_instance_and_fences_later_changes() {
+        let engine = engine_id("sing-box");
+        let process_identity = CoreIdentity::new(
+            engine.clone(),
+            CoreInstanceId::new("provider-instance").expect("test instance is valid"),
+            None,
+        );
+        let binding = EngineBackendOwnerScopeBinding::new(engine.clone());
+        binding
+            .bind_process_identity(process_identity)
+            .expect("backend binds its process identity before its owner scope");
+        let foreign_scope = scope(engine.clone(), "foreign-instance");
+        let foreign_source = Arc::new(MutableScopeSource(Mutex::new(foreign_scope.clone())));
+
+        assert!(matches!(
+            binding.bind(foreign_source),
+            Err(PortError::Failed(_))
+        ));
+
+        let process_scope = scope(engine, "provider-instance");
+        let source = Arc::new(MutableScopeSource(Mutex::new(process_scope.clone())));
+        binding
+            .bind(source.clone())
+            .expect("matching process instance binds");
+        assert_eq!(binding.current_scope(), Some(process_scope));
+
+        source.set(foreign_scope);
+        assert_eq!(binding.current_scope(), None);
     }
 
     fn fake_ports(
@@ -301,7 +540,7 @@ mod tests {
             Arc::new(ProfileConfigurationTransactionBinding::new(
                 ProfileConfigurationTransactionScope::new(codec_scope),
             )),
-            Arc::new(FakeRuntime),
+            EngineOperationPorts::unsupported("fake operations are not composed"),
         )
     }
 
@@ -317,6 +556,38 @@ mod tests {
             ports.configuration_transaction().scope().document,
             ports.configuration().scope()
         );
+    }
+
+    #[test]
+    fn unsupported_engine_operations_need_no_scope_and_keep_local_ports_available() {
+        let engine = engine_id("sing-box");
+        let ports = fake_ports(engine.clone(), engine.clone(), engine.clone()).unwrap();
+        let operations = ports.operations();
+
+        assert!(matches!(
+            operations.outbound(),
+            Err(PortError::Unsupported { .. })
+        ));
+        assert!(matches!(
+            operations.routing_intent(),
+            Err(PortError::Unsupported { .. })
+        ));
+        assert_eq!(
+            ports
+                .bind_owner_scope_source(Arc::new(UnboundScopeSource))
+                .unwrap(),
+            EngineBackendOwnerScopeBindingResult::NotRequired
+        );
+        assert_eq!(ports.process().core_identity().unwrap().engine, engine);
+        assert_eq!(ports.configuration().scope().engine_id, engine);
+    }
+
+    struct UnboundScopeSource;
+
+    impl OutboundScopeSource for UnboundScopeSource {
+        fn current_scope(&self) -> Option<CoreScope> {
+            None
+        }
     }
 
     #[test]
@@ -373,7 +644,7 @@ mod tests {
             Arc::new(ProfileConfigurationTransactionBinding::new(
                 ProfileConfigurationTransactionScope::new(transaction_scope),
             )),
-            Arc::new(FakeRuntime),
+            EngineOperationPorts::unsupported("fake operations are not composed"),
         ) {
             Ok(_) => panic!("transaction and codec scopes must be identical"),
             Err(error) => error,

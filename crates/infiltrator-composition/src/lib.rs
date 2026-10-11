@@ -1,9 +1,9 @@
 //! Concrete adapter wiring for native and cross-platform application hosts.
 //!
 //! The application crate owns orchestration and private runtime details. This
-//! crate owns the decision that a particular product composition uses the
-//! Mihomo REST adapter. UI crates may consume the returned application pump,
-//! but do not construct `MihomoClient` themselves.
+//! crate owns engine provider composition, including the Mihomo REST adapter
+//! and the opt-in sing-box backend provider. Product roots select and bind one
+//! provider; UI crates do not construct engine clients or Core owners.
 
 use infiltrator_application::command_application::CommandApplication;
 use infiltrator_application::core_application::CoreApplication;

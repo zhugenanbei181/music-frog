@@ -195,7 +195,7 @@ class ProfilesRepositoryTest {
             else -> 1uL
         }
         return AndroidOwnerOperationReply(
-            protocol = AndroidOwnerOperationProtocolVersion.V3,
+            protocol = AndroidOwnerOperationProtocolVersion.V4,
             context = context(),
             observedCoreGeneration = 7uL,
             dataRevision = 10uL + operationRevision,

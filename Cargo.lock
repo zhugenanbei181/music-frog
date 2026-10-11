@@ -5982,6 +5982,7 @@ dependencies = [
  "infiltrator-presentation",
  "infiltrator-shared",
  "log",
+ "mihomo-config",
  "regex",
  "serde_json",
  "serde_yaml_ng",
@@ -6068,7 +6069,10 @@ dependencies = [
  "infiltrator-ports",
  "log",
  "mihomo-api",
+ "singbox-adapter",
+ "tempfile",
  "tokio",
+ "url",
 ]
 
 [[package]]

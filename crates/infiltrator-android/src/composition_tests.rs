@@ -269,7 +269,7 @@ fn android_mihomo_backend_provider_recreates_scoped_ports_without_hidden_state()
 }
 
 #[test]
-fn android_controller_scope_resolver_is_shared_with_factory_runtime_ports() {
+fn android_controller_scope_resolver_remains_available_to_host_runtime_composition() {
     let (_home, store) = config_manager();
     let provider = Arc::new(
         super::AndroidMihomoBackendProvider::new(
@@ -289,7 +289,7 @@ fn android_controller_scope_resolver_is_shared_with_factory_runtime_ports() {
     let backend = factory
         .backend_ports(&MihomoVersionPort::engine_identifier())
         .expect("registered provider composes runtime ports");
-    let runtime_gateway = backend.runtime();
+    let runtime_gateway = provider.controller_adapters.runtime_gateway();
     let application = CoreApplication::new_with_overview(
         backend.process(),
         backend.readiness(),
@@ -661,6 +661,40 @@ async fn assert_local_load_succeeds_and_runtime_apply_fails_closed(
         ErrorCode::Unsupported,
     );
     assert_eq!(store.load("main").await.unwrap(), INITIAL_DOCUMENT);
+}
+
+#[tokio::test]
+async fn unavailable_controller_keeps_core_lifecycle_and_local_profile_reads_available() {
+    let (_home, store) = config_manager();
+    store.save("main", INITIAL_DOCUMENT).await.unwrap();
+    let owner = super::core_application_with_readiness_and_provider(
+        TestBridge::new(),
+        "invalid-controller-endpoint".to_owned(),
+        None,
+        AndroidCoreComposition::new(Arc::clone(&store)),
+        Arc::new(TestReadiness),
+        Arc::new(TestLifecycleCapabilityProvider),
+    )
+    .expect("unavailable controller operations do not block Core owner composition");
+
+    assert!(matches!(
+        run_scoped(&owner, CommandIntent::StartCore).await,
+        CommandResult::Completed { .. }
+    ));
+    let loaded = produced(
+        run_scoped(
+            &owner,
+            CommandIntent::LoadProfileDocument {
+                profile: Some("main".to_owned()),
+            },
+        )
+        .await,
+    );
+    let document = match loaded {
+        CommandOutput::ProfileDocumentLoaded(document) => *document,
+        other => panic!("local profile loading remains available: {other:?}"),
+    };
+    assert_eq!(document.content, INITIAL_DOCUMENT);
 }
 
 #[tokio::test]

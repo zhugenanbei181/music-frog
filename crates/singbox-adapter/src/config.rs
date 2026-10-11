@@ -19,6 +19,13 @@ pub struct SingBoxConfigApplyReceipt {
     pub persisted_byte_count: usize,
 }
 
+/// Exact pre-transaction state of the active native JSON file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SingBoxConfigFileState {
+    Missing,
+    Present(Vec<u8>),
+}
+
 /// Owns sing-box native validation and its active JSON file.
 ///
 /// `apply_and_readback` validates before replacing the file, installs the
@@ -107,11 +114,28 @@ impl SingBoxProfileConfigurationAdapter {
             .await
             .map_err(|error| map_storage_error(&self.config_path, error))
     }
-}
 
-enum PreviousConfig {
-    Missing,
-    Present(Vec<u8>),
+    pub async fn file_state(&self) -> Result<SingBoxConfigFileState, PortError> {
+        let _transaction = self.apply_lock.lock().await;
+        read_previous_config(&self.config_path).await
+    }
+
+    /// Restores a transaction snapshot and verifies the resulting file state.
+    pub async fn restore_file_state(
+        &self,
+        expected: &SingBoxConfigFileState,
+    ) -> Result<(), PortError> {
+        let _transaction = self.apply_lock.lock().await;
+        restore_previous_config(&self.config_path, expected.clone()).await?;
+        let observed = read_previous_config(&self.config_path).await?;
+        match classify_exact_readback(observed, expected) {
+            ExactReadback::Exact(_) => Ok(()),
+            ExactReadback::Different => Err(PortError::Failed(
+                "sing-box native config rollback readback differed from the previous file state"
+                    .to_owned(),
+            )),
+        }
+    }
 }
 
 struct SubmittedConfig(Vec<u8>);
@@ -120,22 +144,27 @@ struct ValidatedConfig(Vec<u8>);
 
 struct PreviousConfigCaptured {
     raw_bytes: Vec<u8>,
-    previous: PreviousConfig,
+    previous: SingBoxConfigFileState,
 }
 
 struct InstalledConfig {
     raw_bytes: Vec<u8>,
-    previous: PreviousConfig,
+    previous: SingBoxConfigFileState,
 }
 
 struct FailedConfigReadback {
-    previous: PreviousConfig,
+    previous: SingBoxConfigFileState,
     cause: ConfigReadbackFailure,
 }
 
 enum ConfigReadbackFailure {
     BytesDiffer,
     Unavailable(PortError),
+}
+
+enum ExactReadback<T> {
+    Exact(T),
+    Different,
 }
 
 impl SubmittedConfig {
@@ -182,11 +211,11 @@ impl InstalledConfig {
         config_path: &Path,
     ) -> Result<SingBoxConfigApplyReceipt, FailedConfigReadback> {
         match tokio::fs::read(config_path).await {
-            Ok(readback) => match readback == self.raw_bytes {
-                true => Ok(SingBoxConfigApplyReceipt {
+            Ok(readback) => match classify_exact_readback(readback, &self.raw_bytes) {
+                ExactReadback::Exact(readback) => Ok(SingBoxConfigApplyReceipt {
                     persisted_byte_count: readback.len(),
                 }),
-                false => Err(FailedConfigReadback {
+                ExactReadback::Different => Err(FailedConfigReadback {
                     previous: self.previous,
                     cause: ConfigReadbackFailure::BytesDiffer,
                 }),
@@ -196,6 +225,14 @@ impl InstalledConfig {
                 cause: ConfigReadbackFailure::Unavailable(map_storage_error(config_path, error)),
             }),
         }
+    }
+}
+
+fn classify_exact_readback<T: PartialEq>(observed: T, expected: &T) -> ExactReadback<T> {
+    if &observed == expected {
+        ExactReadback::Exact(observed)
+    } else {
+        ExactReadback::Different
     }
 }
 
@@ -270,25 +307,27 @@ async fn atomic_write(active_path: &Path, raw_bytes: &[u8]) -> Result<(), PortEr
     Ok(())
 }
 
-async fn read_previous_config(path: &Path) -> Result<PreviousConfig, PortError> {
+async fn read_previous_config(path: &Path) -> Result<SingBoxConfigFileState, PortError> {
     match tokio::fs::read(path).await {
-        Ok(bytes) => Ok(PreviousConfig::Present(bytes)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(PreviousConfig::Missing),
+        Ok(bytes) => Ok(SingBoxConfigFileState::Present(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(SingBoxConfigFileState::Missing)
+        }
         Err(error) => Err(map_storage_error(path, error)),
     }
 }
 
 async fn restore_previous_config(
     active_path: &Path,
-    previous: PreviousConfig,
+    previous: SingBoxConfigFileState,
 ) -> Result<(), PortError> {
     match previous {
-        PreviousConfig::Missing => match tokio::fs::remove_file(active_path).await {
+        SingBoxConfigFileState::Missing => match tokio::fs::remove_file(active_path).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(map_storage_error(active_path, error)),
         },
-        PreviousConfig::Present(bytes) => atomic_write(active_path, &bytes).await,
+        SingBoxConfigFileState::Present(bytes) => atomic_write(active_path, &bytes).await,
     }
 }
 
@@ -356,10 +395,10 @@ mod transaction_recovery_tests {
     }
 
     impl PreviousFile {
-        fn into_state(self) -> PreviousConfig {
+        fn into_state(self) -> SingBoxConfigFileState {
             match self {
-                Self::Missing => PreviousConfig::Missing,
-                Self::Present(bytes) => PreviousConfig::Present(bytes.to_vec()),
+                Self::Missing => SingBoxConfigFileState::Missing,
+                Self::Present(bytes) => SingBoxConfigFileState::Present(bytes.to_vec()),
             }
         }
 

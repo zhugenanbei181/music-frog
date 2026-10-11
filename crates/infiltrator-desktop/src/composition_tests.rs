@@ -45,7 +45,11 @@ fn desktop_backend_factory_returns_identity_scoped_mihomo_ports() {
         backend.ports.configuration().scope().engine_id,
         MihomoVersionPort::engine_identifier()
     );
-    let _runtime = backend.ports.runtime();
+    let operations = backend.ports.operations();
+    operations.outbound().expect("Mihomo outbound is composed");
+    operations
+        .routing_intent()
+        .expect("Mihomo routing intent is composed");
     let _readiness = backend.ports.readiness();
     let _client = backend.client;
 }

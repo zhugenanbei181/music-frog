@@ -5,6 +5,8 @@ import com.musicfrog.infiltrator.ui.common.AppFailureCode
 import com.musicfrog.infiltrator.ui.common.FailureTextKey
 import infiltrator_android.VpnTunSettings
 import infiltrator_android.VpnTunSettingsPatch
+import infiltrator_android.VpnTunStack
+import infiltrator_android.VpnTunStackUpdate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -54,7 +56,7 @@ class TunSettingsStateTest {
             mtu = 1420u,
             autoRoute = false,
             strictRoute = true,
-            stack = "gvisor",
+            stackUpdate = VpnTunStackUpdate.Set(stack = VpnTunStack.GVISOR),
             autoDetectInterface = false,
         )
 
@@ -62,6 +64,18 @@ class TunSettingsStateTest {
         assertEquals(
             TunReadbackMatch.NotConfirmed,
             actual.copy(mtu = 1500u).matches(patch),
+        )
+        assertEquals(
+            TunReadbackMatch.Confirmed,
+            actual.copy(stack = null).matches(patch.copy(stackUpdate = VpnTunStackUpdate.Clear)),
+        )
+        assertEquals(
+            TunReadbackMatch.NotConfirmed,
+            actual.matches(patch.copy(stackUpdate = VpnTunStackUpdate.Clear)),
+        )
+        assertEquals(
+            TunReadbackMatch.Confirmed,
+            actual.matches(patch.copy(stackUpdate = VpnTunStackUpdate.Keep)),
         )
     }
 

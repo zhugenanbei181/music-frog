@@ -97,7 +97,7 @@ class DnsRepositoryTest {
         revision: ULong,
     ): AndroidOwnerOperationExchange = AndroidOwnerOperationExchange.Completed(
         AndroidOwnerOperationReply(
-            protocol = AndroidOwnerOperationProtocolVersion.V3,
+            protocol = AndroidOwnerOperationProtocolVersion.V4,
             context = AndroidOwnerOperationContext(
                 clientSessionId = "client-a",
                 expectedOwnerSessionId = "owner-a",

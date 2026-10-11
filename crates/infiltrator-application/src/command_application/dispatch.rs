@@ -16,10 +16,9 @@ use infiltrator_contract::error::ErrorCode;
 use infiltrator_contract::network_roaming::NetworkRoamingStatus;
 use infiltrator_contract::pac::PacRequest;
 use infiltrator_contract::privileged_network::PrivilegedNetworkRequest;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::rule_edit::RuleDraft;
-use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_ports::runtime_configuration::ObservedValue;
-use std::sync::Mutex;
 
 impl CommandApplication {
     fn configuration_for_scope(
@@ -191,38 +190,22 @@ impl CommandApplication {
                 }
             }
             CommandIntent::SaveCustomNodeDraft { draft } => {
-                // DUAL-05-14: splice the node into the active profile without
-                // disturbing any other section, then commit through the same
-                // apply transaction the other profile editors use.
+                // DUAL-05-14: select engine-owned protocol and CA codecs,
+                // verify both typed readbacks, and commit their exact output
+                // through the source-bound workspace transaction.
                 let trust = draft.params.tls_trust.clone();
-                let committed = Arc::new(Mutex::new(None));
-                let written = committed.clone();
-                self.profile()?
-                    .save_current_profile_content(
-                        self.managed_runtime.clone(),
-                        ApplyStrategy::PreferReload,
-                        move |content| {
-                            let commit = ProtocolCodecApplication::upsert_draft_into_profile(
-                                content, &draft,
-                            )
-                            .map_err(|failure| failure.message)?;
-                            let content = commit.profile_yaml.clone();
-                            *written.lock().expect("protocol commit") = Some(commit);
-                            Ok::<String, String>(content)
-                        },
+                let runtime = self.managed_runtime.clone().ok_or_else(|| {
+                    Failure::unsupported(
+                        "custom protocol editing requires an engine profile transaction",
                     )
-                    .await?;
-                let commit = committed
-                    .lock()
-                    .expect("protocol commit")
-                    .take()
-                    .ok_or_else(|| {
-                        Failure::new(
-                            ErrorCode::Internal,
-                            "profile transaction did not produce a protocol commit",
-                            false,
-                        )
-                    })?;
+                })?;
+                let commit = ProtocolCodecApplication::save_draft_to_active_profile(
+                    &self.profile()?,
+                    runtime,
+                    &draft,
+                    ProfileWriteAuthorization::RequireUnlock,
+                )
+                .await?;
                 ProtocolCodecApplication::publish_commit(&commit);
                 // DUAL-05-13: the CA request is resolved against the host
                 // reader *after* the profile committed, so a reported load can

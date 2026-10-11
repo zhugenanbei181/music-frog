@@ -60,7 +60,7 @@ impl MihomoClient {
         })
     }
 
-    pub fn with_configuration_scope_resolver(mut self, resolver: RuntimeScopeResolver) -> Self {
+    pub fn with_configuration_scope_resolver(self, resolver: RuntimeScopeResolver) -> Self {
         self.set_configuration_scope_resolver(resolver);
         self
     }

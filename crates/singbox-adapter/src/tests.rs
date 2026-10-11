@@ -448,6 +448,7 @@ async fn readiness_reads_a_successful_loopback_http_version_response() {
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(r#"{"version":"sing-box 1.14.3","meta":true}"#)
+        .expect(2)
         .create_async()
         .await;
     let readiness = SingBoxControllerReadiness::with_authorization(

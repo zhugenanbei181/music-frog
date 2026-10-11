@@ -1,6 +1,6 @@
 use infiltrator_contract::core_identity::EngineId;
 use infiltrator_contract::dns::DnsSettingsPatch;
-use infiltrator_contract::dns_hosts::{DnsHostEntry, validate_hosts};
+use infiltrator_contract::dns_hosts::validate_hosts;
 use infiltrator_contract::error::{ErrorCode, Failure};
 use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
@@ -401,6 +401,15 @@ fn fake_read_configuration(
     raw_bytes: &[u8],
     query: ProfileConfigurationQuery,
 ) -> Result<ProfileConfigurationReadout, PortError> {
+    if matches!(
+        &query,
+        ProfileConfigurationQuery::ProtocolNodes | ProfileConfigurationQuery::TrustAnchors
+    ) {
+        return Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::Profiles,
+            "test fake typed protocol and CA readouts must be queued explicitly",
+        ));
+    }
     let content = from_utf8(raw_bytes).map_err(|error| PortError::Failed(error.to_string()))?;
     let document: serde_yaml_ng::Value =
         serde_yaml_ng::from_str(content).map_err(|error| PortError::Failed(error.to_string()))?;
@@ -463,6 +472,9 @@ fn fake_read_configuration(
             legacy_entries: dns_hosts::entries_from_document(&document, true)
                 .map_err(configuration_failure)?,
         }),
+        ProfileConfigurationQuery::ProtocolNodes | ProfileConfigurationQuery::TrustAnchors => {
+            unreachable!("typed protocol and CA queries were rejected above")
+        }
     }
 }
 
@@ -471,6 +483,16 @@ fn fake_apply_configuration(
     raw_bytes: &[u8],
     update: ProfileConfigurationUpdate,
 ) -> Result<ProfileConfigurationMutation, PortError> {
+    if matches!(
+        &update,
+        ProfileConfigurationUpdate::UpsertProtocolNode(_)
+            | ProfileConfigurationUpdate::TrustAnchors(_)
+    ) {
+        return Err(PortError::unsupported(
+            infiltrator_contract::capability::Capability::Profiles,
+            "test fake typed protocol and CA mutations must be queued explicitly",
+        ));
+    }
     let content = from_utf8(raw_bytes).map_err(|error| PortError::Failed(error.to_string()))?;
     serde_yaml_ng::from_str::<serde_yaml_ng::Value>(content)
         .map_err(|error| PortError::Failed(error.to_string()))?;
@@ -513,6 +535,18 @@ fn fake_apply_configuration(
                 .map_err(configuration_failure)?,
             ProfileConfigurationQuery::Sniffer,
         ),
+        ProfileConfigurationUpdate::UpsertProtocolNode(_) => {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "test fake protocol node mutation must be queued explicitly",
+            ));
+        }
+        ProfileConfigurationUpdate::TrustAnchors(_) => {
+            return Err(PortError::unsupported(
+                infiltrator_contract::capability::Capability::Profiles,
+                "test fake CA trust-anchor mutation must be queued explicitly",
+            ));
+        }
     };
     let document_bytes = output.into_bytes();
     let readback = fake_read_configuration(&document_bytes, query)?;

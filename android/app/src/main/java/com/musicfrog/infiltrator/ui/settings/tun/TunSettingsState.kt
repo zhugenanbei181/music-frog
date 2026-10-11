@@ -3,6 +3,7 @@ package com.musicfrog.infiltrator.ui.settings.tun
 import com.musicfrog.infiltrator.ui.common.AppFailure
 import infiltrator_android.VpnTunSettings
 import infiltrator_android.VpnTunSettingsPatch
+import infiltrator_android.VpnTunStackUpdate
 
 internal data class TunSettingsRevision(
     val ownerSessionId: String,
@@ -79,12 +80,18 @@ internal fun VpnTunSettings.matches(
     (patch.mtu == null || mtu == patch.mtu) &&
         (patch.autoRoute == null || autoRoute == patch.autoRoute) &&
         (patch.strictRoute == null || strictRoute == patch.strictRoute) &&
-        (patch.stack == null || stack == patch.stack) &&
+        stackMatches(patch.stackUpdate) &&
         (patch.autoDetectInterface == null || autoDetectInterface == patch.autoDetectInterface)
 ) {
     TunReadbackMatch.Confirmed
 } else {
     TunReadbackMatch.NotConfirmed
+}
+
+private fun VpnTunSettings.stackMatches(update: VpnTunStackUpdate): Boolean = when (update) {
+    VpnTunStackUpdate.Keep -> true
+    VpnTunStackUpdate.Clear -> stack == null
+    is VpnTunStackUpdate.Set -> stack == update.stack.name.lowercase()
 }
 
 internal fun lastAcceptedTun(state: TunSettingsReadState): TunSettingsObservationPoint? = when (state) {

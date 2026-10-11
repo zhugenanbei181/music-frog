@@ -10,6 +10,7 @@ use infiltrator_application::outbound_application::OutboundApplication;
 use infiltrator_application::routing_application::RoutingApplication;
 use infiltrator_application::settings_application::SettingsApplication;
 use infiltrator_application::sync_application::SyncApplication;
+use infiltrator_ports::endpoint::EndpointSource;
 use std::sync::Arc;
 
 impl MihomoRuntime {

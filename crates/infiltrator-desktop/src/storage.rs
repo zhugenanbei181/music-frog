@@ -165,7 +165,7 @@ pub async fn list_profile_snapshots(
     config_dir: &Path,
     profile: &str,
 ) -> anyhow::Result<Vec<SnapshotMeta>> {
-    list_snapshots(config_dir, profile)
+    list_snapshots(&MihomoVersionPort::engine_identifier(), config_dir, profile)
         .await
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }

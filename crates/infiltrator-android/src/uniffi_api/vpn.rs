@@ -4,10 +4,7 @@
 use crate::ffi::{FfiErrorCode, FfiStatus};
 #[cfg(target_os = "android")]
 use crate::host_session::shared_core;
-use crate::host_support::{
-    build_configuration_application, get_runtime, map_application_failure,
-    normalize_optional_string,
-};
+use crate::host_support::{build_configuration_application, get_runtime, map_application_failure};
 #[cfg(target_os = "android")]
 use crate::vpn_route::VpnRouteConfig;
 use crate::vpn_service::AndroidVpnServicePort;
@@ -30,6 +27,7 @@ use infiltrator_contract::android_control::AndroidHostProcessRole;
 use infiltrator_contract::core_identity::CoreScope;
 #[cfg(target_os = "android")]
 use infiltrator_contract::snapshot::CoreLifecycle;
+use infiltrator_contract::tun::{TunStack, TunStackUpdate};
 use infiltrator_contract::vpn;
 use infiltrator_contract::vpn::VpnConfigurationActivationLease;
 #[cfg(target_os = "android")]
@@ -754,13 +752,55 @@ pub struct VpnTunSettings {
     pub auto_detect_interface: Option<bool>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Enum)]
+#[serde(rename_all = "lowercase")]
+pub enum VpnTunStack {
+    Gvisor,
+    System,
+    Mixed,
+    Lwip,
+}
+
+impl From<VpnTunStack> for TunStack {
+    fn from(stack: VpnTunStack) -> Self {
+        match stack {
+            VpnTunStack::Gvisor => Self::Gvisor,
+            VpnTunStack::System => Self::System,
+            VpnTunStack::Mixed => Self::Mixed,
+            VpnTunStack::Lwip => Self::Lwip,
+        }
+    }
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Enum,
+)]
+pub enum VpnTunStackUpdate {
+    #[default]
+    Keep,
+    Clear,
+    Set {
+        stack: VpnTunStack,
+    },
+}
+
+impl From<VpnTunStackUpdate> for TunStackUpdate {
+    fn from(update: VpnTunStackUpdate) -> Self {
+        match update {
+            VpnTunStackUpdate::Keep => Self::Keep,
+            VpnTunStackUpdate::Clear => Self::Clear,
+            VpnTunStackUpdate::Set { stack } => Self::Set(stack.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, uniffi::Record)]
 #[serde(deny_unknown_fields)]
 pub struct VpnTunSettingsPatch {
     pub mtu: Option<u32>,
     pub auto_route: Option<bool>,
     pub strict_route: Option<bool>,
-    pub stack: Option<String>,
+    pub stack_update: VpnTunStackUpdate,
     pub auto_detect_interface: Option<bool>,
 }
 
@@ -912,9 +952,7 @@ pub(super) fn build_tun_patch(patch: &VpnTunSettingsPatch) -> tun::TunConfigPatc
     if let Some(value) = patch.strict_route {
         core_patch.strict_route = Some(value);
     }
-    if let Some(value) = normalize_optional_string(patch.stack.clone()) {
-        core_patch.stack = Some(value);
-    }
+    core_patch.stack = patch.stack_update.into();
     if let Some(value) = patch.auto_detect_interface {
         core_patch.auto_detect_interface = Some(value);
     }
@@ -947,14 +985,37 @@ mod worker_stop_tests {
             mtu: Some(1420),
             auto_route: Some(false),
             strict_route: Some(true),
-            stack: Some("system".to_owned()),
+            stack_update: VpnTunStackUpdate::Set {
+                stack: VpnTunStack::System,
+            },
             auto_detect_interface: Some(true),
         };
         let result = build_tun_patch(&patch);
         assert_eq!(result.mtu, Some(1420));
         assert_eq!(result.auto_route, Some(false));
         assert_eq!(result.strict_route, Some(true));
-        assert_eq!(result.stack.as_deref(), Some("system"));
+        assert_eq!(result.stack, TunStackUpdate::Set(TunStack::System),);
         assert_eq!(result.auto_detect_interface, Some(true));
+    }
+
+    #[test]
+    fn tun_stack_update_keeps_clear_and_set_distinct_at_the_owner_boundary() {
+        let keep = build_tun_patch(&VpnTunSettingsPatch {
+            mtu: None,
+            auto_route: None,
+            strict_route: None,
+            stack_update: VpnTunStackUpdate::Keep,
+            auto_detect_interface: None,
+        });
+        assert_eq!(keep.stack, TunStackUpdate::Keep);
+
+        let clear = build_tun_patch(&VpnTunSettingsPatch {
+            mtu: None,
+            auto_route: None,
+            strict_route: None,
+            stack_update: VpnTunStackUpdate::Clear,
+            auto_detect_interface: None,
+        });
+        assert_eq!(clear.stack, TunStackUpdate::Clear);
     }
 }

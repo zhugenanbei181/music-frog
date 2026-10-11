@@ -233,7 +233,7 @@ pub(super) fn app_routing_revision() -> u64 {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, uniffi::Enum)]
 pub enum AndroidOwnerOperationProtocolVersion {
-    V3,
+    V4,
 }
 
 /// Request operations are exhaustive typed variants. Unknown enum variants,
@@ -594,7 +594,7 @@ fn rejected_result(
     state: AndroidOwnerOperationIpcState,
 ) -> AndroidOwnerOperationIpcResult {
     let reply = AndroidOwnerOperationReply {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         context,
         observed_core_generation: observed_generation,
         data_revision,

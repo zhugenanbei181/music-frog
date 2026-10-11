@@ -9,6 +9,8 @@ use infiltrator_contract::profile_document::DocumentValidation;
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentIdentity, ProfileFormatId, ProfileSchemaVersion, ProfileWorkspaceIdentity,
 };
+use infiltrator_contract::protocol_fidelity::{CodecAudit, ProtocolDraft};
+use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_contract::provider_cache::KernelEtagSupportSnapshot;
 use infiltrator_contract::rule_location::RuleLocation;
 use infiltrator_contract::rule_source::RuleSourceIdentity;
@@ -193,6 +195,10 @@ pub enum ProfileConfigurationQuery {
     ProxyEndpoint,
     EtagSupport,
     Hosts,
+    /// Typed protocol nodes in the exact engine-owned profile document.
+    ProtocolNodes,
+    /// The engine's profile-level path based trust-anchor configuration.
+    TrustAnchors,
 }
 
 /// Adapter-authored configuration readback. JSON-shaped provider members are
@@ -213,6 +219,22 @@ pub enum ProfileConfigurationReadout {
         entries: Vec<DnsHostEntry>,
         legacy_entries: Vec<DnsHostEntry>,
     },
+    ProtocolNodes(Vec<ProtocolDraft>),
+    /// Exact readback plus the engine-authored audit for one protocol-node
+    /// upsert. Kept separate from a query result so callers must handle the
+    /// mutation receipt explicitly.
+    ProtocolNodeMutation(ProfileProtocolNodeMutationReadback),
+    /// Mihomo profile-level CA path readback. Inline PEM and per-peer
+    /// fingerprints remain node-draft values, not profile trust anchors.
+    TrustAnchors(TlsTrustParams),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProfileProtocolNodeMutationReadback {
+    /// Protocol drafts decoded from the exact output document bytes.
+    pub nodes: Vec<ProtocolDraft>,
+    pub audit: CodecAudit,
+    pub replaced_existing: bool,
 }
 
 /// Typed update accepted by an engine/format/schema-specific profile codec.
@@ -226,6 +248,11 @@ pub enum ProfileConfigurationUpdate {
     RuleProviders(rules::RuleProviders),
     ProxyProviders(proxy_providers::ProxyProviders),
     Sniffer(sniffer::SnifferConfig),
+    UpsertProtocolNode(ProtocolDraft),
+    /// Update the profile-level path carrier only. Non-empty `ca_str` or
+    /// `fingerprint` is rejected by adapters because they belong to a node
+    /// draft and cannot be represented by this global list.
+    TrustAnchors(TlsTrustParams),
 }
 
 /// Pure document transformation plus the typed value decoded from the exact

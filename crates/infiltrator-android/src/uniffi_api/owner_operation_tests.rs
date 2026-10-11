@@ -6,6 +6,7 @@ use super::wire::{
 };
 use super::*;
 use crate::host_support::build_routing_application;
+use crate::uniffi_api::{VpnTunStack, VpnTunStackUpdate};
 use infiltrator_application::vpn_preparation::VpnConfigurationActivationStatus;
 use infiltrator_domain::app_routing::AppRoutingMode;
 use infiltrator_domain::app_routing::AppRoutingRule;
@@ -182,7 +183,7 @@ impl Drop for TestOwnerEnvironment {
 #[test]
 fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
     let request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::ProfileSubscriptionSave {
             name: "main".to_owned(),
             url: "https://example.invalid/sub".to_owned(),
@@ -198,13 +199,13 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
     );
     assert!(
         serde_json::from_str::<AndroidOwnerOperationRequest>(
-            r#"{"protocol":"V3","operation":{"Unknown":{"name":"main"}}}"#,
+            r#"{"protocol":"V4","operation":{"Unknown":{"name":"main"}}}"#,
         )
         .is_err()
     );
     assert!(
         serde_json::from_str::<AndroidOwnerOperationRequest>(
-            r#"{"protocol":"V3","operation":"ProfilesList","action":"save"}"#,
+            r#"{"protocol":"V4","operation":"ProfilesList","action":"save"}"#,
         )
         .is_err()
     );
@@ -222,8 +223,15 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         .is_err(),
         "the replaced V2 operation protocol is retired",
     );
+    assert!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(
+            r#"{"protocol":"V3","operation":"ProfilesList"}"#,
+        )
+        .is_err(),
+        "the replaced V3 operation protocol is retired",
+    );
     let app_routing_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::AppRoutingPackagesSet {
             packages: vec!["com.example.app".to_owned()],
             selection: AndroidAppRoutingPackageSelection::Selected,
@@ -237,7 +245,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         app_routing_request,
     );
     let dns_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::DnsSettingsSave {
             patch: settings::DnsSettingsPatch {
                 enable: Some(false),
@@ -256,17 +264,19 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         dns_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V3","operation":{"DnsSettingsSave":{"patch":{"enable":true,"unknown":1}}}}"#,
+        r#"{"protocol":"V4","operation":{"DnsSettingsSave":{"patch":{"enable":true,"unknown":1}}}}"#,
     )
     .is_err());
     let tun_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::TunSettingsSave {
             patch: VpnTunSettingsPatch {
                 mtu: Some(1420),
                 auto_route: Some(true),
                 strict_route: Some(false),
-                stack: Some("system".to_owned()),
+                stack_update: VpnTunStackUpdate::Set {
+                    stack: VpnTunStack::System,
+                },
                 auto_detect_interface: Some(true),
             },
         },
@@ -277,12 +287,31 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
             .expect("typed TUN DTO decodes"),
         tun_request,
     );
+    let clear_tun_request = AndroidOwnerOperationRequest {
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
+        operation: AndroidOwnerOperation::TunSettingsSave {
+            patch: VpnTunSettingsPatch {
+                mtu: None,
+                auto_route: None,
+                strict_route: None,
+                stack_update: VpnTunStackUpdate::Clear,
+                auto_detect_interface: None,
+            },
+        },
+    };
+    let clear_tun_json =
+        serde_json::to_string(&clear_tun_request).expect("typed clear TUN update serializes");
+    assert_eq!(
+        serde_json::from_str::<AndroidOwnerOperationRequest>(&clear_tun_json)
+            .expect("typed clear TUN update decodes"),
+        clear_tun_request,
+    );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V3","operation":{"TunSettingsSave":{"patch":{"mtu":1420,"dns_servers":["1.1.1.1"]}}}}"#,
+        r#"{"protocol":"V4","operation":{"TunSettingsSave":{"patch":{"mtu":1420,"dns_servers":["1.1.1.1"]}}}}"#,
     )
     .is_err());
     let rules_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::RulesSave {
             rules: vec![AndroidRuleEntry {
                 rule: "MATCH,DIRECT".to_owned(),
@@ -297,15 +326,15 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         rules_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V3","operation":{"RulesSave":{"rules":[{"rule":"MATCH,DIRECT","enabled":true,"unexpected":1}]}}}"#,
+        r#"{"protocol":"V4","operation":{"RulesSave":{"rules":[{"rule":"MATCH,DIRECT","enabled":true,"unexpected":1}]}}}"#,
     )
     .is_err());
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V3","operation":{"RuleProvidersSave":{"providers":{},"unexpected":1}}}"#,
+        r#"{"protocol":"V4","operation":{"RuleProvidersSave":{"providers":{},"unexpected":1}}}"#,
     )
     .is_err());
     let providers_request = AndroidOwnerOperationRequest {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         operation: AndroidOwnerOperation::RuleProvidersSave {
             providers: vec![AndroidRuleProviderEntry {
                 name: "remote".to_owned(),
@@ -328,7 +357,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         providers_request,
     );
     assert!(serde_json::from_str::<AndroidOwnerOperationRequest>(
-        r#"{"protocol":"V3","operation":{"RuleProvidersSave":{"providers":[{"name":"remote","configuration":{"kind":"StringValue","value":"http","extra":1}}]}}}"#,
+        r#"{"protocol":"V4","operation":{"RuleProvidersSave":{"providers":[{"name":"remote","configuration":{"kind":"StringValue","value":"http","extra":1}}]}}}"#,
     )
     .is_err());
 
@@ -351,7 +380,7 @@ fn owner_operation_json_is_a_versioned_exhaustive_rust_enum() {
         AndroidOwnerOperation::WebDavSyncNow,
     ] {
         let request = AndroidOwnerOperationRequest {
-            protocol: AndroidOwnerOperationProtocolVersion::V3,
+            protocol: AndroidOwnerOperationProtocolVersion::V4,
             operation,
         };
         let encoded = serde_json::to_string(&request).expect("WebDAV operation serializes");

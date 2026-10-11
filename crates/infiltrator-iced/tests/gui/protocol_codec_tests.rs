@@ -8,10 +8,34 @@ use crate::types::message::Message;
 use infiltrator_application::dialer_chain_application::DialerChainApplication;
 use infiltrator_application::protocol_codec_application::{ProtocolCodecApplication, clear_studio};
 use infiltrator_application::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
-use infiltrator_contract::protocol_fidelity::{NodeCodecFormat, ProtocolDraft, ProtocolFamily};
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
+};
+use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolFamily};
 use infiltrator_contract::protocol_trust::CaLoadStatus;
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
+};
 use infiltrator_shared::i18n_interpolator::interpolate;
 use infiltrator_shared::locales::{Lang, Localizer};
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use std::sync::Arc;
+
+fn mihomo_identity(codec: &MihomoProfileDocumentCodec) -> ProfileDocumentIdentity {
+    let scope = codec.scope();
+    ProfileDocumentIdentity::new(
+        ProfileId::new("protocol-test").unwrap(),
+        scope.engine_id,
+        ProfileDocumentSourceIdentity::new(
+            ProfileDocumentSourceKind::Local,
+            ProfileSourceId::new("protocol-test-source").unwrap(),
+        ),
+        ProfileDocumentRevision::new("protocol-test-revision").unwrap(),
+        scope.format_id,
+        scope.schema_version,
+    )
+}
 
 // 2022-blake3-aes-256-gcm with a 32-byte PSK, base64 userinfo (SIP002).
 const SS2022_URI: &str = "ss://MjAyMi1ibGFrZTMtYWVzLTI1Ni1nY206QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQT0=@ss.example.com:8388#SS-2022";
@@ -198,9 +222,7 @@ fn save_refuses_an_incomplete_draft_before_touching_the_profile() {
 }
 
 #[test]
-fn the_upsert_path_the_modal_calls_preserves_the_whole_profile() {
-    // The handler feeds the whole document to the shared application; this
-    // pins the exact call the modal makes (no parse/export round trip).
+fn typed_engine_upsert_preserves_the_whole_profile() {
     let profile = r#"
 mode: rule
 proxies:
@@ -222,13 +244,26 @@ rules:
     assert_eq!(draft.cipher, "2022-blake3-aes-256-gcm");
     assert_eq!(draft.password.len(), 44, "32-byte PSK as base64");
     draft.server = "9.9.9.9".to_owned();
-    let commit = ProtocolCodecApplication::upsert_draft_into_profile(profile, &draft).unwrap();
+    let codec = MihomoProfileDocumentCodec;
+    let mutation = codec
+        .apply_configuration(
+            &mihomo_identity(&codec),
+            profile.as_bytes(),
+            ProfileConfigurationUpdate::UpsertProtocolNode(draft),
+        )
+        .unwrap();
+    let ProfileConfigurationReadout::ProtocolNodeMutation(readback) = mutation.readback else {
+        panic!("expected protocol-node mutation readback");
+    };
+    assert!(readback.replaced_existing);
+    assert!(readback.audit.structure_preserved, "{:?}", readback.audit);
+    assert_eq!(
+        readback.audit.unknown_fields,
+        vec!["custom-flag".to_string()]
+    );
 
-    assert!(commit.replaced_existing);
-    assert!(commit.is_structure_preserving(), "{:?}", commit.audit);
-    assert_eq!(commit.audit.unknown_fields, vec!["custom-flag".to_string()]);
-
-    let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(&commit.profile_yaml).unwrap();
+    let output = String::from_utf8(mutation.document_bytes).unwrap();
+    let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(&output).unwrap();
     assert_eq!(document.get("mode").and_then(|v| v.as_str()), Some("rule"));
     assert_eq!(
         document
@@ -244,13 +279,10 @@ rules:
             .map(Vec::len),
         Some(1)
     );
-    let nodes =
-        ProtocolCodecApplication::parse_nodes(&commit.profile_yaml, NodeCodecFormat::ClashYaml)
-            .unwrap();
-    assert_eq!(nodes[0].server, "9.9.9.9");
+    assert_eq!(readback.nodes[0].server, "9.9.9.9");
     assert_eq!(
-        nodes[0].extra.get("custom-flag"),
-        Some(&serde_yaml_ng::Value::String("keep-me".to_string()))
+        readback.nodes[0].preserved_fields,
+        vec!["custom-flag".to_string()]
     );
 }
 
@@ -295,10 +327,17 @@ fn importing_wireguard_surfaces_the_shared_typed_parameters() {
     );
 
     // The mihomo-correct key spellings are what actually gets written.
-    let commit =
-        ProtocolCodecApplication::upsert_draft_into_profile("proxies: []\n", draft).unwrap();
-    assert!(commit.profile_yaml.contains("pre-shared-key:"));
-    assert!(commit.profile_yaml.contains("amnezia-wg-option:"));
+    let codec = MihomoProfileDocumentCodec;
+    let mutation = codec
+        .apply_configuration(
+            &mihomo_identity(&codec),
+            b"proxies: []\n",
+            ProfileConfigurationUpdate::UpsertProtocolNode(draft.clone()),
+        )
+        .unwrap();
+    let yaml = String::from_utf8(mutation.document_bytes).unwrap();
+    assert!(yaml.contains("pre-shared-key:"));
+    assert!(yaml.contains("amnezia-wg-option:"));
 }
 
 #[test]
@@ -397,7 +436,9 @@ fn quic_and_xhttp_notes_are_surfaced_not_hidden() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_iced_surface() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+        MihomoProfileDocumentCodec,
+    ));
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",

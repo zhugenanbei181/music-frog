@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::tun::{TunStack, TunStackUpdate};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::{Mapping, Value};
 
@@ -7,6 +7,7 @@ use serde_yaml_ng::{Mapping, Value};
 #[serde(rename_all = "kebab-case")]
 pub struct TunConfig {
     pub enable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<String>,
     pub dns_hijack: Option<Vec<String>>,
     pub auto_route: Option<bool>,
@@ -19,7 +20,7 @@ pub struct TunConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct TunConfigPatch {
     pub enable: Option<bool>,
-    pub stack: Option<String>,
+    pub stack: TunStackUpdate,
     pub dns_hijack: Option<Vec<String>>,
     pub auto_route: Option<bool>,
     pub auto_detect_interface: Option<bool>,
@@ -32,8 +33,10 @@ impl TunConfig {
         if let Some(value) = patch.enable {
             self.enable = Some(value);
         }
-        if let Some(value) = patch.stack {
-            self.stack = Some(value);
+        match patch.stack {
+            TunStackUpdate::Keep => {}
+            TunStackUpdate::Clear => self.stack = None,
+            TunStackUpdate::Set(value) => self.stack = Some(value.as_str().to_owned()),
         }
         if let Some(value) = patch.dns_hijack {
             self.dns_hijack = Some(value);
@@ -152,7 +155,7 @@ mod tests {
         let mut config = TunConfig::default();
         let patch = TunConfigPatch {
             enable: Some(true),
-            stack: Some("gvisor".to_string()),
+            stack: TunStackUpdate::Set(TunStack::Gvisor),
             mtu: Some(1500),
             ..TunConfigPatch::default()
         };
@@ -173,7 +176,7 @@ mod tests {
 
         let patch = TunConfigPatch {
             enable: Some(false),
-            // stack and mtu are None in patch
+            // Stack defaults to Keep; mtu is also left untouched.
             ..TunConfigPatch::default()
         };
 
@@ -183,6 +186,46 @@ mod tests {
         // Should preserve existing values
         assert_eq!(config.stack, Some("system".to_string()));
         assert_eq!(config.mtu, Some(1400));
+    }
+
+    #[test]
+    fn stack_keep_clear_and_set_have_distinct_persisted_effects() {
+        let mut config = TunConfig {
+            stack: Some("system".to_owned()),
+            mtu: Some(1420),
+            ..TunConfig::default()
+        };
+        config.apply_patch(TunConfigPatch {
+            stack: TunStackUpdate::Keep,
+            ..TunConfigPatch::default()
+        });
+        assert_eq!(config.stack.as_deref(), Some("system"));
+
+        config.apply_patch(TunConfigPatch {
+            stack: TunStackUpdate::Clear,
+            ..TunConfigPatch::default()
+        });
+        assert_eq!(config.stack, None);
+
+        let yaml = apply_tun_patch_to_yaml(
+            "tun:\n  enable: true\n  stack: system\n",
+            TunConfigPatch {
+                stack: TunStackUpdate::Clear,
+                ..TunConfigPatch::default()
+            },
+        )
+        .expect("clear stack from profile");
+        let document: Value = serde_yaml_ng::from_str(&yaml).expect("valid updated YAML");
+        let tun = document
+            .get("tun")
+            .and_then(Value::as_mapping)
+            .expect("tun mapping");
+        assert!(tun.get(Value::String("stack".to_owned())).is_none());
+        assert_eq!(
+            tun.get(Value::String("enable".to_owned()))
+                .and_then(Value::as_bool),
+            Some(true),
+        );
     }
 
     #[test]

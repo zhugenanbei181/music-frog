@@ -133,6 +133,7 @@ impl MihomoCoreCapabilityProvider {
         }
     }
 
+    #[cfg(test)]
     fn new_for_target(
         host: HostKind,
         binary_target: EngineBinaryTarget,
@@ -146,6 +147,7 @@ impl MihomoCoreCapabilityProvider {
         }
     }
 
+    #[cfg(test)]
     fn new_with_scope(
         host: HostKind,
         binary_target: EngineBinaryTarget,

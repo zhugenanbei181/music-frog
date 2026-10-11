@@ -31,10 +31,16 @@ use infiltrator_bevy_widgets::text_input::TextField;
 use infiltrator_bevy_widgets::text_input::state::TextFieldInput;
 use infiltrator_contract::command::RequestId;
 use infiltrator_contract::command_output::CommandOutput;
-use infiltrator_contract::protocol_fidelity::{
-    NodeCodecFormat, ProtocolDraft, ProtocolStudioSnapshot,
+use infiltrator_contract::profile_document_identity::{
+    ProfileDocumentIdentity, ProfileDocumentRevision, ProfileDocumentSourceIdentity,
+    ProfileDocumentSourceKind, ProfileId, ProfileSourceId,
 };
+use infiltrator_contract::protocol_fidelity::{ProtocolDraft, ProtocolStudioSnapshot};
 use infiltrator_contract::protocol_form::ProtocolStudioSlot;
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationReadout, ProfileConfigurationUpdate, ProfileDocumentCodecPort,
+};
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use std::sync::Arc;
 
 use crate::support::*;
@@ -381,7 +387,9 @@ fn custom_node_notes_slot_reports_pinned_core_fallbacks_verbatim() {
 
 #[test]
 fn protocol_codec_matrix_passes_on_the_bevy_surface() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+        MihomoProfileDocumentCodec,
+    ));
     assert!(
         report.all_covered_passed(),
         "matrix failures: {:?}",
@@ -402,19 +410,40 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     let mut app = setup_app(sink);
     navigate_to_proxies(&mut app);
 
-    // 05-14: the shared application audits a real conversion and publishes the
-    // verdict; Bevy renders it verbatim instead of claiming success.
+    // The engine codec returns an honest audit for a typed profile mutation;
+    // the surface renders that readback directly.
     let profile = "proxies:\n  - name: a\n    type: ss\n    server: 1.1.1.1\n    port: 443\n    cipher: aes-128-gcm\n    password: pw\n    future-flag: 7\nmode: rule\n";
-    let (_output, audit) = ProtocolCodecApplication::audit_conversion(
-        profile,
-        NodeCodecFormat::ClashYaml,
-        NodeCodecFormat::ClashYaml,
-    )
-    .unwrap();
-    assert!(
-        !audit.lossless,
-        "a profile with `mode:` is not section-preserving"
+    let codec = MihomoProfileDocumentCodec;
+    let scope = codec.scope();
+    let identity = ProfileDocumentIdentity::new(
+        ProfileId::new("bevy-protocol-test").unwrap(),
+        scope.engine_id,
+        ProfileDocumentSourceIdentity::new(
+            ProfileDocumentSourceKind::Local,
+            ProfileSourceId::new("bevy-protocol-test-source").unwrap(),
+        ),
+        ProfileDocumentRevision::new("bevy-protocol-test-revision").unwrap(),
+        scope.format_id,
+        scope.schema_version,
     );
+    let mut draft = ProtocolDraft::new("ss");
+    draft.name = "a".to_owned();
+    draft.server = "1.1.1.1".to_owned();
+    draft.port = 443;
+    draft.cipher = "aes-128-gcm".to_owned();
+    draft.password = "pw".to_owned();
+    let mutation = codec
+        .apply_configuration(
+            &identity,
+            profile.as_bytes(),
+            ProfileConfigurationUpdate::UpsertProtocolNode(draft),
+        )
+        .unwrap();
+    let ProfileConfigurationReadout::ProtocolNodeMutation(readback) = mutation.readback else {
+        panic!("expected protocol node mutation readback");
+    };
+    assert!(readback.audit.lossless, "{:?}", readback.audit);
+    let audit = readback.audit;
 
     let live = ProtocolStudioSnapshot {
         audit: Some(audit),
@@ -435,7 +464,7 @@ fn custom_node_audit_line_reports_the_measured_lossless_verdict() {
     app.update();
 
     let audit_line = text_for_slot(&mut app, ProtocolStudioSlot::Audit);
-    assert!(audit_line.contains("结构有损"), "{audit_line}");
+    assert!(audit_line.contains("结构保真"), "{audit_line}");
     assert!(audit_line.contains("1 节点"), "{audit_line}");
     assert!(audit_line.contains("未知字段 1"), "{audit_line}");
 }

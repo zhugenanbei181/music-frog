@@ -8,34 +8,25 @@
 //!   inline PEM locally. A host without a reader is reported as
 //!   [`CaLoadStatus::Unsupported`]; the report never claims a CA was loaded
 //!   when nothing was read.
-//! * [`CertificateAuthorityApplication::write_ca_path`] projects a file-path
-//!   anchor into the global `tls.custom-certifactes` list — the carrier the
-//!   pinned mihomo v1.19.18 actually reads (`config.RawTLS.CustomTrustCert`) —
-//!   while preserving every other `tls:` key and profile section.
-//! * [`CertificateAuthorityApplication::trust_anchors_from_profile`] reads that
-//!   list back so a profile round trip keeps the anchor.
+//! * profile-level trust-anchor inspection and mutation use the selected
+//!   engine's typed profile codec; this application never parses profile YAML.
 //!
 //! The application layer stays executor-neutral: no Tokio, no filesystem
 //! access of its own; reading is the port's job.
 
+use crate::profile_application::ProfileApplication;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_document_identity::ProfileDocumentIdentity;
 use infiltrator_contract::protocol_trust::{
     CaLoadStatus, CaTrustReport, CaTrustResolution, TlsTrustParams,
 };
 use infiltrator_domain::tls_trust;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
 use infiltrator_ports::error::PortError;
-use serde_yaml_ng::{Mapping, Value};
-
-/// Outcome of writing trust anchors into a profile document.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TrustCommit {
-    pub profile_yaml: String,
-    /// The `tls.custom-certifactes` list as written.
-    pub ca_paths: Vec<String>,
-    /// `true` when the write changed the document.
-    pub changed: bool,
-}
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
+    ProfileConfigurationUpdate,
+};
 
 /// DUAL-05-13 shared CA use cases.
 pub struct CertificateAuthorityApplication;
@@ -161,147 +152,42 @@ impl CertificateAuthorityApplication {
         resolution
     }
 
-    /// Read the profile's global trust anchors back into the typed params.
-    ///
-    /// The pinned v1.19.18 carrier is a list of **paths**, so only the first
-    /// entry can be modelled by the single `ca_path` slot; the rest stay in the
-    /// profile untouched and the caller keeps them losslessly.
-    pub fn trust_anchors_from_profile(profile_yaml: &str) -> Result<TlsTrustParams, Failure> {
-        let document: Value = serde_yaml_ng::from_str(profile_yaml).map_err(|error| {
-            Failure::new(
-                ErrorCode::InvalidInput,
-                format!("profile is not valid YAML: {error}"),
+    /// Read the profile-level path carrier through the engine-selected codec.
+    /// The adapter returns only the first path represented by `ca_path`; any
+    /// additional paths remain opaque in the original document bytes.
+    pub fn trust_anchors_from_profile(
+        profiles: &ProfileApplication,
+        identity: &ProfileDocumentIdentity,
+        raw_bytes: &[u8],
+    ) -> Result<TlsTrustParams, Failure> {
+        match profiles.read_profile_configuration(
+            identity,
+            raw_bytes,
+            ProfileConfigurationQuery::TrustAnchors,
+        )? {
+            ProfileConfigurationReadout::TrustAnchors(params) => Ok(params),
+            _ => Err(Failure::new(
+                ErrorCode::InvalidState,
+                "profile configuration codec returned the wrong CA trust-anchor readback",
                 false,
-            )
-        })?;
-        let Some(list) = document
-            .get("tls")
-            .and_then(|tls| tls.get("custom-certifactes"))
-            .and_then(Value::as_sequence)
-        else {
-            return Ok(TlsTrustParams::default());
-        };
-        let ca_path = list
-            .iter()
-            .filter_map(Value::as_str)
-            .map(str::trim)
-            .find(|entry| !entry.is_empty())
-            .unwrap_or_default()
-            .to_string();
-        Ok(TlsTrustParams {
-            ca_path,
-            ..TlsTrustParams::default()
-        })
-    }
-
-    /// Project a file-path anchor into the global `tls.custom-certifactes`
-    /// list. Returns the path that was newly inserted, or `None` when the list
-    /// already carried it (nothing changed).
-    ///
-    /// Only the `ca`-style path is written here: the pinned core resolves the
-    /// list as file paths, so an inline bundle must never be smuggled into it.
-    pub fn write_ca_path(document: &mut Value, ca_path: &str) -> Option<String> {
-        let ca_path = ca_path.trim();
-        if ca_path.is_empty() {
-            return None;
-        }
-        let mapping = document.as_mapping_mut()?;
-        let tls_key = Value::String("tls".to_string());
-        let tls_entry = mapping
-            .entry(tls_key)
-            .or_insert_with(|| Value::Mapping(Mapping::new()));
-        let tls_mapping = tls_entry.as_mapping_mut()?;
-        let list_key = Value::String("custom-certifactes".to_string());
-        let list_entry = tls_mapping
-            .entry(list_key)
-            .or_insert_with(|| Value::Sequence(Vec::new()));
-        let Value::Sequence(entries) = list_entry else {
-            return None;
-        };
-        if entries.iter().any(|entry| entry.as_str() == Some(ca_path)) {
-            return None;
-        }
-        let mut next = Vec::with_capacity(entries.len() + 1);
-        next.push(Value::String(ca_path.to_string()));
-        next.extend(entries.iter().cloned());
-        *entries = next;
-        Some(ca_path.to_string())
-    }
-
-    /// Reverse of [`Self::write_ca_path`], used by the honest audit so
-    /// `structure_preserved` only ignores the entry this application owns.
-    pub fn remove_ca_path(document: &mut Value, ca_path: &str) {
-        let Some(mapping) = document.as_mapping_mut() else {
-            return;
-        };
-        let Some(tls) = mapping
-            .get_mut(Value::String("tls".to_string()))
-            .and_then(Value::as_mapping_mut)
-        else {
-            return;
-        };
-        let list_key = Value::String("custom-certifactes".to_string());
-        let Some(entries) = tls.get_mut(&list_key).and_then(Value::as_sequence_mut) else {
-            return;
-        };
-        entries.retain(|entry| entry.as_str() != Some(ca_path));
-        if entries.is_empty() {
-            tls.remove(&list_key);
-        }
-        if tls.is_empty() {
-            mapping.remove(Value::String("tls".to_string()));
+            )),
         }
     }
 
-    /// Write the trust anchors into a profile document. Everything else is
-    /// preserved; the document is only rewritten when the anchor changed it.
-    pub fn upsert_trust_anchors_into_profile(
-        profile_yaml: &str,
-        params: &TlsTrustParams,
-    ) -> Result<TrustCommit, Failure> {
-        let mut document: Value = serde_yaml_ng::from_str(profile_yaml).map_err(|error| {
-            Failure::new(
-                ErrorCode::InvalidInput,
-                format!("profile is not valid YAML: {error}"),
-                false,
-            )
-        })?;
-        if !document.is_mapping() {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                "profile YAML must be a top-level mapping".to_string(),
-                false,
-            ));
-        }
-        let changed = Self::write_ca_path(&mut document, &params.ca_path).is_some();
-        let profile_yaml = if changed {
-            serde_yaml_ng::to_string(&document).map_err(|error| {
-                Failure::new(
-                    ErrorCode::Internal,
-                    format!("could not serialize profile: {error}"),
-                    false,
-                )
-            })?
-        } else {
-            profile_yaml.to_string()
-        };
-        let ca_paths = document
-            .get("tls")
-            .and_then(|tls| tls.get("custom-certifactes"))
-            .and_then(Value::as_sequence)
-            .map(|entries| {
-                entries
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_string)
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(TrustCommit {
-            profile_yaml,
-            ca_paths,
-            changed,
-        })
+    /// Build a source-free CA trust-anchor candidate through the selected
+    /// engine codec. The caller commits its exact returned bytes with the
+    /// workspace transaction.
+    pub fn apply_profile_trust_anchors(
+        profiles: &ProfileApplication,
+        identity: &ProfileDocumentIdentity,
+        raw_bytes: &[u8],
+        params: TlsTrustParams,
+    ) -> Result<ProfileConfigurationMutation, Failure> {
+        profiles.apply_profile_configuration(
+            identity,
+            raw_bytes,
+            ProfileConfigurationUpdate::TrustAnchors(params),
+        )
     }
 }
 

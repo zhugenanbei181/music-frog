@@ -10,6 +10,8 @@ import com.musicfrog.infiltrator.ui.common.localizedFailure
 import com.musicfrog.infiltrator.ui.common.toAppFailure
 import infiltrator_android.AndroidOwnerOperation
 import infiltrator_android.VpnTunSettingsPatch
+import infiltrator_android.VpnTunStack
+import infiltrator_android.VpnTunStackUpdate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,12 +92,17 @@ internal class TunViewModel(
             fail(localizedFailure(FailureTextKey.TunMtuZero).toAppFailure())
             return
         }
+        val stackUpdate = stackUpdate(draft.stack)
+        if (stackUpdate == null) {
+            fail(localizedFailure(FailureTextKey.InvalidInput).toAppFailure())
+            return
+        }
 
         val patch = VpnTunSettingsPatch(
             mtu = mtu,
             autoRoute = draft.autoRoute,
             strictRoute = draft.strictRoute,
-            stack = draft.stack.trim().ifBlank { null },
+            stackUpdate = stackUpdate,
             autoDetectInterface = draft.autoDetectInterface,
         )
         val sequence = nextRequestSequence()
@@ -189,4 +196,13 @@ internal class TunViewModel(
     private fun isLatest(sequence: ULong): Boolean = latestRequestSequence == sequence
 
     private fun parseMtu(value: String): UInt? = value.trim().takeIf(String::isNotEmpty)?.toUIntOrNull()
+
+    private fun stackUpdate(value: String): VpnTunStackUpdate? = when (value.trim().lowercase()) {
+        "" -> VpnTunStackUpdate.Clear
+        "gvisor" -> VpnTunStackUpdate.Set(stack = VpnTunStack.GVISOR)
+        "system" -> VpnTunStackUpdate.Set(stack = VpnTunStack.SYSTEM)
+        "mixed" -> VpnTunStackUpdate.Set(stack = VpnTunStack.MIXED)
+        "lwip" -> VpnTunStackUpdate.Set(stack = VpnTunStack.LWIP)
+        else -> null
+    }
 }

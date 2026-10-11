@@ -1,11 +1,11 @@
 use super::*;
-use crate::uniffi_api::VpnTunSettings;
+use crate::uniffi_api::{VpnTunSettings, VpnTunStack, VpnTunStackUpdate};
 
 #[tokio::test]
 async fn unknown_operation_is_rejected_before_owner_data_revision_changes() {
     let before = android_owner_data_revision();
     let result = android_dispatch_owner_operation_wire_json(
-        r#"{"protocol":"V3","operation":{"Unknown":null}}"#.to_owned(),
+        r#"{"protocol":"V4","operation":{"Unknown":null}}"#.to_owned(),
         "client-a".to_owned(),
         "owner-a".to_owned(),
         "owner-a".to_owned(),
@@ -297,7 +297,9 @@ async fn tun_settings_are_read_and_written_only_through_owner_revisioned_operati
             mtu: Some(1420),
             auto_route: Some(false),
             strict_route: Some(true),
-            stack: Some("gvisor".to_owned()),
+            stack_update: VpnTunStackUpdate::Set {
+                stack: VpnTunStack::Gvisor,
+            },
             auto_detect_interface: Some(false),
         },
     };

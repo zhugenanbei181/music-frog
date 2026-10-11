@@ -118,30 +118,3 @@ fn publishing_the_report_reaches_both_surfaces_snapshot() {
     assert!(DialerChainApplication::analyze_profile("proxies: 42\n").is_err());
     clear_studio();
 }
-
-#[test]
-fn a_node_save_publishes_the_dialer_verdict_for_the_written_document() {
-    clear_studio();
-    let mut draft = ProtocolDraft::new("vless");
-    draft.name = "landing".into();
-    draft.server = "5.5.5.5".into();
-    draft.port = 443;
-    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".into();
-    draft.dialer_proxy = "gateway".into();
-    let commit =
-        ProtocolCodecApplication::upsert_draft_into_profile(PROFILE, &draft).expect("commit");
-    assert!(
-        ProtocolCodecApplication::dialer_report()
-            .chain_for("landing")
-            .is_none()
-    );
-    ProtocolCodecApplication::publish_commit(&commit);
-    let chain = commit.dialer.chain_for("landing").expect("chain");
-    assert!(chain.valid());
-    assert_eq!(chain.hops.len(), 3);
-    assert_eq!(
-        ProtocolCodecApplication::dialer_report().chain_for("landing"),
-        Some(chain)
-    );
-    clear_studio();
-}

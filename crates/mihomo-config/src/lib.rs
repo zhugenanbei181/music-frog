@@ -8,6 +8,7 @@ pub mod profile_configuration_codec;
 pub mod profile_document_codec;
 pub mod profile_option_store;
 pub mod profile_options_codec;
+pub mod profile_protocol_codec;
 mod profile_store;
 mod profile_workspace_store;
 mod profile_write_boundary;

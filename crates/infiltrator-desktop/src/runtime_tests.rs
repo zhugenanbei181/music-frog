@@ -1,6 +1,4 @@
 use super::*;
-use std::env::{remove_var, set_var};
-use std::sync::Mutex;
 use tokio::fs::write;
 
 #[test]
@@ -91,37 +89,6 @@ fn test_collect_geoip_candidates_empty() {
 
     assert_eq!(result.len(), 1);
     assert!(result.contains(&PathBuf::from("/path/to/geoip.metadb")));
-}
-
-static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-#[test]
-fn test_build_geoip_url_list_default() {
-    let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { remove_var("MIHOMO_GEOIP_URL") };
-    let result = build_geoip_url_list();
-    assert_eq!(result.len(), 3);
-    assert!(result[0].contains("github.com"));
-    assert!(result[1].contains("jsdelivr.net"));
-}
-
-#[test]
-fn test_build_geoip_url_list_custom() {
-    let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { set_var("MIHOMO_GEOIP_URL", "https://custom.url/geoip.metadb") };
-    let result = build_geoip_url_list();
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0], "https://custom.url/geoip.metadb");
-    unsafe { remove_var("MIHOMO_GEOIP_URL") };
-}
-
-#[test]
-fn test_build_geoip_url_list_empty_custom() {
-    let _guard = ENV_LOCK.lock().unwrap();
-    unsafe { set_var("MIHOMO_GEOIP_URL", "   ") };
-    let result = build_geoip_url_list();
-    assert_eq!(result.len(), 3);
-    unsafe { remove_var("MIHOMO_GEOIP_URL") };
 }
 
 #[tokio::test]

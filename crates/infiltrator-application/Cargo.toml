@@ -34,4 +34,5 @@ url = { workspace = true }
 unicode-segmentation = { workspace = true }
 [dev-dependencies]
 infiltrator-presentation = { path = "../infiltrator-presentation" }
+mihomo-config = { path = "../mihomo-config" }
 tokio = { workspace = true, features = ["test-util"] }

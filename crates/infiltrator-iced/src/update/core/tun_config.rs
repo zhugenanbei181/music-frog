@@ -12,7 +12,7 @@ use crate::types::runtime::RebuildFlowState;
 use iced::Task;
 use iced::widget::text_editor::Content;
 use infiltrator_contract::error::InfiltratorError;
-use infiltrator_contract::tun::TunStack;
+use infiltrator_contract::tun::{TunStack, TunStackUpdate};
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::tun::{TunConfig, TunConfigPatch, apply_tun_patch_to_yaml};
 use std::time::Instant;
@@ -49,8 +49,8 @@ impl AppState {
 
     fn tun_patch_from_form(&self) -> Result<TunConfigPatch, InfiltratorError> {
         let stack_text = self.editor.tun_form.stack.trim();
-        let stack = if stack_text.is_empty() {
-            None
+        let stack_update = if stack_text.is_empty() {
+            TunStackUpdate::Clear
         } else {
             let parsed = TunStack::parse(stack_text).ok_or_else(|| {
                 InfiltratorError::Config(
@@ -62,7 +62,7 @@ impl AppState {
                     "unsupported tun stack: lwip is reference-only".to_owned(),
                 ));
             }
-            Some(parsed.as_str().to_owned())
+            TunStackUpdate::Set(parsed)
         };
 
         let mtu_text = self.editor.tun_form.mtu.trim();
@@ -81,7 +81,7 @@ impl AppState {
 
         Ok(TunConfigPatch {
             enable: Some(self.editor.tun_form.enable),
-            stack,
+            stack: stack_update,
             mtu,
             dns_hijack: Some(Self::split_list_field(&self.editor.tun_form.dns_hijack)),
             auto_route: Some(self.editor.tun_form.auto_route),

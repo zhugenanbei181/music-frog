@@ -25,7 +25,7 @@ pub async fn android_dispatch_owner_operation_wire_json(
             let context = task_context;
             let request =
                 match serde_json::from_str::<AndroidOwnerOperationRequest>(&operation_json) {
-                    Ok(request) if request.protocol == AndroidOwnerOperationProtocolVersion::V3 => {
+                    Ok(request) if request.protocol == AndroidOwnerOperationProtocolVersion::V4 => {
                         request
                     }
                     Ok(_) => {
@@ -235,7 +235,7 @@ pub(super) fn validate_owner_operation_reply(
     operation: &AndroidOwnerOperation,
     reply: AndroidOwnerOperationReply,
 ) -> Result<AndroidOwnerOperationReply, FfiStatus> {
-    if reply.protocol != AndroidOwnerOperationProtocolVersion::V3 {
+    if reply.protocol != AndroidOwnerOperationProtocolVersion::V4 {
         return Err(FfiStatus::err(
             FfiErrorCode::NotSupported,
             "Android owner operation reply protocol is unsupported",
@@ -862,7 +862,7 @@ pub(super) async fn execute_operation(
         android_owner_data_revision()
     };
     let reply = AndroidOwnerOperationReply {
-        protocol: AndroidOwnerOperationProtocolVersion::V3,
+        protocol: AndroidOwnerOperationProtocolVersion::V4,
         context,
         observed_core_generation: observed_generation,
         data_revision,
@@ -901,7 +901,7 @@ pub(in crate::uniffi_api) async fn route_owner_operation(
         )),
         AndroidHostProcessRole::UiClient => {
             let request = AndroidOwnerOperationRequest {
-                protocol: AndroidOwnerOperationProtocolVersion::V3,
+                protocol: AndroidOwnerOperationProtocolVersion::V4,
                 operation,
             };
             let request_json = serde_json::to_string(&request).map_err(|error| {
@@ -922,7 +922,7 @@ pub(in crate::uniffi_api) async fn route_owner_operation(
                     )
                 },
             )?;
-            if reply.protocol != AndroidOwnerOperationProtocolVersion::V3 {
+            if reply.protocol != AndroidOwnerOperationProtocolVersion::V4 {
                 return Err(FfiStatus::err(
                     FfiErrorCode::NotSupported,
                     "Android owner reply protocol version is unsupported",

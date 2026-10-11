@@ -14,4 +14,9 @@ infiltrator-ios = { path = "../infiltrator-ios" }
 infiltrator-ports = { path = "../infiltrator-ports" }
 log = { workspace = true }
 mihomo-api = { path = "../mihomo-api" }
+singbox-adapter = { path = "../singbox-adapter" }
 tokio = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+url = { workspace = true }

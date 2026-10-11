@@ -112,14 +112,6 @@ dictionary VpnTunSettings {
   boolean? auto_detect_interface;
 };
 
-dictionary VpnTunSettingsPatch {
-  u32? mtu;
-  boolean? auto_route;
-  boolean? strict_route;
-  string? stack;
-  boolean? auto_detect_interface;
-};
-
 dictionary VpnTunSettingsResult {
   FfiStatus status;
   VpnTunSettings? settings;

@@ -63,6 +63,7 @@ use infiltrator_ports::core_binary_selection::{
 };
 use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
 use infiltrator_ports::endpoint::EndpointSource;
+use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::host_runtime::HostRuntime;
 use mihomo_api::controller_fake_ip_cache::MihomoControllerFakeIpCacheAdapter;
 use mihomo_config::endpoint::ProfileEndpointSource;

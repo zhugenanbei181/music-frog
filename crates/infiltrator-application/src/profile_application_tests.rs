@@ -37,6 +37,7 @@ struct FakeStore {
     foreign_workspace_receipt: AtomicBool,
     stale_document_revision_receipt: AtomicBool,
     stale_sidecar_revision_receipt: AtomicBool,
+    stale_after_next_workspace_read: AtomicBool,
 }
 
 fn profiles_with_mihomo_codec(store: Arc<dyn ProfileStore>) -> ProfileApplication {
@@ -91,20 +92,33 @@ impl ProfileStore for FakeStore {
         if let Some(error) = self.options_read_error.lock().unwrap().clone() {
             return Err(error);
         }
-        let profiles = self.profiles.lock().unwrap();
-        let sidecars = self.sidecars.lock().unwrap();
-        let (content, metadata) = profiles
-            .get(profile)
-            .ok_or_else(|| PortError::NotFound(profile.into()))?;
-        let mut result = workspace_with_raw_sidecar(
-            profile,
-            content.as_bytes(),
-            sidecars.get(profile).cloned(),
-            metadata.subscription_url.as_deref(),
-        )?;
-        result.write_protection = ProfileWriteProtection::from_subscription_url(
-            metadata.subscription_url.as_deref().unwrap_or_default(),
-        );
+        let result = {
+            let profiles = self.profiles.lock().unwrap();
+            let sidecars = self.sidecars.lock().unwrap();
+            let (content, metadata) = profiles
+                .get(profile)
+                .ok_or_else(|| PortError::NotFound(profile.into()))?;
+            let mut result = workspace_with_raw_sidecar(
+                profile,
+                content.as_bytes(),
+                sidecars.get(profile).cloned(),
+                metadata.subscription_url.as_deref(),
+            )?;
+            result.write_protection = ProfileWriteProtection::from_subscription_url(
+                metadata.subscription_url.as_deref().unwrap_or_default(),
+            );
+            result
+        };
+        if self
+            .stale_after_next_workspace_read
+            .swap(false, Ordering::SeqCst)
+        {
+            let mut profiles = self.profiles.lock().unwrap();
+            let (content, _) = profiles
+                .get_mut(profile)
+                .ok_or_else(|| PortError::NotFound(profile.into()))?;
+            content.push_str("# concurrent edit\n");
+        }
         Ok(result)
     }
 

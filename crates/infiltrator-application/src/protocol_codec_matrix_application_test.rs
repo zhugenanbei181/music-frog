@@ -2,10 +2,14 @@
 //! covered item; the group is closed, so an uncovered row is itself a failure.
 
 use crate::protocol_codec_matrix_application::ProtocolCodecMatrixApplication;
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use std::sync::Arc;
 
 #[test]
 fn deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones() {
-    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let report = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+        MihomoProfileDocumentCodec,
+    ));
     assert!(
         report.all_covered_passed(),
         "failed: {:?}",
@@ -31,7 +35,11 @@ fn deterministic_matrix_passes_every_covered_item_and_names_the_planned_ones() {
 
 #[test]
 fn matrix_is_deterministic_across_runs() {
-    let first = ProtocolCodecMatrixApplication::run_deterministic_matrix();
-    let second = ProtocolCodecMatrixApplication::run_deterministic_matrix();
+    let first = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+        MihomoProfileDocumentCodec,
+    ));
+    let second = ProtocolCodecMatrixApplication::run_deterministic_matrix(Arc::new(
+        MihomoProfileDocumentCodec,
+    ));
     assert_eq!(first, second);
 }

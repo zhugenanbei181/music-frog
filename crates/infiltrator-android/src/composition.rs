@@ -36,7 +36,8 @@ use infiltrator_ports::core_capability_provider::CoreCapabilityProvider;
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendPorts, EngineBackendProvider,
+    EngineBackendFactory, EngineBackendOwnerScopeBinding, EngineBackendOwnerScopeBindingResult,
+    EngineBackendPorts, EngineBackendProvider, EngineOperationPorts,
 };
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::OutboundPort;
@@ -224,14 +225,32 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(configuration.scope()),
         ));
-        let runtime = self.controller_adapters.runtime_gateway();
+        let operations = match &self.controller_adapters {
+            AndroidControllerAdapters::Available { client } => {
+                let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(self.engine_id()));
+                let outbound: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
+                    Arc::new(client.clone()),
+                    owner_scope.clone(),
+                ));
+                EngineOperationPorts::available(
+                    outbound,
+                    Arc::new(MihomoRoutingIntentAdapter::new(client.clone())),
+                    owner_scope,
+                )
+            }
+            AndroidControllerAdapters::Unavailable { failure } => {
+                EngineOperationPorts::unsupported(format!(
+                    "Mihomo typed engine operations are unavailable: {failure}"
+                ))
+            }
+        };
         EngineBackendPorts::new(
             self.engine_id(),
             process,
             Arc::clone(&self.readiness),
             configuration,
             transaction,
-            runtime,
+            operations,
         )
     }
 }
@@ -455,6 +474,10 @@ where
         overview_reader,
         runtime.clone(),
     );
+    match backend.bind_owner_scope_source(Arc::new(application.clone()))? {
+        EngineBackendOwnerScopeBindingResult::NotRequired => {}
+        EngineBackendOwnerScopeBindingResult::Bound => {}
+    }
     let transaction_binding = backend.configuration_transaction_binding();
     let document_codec = backend.configuration();
     let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
@@ -515,24 +538,20 @@ where
     match controller_adapters {
         AndroidControllerAdapters::Available { client } => {
             let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
+            let operations = backend.operations();
             handler = handler
                 .with_core_log_level_port(core_log_level_port)
-                .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(
-                    client.clone(),
-                )));
-            let outbound_port: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
-                Arc::new(client.clone()),
-                Arc::new(application.clone()),
-            ));
+                .with_routing_intent_port(operations.routing_intent()?);
+            let outbound_port = operations.outbound()?;
             application
                 .install_outbound_port(outbound_port.clone())
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler.with_outbound(OutboundApplication::new(outbound_port));
             application
-                .install_log_gateway(backend.runtime())
+                .install_log_gateway(controller_adapters.runtime_gateway())
                 .map_err(|failure| PortError::Failed(failure.message))?;
             handler = handler
-                .with_runtime(backend.runtime())
+                .with_runtime(controller_adapters.runtime_gateway())
                 .with_logs(application.log_application());
         }
         AndroidControllerAdapters::Unavailable { .. } => {}

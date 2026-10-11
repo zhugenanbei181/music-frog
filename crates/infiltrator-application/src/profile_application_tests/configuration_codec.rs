@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::configuration_application::ConfigurationApplication;
+use crate::protocol_codec_application::ProtocolCodecApplication;
 use async_trait::async_trait;
 use infiltrator_contract::dns::DnsSettingsPatch;
 use infiltrator_contract::error::{ErrorCode, Failure};
@@ -12,6 +13,9 @@ use infiltrator_contract::profile_configuration::{
 use infiltrator_contract::profile_document_identity::{
     ProfileDocumentRevision, ProfileFormatId, ProfileSchemaVersion,
 };
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
+use infiltrator_contract::protocol_fidelity::{CodecAudit, NodeCodecFormat, ProtocolDraft};
+use infiltrator_contract::protocol_trust::TlsTrustParams;
 use infiltrator_domain::apply::ApplyStrategy;
 use infiltrator_domain::runtime::{
     ConnectionSnapshot, MemoryData, ProxyProvider, RuleProvider, TrafficData,
@@ -19,7 +23,7 @@ use infiltrator_domain::runtime::{
 use infiltrator_domain::tun::TunConfigPatch;
 use infiltrator_ports::profile_document_codec::{
     ProfileConfigurationMutation, ProfileConfigurationQuery, ProfileConfigurationReadout,
-    ProfileRuleWorkspaceUpdate,
+    ProfileProtocolNodeMutationReadback, ProfileRuleWorkspaceUpdate,
 };
 use infiltrator_ports::profile_workspace::{ProfileWorkspace, ProfileWorkspaceUpdate};
 use infiltrator_ports::runtime_gateway::{ManagedRuntime, RuntimeGateway, RuntimeStream};
@@ -160,6 +164,58 @@ async fn foreign_format_is_rejected_before_the_codec_is_called() {
         .unwrap_err();
     assert_eq!(endpoint_failure.code, ErrorCode::Unsupported);
     assert_eq!(codec.configuration_read_count(), 0);
+    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn protocol_and_ca_queries_use_queued_typed_readouts_without_yaml_fallback() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    let codec = Arc::new(TestProfileDocumentCodec::mihomo());
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(codec.clone());
+    let workspace = profiles.load_active_workspace().await.unwrap();
+    let identity = workspace.document.identity;
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "typed-readback".to_owned();
+    draft.server = "node.example.com".to_owned();
+    draft.port = 443;
+    codec.queue_configuration_readout(
+        ProfileConfigurationQuery::ProtocolNodes,
+        ProfileConfigurationReadout::ProtocolNodes(vec![draft.clone()]),
+    );
+    codec.queue_configuration_readout(
+        ProfileConfigurationQuery::TrustAnchors,
+        ProfileConfigurationReadout::TrustAnchors(TlsTrustParams {
+            ca_path: "/etc/ssl/custom-ca.pem".to_owned(),
+            ..TlsTrustParams::default()
+        }),
+    );
+
+    let protocol = profiles
+        .read_profile_configuration(
+            &identity,
+            b"opaque protocol bytes",
+            ProfileConfigurationQuery::ProtocolNodes,
+        )
+        .expect("typed protocol readout");
+    let ProfileConfigurationReadout::ProtocolNodes(nodes) = protocol else {
+        panic!("expected typed protocol nodes");
+    };
+    assert_eq!(nodes, vec![draft]);
+
+    let trust = profiles
+        .read_profile_configuration(
+            &identity,
+            b"opaque CA bytes",
+            ProfileConfigurationQuery::TrustAnchors,
+        )
+        .expect("typed CA readout");
+    let ProfileConfigurationReadout::TrustAnchors(params) = trust else {
+        panic!("expected typed CA trust anchors");
+    };
+    assert_eq!(params.ca_path, "/etc/ssl/custom-ca.pem");
+    assert_eq!(codec.configuration_read_count(), 2);
+    assert_eq!(codec.configuration_update_count(), 0);
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
 }
 
@@ -454,5 +510,177 @@ async fn rule_workspace_read_and_edit_dispatch_through_codec_without_storage_sid
             .contains("MATCH,REJECT")
     );
     assert_eq!(codec.configuration_read_count(), 2);
+    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
+}
+
+fn protocol_save_draft() -> ProtocolDraft {
+    let mut draft = ProtocolDraft::new("vless");
+    draft.name = "new-node".to_owned();
+    draft.server = "node.example.com".to_owned();
+    draft.port = 443;
+    draft.uuid = "b831381d-6324-4d53-ad4f-8cda48b30811".to_owned();
+    draft.params.tls_trust.ca_path = "/etc/ssl/custom-ca.pem".to_owned();
+    draft
+}
+
+fn queue_protocol_save(
+    codec: &TestProfileDocumentCodec,
+    draft: &ProtocolDraft,
+    output_bytes: &[u8],
+) {
+    codec.queue_configuration_mutation(Ok(ProfileConfigurationMutation {
+        document_bytes: b"mode: rule\ntls:\n  custom-certifactes:\n    - /etc/ssl/custom-ca.pem\n"
+            .to_vec(),
+        readback: ProfileConfigurationReadout::TrustAnchors(TlsTrustParams {
+            ca_path: draft.params.tls_trust.ca_path.clone(),
+            ..TlsTrustParams::default()
+        }),
+    }));
+    codec.queue_configuration_mutation(Ok(ProfileConfigurationMutation {
+        document_bytes: output_bytes.to_vec(),
+        readback: ProfileConfigurationReadout::ProtocolNodeMutation(
+            ProfileProtocolNodeMutationReadback {
+                nodes: vec![draft.clone()],
+                audit: CodecAudit {
+                    source_format: NodeCodecFormat::Uri,
+                    target_format: NodeCodecFormat::ClashYaml,
+                    node_count: 1,
+                    unknown_fields: vec!["future-field".to_owned()],
+                    structure_preserved: true,
+                    lossless: true,
+                    detail: "fake exact protocol mutation".to_owned(),
+                },
+                replaced_existing: false,
+            },
+        ),
+    }));
+}
+
+#[tokio::test]
+async fn protocol_and_ca_codecs_commit_exact_typed_readback_bytes() {
+    let original = "mode: rule\nproxies: []\n";
+    let output = b"mode: rule\ntls:\n  custom-certifactes:\n    - /etc/ssl/custom-ca.pem\nproxies:\n  - name: new-node\n    type: vless\n";
+    let store = Arc::new(FakeStore::with_profile("main", original, true));
+    let codec = Arc::new(TestProfileDocumentCodec::mihomo());
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(codec.clone());
+    let draft = protocol_save_draft();
+    queue_protocol_save(&codec, &draft, output);
+    let runtime = Arc::new(WorkspaceApplyRuntime::default());
+
+    let commit = ProtocolCodecApplication::save_draft_to_active_profile(
+        &profiles,
+        runtime.clone(),
+        &draft,
+        ProfileWriteAuthorization::RequireUnlock,
+    )
+    .await
+    .expect("typed protocol transaction");
+
+    assert_eq!(commit.profile_yaml.as_bytes(), output);
+    assert_eq!(commit.draft, draft);
+    assert_eq!(commit.node_count, 1);
+    assert!(commit.audit.lossless);
+    assert_eq!(commit.audit.unknown_fields, vec!["future-field"]);
+    assert_eq!(runtime.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        runtime
+            .update
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .document_bytes,
+        output
+    );
+    assert_eq!(codec.configuration_update_count(), 2);
+    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn foreign_protocol_codec_scope_fails_before_dispatch_or_transaction() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    let codec = Arc::new(TestProfileDocumentCodec::for_scope(
+        "mihomo",
+        "other-yaml",
+        1,
+    ));
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(codec.clone());
+    let runtime = Arc::new(WorkspaceApplyRuntime::default());
+
+    let failure = ProtocolCodecApplication::save_draft_to_active_profile(
+        &profiles,
+        runtime.clone(),
+        &protocol_save_draft(),
+        ProfileWriteAuthorization::RequireUnlock,
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(failure.code, ErrorCode::Unsupported);
+    assert_eq!(codec.configuration_update_count(), 0);
+    assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn invalid_protocol_codec_candidate_has_no_workspace_or_runtime_write() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    let codec = Arc::new(TestProfileDocumentCodec::mihomo());
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(codec.clone());
+    let draft = protocol_save_draft();
+    codec.queue_configuration_mutation(Ok(ProfileConfigurationMutation {
+        document_bytes: b"mode: rule\n".to_vec(),
+        readback: ProfileConfigurationReadout::TrustAnchors(TlsTrustParams::default()),
+    }));
+    codec.queue_configuration_mutation(Err(PortError::Rejected(Failure::new(
+        ErrorCode::InvalidInput,
+        "fake Mihomo codec rejected an invalid protocol candidate",
+        false,
+    ))));
+    let runtime = Arc::new(WorkspaceApplyRuntime::default());
+
+    let failure = ProtocolCodecApplication::save_draft_to_active_profile(
+        &profiles,
+        runtime.clone(),
+        &draft,
+        ProfileWriteAuthorization::RequireUnlock,
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(failure.code, ErrorCode::InvalidInput);
+    assert_eq!(codec.configuration_update_count(), 2);
+    assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn stale_profile_revision_after_codec_transform_has_no_runtime_or_store_write() {
+    let store = Arc::new(FakeStore::with_profile("main", "mode: rule\n", true));
+    store
+        .stale_after_next_workspace_read
+        .store(true, Ordering::SeqCst);
+    let codec = Arc::new(TestProfileDocumentCodec::mihomo());
+    let profiles = ProfileApplication::new(Arc::clone(&store) as Arc<dyn ProfileStore>)
+        .with_document_codec(codec.clone());
+    let draft = protocol_save_draft();
+    queue_protocol_save(&codec, &draft, b"mode: rule\nproxies: []\n");
+    let runtime = Arc::new(WorkspaceApplyRuntime::default());
+
+    let failure = ProtocolCodecApplication::save_draft_to_active_profile(
+        &profiles,
+        runtime.clone(),
+        &draft,
+        ProfileWriteAuthorization::RequireUnlock,
+    )
+    .await
+    .unwrap_err();
+
+    assert_eq!(failure.code, ErrorCode::NotReady);
+    assert_eq!(codec.configuration_update_count(), 2);
+    assert_eq!(runtime.calls.load(Ordering::SeqCst), 0);
     assert_eq!(store.workspace_writes.load(Ordering::SeqCst), 0);
 }

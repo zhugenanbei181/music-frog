@@ -9,7 +9,7 @@
       },
       "support": {
         "status": "unsupported",
-        "reason": "The standalone sing-box native JSON validator is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+        "reason": "The sing-box provider bundle is implemented, but no product composition binds and advertises native validation with verified target evidence; this Core operation remains unavailable."
       }
     },
     {
@@ -19,7 +19,7 @@
       },
       "support": {
         "status": "unsupported",
-        "reason": "The standalone sing-box native config transaction is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+        "reason": "The sing-box provider bundle is implemented, but no product composition binds and advertises the profile transaction with verified target evidence; this Core operation remains unavailable."
       }
     },
     {
@@ -199,7 +199,7 @@
       },
       "support": {
         "status": "unsupported",
-        "reason": "The standalone sing-box Clash inventory adapter is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+        "reason": "The sing-box typed Clash adapter is implemented, but no product composition binds and advertises inventory with verified target evidence; this Core operation remains unavailable."
       }
     },
     {
@@ -209,7 +209,7 @@
       },
       "support": {
         "status": "unsupported",
-        "reason": "The standalone sing-box selector adapter is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+        "reason": "The sing-box typed selector adapter is implemented, but no product composition binds and advertises selection with verified target evidence; this Core operation remains unavailable."
       }
     },
     {
@@ -379,7 +379,7 @@
       },
       "support": {
         "status": "unsupported",
-        "reason": "The standalone sing-box mode observer is not registered in the production EngineBackendFactory; this Core operation is unavailable until that owner composition exists."
+        "reason": "The sing-box mode observer is implemented, but no product composition binds and advertises routing observation with verified target evidence; this Core operation remains unavailable."
       }
     },
     {

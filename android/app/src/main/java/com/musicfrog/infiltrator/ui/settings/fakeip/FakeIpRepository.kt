@@ -71,7 +71,7 @@ private fun AndroidOwnerOperationReply.toFakeIpRepositoryResult(
         FakeIpOperationPurpose.Unsupported -> return unconfirmedFakeIp(latest)
     }
 
-    if (protocol != AndroidOwnerOperationProtocolVersion.V3 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V4 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||
@@ -120,7 +120,7 @@ private fun AndroidOwnerOperation.fakeIpPurpose(): FakeIpOperationPurpose = when
 }
 
 private fun AndroidOwnerOperationReply.latestFakeIpSnapshot(): FakeIpSettingsObservationPoint? {
-    if (protocol != AndroidOwnerOperationProtocolVersion.V3 ||
+    if (protocol != AndroidOwnerOperationProtocolVersion.V4 ||
         dataDomain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         snapshot?.domain != AndroidOwnerDataDomain.FAKE_IP_SETTINGS ||
         context.clientSessionId.isBlank() ||

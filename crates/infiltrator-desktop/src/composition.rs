@@ -21,6 +21,7 @@ use crate::surface::SurfaceEngines;
 use crate::system_proxy::DesktopSystemProxy;
 use crate::uwp_loopback_port::DesktopUwpLoopbackPort;
 use infiltrator_application::command_application::CommandApplication;
+use infiltrator_application::configuration_application::ConfigurationApplication;
 use infiltrator_application::core_application::CoreApplication;
 use infiltrator_application::core_capability_application::CoreCapabilityApplication;
 use infiltrator_application::log_export_application::LogExportApplication;
@@ -56,7 +57,8 @@ use infiltrator_ports::core_log_level::CoreLogLevelPort;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendPorts, EngineBackendProvider,
+    EngineBackendFactory, EngineBackendOwnerScopeBinding, EngineBackendOwnerScopeBindingResult,
+    EngineBackendPorts, EngineBackendProvider, EngineOperationPorts,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
@@ -342,6 +344,13 @@ pub(crate) fn core_application(
         Arc::new(ControllerOverviewReader::new(client.clone())),
         runtime.clone(),
     );
+    match backend
+        .ports
+        .bind_owner_scope_source(Arc::new(application.clone()))?
+    {
+        EngineBackendOwnerScopeBindingResult::NotRequired => {}
+        EngineBackendOwnerScopeBindingResult::Bound => {}
+    }
     let transaction_binding = backend.ports.configuration_transaction_binding();
     let document_codec = backend.ports.configuration();
     let transaction_scope = ProfileConfigurationTransactionScope::new(document_codec.scope());
@@ -360,12 +369,9 @@ pub(crate) fn core_application(
     )?);
     transaction_binding.bind(transaction)?;
     application
-        .install_log_gateway(backend.ports.runtime())
+        .install_log_gateway(Arc::new(backend.client.clone()))
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
-    let outbound_port: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
-        Arc::new(client.clone()),
-        Arc::new(application.clone()),
-    ));
+    let outbound_port = backend.ports.operations().outbound()?;
     application
         .install_outbound_port(outbound_port.clone())
         .map_err(|failure| anyhow::anyhow!(failure.message))?;
@@ -514,12 +520,12 @@ pub fn desktop_command_application(
     let core_log_level_port: Arc<dyn CoreLogLevelPort> = Arc::new(client.clone());
     Ok(CommandApplication::new()
         .with_core_capabilities(core_capabilities)
-        .with_routing_intent_port(Arc::new(MihomoRoutingIntentAdapter::new(client.clone())))
+        .with_routing_intent_port(backend_ports.operations().routing_intent()?)
         .with_core_log_level_port(core_log_level_port)
         .with_host_capabilities(Arc::new(DesktopHostCapabilities))
         .with_scripts(scripts, script_exports)
         .with_doctor(doctor)
-        .with_runtime(backend_ports.runtime())
+        .with_runtime(Arc::new(client.clone()))
         .with_application_runtime(runtime)
         .with_profile(profiles)
         .with_configuration(configuration)
@@ -572,15 +578,23 @@ impl EngineBackendProvider for DesktopMihomoBackendProvider {
         let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
             ProfileConfigurationTransactionScope::new(configuration.scope()),
         ));
-        let runtime: Arc<dyn infiltrator_ports::runtime_gateway::RuntimeGateway> =
-            Arc::new(self.client.clone());
+        let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(engine_id.clone()));
+        let outbound: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
+            Arc::new(self.client.clone()),
+            owner_scope.clone(),
+        ));
+        let operations = EngineOperationPorts::available(
+            outbound,
+            Arc::new(MihomoRoutingIntentAdapter::new(self.client.clone())),
+            owner_scope,
+        );
         let ports = EngineBackendPorts::new(
             engine_id,
             Arc::clone(&self.process),
             readiness,
             configuration,
             transaction,
-            runtime,
+            operations,
         )?;
         Ok(ports)
     }

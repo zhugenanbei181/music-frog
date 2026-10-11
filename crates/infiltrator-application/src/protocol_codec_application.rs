@@ -8,26 +8,30 @@
 //!   every other section and every unknown key preserved, and the conversion
 //!   is audited honestly instead of being claimed lossless.
 //!
-//! The application layer stays executor-neutral: everything here is sync and
-//! free of Tokio, so both surfaces (and the host command path) share it.
+//! Draft projection and studio operations are executor-neutral. Saving is the
+//! one asynchronous use case: it asks the host runtime to commit adapter-owned
+//! bytes through the source-bound workspace transaction.
 
 use crate::certificate_authority_application::CertificateAuthorityApplication;
 use crate::dialer_chain_application::DialerChainApplication;
+use crate::profile_application::ProfileApplication;
 use crate::protocol_node_params::node_from_draft;
-use crate::protocol_node_projection::{
-    DRAFT_NESTED_KEYS, draft_from_node, is_typed_extra_key_for, owned_keys,
-};
+use crate::protocol_node_projection::draft_from_node;
 use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::{ErrorCode, Failure};
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::{
-    CodecAudit, NodeCodecFormat, ProtocolDraft, ProtocolFamily, ProtocolFidelityReport,
-    ProtocolStudioSnapshot,
+    CodecAudit, ProtocolDraft, ProtocolFidelityReport, ProtocolStudioSnapshot,
 };
 use infiltrator_contract::protocol_trust::{CaTrustReport, TlsTrustParams};
-use infiltrator_domain::profile_converter::{ProfileConverter, ProfileFormat, ProxyNodeItem};
+use infiltrator_domain::profile_converter::{ProfileConverter, ProxyNodeItem};
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use serde_yaml_ng::{Mapping, Value};
-use std::sync::{Mutex, OnceLock};
+use infiltrator_ports::profile_document_codec::{
+    ProfileConfigurationReadout, ProfileConfigurationUpdate,
+};
+use infiltrator_ports::profile_workspace::{ProfileWorkspacePurpose, ProfileWorkspaceUpdate};
+use infiltrator_ports::runtime_gateway::ManagedRuntime;
+use std::sync::{Arc, Mutex, OnceLock};
 
 #[cfg(test)]
 #[path = "protocol_codec_application_test.rs"]
@@ -283,119 +287,6 @@ impl ProtocolCodecApplication {
         Ok(Self::publish_draft(draft, preview))
     }
 
-    /// DUAL-05-14: write the draft into the profile document, replacing an
-    /// existing node with the same name (keeping every key the draft does not
-    /// own) or inserting a new node at the top of `proxies:`.
-    ///
-    /// Every other profile section is preserved: the document is edited at the
-    /// YAML value level and `structure_preserved` reports whether the
-    /// untouched sections are semantically equal to the original.
-    pub fn upsert_draft_into_profile(
-        profile_yaml: &str,
-        draft: &ProtocolDraft,
-    ) -> Result<ProtocolCommit, Failure> {
-        let report = draft.report();
-        if !report.is_valid() {
-            return Err(Failure::new(
-                ErrorCode::InvalidInput,
-                format!(
-                    "node draft has unresolved protocol issues: {}",
-                    report.issue_lines().join("; ")
-                ),
-                false,
-            ));
-        }
-
-        let mut document: Value = serde_yaml_ng::from_str(profile_yaml)
-            .map_err(|error| invalid_input(&format!("profile is not valid YAML: {error}")))?;
-        if !document.is_mapping() {
-            return Err(invalid_input("profile YAML must be a top-level mapping"));
-        }
-        let original_sections = sections_without_proxies(&document);
-
-        let node_value = serde_yaml_ng::to_value(Self::node_from_draft(draft))
-            .map_err(|error| invalid_input(&format!("could not encode node: {error}")))?;
-
-        let mut replaced_existing = false;
-        let mut unknown_fields: Vec<String> = Vec::new();
-        let node_count;
-        {
-            let existing = proxies_sequence_mut(&mut document)?;
-            let index_found = existing.iter().position(|entry| {
-                entry.get("name").and_then(Value::as_str) == Some(draft.name.trim())
-            });
-
-            if let Some(index) = index_found {
-                replaced_existing = true;
-                let previous = existing.get(index).cloned().unwrap_or(Value::Null);
-                existing[index] = merge_preserving_unknown(
-                    &previous,
-                    &node_value,
-                    draft.family(),
-                    &mut unknown_fields,
-                );
-            } else {
-                let mut entries = Vec::with_capacity(existing.len() + 1);
-                entries.push(node_value);
-                entries.extend(existing.iter().cloned());
-                *existing = entries;
-            }
-            node_count = existing.len();
-        }
-        unknown_fields.sort();
-        unknown_fields.dedup();
-
-        // DUAL-05-13: project the file-path anchor into the global
-        // `tls.custom-certifactes` list — the carrier the pinned mihomo
-        // v1.19.18 really reads. Everything else in `tls:` stays untouched.
-        let trust_added = CertificateAuthorityApplication::write_ca_path(
-            &mut document,
-            &draft.params.tls_trust.ca_path,
-        );
-
-        let profile_yaml = serde_yaml_ng::to_string(&document)
-            .map_err(|error| invalid_input(&format!("could not serialize profile: {error}")))?;
-        // The audit compares the untouched sections; the one CA entry this
-        // application added is its own key, so it is removed before comparing.
-        let mut reported: Value = serde_yaml_ng::from_str(&profile_yaml).map_err(|error| {
-            invalid_input(&format!("exported profile is invalid YAML: {error}"))
-        })?;
-        if let Some(added) = trust_added.as_deref() {
-            CertificateAuthorityApplication::remove_ca_path(&mut reported, added);
-        }
-        let structure_preserved = original_sections == sections_without_proxies(&reported);
-
-        let dialer = DialerChainApplication::analyze_profile(&profile_yaml).unwrap_or_default();
-
-        let audit = CodecAudit {
-            source_format: NodeCodecFormat::Uri,
-            target_format: NodeCodecFormat::ClashYaml,
-            node_count,
-            unknown_fields,
-            structure_preserved,
-            lossless: structure_preserved,
-            detail: if replaced_existing {
-                format!("replaced node `{}` in place", draft.name.trim())
-            } else {
-                format!(
-                    "inserted node `{}` at the top of proxies",
-                    draft.name.trim()
-                )
-            },
-        };
-
-        let commit = ProtocolCommit {
-            profile_yaml,
-            draft: draft.clone(),
-            report,
-            audit,
-            replaced_existing,
-            node_count,
-            dialer: dialer.clone(),
-        };
-        Ok(commit)
-    }
-
     /// Publish saved facts only after the caller's persistence transaction succeeds.
     pub fn publish_commit(commit: &ProtocolCommit) {
         publish_studio(ProtocolStudioSnapshot {
@@ -411,71 +302,95 @@ impl ProtocolCodecApplication {
         });
     }
 
-    /// DUAL-05-14: audit a node codec conversion without touching any profile.
-    ///
-    /// `structure_preserved` compares the parsed-then-exported YAML against
-    /// the source at the value level, and `unknown_fields` lists the node keys
-    /// the typed model did not recognise but kept.
-    pub fn audit_conversion(
-        input: &str,
-        from: NodeCodecFormat,
-        to: NodeCodecFormat,
-    ) -> Result<(String, CodecAudit), Failure> {
-        let nodes = Self::parse_nodes(input, from)?;
-        let output = Self::export_nodes(&nodes, to)?;
-        let unknown_fields = collect_unknown_fields(&nodes);
-        let structure_preserved = if from == NodeCodecFormat::ClashYaml
-            && to == NodeCodecFormat::ClashYaml
-        {
-            let original: Value = serde_yaml_ng::from_str(input)
-                .map_err(|error| invalid_input(&format!("profile is not valid YAML: {error}")))?;
-            let exported: Value = serde_yaml_ng::from_str(&output)
-                .map_err(|error| invalid_input(&format!("exported YAML is invalid: {error}")))?;
-            sections_without_proxies(&original) == sections_without_proxies(&exported)
-        } else {
-            true
+    /// Apply the protocol draft and its profile-level CA path through the
+    /// engine codec, then commit the exact candidate through the source-bound
+    /// workspace transaction. Every typed readback is decoded from the
+    /// adapter-produced bytes before the transaction is allowed to write.
+    pub async fn save_draft_to_active_profile<R: ManagedRuntime + ?Sized>(
+        profiles: &ProfileApplication,
+        runtime: Arc<R>,
+        draft: &ProtocolDraft,
+        authorization: ProfileWriteAuthorization,
+    ) -> Result<ProtocolCommit, Failure> {
+        let workspace = profiles.load_active_workspace().await?;
+        let expected = workspace.identity();
+        let trust_update = TlsTrustParams {
+            ca_path: draft.params.tls_trust.ca_path.clone(),
+            ..TlsTrustParams::default()
         };
-
-        let audit = CodecAudit {
-            source_format: from,
-            target_format: to,
-            node_count: nodes.len(),
-            unknown_fields,
-            structure_preserved,
-            lossless: structure_preserved,
-            detail: format!("{} -> {}", from.label_en(), to.label_en()),
+        let trust_mutation = CertificateAuthorityApplication::apply_profile_trust_anchors(
+            profiles,
+            &workspace.document.identity,
+            &workspace.document.raw_bytes,
+            trust_update,
+        )?;
+        let ProfileConfigurationReadout::TrustAnchors(_) = trust_mutation.readback else {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "profile CA codec returned the wrong typed readback",
+                false,
+            ));
         };
-        publish_studio(ProtocolStudioSnapshot {
-            draft: nodes.first().map(Self::draft_from_node),
-            report: nodes
-                .first()
-                .map(|node| Self::draft_from_node(node).report()),
-            uri_preview: None,
-            audit: Some(audit.clone()),
-            last_error: None,
-            last_saved_node: None,
-            uri_gaps: Vec::new(),
-            ..ProtocolStudioSnapshot::default()
-        });
-        Ok((output, audit))
-    }
-
-    /// Parse a node list in one of the shared codec formats.
-    pub fn parse_nodes(
-        input: &str,
-        format: NodeCodecFormat,
-    ) -> Result<Vec<ProxyNodeItem>, Failure> {
-        ProfileConverter::parse_nodes(input, to_domain_format(format))
-            .map_err(|error| invalid_input(&format!("could not parse nodes: {error}")))
-    }
-
-    /// Export a node list in one of the shared codec formats.
-    pub fn export_nodes(
-        nodes: &[ProxyNodeItem],
-        format: NodeCodecFormat,
-    ) -> Result<String, Failure> {
-        ProfileConverter::export_nodes(nodes, to_domain_format(format))
-            .map_err(|error| invalid_input(&format!("could not export nodes: {error}")))
+        let protocol_mutation = profiles.apply_profile_configuration(
+            &workspace.document.identity,
+            &trust_mutation.document_bytes,
+            ProfileConfigurationUpdate::UpsertProtocolNode(draft.clone()),
+        )?;
+        let ProfileConfigurationReadout::ProtocolNodeMutation(readback) =
+            protocol_mutation.readback
+        else {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "profile protocol codec returned the wrong typed readback",
+                false,
+            ));
+        };
+        let saved_draft = readback
+            .nodes
+            .iter()
+            .find(|node| node.name.trim() == draft.name.trim())
+            .cloned()
+            .ok_or_else(|| {
+                Failure::new(
+                    ErrorCode::InvalidState,
+                    "profile protocol codec did not read back the saved node",
+                    false,
+                )
+            })?;
+        let mut expected_readback = Self::draft_from_node(&Self::node_from_draft(draft));
+        expected_readback.preserved_fields = saved_draft.preserved_fields.clone();
+        if saved_draft != expected_readback {
+            return Err(Failure::new(
+                ErrorCode::InvalidState,
+                "profile protocol codec readback differs from the requested typed draft",
+                false,
+            ));
+        }
+        profiles.validate_document_write(&expected, &protocol_mutation.document_bytes)?;
+        let updated = ProfileWorkspaceUpdate {
+            purpose: ProfileWorkspacePurpose::DirectEdit { authorization },
+            document_bytes: protocol_mutation.document_bytes,
+            sidecar_bytes: workspace.sidecar_bytes.clone(),
+        };
+        let committed = profiles
+            .commit_workspace(Some(runtime), &expected, &updated)
+            .await?;
+        let profile_yaml = committed
+            .document
+            .utf8_text()
+            .map_err(|error| Failure::new(ErrorCode::Storage, error.to_string(), false))?
+            .to_owned();
+        let dialer = DialerChainApplication::analyze_profile(&profile_yaml).unwrap_or_default();
+        let node_count = readback.audit.node_count;
+        Ok(ProtocolCommit {
+            profile_yaml,
+            report: saved_draft.report(),
+            draft: saved_draft,
+            audit: readback.audit,
+            replaced_existing: readback.replaced_existing,
+            node_count,
+            dialer,
+        })
     }
 
     /// Shared studio failure publication: both surfaces render the same error.
@@ -512,161 +427,6 @@ pub fn studio_snapshot() -> Option<ProtocolStudioSnapshot> {
 pub fn clear_studio() {
     let mut studio = last_studio().lock().unwrap_or_else(|e| e.into_inner());
     *studio = None;
-}
-
-fn to_domain_format(format: NodeCodecFormat) -> ProfileFormat {
-    match format {
-        NodeCodecFormat::ClashYaml => ProfileFormat::ClashYaml,
-        NodeCodecFormat::RawJson => ProfileFormat::RawJson,
-        NodeCodecFormat::Uri => ProfileFormat::ShadowrocketUriList,
-        NodeCodecFormat::Base64Subscription => ProfileFormat::Base64Subscription,
-    }
-}
-
-fn proxies_sequence_mut(document: &mut Value) -> Result<&mut Vec<Value>, Failure> {
-    if !document.is_mapping() {
-        return Err(invalid_input("profile YAML must be a top-level mapping"));
-    }
-    let mapping = document.as_mapping_mut().expect("checked mapping above");
-    let key = Value::String("proxies".to_string());
-    match mapping.get(&key) {
-        None | Some(Value::Null) => {
-            mapping.insert(key.clone(), Value::Sequence(Vec::new()));
-        }
-        Some(Value::Sequence(_)) => {}
-        Some(_) => return Err(invalid_input("`proxies` must be a list of node mappings")),
-    }
-    match mapping.get_mut(&key) {
-        Some(Value::Sequence(entries)) => Ok(entries),
-        _ => Err(invalid_input("`proxies` could not be created")),
-    }
-}
-
-/// Overlay the draft's owned keys onto an existing node, keeping every other
-/// key verbatim and reporting which ones were preserved. Map-valued owned keys
-/// are merged recursively so unknown sub-keys (e.g. `ws-opts.headers.User-Agent`)
-/// survive too; their dotted paths land in `unknown_fields`.
-fn merge_preserving_unknown(
-    previous: &Value,
-    node: &Value,
-    family: ProtocolFamily,
-    unknown_fields: &mut Vec<String>,
-) -> Value {
-    let Some(previous_map) = previous.as_mapping() else {
-        return node.clone();
-    };
-    let Some(node_map) = node.as_mapping() else {
-        return node.clone();
-    };
-    let owned = owned_keys(family);
-    let mut merged = Mapping::new();
-    for (key, value) in previous_map {
-        let Some(name) = key.as_str() else {
-            continue;
-        };
-        if !owned.contains(&name) {
-            unknown_fields.push(name.to_string());
-            merged.insert(key.clone(), value.clone());
-        }
-    }
-    for (key, value) in node_map {
-        let nested = key
-            .as_str()
-            .is_some_and(|name| DRAFT_NESTED_KEYS.contains(&name) && owned.contains(&name));
-        if nested {
-            let previous_sub = previous_map.get(key).and_then(Value::as_mapping);
-            let Some(node_sub) = value.as_mapping() else {
-                merged.insert(key.clone(), value.clone());
-                continue;
-            };
-            let path = key.as_str().unwrap_or_default().to_string();
-            match previous_sub {
-                Some(previous_sub) => {
-                    let sub = merge_nested(previous_sub, node_sub, &path, unknown_fields);
-                    merged.insert(key.clone(), Value::Mapping(sub));
-                }
-                None => {
-                    merged.insert(key.clone(), value.clone());
-                }
-            }
-            continue;
-        }
-        merged.insert(key.clone(), value.clone());
-    }
-    Value::Mapping(merged)
-}
-
-/// Merge one map-valued draft-owned key, keeping previous sub-keys the draft
-/// did not write (recursively) and reporting their dotted paths.
-fn merge_nested(
-    previous: &Mapping,
-    node: &Mapping,
-    path: &str,
-    unknown_fields: &mut Vec<String>,
-) -> Mapping {
-    let mut merged = Mapping::new();
-    for (key, value) in node {
-        let sub_path = match key.as_str() {
-            Some(name) => format!("{path}.{name}"),
-            None => path.to_string(),
-        };
-        match (
-            previous.get(key).and_then(Value::as_mapping),
-            value.as_mapping(),
-        ) {
-            (Some(previous_sub), Some(node_sub)) => {
-                merged.insert(
-                    key.clone(),
-                    Value::Mapping(merge_nested(
-                        previous_sub,
-                        node_sub,
-                        &sub_path,
-                        unknown_fields,
-                    )),
-                );
-            }
-            _ => {
-                merged.insert(key.clone(), value.clone());
-            }
-        }
-    }
-    for (key, value) in previous {
-        if node.get(key).is_some() {
-            continue;
-        }
-        let sub_path = match key.as_str() {
-            Some(name) => format!("{path}.{name}"),
-            None => path.to_string(),
-        };
-        unknown_fields.push(sub_path);
-        merged.insert(key.clone(), value.clone());
-    }
-    merged
-}
-
-fn collect_unknown_fields(nodes: &[ProxyNodeItem]) -> Vec<String> {
-    let mut fields: Vec<String> = nodes
-        .iter()
-        .flat_map(|node| {
-            let family = ProtocolFamily::from_type_str(&node.node_type);
-            node.extra
-                .keys()
-                .filter(|key| !is_typed_extra_key_for(key, family))
-                .cloned()
-                .collect::<Vec<String>>()
-        })
-        .collect();
-    fields.sort();
-    fields.dedup();
-    fields
-}
-
-fn sections_without_proxies(document: &Value) -> Value {
-    let mut clone = document.clone();
-    if let Some(mapping) = clone.as_mapping_mut() {
-        mapping.remove(Value::String("proxies".to_string()));
-    }
-    clone
 }
 
 fn invalid_input(message: &str) -> Failure {

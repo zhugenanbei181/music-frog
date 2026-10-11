@@ -138,7 +138,7 @@ class FakeIpRepositoryTest {
         observedCoreGeneration: ULong = 7uL,
         expectedCoreGeneration: ULong = observedCoreGeneration,
     ) = AndroidOwnerOperationReply(
-        protocol = AndroidOwnerOperationProtocolVersion.V3,
+        protocol = AndroidOwnerOperationProtocolVersion.V4,
         context = AndroidOwnerOperationContext(
             clientSessionId = "client-a",
             expectedOwnerSessionId = expectedOwnerSessionId,

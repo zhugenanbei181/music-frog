@@ -51,3 +51,7 @@ impl ProfileDocumentCodecPort for SingBoxProfileDocumentCodec {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "profile_document_codec_tests.rs"]
+mod tests;

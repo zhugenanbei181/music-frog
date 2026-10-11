@@ -97,7 +97,7 @@ private fun AndroidOwnerOperationReply.toProfilesRepositoryResult(
 private fun AndroidOwnerOperationReply.matchesOwnerFence(kind: ProfilesRequestKind): Boolean {
     if (kind == ProfilesRequestKind.Unsupported) return false
     val ownerSnapshot = snapshot ?: return false
-    return protocol == AndroidOwnerOperationProtocolVersion.V3 &&
+    return protocol == AndroidOwnerOperationProtocolVersion.V4 &&
         context.clientSessionId.isNotBlank() &&
         context.ownerSessionId.isNotBlank() &&
         context.expectedOwnerSessionId == context.ownerSessionId &&

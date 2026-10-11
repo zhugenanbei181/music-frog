@@ -209,7 +209,7 @@ impl MihomoRuntime {
         let backend_ports = backend.ports.clone();
         let configuration_transaction = backend_ports.configuration_transaction();
         let client = backend.client.clone();
-        let runtime_gateway = backend.ports.runtime();
+        let runtime_gateway: Arc<dyn RuntimeGateway> = Arc::new(backend.client.clone());
         // One speedtest owner is installed into Core composition. The bounded
         // history is versioned and persisted.
         let history_store: Arc<dyn SpeedtestHistoryStore> = Arc::new(speedtest_history_store()?);

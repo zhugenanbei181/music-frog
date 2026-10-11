@@ -62,8 +62,9 @@ pub use settings::{
 pub use vpn::{
     AndroidVpnConfigurationActivationLease, AndroidVpnConfigurationActivationReleaseResult,
     AndroidVpnConfigurationActivationResult, VpnPreparationResult, VpnTunSettings,
-    VpnTunSettingsPatch, VpnTunSettingsResult, android_begin_vpn_configuration_activation,
-    android_finish_vpn_configuration_activation, cancel_vpn_preparation, prepare_vpn, start_vpn,
+    VpnTunSettingsPatch, VpnTunSettingsResult, VpnTunStack, VpnTunStackUpdate,
+    android_begin_vpn_configuration_activation, android_finish_vpn_configuration_activation,
+    cancel_vpn_preparation, prepare_vpn, start_vpn,
 };
 pub use webdav::{WebDavSettings, WebDavSettingsResult, WebDavSyncResult};
 
@@ -106,12 +107,19 @@ mod tests {
             mtu: None,
             auto_route: None,
             strict_route: None,
-            stack: Some(" gvisor ".to_string()),
+            stack_update: VpnTunStackUpdate::Set {
+                stack: VpnTunStack::Gvisor,
+            },
             auto_detect_interface: Some(true),
         };
 
         let core_patch = build_tun_patch(&patch);
-        assert_eq!(core_patch.stack, Some("gvisor".to_string()));
+        assert_eq!(
+            core_patch.stack,
+            infiltrator_contract::tun::TunStackUpdate::Set(
+                infiltrator_contract::tun::TunStack::Gvisor,
+            ),
+        );
         assert_eq!(core_patch.auto_detect_interface, Some(true));
     }
 

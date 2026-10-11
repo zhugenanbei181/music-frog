@@ -11,7 +11,6 @@ use crate::configs_dir::config_manager;
 use crate::state::AppState;
 use crate::types::app::ToastStatus;
 use crate::types::message::Message;
-use crate::update::core::profile_apply::save_task;
 use iced::Task;
 use infiltrator_application::profile_application::ProfileApplication;
 use infiltrator_application::protocol_codec_application::{
@@ -21,10 +20,12 @@ use infiltrator_application::protocol_form::ProtocolInputs;
 use infiltrator_contract::command::CommandIntent;
 use infiltrator_contract::dialer_chain::DialerChainReport;
 use infiltrator_contract::error::InfiltratorError;
+use infiltrator_contract::profile_protection::ProfileWriteAuthorization;
 use infiltrator_contract::protocol_fidelity::ProtocolDraft;
 use infiltrator_contract::protocol_trust::CaTrustReport;
 use infiltrator_ports::certificate_authority::CertificateAuthorityPort;
-use std::sync::{Arc, Mutex};
+use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use std::sync::Arc;
 
 /// DUAL-05-09/10: load the active profile and run the shared dialer analyzer.
 async fn scan_dialer_chains() -> Result<DialerChainReport, InfiltratorError> {
@@ -242,31 +243,30 @@ impl AppState {
                     );
                 }
                 let runtime = self.runtime.runtime.clone();
-                // DUAL-05-14: the splice keeps every other profile section and
-                // every unknown node key; the old parse/export round trip
-                // silently dropped rules/dns/proxy-groups.
-                let committed = Arc::new(Mutex::new(None));
-                let written = committed.clone();
-                save_task(
-                    runtime,
-                    move |content| {
-                        let commit =
-                            ProtocolCodecApplication::upsert_draft_into_profile(content, &draft)
-                                .map_err(|failure| anyhow::anyhow!(failure.message))?;
-                        let content = commit.profile_yaml.clone();
-                        *written.lock().expect("protocol commit") = Some(commit);
-                        Ok(content)
+                Task::perform(
+                    async move {
+                        let runtime = runtime.ok_or_else(|| {
+                            InfiltratorError::Config(
+                                "custom protocol editing requires an engine profile transaction"
+                                    .to_owned(),
+                            )
+                        })?;
+                        let store = config_manager().await?;
+                        let profiles = ProfileApplication::new(store)
+                            .with_document_codec(Arc::new(MihomoProfileDocumentCodec));
+                        let commit = ProtocolCodecApplication::save_draft_to_active_profile(
+                            &profiles,
+                            runtime,
+                            &draft,
+                            ProfileWriteAuthorization::RequireUnlock,
+                        )
+                        .await
+                        .map_err(|failure| InfiltratorError::Config(failure.message))?;
+                        ProtocolCodecApplication::publish_commit(&commit);
+                        Ok(())
                     },
                     Message::CustomNodeSaved,
                 )
-                .map(move |message| {
-                    if matches!(message, Message::CustomNodeSaved(Ok(())))
-                        && let Some(commit) = committed.lock().expect("protocol commit").take()
-                    {
-                        ProtocolCodecApplication::publish_commit(&commit);
-                    }
-                    message
-                })
             }
             Message::CustomNodeSaved(result) => {
                 if !self.runtime.custom_node_saving {
