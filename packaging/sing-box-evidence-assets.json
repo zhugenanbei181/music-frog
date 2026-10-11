@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "engine": "sing-box",
+  "release": {
+    "version": "v1.14.3",
+    "url": "https://github.com/SagerNet/sing-box/releases/tag/v1.14.3",
+    "api_url": "https://api.github.com/repos/SagerNet/sing-box/releases/tags/v1.14.3",
+    "published_at": "2026-10-09T05:35:00Z",
+    "immutable": true,
+    "prerelease": false
+  },
+  "digest_source": "GitHub Releases API release asset digest field (sha256)",
+  "assets": [
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "platform": "linux-amd64-glibc",
+      "asset_id": 623965138,
+      "archive": "sing-box-1.14.3-linux-amd64-glibc.tar.gz",
+      "archive_sha256": "cadbaded70a635d0c37bf52614d8e3116542243247211e0b441328595c62acb6",
+      "download_url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-amd64-glibc.tar.gz"
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "platform": "linux-arm64-glibc",
+      "asset_id": 623965232,
+      "archive": "sing-box-1.14.3-linux-arm64-glibc.tar.gz",
+      "archive_sha256": "1612ea46765912efda931a817cf31d830a6e94065a80e3fde9094fa49ab7cd54",
+      "download_url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-arm64-glibc.tar.gz"
+    },
+    {
+      "target": "aarch64-linux-android",
+      "platform": "android-arm64",
+      "asset_id": 623964951,
+      "archive": "sing-box-1.14.3-android-arm64.tar.gz",
+      "archive_sha256": "149569b5dbf01958e6598beb3a13078d6fc0e353ef06f4aff85f5f28bc23593b",
+      "download_url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-android-arm64.tar.gz"
+    },
+    {
+      "target": "x86_64-linux-android",
+      "platform": "android-amd64",
+      "asset_id": 623964902,
+      "archive": "sing-box-1.14.3-android-amd64.tar.gz",
+      "archive_sha256": "a84a5aea86ad0588b76e23051e9e59405a7ed52358acfb9710cfaa055fe60e4a",
+      "download_url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-android-amd64.tar.gz"
+    }
+  ],
+  "evidence_state": "asset_digest_locked_real_binary_unverified"
+}
