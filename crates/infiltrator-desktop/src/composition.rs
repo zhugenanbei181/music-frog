@@ -36,6 +36,7 @@ use infiltrator_application::system_proxy_application::SystemProxyApplication;
 use infiltrator_application::uwp_loopback_application::UwpLoopbackApplication;
 use infiltrator_application::version_application::VersionApplication;
 use infiltrator_composition::engine_backend_factory::EngineBackendFactoryRegistry;
+use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
     ConnectionOperation, CoreGarbageCollectionOperation, CoreLifecycleOperation, CoreOperation,
@@ -54,30 +55,21 @@ use infiltrator_ports::core_binary_selection::{
     BundledBinarySource, CoreBinarySelection, CoreBinarySelectionPolicy, CoreBinarySelectionRequest,
 };
 use infiltrator_ports::core_log_level::CoreLogLevelPort;
-use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::endpoint::EndpointSource;
 use infiltrator_ports::engine_backend_factory::{
-    EngineBackendFactory, EngineBackendOwnerScopeBinding, EngineBackendOwnerScopeBindingResult,
-    EngineBackendPorts, EngineBackendProvider, EngineOperationPorts,
+    EngineBackendFactory, EngineBackendOwnerScopeBindingResult, EngineBackendPorts,
+    EngineBackendProvider,
 };
 use infiltrator_ports::engine_version_backend_factory::EngineVersionBackendFactory;
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::host_runtime::HostRuntime;
-use infiltrator_ports::outbound::OutboundPort;
-use infiltrator_ports::profile_configuration_transaction::{
-    ProfileConfigurationTransactionBinding, ProfileConfigurationTransactionScope,
-};
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
+use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::subscription_source::SubscriptionSource;
 use mihomo_api::client::MihomoClient;
 use mihomo_api::core_capability_provider::MihomoCoreCapabilityProvider;
-use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::overview::ControllerOverviewReader;
-use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
 use mihomo_config::manager::ConfigManager;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
 use mihomo_platform::defaults::DefaultCredentialStore;
 use mihomo_version::bundled_kernel::packaged_candidates;
 use std::collections::HashMap;
@@ -556,50 +548,6 @@ pub fn desktop_command_application(
         .with_rule_provider_cache(rule_provider_cache))
 }
 
-struct DesktopMihomoBackendProvider {
-    process: Arc<dyn CoreProcess>,
-    controller_url: String,
-    secret: Option<String>,
-    client: MihomoClient,
-}
-
-impl EngineBackendProvider for DesktopMihomoBackendProvider {
-    fn engine_id(&self) -> EngineId {
-        MihomoVersionPort::engine_identifier()
-    }
-
-    fn create_backend(&self) -> Result<EngineBackendPorts, PortError> {
-        let engine_id = self.engine_id();
-        let readiness: Arc<dyn CoreReadiness> = Arc::new(ControllerReadiness::new(
-            self.controller_url.clone(),
-            self.secret.clone(),
-        ));
-        let configuration = Arc::new(MihomoProfileDocumentCodec);
-        let transaction = Arc::new(ProfileConfigurationTransactionBinding::new(
-            ProfileConfigurationTransactionScope::new(configuration.scope()),
-        ));
-        let owner_scope = Arc::new(EngineBackendOwnerScopeBinding::new(engine_id.clone()));
-        let outbound: Arc<dyn OutboundPort> = Arc::new(MihomoOutboundAdapter::new(
-            Arc::new(self.client.clone()),
-            owner_scope.clone(),
-        ));
-        let operations = EngineOperationPorts::available(
-            outbound,
-            Arc::new(MihomoRoutingIntentAdapter::new(self.client.clone())),
-            owner_scope,
-        );
-        let ports = EngineBackendPorts::new(
-            engine_id,
-            Arc::clone(&self.process),
-            readiness,
-            configuration,
-            transaction,
-            operations,
-        )?;
-        Ok(ports)
-    }
-}
-
 pub(crate) struct DesktopMihomoBackend {
     pub ports: EngineBackendPorts,
     pub client: MihomoClient,
@@ -614,26 +562,26 @@ pub(crate) fn desktop_backend(
     desktop_runtime_factory()?.provider(engine_id)?;
     let client = MihomoClient::new(controller_url, secret.clone())
         .map_err(|error| PortError::Network(error.to_string()))?;
-    let provider = Arc::new(DesktopMihomoBackendProvider {
-        process: service.core_process(),
-        controller_url: controller_url.to_owned(),
-        secret,
-        client,
-    });
-    desktop_backend_from_provider(provider, engine_id)
+    let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> = Arc::new(
+        mihomo_api::readiness::ControllerReadiness::new(controller_url.to_owned(), secret),
+    );
+    let provider = Arc::new(MihomoEngineBackendProvider::new(
+        service.core_process(),
+        readiness,
+        client.clone(),
+    )?);
+    desktop_backend_from_provider(provider, client, engine_id)
 }
 
 fn desktop_backend_from_provider(
-    provider: Arc<DesktopMihomoBackendProvider>,
+    provider: Arc<MihomoEngineBackendProvider>,
+    client: MihomoClient,
     engine_id: &EngineId,
 ) -> Result<DesktopMihomoBackend, PortError> {
     let factory_provider: Arc<dyn EngineBackendProvider> = provider.clone();
     let registry = EngineBackendFactoryRegistry::new([factory_provider])?;
     let ports = registry.backend_ports(engine_id)?;
-    Ok(DesktopMihomoBackend {
-        ports,
-        client: provider.client.clone(),
-    })
+    Ok(DesktopMihomoBackend { ports, client })
 }
 
 #[cfg(test)]

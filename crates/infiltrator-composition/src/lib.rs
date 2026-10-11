@@ -460,4 +460,5 @@ where
 }
 
 pub mod engine_backend_factory;
+pub mod mihomo_engine_backend_provider;
 pub mod snapshot_restore_fixture;

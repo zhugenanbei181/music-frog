@@ -1,197 +1,98 @@
-use super::backend_conformance::{
-    BackendConformanceCase, BackendConformancePorts, DetailsBehavior,
-    NativeProfileFixtureApplyOutcome, NativeProfileFixturePort, ProbeBehavior, RoutingBehavior,
-    run_backend_conformance,
+use super::backend_conformance::profile_support::{
+    ConformanceLifecycleSession, ConformanceProfileStore,
 };
-use async_trait::async_trait;
+use super::backend_conformance::{
+    BackendConformanceCase, BackendConformancePorts, DetailsBehavior, ProbeBehavior,
+    RoutingBehavior, RunningProfileTransactionBehavior, run_backend_conformance,
+};
+use infiltrator_composition::engine_backend_factory::{
+    EngineBackendFactoryRegistry, SingBoxEngineBackendProvider,
+};
+use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::core_capabilities::{AdapterRevision, EngineBinaryTarget};
 use infiltrator_contract::core_identity::{
     CoreGeneration, CoreIdentity, CoreInstanceId, CoreScope, CoreVersion, EngineId,
 };
 use infiltrator_contract::outbound::identity::OutboundId;
-use infiltrator_contract::profile_document::{DocumentDiagnosticSnapshot, DocumentValidation};
 use infiltrator_contract::routing_intent::{
     EngineDefinedRoutingIntent, RoutingIntent, RoutingIntentExtensionId,
 };
-use infiltrator_ports::error::PortError;
-use infiltrator_ports::outbound::{
-    OutboundPort, OutboundProbeRequest, OutboundScopeSource, ProbeTarget,
+use infiltrator_core::apply::EndpointConfigReloader;
+use infiltrator_core::profile_configuration_transaction::{
+    MihomoBinaryConfigurationCandidateValidator, MihomoProfileConfigurationTransactionAdapter,
 };
-use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
-use infiltrator_ports::routing_intent::RoutingIntentPort;
+use infiltrator_ports::core_lifecycle::CoreLifecyclePort;
+use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
+use infiltrator_ports::engine_backend_factory::{EngineBackendFactory, EngineBackendProvider};
+use infiltrator_ports::error::PortError;
+use infiltrator_ports::outbound::{OutboundProbeRequest, OutboundScopeSource, ProbeTarget};
+use infiltrator_ports::profile_configuration_transaction::{
+    ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionScope,
+};
+use infiltrator_ports::profile_store::ProfileStore;
+use infiltrator_ports::secure_store::SecureStore;
 use mihomo_api::client::MihomoClient;
-use mihomo_api::outbound::MihomoOutboundAdapter;
 use mihomo_api::readiness::ControllerReadiness;
-use mihomo_api::routing_intent::MihomoRoutingIntentAdapter;
-use mihomo_config::profile_document_codec::MihomoProfileDocumentCodec;
+use mihomo_config::endpoint::ProfileEndpointSource;
+use mihomo_config::manager::ConfigManager;
 use mihomo_platform::desktop::ProcessCoreController;
 use mihomo_platform::paths::{clear_home_dir_override, set_home_dir_override};
-use singbox_adapter::clash_api::SingBoxClashApiClient;
-use singbox_adapter::clash_runtime::{SingBoxOutboundAdapter, SingBoxRoutingIntentAdapter};
-use singbox_adapter::config::SingBoxProfileConfigurationAdapter;
-use singbox_adapter::http::SingBoxControllerAuthorization;
-use singbox_adapter::process::SingBoxProcess;
-use singbox_adapter::profile_document_codec::SingBoxProfileDocumentCodec;
-use singbox_adapter::readiness::SingBoxControllerReadiness;
+use std::collections::HashMap;
 use std::env;
 use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener as TokioTcpListener;
-use tokio::process::Command;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
 const MIHOMO_LOCKED_VERSION: &str = "v1.19.32";
 const SING_BOX_LOCKED_VERSION: &str = "v1.14.3";
-static MIHOMO_NATIVE_VALIDATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+struct SmokeSecureStore(std::sync::Mutex<HashMap<(String, String), String>>);
+
+impl Default for SmokeSecureStore {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(HashMap::new()))
+    }
+}
+
+#[async_trait::async_trait]
+impl SecureStore for SmokeSecureStore {
+    async fn get(&self, namespace: &str, key: &str) -> Result<Option<String>, PortError> {
+        Ok(self
+            .0
+            .lock()
+            .expect("conformance secure-store lock")
+            .get(&(namespace.to_owned(), key.to_owned()))
+            .cloned())
+    }
+
+    async fn set(&self, namespace: &str, key: &str, value: &str) -> Result<(), PortError> {
+        self.0
+            .lock()
+            .expect("conformance secure-store lock")
+            .insert((namespace.to_owned(), key.to_owned()), value.to_owned());
+        Ok(())
+    }
+
+    async fn delete(&self, namespace: &str, key: &str) -> Result<(), PortError> {
+        self.0
+            .lock()
+            .expect("conformance secure-store lock")
+            .remove(&(namespace.to_owned(), key.to_owned()));
+        Ok(())
+    }
+}
 
 struct FixedScope(CoreScope);
 
 impl OutboundScopeSource for FixedScope {
     fn current_scope(&self) -> Option<CoreScope> {
         Some(self.0.clone())
-    }
-}
-
-/// Mihomo currently has a syntax codec and process adapter, but no typed
-/// validate/apply/readback port. The real conformance harness performs the
-/// locked binary's `-t` check and exact file readback without advertising a
-/// production configuration capability.
-struct MihomoNativeProfileFixture {
-    engine: EngineId,
-    binary: PathBuf,
-    config: PathBuf,
-}
-
-#[async_trait]
-impl NativeProfileFixturePort for MihomoNativeProfileFixture {
-    fn engine(&self) -> EngineId {
-        self.engine.clone()
-    }
-
-    async fn validate_native(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, String> {
-        let directory = self
-            .config
-            .parent()
-            .ok_or_else(|| "Mihomo profile path has no parent directory".to_owned())?;
-        let file_name = self
-            .config
-            .file_name()
-            .map(|name| name.to_string_lossy())
-            .unwrap_or_else(|| "profile.yaml".into());
-        let sequence = MIHOMO_NATIVE_VALIDATION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let candidate = directory.join(format!(
-            ".{file_name}.native-check-{}-{sequence}.yaml",
-            std::process::id()
-        ));
-        tokio::fs::write(&candidate, raw_bytes)
-            .await
-            .map_err(|error| format!("write isolated Mihomo validation candidate: {error}"))?;
-        let check_result = Command::new(&self.binary)
-            .arg("-t")
-            .arg("-d")
-            .arg(directory)
-            .arg("-f")
-            .arg(&candidate)
-            .output()
-            .await;
-        let cleanup_result = tokio::fs::remove_file(&candidate).await;
-        let check =
-            check_result.map_err(|error| format!("run native Mihomo config check: {error}"))?;
-        cleanup_result
-            .map_err(|error| format!("remove isolated Mihomo validation candidate: {error}"))?;
-        if check.status.success() {
-            Ok(DocumentValidation::Valid)
-        } else {
-            Ok(DocumentValidation::Invalid {
-                diagnostics: vec![DocumentDiagnosticSnapshot {
-                    line: None,
-                    column: None,
-                    message: String::from_utf8_lossy(&check.stderr).into_owned(),
-                }],
-            })
-        }
-    }
-
-    async fn apply_and_readback(
-        &self,
-        raw_bytes: &[u8],
-    ) -> Result<NativeProfileFixtureApplyOutcome, String> {
-        match self.validate_native(raw_bytes).await? {
-            DocumentValidation::Valid => {}
-            DocumentValidation::Invalid { diagnostics } => {
-                return Ok(NativeProfileFixtureApplyOutcome::Rejected {
-                    reason: format!(
-                        "native Mihomo config check rejected the fixture: {diagnostics:?}"
-                    ),
-                });
-            }
-        }
-        tokio::fs::write(&self.config, raw_bytes)
-            .await
-            .map_err(|error| format!("write isolated Mihomo profile: {error}"))?;
-        Ok(NativeProfileFixtureApplyOutcome::Applied {
-            readback: self.readback().await?,
-        })
-    }
-
-    async fn readback(&self) -> Result<Vec<u8>, String> {
-        tokio::fs::read(&self.config)
-            .await
-            .map_err(|error| format!("read back isolated Mihomo profile: {error}"))
-    }
-}
-
-struct SingBoxNativeProfileFixture {
-    configuration: SingBoxProfileConfigurationAdapter,
-}
-
-#[async_trait]
-impl NativeProfileFixturePort for SingBoxNativeProfileFixture {
-    fn engine(&self) -> EngineId {
-        singbox_adapter::engine_id()
-    }
-
-    async fn validate_native(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, String> {
-        self.configuration
-            .validate_native(raw_bytes)
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    async fn apply_and_readback(
-        &self,
-        raw_bytes: &[u8],
-    ) -> Result<NativeProfileFixtureApplyOutcome, String> {
-        match self.configuration.apply_and_readback(raw_bytes).await {
-            Ok(_) => Ok(NativeProfileFixtureApplyOutcome::Applied {
-                readback: self
-                    .configuration
-                    .readback()
-                    .await
-                    .map_err(|error| error.to_string())?,
-            }),
-            Err(error)
-                if error.error_code() == infiltrator_contract::error::ErrorCode::Configuration =>
-            {
-                Ok(NativeProfileFixtureApplyOutcome::Rejected {
-                    reason: error.to_string(),
-                })
-            }
-            Err(error) => Err(error.to_string()),
-        }
-    }
-
-    async fn readback(&self) -> Result<Vec<u8>, String> {
-        self.configuration
-            .readback()
-            .await
-            .map_err(|error| error.to_string())
     }
 }
 
@@ -369,10 +270,6 @@ pub async fn locked_real_mihomo_runs_the_shared_core_conformance_suite() -> Resu
         .map_err(|error| format!("invalid Mihomo version lock: {error}"))?;
     let temp =
         TempDir::new().map_err(|error| format!("create Mihomo conformance home: {error}"))?;
-    let profile_dir = temp.path().join("data");
-    tokio::fs::create_dir_all(&profile_dir)
-        .await
-        .map_err(|error| format!("create Mihomo profile directory: {error}"))?;
     let controller_reservation = TcpListener::bind("127.0.0.1:0")
         .map_err(|error| format!("reserve Mihomo controller port: {error}"))?;
     let controller_address = controller_reservation
@@ -381,7 +278,6 @@ pub async fn locked_real_mihomo_runs_the_shared_core_conformance_suite() -> Resu
     drop(controller_reservation);
     let mut probe_proxy = ProbeProxyFixture::start().await?;
     let secret = format!("music-frog-conformance-{}", std::process::id());
-    let profile_path = profile_dir.join("profile.yaml");
     let pid_path = temp.path().join("mihomo.pid");
     let valid_profile = format!(
         r#"port: 0
@@ -416,22 +312,6 @@ rules:
     )
     .into_bytes();
     let mihomo = EngineId::new("mihomo").expect("static engine ID is valid");
-    let process =
-        ProcessCoreController::with_pid_file(binary.clone(), profile_path.clone(), pid_path);
-    let readiness =
-        ControllerReadiness::new(format!("http://{controller_address}"), Some(secret.clone()));
-    let client = MihomoClient::new(&format!("http://{controller_address}"), Some(secret))
-        .map_err(|error| format!("construct Mihomo controller client: {error}"))?;
-    let scope = conformance_scope(mihomo.clone(), "desktop-active", expected_version.clone());
-    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
-    let outbound = MihomoOutboundAdapter::new(Arc::new(client.clone()), scope_source);
-    let routing = MihomoRoutingIntentAdapter::new(client);
-    let codec = MihomoProfileDocumentCodec;
-    let native_profile = MihomoNativeProfileFixture {
-        engine: mihomo.clone(),
-        binary,
-        config: profile_path,
-    };
     let collection_id = outbound_id(&mihomo, "CORE-SMOKE-SELECTOR");
     let initial_member_id = outbound_id(&mihomo, "DIRECT");
     let alternate_member_id = outbound_id(&mihomo, "CORE-SMOKE-HTTP");
@@ -442,9 +322,9 @@ rules:
         binary_target: EngineBinaryTarget::current(),
         adapter_revision: AdapterRevision::new(1),
         declared_operations: {
-            let mut operations = super::backend_conformance_fakes::supported_engine_operations();
+            let mut operations = super::backend_conformance_declarations::supported_engine_operations();
             operations.extend(
-                super::backend_conformance_fakes::unsupported_profile_transaction_operations(),
+                super::backend_conformance_declarations::unsupported_profile_transaction_operations(),
             );
             operations
         },
@@ -463,28 +343,126 @@ rules:
         .map_err(|error| format!("construct Mihomo probe request: {error}"))?,
         details: DetailsBehavior::Ready,
         probe: ProbeBehavior::Measured,
+        running_profile_transaction: RunningProfileTransactionBehavior::NotExercised,
         routing: RoutingBehavior::Writable {
             initial: RoutingIntent::FollowRules,
             requested: RoutingIntent::RouteAllThroughProxy,
         },
     };
 
+    let profile_root = temp.path().join("configs");
+    let profile_root_string = profile_root
+        .to_str()
+        .ok_or_else(|| "Mihomo profile root is not UTF-8".to_owned())?;
+    let profile_store = Arc::new(
+        ConfigManager::with_home_configs_dir_and_store(
+            temp.path().join("settings"),
+            Some(profile_root_string),
+            SmokeSecureStore::default(),
+        )
+        .map_err(|error| format!("construct Mihomo conformance profile store: {error}"))?,
+    );
+    let valid_text = String::from_utf8(case.valid_profile.clone())
+        .map_err(|error| format!("Mihomo valid fixture is not UTF-8: {error}"))?;
+    ProfileStore::save(profile_store.as_ref(), "profile", &valid_text)
+        .await
+        .map_err(|error| format!("seed Mihomo profile workspace: {error}"))?;
+    ProfileStore::set_current(profile_store.as_ref(), "profile")
+        .await
+        .map_err(|error| format!("select Mihomo profile workspace: {error}"))?;
+    let profile_path = profile_store.config_dir().join("profile.yaml");
+    let host_process: Arc<dyn CoreProcess> = Arc::new(ProcessCoreController::with_pid_file(
+        binary.clone(),
+        profile_path,
+        pid_path,
+    ));
+    let readiness: Arc<dyn CoreReadiness> = Arc::new(ControllerReadiness::new(
+        format!("http://{controller_address}"),
+        Some(secret.clone()),
+    ));
+    let client = MihomoClient::new(&format!("http://{controller_address}"), Some(secret))
+        .map_err(|error| format!("construct Mihomo controller client: {error}"))?;
+    let provider = Arc::new(
+        MihomoEngineBackendProvider::new(Arc::clone(&host_process), Arc::clone(&readiness), client)
+            .map_err(|error| format!("construct production Mihomo backend provider: {error}"))?,
+    );
+    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider;
+    let factory = EngineBackendFactoryRegistry::new([provider_for_factory])
+        .map_err(|error| format!("register production Mihomo backend provider: {error}"))?;
+    let backend = factory
+        .backend_ports(&case.engine)
+        .map_err(|error| format!("create production Mihomo backend ports: {error}"))?;
+    let process = backend.process();
+    let readiness = backend.readiness();
+    let scope = conformance_scope(
+        case.engine.clone(),
+        "desktop-active",
+        case.expected_version.clone(),
+    );
+    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
+    backend
+        .bind_owner_scope_source(scope_source)
+        .map_err(|error| format!("bind Mihomo production Core scope: {error}"))?;
+    let transaction_owner = Arc::new(ConformanceLifecycleSession::for_process(
+        process.as_ref(),
+        case.expected_version.clone(),
+    )?);
+    let session: Arc<dyn CoreLifecyclePort> = transaction_owner.clone();
+    let codec = backend.configuration();
+    let transaction_scope = ProfileConfigurationTransactionScope::new(codec.scope());
+    let stopped_validator: Arc<dyn ProfileConfigurationCandidateValidatorPort> = Arc::new(
+        MihomoBinaryConfigurationCandidateValidator::new(
+            transaction_scope,
+            binary,
+            profile_store.config_dir().to_path_buf(),
+        )
+        .map_err(|error| format!("construct production Mihomo native validator: {error}"))?,
+    );
+    let endpoint_source = Arc::new(ProfileEndpointSource::new(Arc::clone(&profile_store)));
+    let reloader = Arc::new(EndpointConfigReloader::new(endpoint_source));
+    let transaction = Arc::new(
+        MihomoProfileConfigurationTransactionAdapter::new(
+            codec.clone(),
+            stopped_validator,
+            session,
+            Arc::clone(&profile_store),
+            reloader,
+            Arc::new(tokio::sync::Mutex::new(())),
+        )
+        .map_err(|error| format!("construct production Mihomo profile transaction: {error}"))?,
+    );
+    backend
+        .configuration_transaction_binding()
+        .bind(transaction)
+        .map_err(|error| format!("bind production Mihomo profile transaction: {error}"))?;
+    let operations = backend.operations();
+    let outbound = operations
+        .outbound()
+        .map_err(|error| format!("resolve production Mihomo outbound port: {error}"))?;
+    let routing = operations
+        .routing_intent()
+        .map_err(|error| format!("resolve production Mihomo routing port: {error}"))?;
+    let transaction = backend.configuration_transaction();
+
     let _home_guard = mihomo_platform::TEST_LOCK.lock().await;
     if !set_home_dir_override(temp.path().to_path_buf()) {
         probe_proxy.task.abort();
         return Err("could not install isolated Mihomo home override".to_owned());
     }
-    let declarations = super::backend_conformance_fakes::declarations_for_engine(&case.engine);
+    let declarations =
+        super::backend_conformance_declarations::declarations_for_engine(&case.engine);
     let conformance_result = run_backend_conformance(
         &case,
         &declarations,
         &BackendConformancePorts {
-            process: &process,
-            readiness: &readiness,
-            codec: &codec,
-            native_profile: &native_profile,
-            outbound: &outbound,
-            routing: &routing,
+            process: process.as_ref(),
+            readiness: readiness.as_ref(),
+            codec: codec.as_ref(),
+            configuration_transaction: transaction.as_ref(),
+            profile_store: profile_store.as_ref(),
+            transaction_owner: transaction_owner.as_ref(),
+            outbound: outbound.as_ref(),
+            routing: routing.as_ref(),
         },
     )
     .await;
@@ -539,44 +517,15 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         }
     }))
     .map_err(|error| format!("serialize sing-box conformance profile: {error}"))?;
-    let engine = singbox_adapter::engine_id();
-    let native_profile = SingBoxNativeProfileFixture {
-        configuration: SingBoxProfileConfigurationAdapter::with_tokio(
-            binary.clone(),
-            config_path.clone(),
-        ),
-    };
-    let process = SingBoxProcess::with_tokio(
-        binary,
-        config_path,
-        CoreInstanceId::new("sing-box-conformance")
-            .expect("fixed sing-box smoke instance ID is valid"),
-        controller_address,
-    )
-    .map_err(|error| format!("construct sing-box process adapter: {error}"))?;
-    let readiness =
-        SingBoxControllerReadiness::with_reqwest(&format!("http://{controller_address}"))
-            .map_err(|error| format!("construct sing-box readiness adapter: {error}"))?;
-    let api = SingBoxClashApiClient::with_reqwest(
-        &format!("http://{controller_address}"),
-        SingBoxControllerAuthorization::NoSecret,
-    )
-    .map_err(|error| format!("construct sing-box Clash API client: {error}"))?;
-    let scope = conformance_scope(
-        engine.clone(),
-        "sing-box-conformance",
-        expected_version.clone(),
-    );
-    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
-    let outbound = SingBoxOutboundAdapter::new(api.clone(), Arc::clone(&scope_source));
-    let routing = SingBoxRoutingIntentAdapter::new(api, scope_source);
-    let codec = SingBoxProfileDocumentCodec;
+    let engine = infiltrator_contract::core_identity::EngineId::new("sing-box")
+        .expect("static sing-box engine ID is valid");
     let case = BackendConformanceCase {
         engine: engine.clone(),
         expected_version,
         binary_target: EngineBinaryTarget::current(),
         adapter_revision: AdapterRevision::new(1),
-        declared_operations: super::backend_conformance_fakes::unsupported_engine_operations(),
+        declared_operations: super::backend_conformance_declarations::unsupported_engine_operations(
+        ),
         valid_profile,
         invalid_profile: b"{".to_vec(),
         native_invalid_profile:
@@ -593,6 +542,7 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
         .map_err(|error| format!("construct sing-box probe request: {error}"))?,
         details: DetailsBehavior::Unsupported,
         probe: ProbeBehavior::Unsupported,
+        running_profile_transaction: RunningProfileTransactionBehavior::Unsupported,
         routing: RoutingBehavior::ReadOnlyUnsupported {
             initial: RoutingIntent::EngineDefined(EngineDefinedRoutingIntent::new(
                 engine,
@@ -602,18 +552,85 @@ pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Re
             requested: RoutingIntent::FollowRules,
         },
     };
-    let declarations = super::backend_conformance_fakes::declarations_for_engine(&case.engine);
-    run_backend_conformance(
+
+    let instance = CoreInstanceId::new("sing-box-conformance")
+        .expect("fixed sing-box smoke instance ID is valid");
+    let provider = Arc::new(
+        SingBoxEngineBackendProvider::with_tokio(
+            binary,
+            config_path.clone(),
+            instance.clone(),
+            controller_address,
+            singbox_adapter::http::SingBoxControllerAuthorization::NoSecret,
+        )
+        .map_err(|error| format!("construct production sing-box backend provider: {error}"))?,
+    );
+    let provider_for_factory: Arc<dyn EngineBackendProvider> = provider.clone();
+    let factory = EngineBackendFactoryRegistry::new([provider_for_factory])
+        .map_err(|error| format!("register production sing-box backend provider: {error}"))?;
+    let backend = factory
+        .backend_ports(&case.engine)
+        .map_err(|error| format!("create production sing-box backend ports: {error}"))?;
+    let process = backend.process();
+    let readiness = backend.readiness();
+    let codec = backend.configuration();
+    let profile_store = Arc::new(ConformanceProfileStore::new(
+        &codec.scope(),
+        &case.valid_profile,
+    ));
+    let transaction_owner = Arc::new(ConformanceLifecycleSession::for_process(
+        process.as_ref(),
+        case.expected_version.clone(),
+    )?);
+    let session: Arc<dyn CoreLifecyclePort> = transaction_owner.clone();
+    provider
+        .bind_profile_configuration_transaction(
+            &backend,
+            profile_store.clone() as Arc<dyn ProfileStore>,
+            Arc::clone(&session),
+        )
+        .map_err(|error| format!("bind production sing-box profile transaction: {error}"))?;
+    let scope = conformance_scope(
+        case.engine.clone(),
+        "sing-box-conformance",
+        case.expected_version.clone(),
+    );
+    let scope_source: Arc<dyn OutboundScopeSource> = Arc::new(FixedScope(scope));
+    provider
+        .bind_core_owner_scope(&backend, scope_source)
+        .map_err(|error| format!("bind production sing-box Core scope: {error}"))?;
+    let operations = backend.operations();
+    let outbound = operations
+        .outbound()
+        .map_err(|error| format!("resolve production sing-box outbound port: {error}"))?;
+    let routing = operations
+        .routing_intent()
+        .map_err(|error| format!("resolve production sing-box routing port: {error}"))?;
+    let transaction = backend.configuration_transaction();
+    let declarations =
+        super::backend_conformance_declarations::declarations_for_engine(&case.engine);
+    let conformance_result = run_backend_conformance(
         &case,
         &declarations,
         &BackendConformancePorts {
-            process: &process,
-            readiness: &readiness,
-            codec: &codec,
-            native_profile: &native_profile,
-            outbound: &outbound,
-            routing: &routing,
+            process: process.as_ref(),
+            readiness: readiness.as_ref(),
+            codec: codec.as_ref(),
+            configuration_transaction: transaction.as_ref(),
+            profile_store: profile_store.as_ref(),
+            transaction_owner: transaction_owner.as_ref(),
+            outbound: outbound.as_ref(),
+            routing: routing.as_ref(),
         },
     )
-    .await
+    .await;
+    let native_readback = tokio::fs::read(config_path)
+        .await
+        .map_err(|error| format!("read sing-box configuration after conformance: {error}"))?;
+    if native_readback != case.valid_profile {
+        return Err(
+            "production sing-box transaction did not preserve exact native JSON bytes".to_owned(),
+        );
+    }
+    conformance_result
 }

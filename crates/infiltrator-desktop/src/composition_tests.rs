@@ -1,4 +1,5 @@
 use super::*;
+use infiltrator_composition::mihomo_engine_backend_provider::MihomoEngineBackendProvider;
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_identity::{CoreVersion, EngineId};
 use infiltrator_core::engine_version_backend_factory::MihomoEngineVersionBackendFactory;
@@ -57,17 +58,26 @@ fn desktop_backend_factory_returns_identity_scoped_mihomo_ports() {
 #[test]
 fn desktop_mihomo_provider_can_create_backend_ports_repeatedly() {
     let engine_id = MihomoVersionPort::engine_identifier();
-    let provider = Arc::new(DesktopMihomoBackendProvider {
-        process: service_manager().core_process(),
-        controller_url: "http://127.0.0.1:9090".to_owned(),
-        secret: Some("test-secret".to_owned()),
-        client: MihomoClient::new("http://127.0.0.1:9090", Some("test-secret".to_owned()))
-            .expect("valid endpoint constructs a Mihomo client"),
-    });
+    let client = MihomoClient::new("http://127.0.0.1:9090", Some("test-secret".to_owned()))
+        .expect("valid endpoint constructs a Mihomo client");
+    let readiness: Arc<dyn infiltrator_ports::core_process::CoreReadiness> =
+        Arc::new(mihomo_api::readiness::ControllerReadiness::new(
+            "http://127.0.0.1:9090",
+            Some("test-secret".to_owned()),
+        ));
+    let provider = Arc::new(
+        MihomoEngineBackendProvider::new(
+            service_manager().core_process(),
+            readiness,
+            client.clone(),
+        )
+        .expect("shared Mihomo provider accepts its production process identity"),
+    );
 
     for _ in 0..2 {
-        let backend = desktop_backend_from_provider(Arc::clone(&provider), &engine_id)
-            .expect("provider construction is repeatable and has no hidden one-shot state");
+        let backend =
+            desktop_backend_from_provider(Arc::clone(&provider), client.clone(), &engine_id)
+                .expect("provider construction is repeatable and has no hidden one-shot state");
         assert_eq!(backend.ports.engine_id(), &engine_id);
         assert_eq!(
             backend.ports.process().core_identity().unwrap().engine,

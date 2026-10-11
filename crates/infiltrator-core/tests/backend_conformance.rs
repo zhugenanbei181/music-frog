@@ -1,11 +1,14 @@
 //! Shared behavior assertions for engine adapters.
 //!
-//! Fake cases run in the ordinary focused nextest target. The ignored cases
-//! require the SHA-locked Linux binaries and are driven by the unified smoke
-//! script; they have not been run as part of the source implementation.
+//! Fake cases run in the ordinary focused nextest target. The ignored real
+//! cases require SHA-locked Linux binaries and are explicitly driven by the
+//! unified smoke script.
 
 #[path = "common/backend_conformance.rs"]
 mod backend_conformance;
+
+#[path = "common/backend_conformance_declarations.rs"]
+mod backend_conformance_declarations;
 
 #[path = "common/backend_conformance_fakes.rs"]
 mod backend_conformance_fakes;

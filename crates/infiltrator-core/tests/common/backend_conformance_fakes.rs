@@ -1,14 +1,20 @@
+use super::backend_conformance::profile_support::{
+    ConformanceLifecycleSession, ConformanceProfileStore,
+};
 use super::backend_conformance::{
-    BackendConformanceCase, BackendConformancePorts, DeclaredOperationExpectation, DetailsBehavior,
-    NativeProfileFixtureApplyOutcome, NativeProfileFixturePort, OperationDeclarationState,
-    ProbeBehavior, RoutingBehavior, assert_declared_operation_differences_match_case,
-    assert_evidence_open_or_unsupported, expected_support, run_backend_conformance,
+    BackendConformanceCase, BackendConformancePorts, DetailsBehavior, OperationDeclarationState,
+    ProbeBehavior, RoutingBehavior, RunningProfileTransactionBehavior,
+    assert_declared_operation_differences_match_case, assert_evidence_open_or_unsupported,
+    expected_support, run_backend_conformance,
+};
+use super::backend_conformance_declarations::{
+    declarations_for_engine, mihomo_declarations, sing_box_declarations,
+    supported_engine_operations, unsupported_engine_operations,
+    unsupported_profile_transaction_operations,
 };
 use async_trait::async_trait;
 use infiltrator_contract::adapter_operation_declaration::{
-    AdapterOperationDeclarationFile, AdapterOperationOwner, AdapterOperationSupport,
-    OperationEvidenceAsset, OperationEvidenceId, OperationEvidenceLock,
-    ValidatedAdapterOperationDeclarations,
+    AdapterOperationOwner, AdapterOperationSupport,
 };
 use infiltrator_contract::capability::Capability;
 use infiltrator_contract::core_capabilities::{
@@ -36,21 +42,17 @@ use infiltrator_contract::snapshot::CoreLifecycle;
 use infiltrator_ports::core_process::{CoreProcess, CoreReadiness};
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::outbound::{OutboundPort, OutboundProbeRequest, ProbeTarget};
+use infiltrator_ports::profile_configuration_transaction::ProfileConfigurationTransactionScope;
 use infiltrator_ports::profile_document_codec::{
     ProfileDocumentCodecPort, ProfileDocumentCodecScope,
 };
+use infiltrator_ports::profile_store::ProfileStore;
 use infiltrator_ports::routing_intent::RoutingIntentPort;
-use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-const MIHOMO_DECLARATION: &str =
-    include_str!("../../../mihomo-api/adapter-operation-declarations.json");
-const SING_BOX_DECLARATION: &str =
-    include_str!("../../../singbox-adapter/adapter-operation-declarations.json");
-const MIHOMO_EVIDENCE_LOCK: &str =
-    include_str!("../../../../packaging/mihomo-evidence-assets.json");
-const SING_BOX_EVIDENCE_LOCK: &str =
-    include_str!("../../../../packaging/sing-box-evidence-assets.json");
+#[path = "backend_conformance_fake_transaction.rs"]
+mod fake_transaction;
+use fake_transaction::FakeNativeProfile;
 
 #[derive(Clone, Copy)]
 enum FakeBackendKind {
@@ -63,11 +65,11 @@ struct FakeBackend {
     process: FakeProcess,
     readiness: FakeReadiness,
     codec: FakeCodec,
-    native_profile: FakeNativeProfile,
+    configuration_transaction: FakeNativeProfile,
+    profile_store: Arc<ConformanceProfileStore>,
+    transaction_owner: Arc<ConformanceLifecycleSession>,
     outbound: FakeOutbound,
     routing: FakeRouting,
-    profile_bytes: Arc<Mutex<Vec<u8>>>,
-    profile_apply_count: Arc<Mutex<usize>>,
 }
 
 impl FakeBackend {
@@ -169,10 +171,28 @@ impl FakeBackend {
             details: details.clone(),
             probe: probe.clone(),
             routing: routing.clone(),
+            running_profile_transaction: match kind {
+                FakeBackendKind::MihomoLike => RunningProfileTransactionBehavior::NotExercised,
+                FakeBackendKind::SingBoxLike => RunningProfileTransactionBehavior::Unsupported,
+            },
         };
         let phase = Arc::new(Mutex::new(FakeProcessPhase::Stopped));
-        let profile_bytes = Arc::new(Mutex::new(Vec::new()));
-        let profile_apply_count = Arc::new(Mutex::new(0));
+        let profile_store = Arc::new(ConformanceProfileStore::new(
+            &ProfileDocumentCodecPort::scope(&FakeCodec {
+                engine: engine.clone(),
+                valid_profile: valid_profile.clone(),
+                native_invalid_profile: native_invalid_profile.clone(),
+            }),
+            &valid_profile,
+        ));
+        let process = FakeProcess {
+            identity,
+            phase: Arc::clone(&phase),
+        };
+        let transaction_owner = Arc::new(
+            ConformanceLifecycleSession::for_process(&process, expected_version.clone())
+                .expect("fake process and transaction owner share a typed identity"),
+        );
         let routing_scope = scope.clone();
         let outbound = FakeOutbound {
             engine: engine.clone(),
@@ -186,12 +206,9 @@ impl FakeBackend {
             probe_behavior: probe,
         };
         Self {
-            process: FakeProcess {
-                identity,
-                phase: Arc::clone(&phase),
-            },
+            process,
             readiness: FakeReadiness {
-                phase,
+                phase: Arc::clone(&phase),
                 version: expected_version,
             },
             codec: FakeCodec {
@@ -199,12 +216,18 @@ impl FakeBackend {
                 valid_profile: valid_profile.clone(),
                 native_invalid_profile: native_invalid_profile.clone(),
             },
-            native_profile: FakeNativeProfile {
-                engine,
+            configuration_transaction: FakeNativeProfile {
+                scope: ProfileConfigurationTransactionScope::new(ProfileDocumentCodecPort::scope(
+                    &FakeCodec {
+                        engine: engine.clone(),
+                        valid_profile: valid_profile.clone(),
+                        native_invalid_profile: native_invalid_profile.clone(),
+                    },
+                )),
                 valid_profile,
                 native_invalid_profile,
-                bytes: Arc::clone(&profile_bytes),
-                apply_count: Arc::clone(&profile_apply_count),
+                store: Arc::clone(&profile_store),
+                transaction_owner: Arc::clone(&transaction_owner),
             },
             outbound,
             routing: FakeRouting {
@@ -215,8 +238,8 @@ impl FakeBackend {
                     | RoutingBehavior::ReadOnlyUnsupported { initial, .. } => initial,
                 }),
             },
-            profile_bytes,
-            profile_apply_count,
+            profile_store,
+            transaction_owner,
             case,
         }
     }
@@ -230,7 +253,9 @@ impl FakeBackend {
                 process: &self.process,
                 readiness: &self.readiness,
                 codec: &self.codec,
-                native_profile: &self.native_profile,
+                configuration_transaction: &self.configuration_transaction,
+                profile_store: self.profile_store.as_ref(),
+                transaction_owner: self.transaction_owner.as_ref(),
                 outbound: &self.outbound,
                 routing: &self.routing,
             },
@@ -332,65 +357,6 @@ impl ProfileDocumentCodecPort for FakeCodec {
                 diagnostics: vec![],
             })
         }
-    }
-}
-
-struct FakeNativeProfile {
-    engine: EngineId,
-    valid_profile: Vec<u8>,
-    native_invalid_profile: Vec<u8>,
-    bytes: Arc<Mutex<Vec<u8>>>,
-    apply_count: Arc<Mutex<usize>>,
-}
-
-#[async_trait]
-impl NativeProfileFixturePort for FakeNativeProfile {
-    fn engine(&self) -> EngineId {
-        self.engine.clone()
-    }
-
-    async fn validate_native(&self, raw_bytes: &[u8]) -> Result<DocumentValidation, String> {
-        if raw_bytes == self.valid_profile {
-            Ok(DocumentValidation::Valid)
-        } else if raw_bytes == self.native_invalid_profile {
-            Ok(DocumentValidation::Invalid {
-                diagnostics: vec![],
-            })
-        } else {
-            Err("fake native validator received an unregistered fixture".to_owned())
-        }
-    }
-
-    async fn apply_and_readback(
-        &self,
-        raw_bytes: &[u8],
-    ) -> Result<NativeProfileFixtureApplyOutcome, String> {
-        if raw_bytes == self.native_invalid_profile {
-            return Ok(NativeProfileFixtureApplyOutcome::Rejected {
-                reason: "fake native validator rejected semantic-invalid document".to_owned(),
-            });
-        }
-        if raw_bytes != self.valid_profile {
-            return Err("fake native fixture received an unregistered document".to_owned());
-        }
-        *self.bytes.lock().expect("fake profile readback lock") = raw_bytes.to_vec();
-        let mut apply_count = self.apply_count.lock().expect("fake profile count lock");
-        *apply_count += 1;
-        Ok(NativeProfileFixtureApplyOutcome::Applied {
-            readback: self
-                .bytes
-                .lock()
-                .expect("fake profile readback lock")
-                .clone(),
-        })
-    }
-
-    async fn readback(&self) -> Result<Vec<u8>, String> {
-        Ok(self
-            .bytes
-            .lock()
-            .expect("fake profile readback lock")
-            .clone())
     }
 }
 
@@ -623,181 +589,6 @@ fn id(engine: &EngineId, value: &str) -> OutboundId {
     OutboundId::new(engine.clone(), value).expect("fake outbound ID is valid")
 }
 
-fn declaration_set(
-    engine_name: &str,
-    declaration_json: &str,
-    evidence_json: &str,
-) -> ValidatedAdapterOperationDeclarations {
-    let declaration: AdapterOperationDeclarationFile =
-        serde_json::from_str(declaration_json).expect("adapter declaration is valid JSON");
-    let manifest: serde_json::Value =
-        serde_json::from_str(evidence_json).expect("evidence lock is valid JSON");
-    let assets = manifest["assets"]
-        .as_array()
-        .expect("evidence lock has an assets array");
-    let release_version = manifest["release"]["version"].as_str();
-    let engine = EngineId::new(engine_name).expect("evidence engine ID is valid");
-    let locked_assets = assets.iter().map(|asset| {
-        let version = asset["version"]
-            .as_str()
-            .or(release_version)
-            .expect("asset version is pinned");
-        let target_name = asset["binary_target"]
-            .as_str()
-            .expect("asset has a concrete binary_target");
-        let target = EngineBinaryTarget::from_target_triple(target_name)
-            .expect("asset binary target is recognized by the typed contract");
-        let adapter_revision = AdapterRevision::new(
-            asset["adapter_revision"]
-                .as_u64()
-                .expect("asset has an adapter revision"),
-        );
-        let registered = asset["operations"]
-            .as_array()
-            .map(|operations| {
-                operations
-                    .iter()
-                    .map(|operation| {
-                        OperationEvidenceId::new(
-                            operation
-                                .as_str()
-                                .expect("evidence operation is a string")
-                                .to_owned(),
-                        )
-                        .expect("evidence operation ID is non-empty")
-                    })
-                    .collect::<HashSet<_>>()
-            })
-            .unwrap_or_default();
-        OperationEvidenceAsset {
-            version: CoreVersion::new(version.to_owned()).expect("asset version is valid"),
-            target,
-            adapter_revision,
-            operations: registered,
-        }
-    });
-    let lock = OperationEvidenceLock::new(engine, locked_assets)
-        .expect("evidence lock has a concrete binary version and target");
-    ValidatedAdapterOperationDeclarations::validate(declaration, engine_name, &lock)
-        .expect("typed declarations match the engine operation catalogue and evidence lock")
-}
-
-fn mihomo_declarations() -> ValidatedAdapterOperationDeclarations {
-    declaration_set("mihomo", MIHOMO_DECLARATION, MIHOMO_EVIDENCE_LOCK)
-}
-
-fn sing_box_declarations() -> ValidatedAdapterOperationDeclarations {
-    declaration_set("sing-box", SING_BOX_DECLARATION, SING_BOX_EVIDENCE_LOCK)
-}
-
-pub(crate) fn declarations_for_engine(engine: &EngineId) -> ValidatedAdapterOperationDeclarations {
-    match engine.as_str() {
-        "mihomo" => mihomo_declarations(),
-        "sing-box" => sing_box_declarations(),
-        other => panic!("no conformance operation declarations registered for {other}"),
-    }
-}
-
-pub(crate) fn supported_engine_operations() -> Vec<DeclaredOperationExpectation> {
-    let state = OperationDeclarationState::Supported;
-    let mut operations = vec![
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::List),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::Select),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::Probe),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
-            state,
-        },
-    ];
-    operations.extend(lifecycle_owner_managed_operations());
-    operations.push(DeclaredOperationExpectation {
-        operation: CoreOperation::Version(VersionOperation::Inspect),
-        state: OperationDeclarationState::OwnerManaged,
-    });
-    operations
-}
-
-pub(crate) fn unsupported_profile_transaction_operations() -> Vec<DeclaredOperationExpectation> {
-    let state = OperationDeclarationState::Unsupported;
-    vec![
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Profile(ProfileOperation::Validate),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Profile(ProfileOperation::Apply),
-            state,
-        },
-    ]
-}
-
-pub(crate) fn unsupported_engine_operations() -> Vec<DeclaredOperationExpectation> {
-    let state = OperationDeclarationState::Unsupported;
-    let mut operations = vec![
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Profile(ProfileOperation::Validate),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Profile(ProfileOperation::Apply),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::List),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::Select),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Outbound(OutboundOperation::Probe),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::ProxyControl(ProxyControlOperation::GetRoutingIntent),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::ProxyControl(ProxyControlOperation::SetRoutingIntent),
-            state,
-        },
-    ];
-    operations.extend(lifecycle_owner_managed_operations());
-    operations.push(DeclaredOperationExpectation {
-        operation: CoreOperation::Version(VersionOperation::Inspect),
-        state,
-    });
-    operations
-}
-
-fn lifecycle_owner_managed_operations() -> Vec<DeclaredOperationExpectation> {
-    let state = OperationDeclarationState::OwnerManaged;
-    vec![
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Lifecycle(CoreLifecycleOperation::Start),
-            state,
-        },
-        DeclaredOperationExpectation {
-            operation: CoreOperation::Lifecycle(CoreLifecycleOperation::Stop),
-            state,
-        },
-    ]
-}
-
 pub fn fake_mihomo_and_sing_box_profiles_use_the_same_typed_behavior_suite() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -808,20 +599,11 @@ pub fn fake_mihomo_and_sing_box_profiles_use_the_same_typed_behavior_suite() {
         runtime
             .block_on(backend.run())
             .unwrap_or_else(|error| panic!("shared fake conformance failed: {error}"));
-        assert_eq!(
-            *backend
-                .profile_bytes
-                .lock()
-                .expect("fake profile bytes lock"),
-            backend.case.valid_profile
-        );
-        assert_eq!(
-            *backend
-                .profile_apply_count
-                .lock()
-                .expect("fake profile count lock"),
-            1
-        );
+        let workspace = runtime
+            .block_on(backend.profile_store.load_active_workspace())
+            .expect("fake profile workspace remains readable");
+        assert_eq!(workspace.document.raw_bytes, backend.case.valid_profile);
+        assert_eq!(backend.profile_store.writes(), 1);
         assert_eq!(
             runtime
                 .block_on(backend.process.status())

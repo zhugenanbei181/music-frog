@@ -43,9 +43,8 @@ use infiltrator_ports::engine_backend_factory::{
 use infiltrator_ports::error::PortError;
 use infiltrator_ports::overview::OverviewReader;
 use infiltrator_ports::profile_configuration_transaction::{
-    ProfileConfigurationCandidateValidatorPort,
-    ProfileConfigurationTransactionPort, ProfileConfigurationTransactionScope,
-    UnavailableProfileConfigurationTransaction,
+    ProfileConfigurationCandidateValidatorPort, ProfileConfigurationTransactionPort,
+    ProfileConfigurationTransactionScope, UnavailableProfileConfigurationTransaction,
 };
 use infiltrator_ports::profile_document_codec::ProfileDocumentCodecPort;
 use infiltrator_ports::profile_store::ProfileStore;
@@ -219,13 +218,11 @@ impl<S: SecureStore + 'static> EngineBackendProvider for AndroidMihomoBackendPro
             launch_spec_source,
         ));
         let provider = match &self.controller_adapters {
-            AndroidControllerAdapters::Available { client } => {
-                MihomoEngineBackendProvider::new(
-                    process,
-                    Arc::clone(&self.readiness),
-                    client.clone(),
-                )?
-            }
+            AndroidControllerAdapters::Available { client } => MihomoEngineBackendProvider::new(
+                process,
+                Arc::clone(&self.readiness),
+                client.clone(),
+            )?,
             AndroidControllerAdapters::Unavailable { failure } => {
                 MihomoEngineBackendProvider::without_controller(
                     process,

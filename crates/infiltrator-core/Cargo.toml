@@ -49,3 +49,4 @@ zip = { workspace = true }
 mockito = { workspace = true }
 tempfile = { workspace = true }
 singbox-adapter = { path = "../singbox-adapter" }
+infiltrator-composition = { path = "../infiltrator-composition" }
