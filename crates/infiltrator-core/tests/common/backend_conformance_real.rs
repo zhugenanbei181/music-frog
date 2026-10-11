@@ -44,7 +44,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener as TokioTcpListener;
 use tokio::process::Command;
 use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 const MIHOMO_LOCKED_VERSION: &str = "v1.19.32";
 const SING_BOX_LOCKED_VERSION: &str = "v1.14.3";
@@ -200,6 +200,18 @@ struct ProbeProxyFixture {
     task: JoinHandle<Result<(), String>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProbeRequestMethod {
+    Head,
+    Get,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InitialProxyRequest {
+    ConnectTunnel,
+    ForwardedHealth(ProbeRequestMethod),
+}
+
 impl ProbeProxyFixture {
     async fn start() -> Result<Self, String> {
         let listener = TokioTcpListener::bind("127.0.0.1:0")
@@ -208,32 +220,45 @@ impl ProbeProxyFixture {
         let address = listener
             .local_addr()
             .map_err(|error| format!("read local probe proxy address: {error}"))?;
-        let task = tokio::spawn(async move {
-            let (mut stream, _) = listener
-                .accept()
-                .await
-                .map_err(|error| format!("accept Mihomo probe connection: {error}"))?;
-            let probe_request = read_http_headers(&mut stream).await?;
-            let is_head = probe_request.starts_with(b"HEAD http://probe.test/health HTTP/1.1\r\n");
-            let is_get = probe_request.starts_with(b"GET http://probe.test/health HTTP/1.1\r\n");
-            if !is_head && !is_get {
-                return Err(format!(
-                    "unexpected Mihomo HTTP proxy request for configured HTTP target: {}",
-                    String::from_utf8_lossy(&probe_request)
-                ));
-            }
-            stream
-                .write_all(
-                    b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                )
-                .await
-                .map_err(|error| format!("answer Mihomo probe request: {error}"))?;
-            stream
-                .flush()
-                .await
-                .map_err(|error| format!("flush Mihomo probe response: {error}"))?;
-            Ok(())
-        });
+        let task =
+            tokio::spawn(async move {
+                let (mut stream, _) = listener
+                    .accept()
+                    .await
+                    .map_err(|error| format!("accept Mihomo probe connection: {error}"))?;
+                let request = read_http_headers(&mut stream).await?;
+                let method = match classify_initial_proxy_request(&request)? {
+                    InitialProxyRequest::ConnectTunnel => {
+                        stream
+                            .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                            .await
+                            .map_err(|error| format!("accept Mihomo CONNECT tunnel: {error}"))?;
+                        stream
+                            .flush()
+                            .await
+                            .map_err(|error| format!("flush Mihomo CONNECT response: {error}"))?;
+                        let tunneled_request = read_http_headers(&mut stream).await?;
+                        parse_origin_health_request(&tunneled_request)?
+                    }
+                    InitialProxyRequest::ForwardedHealth(method) => method,
+                };
+                sleep(Duration::from_millis(3)).await;
+                let response = match method {
+                    ProbeRequestMethod::Head => {
+                        &b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"[..]
+                    }
+                    ProbeRequestMethod::Get => {
+                        &b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"[..]
+                    }
+                };
+                stream.write_all(response).await.map_err(|error| {
+                    format!("answer Mihomo tunneled HTTP health request: {error}")
+                })?;
+                stream.flush().await.map_err(|error| {
+                    format!("flush Mihomo tunneled HTTP health response: {error}")
+                })?;
+                Ok(())
+            });
         Ok(Self { address, task })
     }
 
@@ -252,6 +277,42 @@ impl ProbeProxyFixture {
 impl Drop for ProbeProxyFixture {
     fn drop(&mut self) {
         self.task.abort();
+    }
+}
+
+fn request_start_line(request: &[u8]) -> Result<&str, String> {
+    let request = std::str::from_utf8(request)
+        .map_err(|error| format!("Mihomo probe request headers are not UTF-8: {error}"))?;
+    request
+        .lines()
+        .next()
+        .ok_or_else(|| "Mihomo probe request has no start line".to_owned())
+}
+
+fn classify_initial_proxy_request(request: &[u8]) -> Result<InitialProxyRequest, String> {
+    match request_start_line(request)? {
+        "CONNECT probe.test:80 HTTP/1.1" => Ok(InitialProxyRequest::ConnectTunnel),
+        "HEAD http://probe.test/health HTTP/1.1" => Ok(InitialProxyRequest::ForwardedHealth(
+            ProbeRequestMethod::Head,
+        )),
+        "GET http://probe.test/health HTTP/1.1" => Ok(InitialProxyRequest::ForwardedHealth(
+            ProbeRequestMethod::Get,
+        )),
+        start_line => Err(format!(
+            "unexpected Mihomo HTTP proxy request for configured HTTP target: {start_line}\n{}",
+            String::from_utf8_lossy(request)
+        )),
+    }
+}
+
+fn parse_origin_health_request(request: &[u8]) -> Result<ProbeRequestMethod, String> {
+    match request_start_line(request)? {
+        "HEAD /health HTTP/1.1" => Ok(ProbeRequestMethod::Head),
+        "GET /health HTTP/1.1" => Ok(ProbeRequestMethod::Get),
+        start_line => Err(format!(
+            "unexpected HTTP request inside Mihomo CONNECT tunnel: {start_line}\n{}",
+            String::from_utf8_lossy(request)
+        )),
     }
 }
 
@@ -429,8 +490,14 @@ rules:
     .await;
     clear_home_dir_override();
     let proxy_result = probe_proxy.finish().await;
-    conformance_result?;
-    proxy_result
+    match (conformance_result, proxy_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(conformance_error), Ok(())) => Err(conformance_error),
+        (Ok(()), Err(proxy_error)) => Err(proxy_error),
+        (Err(conformance_error), Err(proxy_error)) => Err(format!(
+            "{conformance_error}; probe proxy fixture also failed: {proxy_error}"
+        )),
+    }
 }
 
 pub async fn locked_real_sing_box_runs_the_shared_core_conformance_suite() -> Result<(), String> {
