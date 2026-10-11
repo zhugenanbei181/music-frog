@@ -32,10 +32,22 @@ internal data class NativeVpnCoreScope(
     val sessionToken: String,
 )
 
+@JvmInline
+internal value class VpnOwnerDataRevision(val value: ULong) {
+    init {
+        require(value != 0uL)
+    }
+
+    companion object {
+        fun fromWire(value: ULong): VpnOwnerDataRevision? =
+            if (value == 0uL) null else VpnOwnerDataRevision(value)
+    }
+}
+
 internal data class NativePreparedVpnConfiguration(
     val preparationId: ULong,
     val vpnGeneration: ULong,
-    val ownerDataRevision: ULong,
+    val ownerDataRevision: VpnOwnerDataRevision,
     val coreScope: NativeVpnCoreScope,
     val configuration: NativeVpnConfiguration,
 ) {
@@ -47,8 +59,10 @@ internal data class NativePreparedVpnConfiguration(
             }
             val preparationId = json.unsigned("preparation_id") ?: return null
             val vpnGeneration = json.unsigned("vpn_generation") ?: return null
-            val ownerDataRevision = json.unsigned("owner_data_revision") ?: return null
-            if (preparationId == 0uL || vpnGeneration == 0uL || ownerDataRevision == 0uL) return null
+            val ownerDataRevision = VpnOwnerDataRevision.fromWire(
+                json.unsigned("owner_data_revision") ?: return null,
+            ) ?: return null
+            if (preparationId == 0uL || vpnGeneration == 0uL) return null
 
             val scopeJson = json.getJSONObject("core_scope")
             if (!scopeJson.hasOnly("engine_id", "instance_id", "version", "generation", "session_token")) {

@@ -11,13 +11,13 @@ internal sealed interface VpnConfigurationActivationAdmission {
     ) : VpnConfigurationActivationAdmission
 
     data class StaleOwnerData(
-        val expectedRevision: ULong,
-        val observedRevision: ULong,
+        val expectedRevision: VpnOwnerDataRevision,
+        val observedRevision: VpnOwnerDataRevision,
     ) : VpnConfigurationActivationAdmission
 
     data class PreparedRevisionMismatch(
-        val preparedRevision: ULong,
-        val requestedRevision: ULong,
+        val preparedRevision: VpnOwnerDataRevision,
+        val requestedRevision: VpnOwnerDataRevision,
     ) : VpnConfigurationActivationAdmission
 
     data object Busy : VpnConfigurationActivationAdmission
@@ -32,13 +32,28 @@ internal fun AndroidVpnConfigurationActivationResult.toAdmission(): VpnConfigura
     when (this) {
         is AndroidVpnConfigurationActivationResult.Acquired ->
             VpnConfigurationActivationAdmission.Admitted(lease)
-        is AndroidVpnConfigurationActivationResult.StaleOwnerData ->
-            VpnConfigurationActivationAdmission.StaleOwnerData(expectedRevision, observedRevision)
-        is AndroidVpnConfigurationActivationResult.PreparedRevisionMismatch ->
-            VpnConfigurationActivationAdmission.PreparedRevisionMismatch(
-                preparedRevision,
-                requestedRevision,
-            )
+        is AndroidVpnConfigurationActivationResult.StaleOwnerData -> {
+            val expected = VpnOwnerDataRevision.fromWire(expectedRevision)
+            val observed = VpnOwnerDataRevision.fromWire(observedRevision)
+            if (expected == null || observed == null) {
+                VpnConfigurationActivationAdmission.Failed(
+                    "VPN owner returned an invalid configuration revision",
+                )
+            } else {
+                VpnConfigurationActivationAdmission.StaleOwnerData(expected, observed)
+            }
+        }
+        is AndroidVpnConfigurationActivationResult.PreparedRevisionMismatch -> {
+            val prepared = VpnOwnerDataRevision.fromWire(preparedRevision)
+            val requested = VpnOwnerDataRevision.fromWire(requestedRevision)
+            if (prepared == null || requested == null) {
+                VpnConfigurationActivationAdmission.Failed(
+                    "VPN owner returned an invalid prepared configuration revision",
+                )
+            } else {
+                VpnConfigurationActivationAdmission.PreparedRevisionMismatch(prepared, requested)
+            }
+        }
         AndroidVpnConfigurationActivationResult.Busy -> VpnConfigurationActivationAdmission.Busy
         AndroidVpnConfigurationActivationResult.Missing -> VpnConfigurationActivationAdmission.Missing
         AndroidVpnConfigurationActivationResult.NotReady -> VpnConfigurationActivationAdmission.NotReady
@@ -74,6 +89,29 @@ internal sealed interface VpnConfigurationActivationReleaseProblem {
 internal sealed interface VpnConfigurationActivationCleanupResult {
     data object Cleared : VpnConfigurationActivationCleanupResult
     data class Failed(val message: String) : VpnConfigurationActivationCleanupResult
+}
+
+internal sealed interface VpnPreparedConfigurationLeaseMatch {
+    data object Matched : VpnPreparedConfigurationLeaseMatch
+    data object TransactionMismatch : VpnPreparedConfigurationLeaseMatch
+    data object StaleGeneration : VpnPreparedConfigurationLeaseMatch
+    data object InvalidLeaseRevision : VpnPreparedConfigurationLeaseMatch
+    data class RevisionMismatch(
+        val preparedRevision: VpnOwnerDataRevision,
+        val leaseRevision: VpnOwnerDataRevision,
+    ) : VpnPreparedConfigurationLeaseMatch
+}
+
+internal fun NativePreparedVpnConfiguration.matchActivationLease(
+    lease: AndroidVpnConfigurationActivationLease,
+): VpnPreparedConfigurationLeaseMatch = when {
+    lease.preparationId != preparationId -> VpnPreparedConfigurationLeaseMatch.TransactionMismatch
+    lease.vpnGeneration != vpnGeneration -> VpnPreparedConfigurationLeaseMatch.StaleGeneration
+    else -> when (val leaseRevision = VpnOwnerDataRevision.fromWire(lease.ownerDataRevision)) {
+        null -> VpnPreparedConfigurationLeaseMatch.InvalidLeaseRevision
+        ownerDataRevision -> VpnPreparedConfigurationLeaseMatch.Matched
+        else -> VpnPreparedConfigurationLeaseMatch.RevisionMismatch(ownerDataRevision, leaseRevision)
+    }
 }
 
 internal fun VpnConfigurationActivationLeaseState.afterReleaseAttempt(
@@ -151,20 +189,38 @@ internal fun VpnConfigurationActivationLeaseState.afterCancellation(
 }
 
 internal inline fun <T> withVpnConfigurationActivation(
+    prepared: NativePreparedVpnConfiguration,
     admission: VpnConfigurationActivationAdmission,
     release: (AndroidVpnConfigurationActivationLease) -> Unit,
-    execute: (AndroidVpnConfigurationActivationLease) -> T,
+    execute: (NativeVpnConfiguration, AndroidVpnConfigurationActivationLease) -> T,
 ): T = when (admission) {
     is VpnConfigurationActivationAdmission.Admitted -> try {
-        execute(admission.lease)
+        when (val leaseMatch = prepared.matchActivationLease(admission.lease)) {
+            VpnPreparedConfigurationLeaseMatch.Matched ->
+                execute(prepared.configuration, admission.lease)
+            VpnPreparedConfigurationLeaseMatch.TransactionMismatch -> throw IOException(
+                "VPN activation lease does not match the frozen preparation transaction",
+            )
+            VpnPreparedConfigurationLeaseMatch.StaleGeneration -> throw IOException(
+                "VPN activation lease belongs to a different VPN generation",
+            )
+            VpnPreparedConfigurationLeaseMatch.InvalidLeaseRevision -> throw IOException(
+                "VPN activation lease returned an invalid owner-data revision",
+            )
+            is VpnPreparedConfigurationLeaseMatch.RevisionMismatch -> throw IOException(
+                "VPN activation lease does not match the frozen owner-data revision " +
+                    "(${prepared.ownerDataRevision.value} != ${leaseMatch.leaseRevision.value})",
+            )
+        }
     } finally {
         release(admission.lease)
     }
     is VpnConfigurationActivationAdmission.StaleOwnerData -> throw IOException(
-        "Prepared VPN owner data is stale (expected ${admission.expectedRevision}, observed ${admission.observedRevision})",
+        "Prepared VPN owner data is stale (expected ${admission.expectedRevision.value}, observed ${admission.observedRevision.value})",
     )
     is VpnConfigurationActivationAdmission.PreparedRevisionMismatch -> throw IOException(
-        "Prepared VPN revision does not match activation request (${admission.preparedRevision} != ${admission.requestedRevision})",
+        "Prepared VPN revision does not match activation request " +
+            "(${admission.preparedRevision.value} != ${admission.requestedRevision.value})",
     )
     VpnConfigurationActivationAdmission.Busy -> throw IOException(
         "Another VPN configuration activation is in progress",

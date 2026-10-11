@@ -355,7 +355,6 @@ class MihomoVpnService : VpnService() {
                 VpnPreparedConfigurationTakeOutcome.AlreadyConsumed ->
                     throw IOException("VPN Builder configuration was already consumed")
             }
-            val configuration = prepared.configuration
             val routing = when (val loaded = loadVpnRoutingConfiguration()) {
                 is VpnRoutingConfiguration.Ready -> loaded
                 is VpnRoutingConfiguration.Failed -> throw IOException(loaded.message)
@@ -369,9 +368,10 @@ class MihomoVpnService : VpnService() {
             val configurationAdmission = androidBeginVpnConfigurationActivation(
                 preparationId,
                 generation.toULong(),
-                prepared.ownerDataRevision,
+                prepared.ownerDataRevision.value,
             ).toAdmission()
             withVpnConfigurationActivation(
+                prepared = prepared,
                 admission = configurationAdmission,
                 release = { lease ->
                     when (val state = releaseConfigurationActivation(generation, lease)) {
@@ -386,14 +386,7 @@ class MihomoVpnService : VpnService() {
                         )
                     }
                 },
-                execute = { configurationLease ->
-                    if (
-                        configurationLease.preparationId != preparationId ||
-                        configurationLease.vpnGeneration != generation.toULong() ||
-                        configurationLease.ownerDataRevision != prepared.ownerDataRevision
-                    ) {
-                        throw IOException("VPN activation lease does not match the frozen configuration")
-                    }
+                execute = { configuration, configurationLease ->
                     if (!lifecycle.isCurrent(generation)) return
 
                     val builder = Builder().setMtu(configuration.mtu)

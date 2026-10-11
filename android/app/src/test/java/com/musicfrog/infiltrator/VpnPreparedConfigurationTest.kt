@@ -10,7 +10,7 @@ class VpnPreparedConfigurationTest {
 
         assertEquals(21uL, prepared?.preparationId)
         assertEquals(8uL, prepared?.vpnGeneration)
-        assertEquals(44uL, prepared?.ownerDataRevision)
+        assertEquals(VpnOwnerDataRevision.fromWire(44uL), prepared?.ownerDataRevision)
         assertEquals("mihomo", prepared?.coreScope?.engineId)
         assertEquals("primary", prepared?.coreScope?.instanceId)
         assertEquals(17uL, prepared?.coreScope?.generation)
@@ -24,6 +24,12 @@ class VpnPreparedConfigurationTest {
             null,
             NativePreparedVpnConfiguration.parse(
                 PREPARED_CONFIGURATION.replace("\"owner_data_revision\": 44,", ""),
+            ),
+        )
+        assertEquals(
+            null,
+            NativePreparedVpnConfiguration.parse(
+                PREPARED_CONFIGURATION.replace("\"owner_data_revision\": 44", "\"owner_data_revision\": 0"),
             ),
         )
         assertEquals(
@@ -63,7 +69,7 @@ class VpnPreparedConfigurationTest {
         val store = VpnPreparedConfigurationStore()
         val first = requireNotNull(NativePreparedVpnConfiguration.parse(PREPARED_CONFIGURATION))
         assertEquals(VpnPreparedConfigurationInstallOutcome.Installed, store.install(first))
-        assertEquals(44uL, first.ownerDataRevision)
+        assertEquals(VpnOwnerDataRevision.fromWire(44uL), first.ownerDataRevision)
         assertEquals(VpnPreparedConfigurationClearOutcome.Cleared, store.clearThrough(8uL))
         assertEquals(VpnPreparedConfigurationTakeOutcome.Missing, store.take(8uL, 21uL))
 
