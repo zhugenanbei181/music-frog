@@ -8,11 +8,12 @@
 
 ## 工作规则
 
+- **所有 Agent 与贡献者的状态建模硬规则：** 多阶段流程必须用显式 enum/sealed 状态和合法迁移表达，调用端穷尽处理；禁止用多个 bool、Option/null 或标志位组合藏出隐式状态机。bool 只表示真实二值事实。新增或修改这类流程时，必须通过 typed-state 质量门禁。
 - 文档引用遵守单向层级：L0（本文件）→ L1（根 README、TESTING、第三方声明与文档地图）→ L2（跨 crate/surface 公共契约，含共享 UI contract）→ L3（具体 crate、Android、资源和工具实现细则）→ L4（本地 TODO 叶台账）。只允许同级或向下引用，包含 Markdown 链接及正文中的文档路径；实现细则和叶台账不得回引上位契约，公共入口负责向下导航。门禁按文件范围分配层级，校验头部声明与范围一致，并拒绝未登记 Markdown，不能靠改层级声明绕过反向引用检查。
 - 新功能先查 [owner 表](docs/FUNCTIONAL_MAP.md)，按 [架构边界](docs/ARCHITECTURE.md) 修改；每项事实只留一个权威来源。
-- **强制 typed-state：** 多阶段操作必须用显式 enum/sealed 表达互斥状态和合法迁移；禁止用多个 bool 或 Option 组合藏出隐式状态机。适用于所有语言与层；bool 仅表示真实二值事实。执行细则见 [质量底线](docs/CODE_QUALITY_BASELINE.md)。
+- typed-state 的实现细则见 [质量底线](docs/CODE_QUALITY_BASELINE.md)。
 - 每个新功能切片都先盘点会被新语义取代的旧入口和旧描述；先迁完全部生产消费者，再在同一切片删除旧公开接口、命令、port、DTO、FFI/wire、兼容分支、重复状态表达与过期产品文案。以仓库搜索确认受影响范围内旧符号和旧说法已清零，并以新契约行为测试取代旧路径测试。不得因为旧入口仍能编译、暂时有调用点或“以后再清理”而保留新旧双轨、fallback、重复描述或仅换名入口。只有读取历史持久化格式时可保留旧格式，并且必须由显式版本迁移器隔离。Core 后端的具体约束见 [Core 后端契约](docs/CORE_BACKENDS.md)。
-- UI 与平台规则分别见 [共享 UI 契约](crates/infiltrator-contract/docs/README.md)、[Bevy 文档](crates/infiltrator-bevy-ui/docs/README.md) 和 [Android 文档](android/docs/README.md)。**Bevy UI 新代码必须先读并遵守 [Bevy 0.20 UI 能力规范](crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md)**：rem/em 尺寸随 `RemSize` 缩放、`ThemeContext` 两段式主题、官方 headless 控件优先（TabList/Dialog/Popover/Menu）、`FixedNode` 悬浮层、`InlineBox` 行内内容、`bsn_list!`/`Ready`/`despawn_all`；能显式状态化的一律用枚举/组件状态机，不写散布的 bool + if/else。
+- UI 与平台规则分别见 [共享 UI 契约](crates/infiltrator-contract/docs/README.md)、[Bevy 文档](crates/infiltrator-bevy-ui/docs/README.md) 和 [Android 文档](android/docs/README.md)。**Bevy UI 新代码必须先读并遵守 [Bevy 0.20 UI 能力规范](crates/infiltrator-bevy-ui/docs/BEVY_020_UI_CAPABILITIES.md)**：rem/em 尺寸随 `RemSize` 缩放、`ThemeContext` 两段式主题、官方 headless 控件优先（TabList/Dialog/Popover/Menu）、`FixedNode` 悬浮层、`InlineBox` 行内内容、`bsn_list!`/`Ready`/`despawn_all`。
 - 不支持标为 `unsupported`；没有对应证据不写“已验证”。代码规则与验证入口见 [质量底线](docs/CODE_QUALITY_BASELINE.md) 和 [TESTING.md](TESTING.md)。
 
 - 修改 Iced/Bevy 通用组件前，先读 [跨产品共享包契约](docs/SHARED_UI_PACKAGES.md)：
